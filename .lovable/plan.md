@@ -1,74 +1,165 @@
+# Stato Progetto — Aggiornato
 
-
-# Analisi Corretto Funzionamento — Modulo Preventivi
-
-Ho analizzato tutte le componenti del modulo (DB, frontend, edge functions) e ho trovato **diversi problemi critici** che impediscono il funzionamento corretto. Ecco il riepilogo:
-
----
-
-## Bug Critici (impediscono il funzionamento)
-
-### 1. Column mismatch: `pdf_url` vs `pdf_storage_path`
-- **DB** ha la colonna `pdf_storage_path`
-- **Edge functions** (`generate-quote-pdf`, `quote-sign`) usano `pdf_url` che **non esiste**
-- Il PDF non viene salvato nel DB e non viene mostrato nella pagina firma
-- **Fix**: Aggiornare le edge functions per usare `pdf_storage_path`
-
-### 2. Column mismatch: `valid_until` vs `expires_at`
-- **DB** ha la colonna `expires_at`
-- **Edge functions** (`quote-sign`, `send-quote-signature`, `generate-quote-pdf`) usano `valid_until` che **non esiste**
-- Il check scadenza non funziona, la data validità non appare nell'email ne nel PDF
-- **Fix**: Aggiornare le edge functions per usare `expires_at`
-
-### 3. Column mismatch: `file_path` vs `storage_path` (quote_pdf_materials)
-- **DB** ha `storage_path`
-- **Edge function** `generate-quote-pdf` seleziona `file_path` che **non esiste**
-- I PDF allegati non vengono mai incorporati nel documento generato
-- **Fix**: Aggiornare la select nella edge function a `storage_path`
-
-### 4. `expires_at` mai calcolata
-- Il `QuoteBuilder` salva `validity_days` ma non calcola `expires_at` (data effettiva di scadenza)
-- L'edge function `quote-sign` controlla `expires_at` per la scadenza, ma è sempre `NULL`
-- I preventivi non scadono mai
-- **Fix**: Calcolare `expires_at = now() + validity_days * interval '1 day'` nel QuoteBuilder (o meglio con un trigger DB)
-
-### 5. Storage policies mancanti
-- I bucket `quote-materials` e `quote-pdfs` esistono ma **non hanno policy RLS**
-- Gli upload/download dei PDF falliranno con errore 403 per gli utenti autenticati
-- Le edge functions usano `service_role` quindi funzionano, ma il frontend (SettingsQuoteMaterials) usa il client anon
-- **Fix**: Creare policy per upload/read/delete sui bucket
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
 ---
 
-## Bug Minori (funzionamento parziale)
-
-### 6. Duplicazione preventivo — colonne inesistenti nello spread
-- In `Preventivi.tsx` la destructuring include `pdf_storage_path` (OK) ma non gestisce `expires_at` — la duplica includerà una data di scadenza vecchia
-- **Fix**: Aggiungere `expires_at` alla destructuring e ricalcolarla
-
-### 7. Edge function `send-quote-signature` — riferimento a `quote.total`
-- La colonna `total` nel DB è di tipo `numeric`, non `number` — `toFixed(2)` dovrebbe funzionare ma il valore arriva come stringa da Supabase
-- Rischio minore, ma meglio fare un cast: `Number(quote.total || 0).toFixed(2)`
-
-### 8. QuoteSignPage — errori silenziosi
-- I `catch` nei handler `handleSign` e `handleRefuse` sono vuoti — l'utente non vede mai un messaggio di errore
-- **Fix**: Aggiungere `toast.error` o un messaggio visivo
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
 ---
 
-## Piano di Fix
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-### Migration SQL
-- Creare storage policies per `quote-materials` e `quote-pdfs`
-- Opzionalmente: trigger per calcolare `expires_at` automaticamente da `validity_days`
+---
 
-### Edge Functions (3 file)
-- `generate-quote-pdf`: `pdf_url` → `pdf_storage_path`, `valid_until` → `expires_at`, `file_path` → `storage_path`
-- `send-quote-signature`: `valid_until` → `expires_at`
-- `quote-sign`: `pdf_url` → `pdf_storage_path`, `valid_until` → `expires_at`
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-### Frontend (3 file)
-- `QuoteBuilder.tsx`: calcolare `expires_at` nel save
-- `Preventivi.tsx`: aggiungere `expires_at` alla destructuring nella duplicazione
-- `QuoteSignPage.tsx`: aggiungere error handling nei catch
+---
 
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+
+---
+
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+
+---
+
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+
+---
+
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
+
+---
+
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
