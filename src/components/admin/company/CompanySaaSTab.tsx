@@ -98,6 +98,9 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
 
   return (
     <div className="space-y-6">
+      {/* Addon a Pagamento */}
+      {company && <CompanyAddonsSection company={company} />}
+
       {/* Piano e limiti */}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
