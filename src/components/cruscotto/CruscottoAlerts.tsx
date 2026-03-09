@@ -145,6 +145,30 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
     });
   }
 
+  // Invoice alerts (from real invoices data)
+  if (invoiceStats) {
+    if (invoiceStats.overdue_count > 0) {
+      alerts.push({
+        id: "overdue-invoices",
+        level: "critical",
+        icon: FileText,
+        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (€${Math.round(invoiceStats.overdue_amount).toLocaleString("it-IT")})`,
+        action: "Verificare incassi e sollecitare pagamenti",
+        link: "/azienda/fatturazione/scadenzario",
+      });
+    }
+    if (invoiceStats.due_this_week_count > 0) {
+      alerts.push({
+        id: "due-this-week-invoices",
+        level: "warning",
+        icon: FileText,
+        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (€${Math.round(invoiceStats.due_this_week_amount).toLocaleString("it-IT")})`,
+        action: "Monitorare incassi previsti",
+        link: "/azienda/fatturazione/scadenzario",
+      });
+    }
+  }
+
   // Sort: critical first, then warning, then info
   const sortedAlerts = [...alerts].sort((a, b) => {
     const order = { critical: 0, warning: 1, info: 2 };
