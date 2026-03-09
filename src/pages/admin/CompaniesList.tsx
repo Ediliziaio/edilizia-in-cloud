@@ -546,6 +546,10 @@ export default function CompaniesList() {
                           />
                         </TableCell>
                         <TableCell className="w-10 px-2">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : company.id); }}>
+                            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                          </Button>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             {company.logo_url ? (
