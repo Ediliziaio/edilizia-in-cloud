@@ -180,7 +180,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
       { id: "order_created", label: "Ordine creato", icon: "Plus", category: "ordini", description: "Quando viene creato un nuovo ordine", availableVariables: ORDER_VARIABLES },
       { id: "order_updated", label: "Ordine modificato", icon: "Edit", category: "ordini", description: "Quando un ordine viene aggiornato", availableVariables: ORDER_VARIABLES },
       { id: "order_status_changed", label: "Stato ordine cambiato", icon: "RefreshCw", category: "ordini", description: "Quando lo stato di un ordine cambia", availableVariables: [...ORDER_VARIABLES, { key: "_old.current_status_id", label: "Stato precedente" }] },
-      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente" },
+      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente" },
       { id: "order_completed", label: "Ordine completato", icon: "CheckCircle", category: "ordini", description: "Quando un ordine viene completato", availableVariables: ORDER_VARIABLES },
     ],
   },
