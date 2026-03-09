@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, Trash2, Save, Send, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Send, Loader2, AlertTriangle, Download } from "lucide-react";
 
 interface InvoiceLine {
   id?: string;
@@ -299,6 +299,25 @@ export default function InvoiceEditor() {
     onSettled: () => setSaving(false),
   });
 
+  const downloadPdf = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoice_id: id },
+      });
+      if (error) throw error;
+      const html = data?.html;
+      if (!html) throw new Error("Empty response");
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => w.print(), 500);
+      }
+    } catch (e) {
+      toast.error("Errore generazione PDF", { description: String(e) });
+    }
+  };
+
   const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
 
   return (
@@ -315,6 +334,11 @@ export default function InvoiceEditor() {
           <Badge variant="secondary" className="bg-amber-100 text-amber-800">
             Fattura emessa — non modificabile
           </Badge>
+        )}
+        {id && !isNew && (
+          <Button variant="outline" size="sm" onClick={downloadPdf}>
+            <Download className="h-4 w-4 mr-2" /> Scarica PDF
+          </Button>
         )}
       </div>
 
