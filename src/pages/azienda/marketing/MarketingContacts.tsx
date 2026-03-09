@@ -754,7 +754,7 @@ export default function MarketingContacts() {
       const toCreate: any[] = [];
       const toCreateRows: Record<string, string>[] = [];
 
-      for (const p of parsed) {
+      for (const p of finalParsed) {
         const matchKey = p.data.email
           ? `email:${p.data.email.toLowerCase()}`
           : p.data.phone
