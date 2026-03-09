@@ -208,6 +208,7 @@ export default function CampaignSendSettings() {
     mutationFn: async () => {
       if (!senderEmail) throw new Error("Email del mittente obbligatoria");
       if (!subject) throw new Error("Oggetto obbligatorio");
+      if (abTestEnabled && !abSubjectB?.trim()) throw new Error("Oggetto variante B obbligatorio per A/B test");
 
       // Save settings first
       const payload: Record<string, any> = {
