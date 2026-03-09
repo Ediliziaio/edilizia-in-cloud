@@ -75,7 +75,7 @@ function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars
       return data || [];
     },
     enabled: !!contactId && !!companyId,
-  });
+    staleTime: 120_000,
 
   const now = useMemo(() => new Date(), []);
   const upcoming = appointments.filter((a: any) => new Date(a.appointment_date) >= now && a.status !== "annullato");
