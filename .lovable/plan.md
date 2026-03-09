@@ -1,119 +1,244 @@
 
-# Analisi Tecnica Completa — Bug e Malfunzionamenti Previsti
 
-## Audit metodico delle 3 funzionalità + infrastruttura
+# Piano di Implementazione - Risoluzione Bug Identificati + Configurazione CRON_SECRET
 
-### 1. Timeline Unificata — Bug Confermati
-
-**BUG CRITICO: `(msg as any).direction` — colonna inesistente**
-Confermato con query DB: la tabella `contact_messages` NON ha colonna `direction`. Le colonne sono: `id, contact_id, company_id, channel, content, subject, sent_at, status, sent_by, created_at`.
-Impatto: tutti i messaggi nella timeline mostrano "undefined inviato" anziché il label corretto. La variabile `direction` sarà sempre `undefined`.
-
-**BUG: `(log as any).ab_variant` — workaround fragile**
-Confermato che `ab_variant` ESISTE nella tabella `email_logs`, ma il tipo generato da Supabase non lo include. Il cast `as any` funziona ma è fragile: se il tipo viene rigenerato senza la colonna, si rompe silenziosamente. Non è urgente ma deve essere tipizzato.
-
-**BUG: Appuntamento — `formatted_address` senza fallback**
-La timeline usa `apt.formatted_address` come description, ma questa colonna non è standard nella tabella `appointments`. La query `select("*, marketing_calendars:calendar_id(name)")` fa un join a `marketing_calendars` ma la tabella potrebbe chiamarsi diversamente. Confermato che il join fallisce silenziosamente se la tabella non si chiama `marketing_calendars`.
-
-**BUG: `isLoading` blocca anche i dati già arrivati**
-`const isLoading = loadingAct || loadingMsg || ...` — Se anche solo una query è ancora in loading, mostra tutti i skeleton invece degli eventi già caricati. Con 6 query parallele, questo causa uno skeleton "a scalare" fastidioso.
-
-**PERFORMANCE: nessuna chiave stabile per QueryClient con refetchInterval**
-Con `refetchInterval: 30000` e 6 query attive simultanee per ogni contatto aperto, l'app lancia 6×N richieste ogni 30 secondi (N = contatti aperti in tab). Se l'utente tiene più contatti aperti in background, il carico cresce linearmente.
+## Obiettivo
+Implementare tutti i fix critici identificati nell'audit (P0 e P1) + aggiungere la possibilità di configurare il `CRON_SECRET` dall'interfaccia Super Admin.
 
 ---
 
-### 2. A/B Testing Email — Bug Confermati
+## 1. Timeline Unificata - Fix `direction` Messaggi
 
-**BUG: il cron `determine-ab-winner` usa autenticazione Anon Key**
-Confermato dalla query DB: il cron usa la `anon key` come Authorization header. La Edge Function `determine-ab-winner` però usa direttamente `SUPABASE_SERVICE_ROLE_KEY` internamente e non valida il JWT in ingresso. Non è un bug funzionale, ma è un rischio di sicurezza: chiunque conosca l'URL può triggerare la funzione senza autenticazione reale. Va aggiunto un controllo `CRON_SECRET`.
+**Bug**: `(msg as any).direction` è `undefined` perché la colonna non esiste in `contact_messages`.
 
-**BUG: `isAbTest = campaign.ab_test_enabled && campaign.ab_subject_b`**
-In `send-email-campaign`, se `ab_subject_b` è una stringa vuota `""`, la condizione è `false` anche se `ab_test_enabled = true`. Questo non crash-a, ma significa che il test A/B è silenziosamente disabilitato lato edge function senza alcun log. Il check client-side lo previene, ma se il dato in DB era già vuoto prima della validazione, l'invio va avanti come normale senza A/B.
+**Soluzione**: Derivare direction da `sent_by`:
+```typescript
+const direction = msg.sent_by ? "outbound" : "inbound";
+```
 
-**BUG: `ab_split_percent = 0` causa invio solo a B**
-Se per qualsiasi motivo `abSplitPercent` è 0, `splitIdx = Math.round(0) = 0`, quindi `recipientsA = []` e `recipientsB = tutti`. Nessun controllo sul valore minimo/massimo dello slider. Il slider ha range 10-90% nell'UI ma il valore DB potrebbe essere 0 per campagne create prima della migrazione.
-
-**BUG: statistiche A/B non si aggiornano in tempo reale**
-`CampaignAbResults` usa `useQuery` senza `refetchInterval`. Se il cron determina il vincitore mentre l'utente guarda la pagina, dovrà ricaricare manualmente per vederlo. Non grave ma subottimale per UX.
-
-**BUG: campagna senza `completed_at` non viene mai processata dal cron**
-Nel cron: `.not("completed_at", "is", null)` — una campagna che fallisce parzialmente potrebbe avere `completed_at = null` se il codice nella edge function ha un exception prima del `completed_at` update. Il cron la ignora per sempre.
+**File**: `src/components/marketing/UnifiedContactTimeline.tsx`
+- Riga 229: Sostituire `const direction = (msg as any).direction;` con logica derivata
 
 ---
 
-### 3. Import/Export CSV — Bug Confermati
+## 2. Import CSV - Fix Duplicati Interni Non Rimossi
 
-**BUG: Export con `finalIds` molto grandi → query `.in()` crasha o è lenta**
-Confermato: quando si esportano tutti i contatti filtrati, `finalIds` può contenere migliaia di ID. La chiamata `.in("id", finalIds)` con > ~5000 elementi può generare una query SQL troppo lunga che supera i limiti di Supabase/Postgres. Non c'è chunking della `.in()` durante l'export.
+**Bug**: I duplicati rilevati vengono loggati in `errors[]` ma non vengono effettivamente rimossi dall'array `parsed`, quindi vengono creati come nuove righe.
 
-**BUG: Duplicati interni nel file non bloccano l'insert**
-Il codice rileva i duplicati e li registra in `errors[]`, ma non rimuove la riga duplicata da `parsed`. Nella modalità `create`, entrambe le righe vengono inserite. La prima riga duplicata nell'errore non è rimossa da `toInsert`.
+**Soluzione**: Dopo il loop di rilevamento duplicati (riga 650-660), filtrare `parsed` per rimuovere le righe duplicate dalla seconda occorrenza in poi.
 
-**BUG: `handleImport` in modalità `update` con solo phone (no email) non funziona correttamente**
-Il lookup delle email fa un batch da 100, ma poi il lookup dei telefoni fa un altro batch separato. Se un contatto ha email NULL ma phone corrispondente, il `matchKey` diventa `phone:xxx`. Tuttavia la query phone lookup usa `.in("phone", batch)` su Supabase che è case-sensitive per i numeri — questo è OK. Ma se il numero nel file ha spazi o prefisso diverso (`+39 333` vs `+39333`), non c'è normalizzazione.
-
-**BUG: `search` nella query principale non è incluso nei filtri di export**
-L'export applica i `filters` (gruppi avanzati) ma ignora la stringa di `search` attiva nella barra principale. Se l'utente ha cercato "Mario" e vuole esportare i risultati visibili, l'export includerà TUTTI (o tutti i filtrati, ma non quelli filtrati dalla ricerca testuale).
-
-**BUG: `custom_field_values` export query senza chunking**
-La query `.in("contact_id", ids)` per i valori custom viene eseguita con TUTTI gli ID dell'export in una volta. Per export da migliaia di contatti, potrebbe superare i limiti di Supabase.
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx`
+- Righe 650-660: Aggiungere Set per tracciare email già viste e rimuovere duplicati da `parsed`
 
 ---
 
-## Riepilogo Bug per Priorità
+## 3. Export CSV - Applicare `search` ai Filtri
+
+**Bug**: La stringa di ricerca attiva nella barra principale (`search`) non viene applicata alla query di export.
+
+**Soluzione**: Aggiungere un filtro `.or()` sulla query principale quando `search` non è vuoto.
+
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx`
+- Funzione `doExport`, riga 157-162: Aggiungere controllo `if (search)` e applicare filtro testuale su first_name/last_name/email
+
+---
+
+## 4. Export CSV - Chunking per `.in()` Query
+
+**Bug**: Query `.in("contact_id", ids)` per i custom field values non ha chunking, può superare i limiti Supabase con grandi dataset.
+
+**Soluzione**: Implementare loop di chunking con batch size 2000.
+
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx`
+- Riga 199-202: Sostituire query singola con loop di chunking
+
+---
+
+## 5. A/B Testing - Clamp `ab_split_percent`
+
+**Bug**: Se `ab_split_percent` è 0, `recipientsA` risulta vuoto e tutto viene inviato a variante B.
+
+**Soluzione**: Aggiungere validazione per clampare il valore tra 10 e 90.
+
+**File**: `supabase/functions/send-email-campaign/index.ts`
+- Riga 191: Aggiungere `const abSplitPercent = Math.max(10, Math.min(90, campaign.ab_split_percent ?? 50));`
+
+---
+
+## 6. A/B Results - Auto-Refresh con `refetchInterval`
+
+**Bug**: Le statistiche A/B non si aggiornano automaticamente quando il cron determina il vincitore.
+
+**Soluzione**: Aggiungere `refetchInterval: 60000` e `refetchIntervalInBackground: false` alla query.
+
+**File**: `src/components/email-marketing/CampaignAbResults.tsx`
+- Riga 39-63: Aggiungere opzioni refetch alla useQuery esistente
+
+---
+
+## 7. Determine Winner Cron - Sicurezza CRON_SECRET
+
+**Problema**: La Edge Function `determine-ab-winner` è esposta pubblicamente senza autenticazione.
+
+**Soluzione Multi-Step**:
+
+### A. Backend - Aggiungere Validazione Edge Function
+**File**: `supabase/functions/determine-ab-winner/index.ts`
+```typescript
+// All'inizio della funzione (dopo OPTIONS)
+const cronSecret = req.headers.get("x-cron-secret");
+const expectedSecret = Deno.env.get("CRON_SECRET");
+
+if (expectedSecret && cronSecret !== expectedSecret) {
+  return new Response(
+    JSON.stringify({ error: "Unauthorized" }),
+    { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+```
+
+### B. Frontend - Aggiungere UI per Configurazione CRON_SECRET
+**File**: `src/components/admin/settings/AdminSettingsIntegrations.tsx`
+
+Aggiungere:
+- Un nuovo campo `cron_secret` nello state `values`
+- Una nuova Card "Sicurezza Automazioni" con:
+  - Input per `cron_secret` con toggle show/hide
+  - Pulsante "Genera Automatico" per creare un secret casuale
+  - Descrizione: "Token di sicurezza per proteggere i cron job automatici (A/B Testing, Trial Expiry, ecc.)"
+- Aggiornare `META_KEYS` in `const ALL_KEYS = [...META_KEYS, "cron_secret"]`
+- Aggiornare `useEffect` per caricare anche `cron_secret`
+- Aggiornare `handleSave` per salvare anche `cron_secret` in `platform_settings`
+
+### C. Database - Update Migration Cron Job
+**NON POSSIAMO** modificare il cron esistente via SQL migration (contiene dati specifici del progetto).
+
+**ALTERNATIVA**: Documentare che l'admin deve aggiungere manualmente l'header al cron job esistente tramite dashboard Supabase o SQL editor:
+
+```sql
+-- Aggiornare il cron job esistente per includere x-cron-secret header
+-- NOTA: Eseguire manualmente via Supabase SQL Editor
+UPDATE cron.job
+SET command = $$
+  select net.http_post(
+    url:='https://guqgszwelffntrgtsycm.supabase.co/functions/v1/determine-ab-winner',
+    headers:=jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.settings.anon_key'),
+      'x-cron-secret', (SELECT value FROM platform_settings WHERE key = 'cron_secret')
+    ),
+    body:=jsonb_build_object('time', now())
+  ) as request_id;
+$$
+WHERE jobname = 'determine-ab-winner-hourly';
+```
+
+**PROBLEMA**: Non possiamo automatizzare questo update perché il cron job potrebbe non esistere o potrebbe avere un URL diverso.
+
+**SOLUZIONE MIGLIORE**: 
+1. Aggiungere l'UI per configurare il secret
+2. Aggiungere una Card "Istruzioni Cron Job" che mostra:
+   - Lo snippet SQL da copiare/incollare con il secret configurato
+   - Link alla documentazione Supabase per i cron job
+   - Badge di stato "Configurato" / "Da Configurare" basato sulla presenza del secret
+
+---
+
+## 8. Determine Winner - Gestire `completed_at = NULL`
+
+**Bug**: Campagne con `completed_at` NULL non vengono mai processate dal cron.
+
+**Soluzione**: Cambiare il filtro da `.not("completed_at", "is", null)` per gestire anche le campagne fallite parzialmente.
+
+**File**: `supabase/functions/determine-ab-winner/index.ts`
+- Riga 22: Aggiungere logica alternativa per campagne senza `completed_at` usando `sent_at` + safe guard
+
+---
+
+## Struttura Files Modificati
 
 ```
-PRIORITÀ 0 — Funzionalità rotta visivamente
-─────────────────────────────────────────
-[Timeline]  msg.direction = undefined → tutti i messaggi mostrano label sbagliato
-[Import]    duplicati interni non rimossi da parsed → righe doppie create
-
-PRIORITÀ 1 — Dati silenziosamente sbagliati
-─────────────────────────────────────────
-[A/B Test]  ab_split_percent = 0 → recipientsA vuoto, tutto mandato a B
-[Export]    search bar non applicata all'export → dati inconsistenti con vista
-[Export]    .in(finalIds) senza chunking → possibile 414/timeout su >5k IDs
-[A/B Test]  ab_winner non si aggiorna in UI senza reload
-
-PRIORITÀ 2 — Sicurezza / Robustezza
-─────────────────────────────────────────
-[Cron]      determine-ab-winner senza autenticazione → esposto pubblicamente
-[A/B Test]  campagna con completed_at=null non viene mai processata
-[Export]    custom field values query senza chunking
-[Timeline]  isLoading bloccante su tutte le 6 query
+src/
+├── components/
+│   ├── marketing/
+│   │   └── UnifiedContactTimeline.tsx    [FIX: direction derivato]
+│   ├── email-marketing/
+│   │   └── CampaignAbResults.tsx         [ADD: refetchInterval]
+│   └── admin/
+│       └── settings/
+│           └── AdminSettingsIntegrations.tsx  [ADD: CRON_SECRET UI + Card]
+├── pages/
+│   └── azienda/
+│       └── marketing/
+│           └── MarketingContacts.tsx     [FIX: duplicati, search, chunking]
+supabase/
+└── functions/
+    ├── send-email-campaign/
+    │   └── index.ts                      [FIX: ab_split clamp]
+    └── determine-ab-winner/
+        └── index.ts                      [ADD: CRON_SECRET validation, FIX: completed_at null]
 ```
 
-## Interventi Proposti
+---
 
-### Fix 1 — Timeline: `direction` mancante
-Sostituire `(msg as any).direction` con un campo derivato. I messaggi in `contact_messages` hanno `sent_by` (UUID) — se `sent_by` è NULL si tratta di un messaggio inbound, altrimenti outbound.
-```
-direction = msg.sent_by ? "outbound" : "inbound"
-```
+## Dettaglio Implementazione CRON_SECRET UI
 
-### Fix 2 — Import: rimuovere duplicati da `parsed`
-Dopo il loop di rilevamento duplicati, filtrare `parsed` per rimuovere le righe con email già vista. Prima occorrenza = mantenuta, successive = saltate + errore.
+### Card "Sicurezza Automazioni"
 
-### Fix 3 — Export: applicare `search` ai filtri
-Passare `search` come parametro a `doExport` e applicarlo alla query principale come il filtro testuale della vista.
+**Posizionamento**: Dopo la card Meta in `AdminSettingsIntegrations.tsx`
 
-### Fix 4 — Export/Import: chunking `.in(ids)`
-Aggiungere loop di chunking a blocchi di 2000 per qualsiasi query che usa `.in("id", largeArray)` o `.in("contact_id", largeArray)`.
+**Contenuto**:
+1. **Header**: "Sicurezza Automazioni" + descrizione breve
+2. **Input Field**: 
+   - Label: "CRON Secret Token"
+   - Type: password con toggle eye icon
+   - Placeholder: "Lascia vuoto per disabilitare la verifica"
+   - Helper text: "Token di sicurezza per proteggere le edge functions schedulate (A/B test winner, auto-expire trials, ecc.)"
+3. **Generate Button**: 
+   - Label: "Genera Automatico"
+   - Action: Crea un UUID o stringa random di 32 caratteri
+4. **Instructions Accordion**:
+   - Title: "Istruzioni Configurazione Cron Job"
+   - Content: SQL snippet con placeholder `{{CRON_SECRET}}` sostituito dal valore attuale
+   - Copy button per copiare lo snippet
+   - Badge status: "Secret Configurato" (green) se non vuoto, "Secret Non Configurato" (yellow) se vuoto
 
-### Fix 5 — A/B Split: validare range `abSplitPercent`
-Aggiungere `Math.max(10, Math.min(90, abSplitPercent))` nella edge function prima del calcolo di `splitIdx`.
+---
 
-### Fix 6 — A/B Winner UI: refetch automatico
-Aggiungere `refetchInterval: 60000` e `refetchIntervalInBackground: false` alla query di `CampaignAbResults`.
+## Testing Plan
 
-### Fix 7 — Cron sicurezza: CRON_SECRET
-Aggiungere header `x-cron-secret` al cron job e verifica lato edge function.
+### Automatico (dopo deployment)
+1. Verificare che la timeline mostri correttamente "inviato/ricevuto" sui messaggi
+2. Verificare che l'import CSV rimuova i duplicati interni dal file
+3. Verificare che l'export CSV rispetti la stringa di search attiva
+4. Verificare che l'export CSV non crashi con >5000 contatti
+5. Verificare che il cron job A/B winner funzioni senza secret (backward compatibility)
 
-## File da modificare
+### Manuale (da parte dell'utente)
+1. Generare un CRON_SECRET dall'interfaccia admin
+2. Copiare lo snippet SQL e eseguirlo su Supabase
+3. Verificare che il cron job continui a funzionare con il secret configurato
+4. Verificare che chiamate senza header `x-cron-secret` vengano rifiutate (401)
 
-- `src/components/marketing/UnifiedContactTimeline.tsx` — Fix `direction`, `isLoading` parziale
-- `src/pages/azienda/marketing/MarketingContacts.tsx` — Fix duplicati import, search in export, chunking
-- `src/components/email-marketing/CampaignAbResults.tsx` — refetchInterval
-- `supabase/functions/send-email-campaign/index.ts` — Fix split percent clamp
-- `supabase/functions/determine-ab-winner/index.ts` — Fix completed_at=null e sicurezza
+---
+
+## Note di Sicurezza
+
+- Il CRON_SECRET viene salvato in `platform_settings` come testo semplice (non encrypted)
+- È accessibile solo ai Super Admin tramite RLS policies
+- La validazione nella Edge Function è opzionale (se `CRON_SECRET` env var non è impostata, viene saltata)
+- Backward compatibility: vecchi cron job senza header continuano a funzionare se il secret non è configurato
+
+---
+
+## Ordine di Implementazione
+
+1. ✅ Fix Timeline (direction) - P0, immediato
+2. ✅ Fix Import (duplicati) - P0, immediato  
+3. ✅ Fix Export (search + chunking) - P1, importante
+4. ✅ Fix A/B Split (clamp) - P1, importante
+5. ✅ Fix A/B Results (refetch) - P1, UX
+6. ✅ Add CRON_SECRET UI - P2, sicurezza
+7. ✅ Add CRON_SECRET validation - P2, sicurezza
+8. ✅ Fix Determine Winner (completed_at null) - P2, edge case
+
