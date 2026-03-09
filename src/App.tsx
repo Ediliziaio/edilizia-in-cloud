@@ -77,6 +77,7 @@ const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/Setting
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
+const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
@@ -350,6 +351,7 @@ const App = () => (
                   <Route path="stati-ordine" element={<SettingsOrderStatus />} />
                   <Route path="fornitori" element={<SettingsSuppliers />} />
                   <Route path="categorie-costi" element={<SettingsCostCategories />} />
+                  <Route path="automazioni-finanza" element={<SettingsFinanceAutomation />} />
                   <Route path="tag" element={<SettingsTags />} />
                   <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
                   <Route path="sequenze" element={<SettingsPipelines />} />
