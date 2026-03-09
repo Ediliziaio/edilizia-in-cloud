@@ -172,7 +172,6 @@ export default function MarketingContacts() {
       }
 
       const all = allRows;
-      if (error) throw error;
 
       // Build columns including custom fields
       const baseColumns = [
