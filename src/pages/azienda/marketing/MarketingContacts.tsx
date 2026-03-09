@@ -560,10 +560,19 @@ export default function MarketingContacts() {
     setPage(1);
   };
 
-  const handleImport = async (rows: Record<string, string>[]) => {
+  const handleImport = async (rows: Record<string, string>[], options: { mode: string }) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
-    const toInsert = rows.map((r) => {
+    const mode = options?.mode || "create";
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const errors: string[] = [];
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    // Parse all rows
+    const parsed = rows.map((r, idx) => {
       let firstName = r.first_name?.trim() || "";
       let lastName = r.last_name?.trim() || "";
       if (!firstName && r.fullname?.trim()) {
@@ -571,46 +580,195 @@ export default function MarketingContacts() {
         firstName = parts[0];
         lastName = parts.slice(1).join(" ");
       }
+      const email = r.email?.trim() || null;
+      const phone = r.phone?.trim() || null;
+
+      // Email validation
+      if (email && !emailRegex.test(email)) {
+        errors.push(`Riga ${idx + 2}: email "${email}" non valida`);
+        return null;
+      }
+
       return {
-        company_id: companyId,
-        first_name: firstName || "Senza nome",
-        last_name: lastName || null,
-        phone: r.phone?.trim() || null,
-        email: r.email?.trim() || null,
-        company_name: r.company_name?.trim() || null,
-        city: r.city?.trim() || null,
-        province: r.province?.trim() || null,
-        tags: r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [],
-        notes: r.notes?.trim() || null,
-        source: r.source?.trim() || "importazione",
+        rowIdx: idx,
+        row: r,
+        data: {
+          company_id: companyId,
+          first_name: firstName || "Senza nome",
+          last_name: lastName || null,
+          phone: phone,
+          email: email,
+          company_name: r.company_name?.trim() || null,
+          city: r.city?.trim() || null,
+          province: r.province?.trim() || null,
+          tags: r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [],
+          notes: r.notes?.trim() || null,
+          source: r.source?.trim() || "importazione",
+        },
       };
-    });
+    }).filter(Boolean) as { rowIdx: number; row: Record<string, string>; data: any }[];
 
-    const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
-    if (error) return { success: 0, errors: [error.message] };
+    // Detect internal duplicates by email
+    const seenEmails = new Map<string, number>();
+    for (const p of parsed) {
+      if (p.data.email) {
+        const key = p.data.email.toLowerCase();
+        if (seenEmails.has(key)) {
+          errors.push(`Riga ${p.rowIdx + 2}: email duplicata nel file ("${p.data.email}")`);
+        }
+        seenEmails.set(key, p.rowIdx);
+      }
+    }
 
-    if (data && customKeys.length > 0) {
-      const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
-      data.forEach((contact, idx) => {
-        const row = rows[idx];
-        customKeys.forEach(key => {
-          const val = row[key]?.trim();
-          if (val) {
-            fieldValues.push({
-              contact_id: contact.id,
-              field_id: key.replace("custom_", ""),
-              value: val,
-            });
-          }
+    if (mode === "create") {
+      // Simple insert
+      const toInsert = parsed.map(p => p.data);
+      const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
+      if (error) return { success: 0, errors: [...errors, error.message] };
+      created = data?.length || 0;
+
+      // Custom fields
+      if (data && customKeys.length > 0) {
+        const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
+        data.forEach((contact, idx) => {
+          const row = parsed[idx]?.row;
+          if (!row) return;
+          customKeys.forEach(key => {
+            const val = row[key]?.trim();
+            if (val) {
+              fieldValues.push({ contact_id: contact.id, field_id: key.replace("custom_", ""), value: val });
+            }
+          });
         });
-      });
-      if (fieldValues.length > 0) {
-        await supabase.from("marketing_contact_field_values").insert(fieldValues);
+        if (fieldValues.length > 0) {
+          await supabase.from("marketing_contact_field_values").insert(fieldValues);
+        }
+      }
+    } else {
+      // update or create_and_update: match by email or phone
+      const existingEmails = new Set<string>();
+      const existingPhones = new Set<string>();
+      const existingMap = new Map<string, string>(); // matchKey -> contact id
+
+      // Fetch existing contacts by email/phone
+      const emails = parsed.map(p => p.data.email).filter(Boolean);
+      const phones = parsed.map(p => p.data.phone).filter(Boolean);
+
+      if (emails.length > 0) {
+        // Batch in chunks of 100 for .in()
+        for (let i = 0; i < emails.length; i += 100) {
+          const batch = emails.slice(i, i + 100);
+          const { data: existing } = await supabase
+            .from("marketing_contacts")
+            .select("id, email")
+            .eq("company_id", companyId)
+            .in("email", batch);
+          for (const e of existing || []) {
+            if (e.email) {
+              existingEmails.add(e.email.toLowerCase());
+              existingMap.set(`email:${e.email.toLowerCase()}`, e.id);
+            }
+          }
+        }
+      }
+
+      if (phones.length > 0) {
+        for (let i = 0; i < phones.length; i += 100) {
+          const batch = phones.slice(i, i + 100);
+          const { data: existing } = await supabase
+            .from("marketing_contacts")
+            .select("id, phone")
+            .eq("company_id", companyId)
+            .in("phone", batch);
+          for (const e of existing || []) {
+            if (e.phone) {
+              existingPhones.add(e.phone);
+              existingMap.set(`phone:${e.phone}`, e.id);
+            }
+          }
+        }
+      }
+
+      const toCreate: any[] = [];
+      const toCreateRows: Record<string, string>[] = [];
+
+      for (const p of parsed) {
+        const matchKey = p.data.email
+          ? `email:${p.data.email.toLowerCase()}`
+          : p.data.phone
+          ? `phone:${p.data.phone}`
+          : null;
+
+        const existingId = matchKey ? existingMap.get(matchKey) : null;
+
+        if (existingId) {
+          // Update existing
+          const updateData = { ...p.data };
+          delete updateData.company_id;
+          updateData.updated_at = new Date().toISOString();
+          const { error: updateError } = await supabase
+            .from("marketing_contacts")
+            .update(updateData)
+            .eq("id", existingId);
+          if (updateError) {
+            errors.push(`Riga ${p.rowIdx + 2}: errore aggiornamento - ${updateError.message}`);
+          } else {
+            updated++;
+            // Update custom fields
+            if (customKeys.length > 0) {
+              for (const key of customKeys) {
+                const val = p.row[key]?.trim();
+                if (val) {
+                  await supabase
+                    .from("marketing_contact_field_values")
+                    .upsert({ contact_id: existingId, field_id: key.replace("custom_", ""), value: val }, { onConflict: "contact_id,field_id" });
+                }
+              }
+            }
+          }
+        } else if (mode === "create_and_update") {
+          toCreate.push(p.data);
+          toCreateRows.push(p.row);
+        } else {
+          skipped++;
+        }
+      }
+
+      // Bulk create new ones
+      if (toCreate.length > 0) {
+        const { error, data } = await supabase.from("marketing_contacts").insert(toCreate).select("id");
+        if (error) {
+          errors.push(`Errore creazione: ${error.message}`);
+        } else {
+          created = data?.length || 0;
+          if (data && customKeys.length > 0) {
+            const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
+            data.forEach((contact, idx) => {
+              const row = toCreateRows[idx];
+              if (!row) return;
+              customKeys.forEach(key => {
+                const val = row[key]?.trim();
+                if (val) {
+                  fieldValues.push({ contact_id: contact.id, field_id: key.replace("custom_", ""), value: val });
+                }
+              });
+            });
+            if (fieldValues.length > 0) {
+              await supabase.from("marketing_contact_field_values").insert(fieldValues);
+            }
+          }
+        }
       }
     }
 
     invalidate();
-    return { success: data?.length || 0, errors: [] };
+    const successCount = created + updated;
+    const details: string[] = [];
+    if (created > 0) details.push(`${created} creati`);
+    if (updated > 0) details.push(`${updated} aggiornati`);
+    if (skipped > 0) details.push(`${skipped} saltati (non trovati)`);
+    if (details.length > 0) errors.unshift(`Riepilogo: ${details.join(", ")}`);
+    return { success: successCount, errors };
   };
 
   if (importOpen) {
