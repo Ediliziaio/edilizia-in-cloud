@@ -30,7 +30,7 @@ interface Props {
 }
 
 interface SupplierOption { id: string; name: string }
-interface OrderOption { id: string; order_number: string; client_company_name: string | null }
+interface OrderOption { id: string; order_code: string | null; customers?: { company_name: string | null } | null }
 
 export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPending }: Props) {
   const { effectiveCompany } = useAuth();
