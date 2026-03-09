@@ -541,6 +541,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: !!companyId,
+    staleTime: 600_000,
   });
 
   // ── Fetch call center users for Call Center dropdown ──
