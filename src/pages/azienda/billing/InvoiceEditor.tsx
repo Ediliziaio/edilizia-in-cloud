@@ -319,6 +319,38 @@ export default function InvoiceEditor() {
     }
   };
 
+  // Email send
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  useEffect(() => {
+    if (emailOpen && form.client_email) {
+      setEmailTo(form.client_email);
+    }
+  }, [emailOpen, form.client_email]);
+
+  const sendInvoiceEmail = async () => {
+    if (!emailTo) { toast.error("Inserisci un indirizzo email"); return; }
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-invoice-email", {
+        body: { invoice_id: id, to_email: emailTo, subject: emailSubject || undefined, message: emailMessage || undefined },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Email inviata", { description: `Fattura inviata a ${emailTo}` });
+      setEmailOpen(false);
+      setEmailMessage("");
+    } catch (e) {
+      toast.error("Errore invio email", { description: String(e) });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
 
   return (
