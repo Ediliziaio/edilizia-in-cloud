@@ -121,3 +121,13 @@
 - ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
 - ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
 - ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
