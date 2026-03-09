@@ -407,6 +407,40 @@ export default function SettingsQuoteTemplates() {
                     Pagina 2
                   </Button>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={downloadingPdf}
+                  onClick={async () => {
+                    setDownloadingPdf(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
+                        body: { preview_mode: true, template_data: form, company_name: effectiveCompany?.name },
+                      });
+                      if (error) throw error;
+                      if (!data?.pdf_base64) throw new Error("Nessun PDF ricevuto");
+                      const binary = atob(data.pdf_base64);
+                      const bytes = new Uint8Array(binary.length);
+                      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                      const blob = new Blob([bytes], { type: "application/pdf" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `anteprima-${(form.name || "template").replace(/\s+/g, "-").toLowerCase()}.pdf`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success("PDF scaricato");
+                    } catch (err: any) {
+                      toast.error(err.message || "Errore generazione PDF");
+                    } finally {
+                      setDownloadingPdf(false);
+                    }
+                  }}
+                >
+                  {downloadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                  Scarica PDF Anteprima
+                </Button>
               </CardContent>
             </Card>
           </div>
