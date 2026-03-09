@@ -59,6 +59,13 @@ export default function SettingsQuoteTemplates() {
     setEditing(true);
   };
 
+  const handleDuplicate = (tmpl: QuoteTemplate) => {
+    const { id, created_at, updated_at, ...rest } = tmpl;
+    setEditId(null);
+    setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
+    setEditing(true);
+  };
+
   const handleCancel = () => {
     setEditing(false);
     setEditId(null);
