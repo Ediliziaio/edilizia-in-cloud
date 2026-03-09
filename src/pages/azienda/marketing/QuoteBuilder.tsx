@@ -218,6 +218,9 @@ export default function QuoteBuilder() {
       setNotes(existingQuote.notes || "");
       setInternalNotes(existingQuote.internal_notes || "");
       setDiscountPercent(existingQuote.discount_percent || 0);
+      if ((existingQuote as any).template_id) {
+        setSelectedTemplateId((existingQuote as any).template_id);
+      }
     }
   }, [existingQuote]);
 
