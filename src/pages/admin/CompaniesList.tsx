@@ -99,7 +99,7 @@ export default function CompaniesList() {
     return Comp;
   }, [sortKey, sortDir]);
 
-  const { data: companies = [], isLoading, isError, refetch } = useQuery({
+  const { data: allCompanies = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-companies-full"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -111,6 +111,14 @@ export default function CompaniesList() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Enforce allowed_company_ids for restricted super admins
+  const companies = useMemo(() => {
+    if (permissions.allowed_company_ids?.length) {
+      return allCompanies.filter((c: any) => permissions.allowed_company_ids!.includes(c.id));
+    }
+    return allCompanies;
+  }, [allCompanies, permissions.allowed_company_ids]);
 
   const { data: orderStats = {} } = useQuery({
     queryKey: ["admin-companies-order-stats"],
