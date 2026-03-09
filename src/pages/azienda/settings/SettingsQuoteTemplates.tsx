@@ -41,6 +41,7 @@ export default function SettingsQuoteTemplates() {
   const [editId, setEditId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewPage, setPreviewPage] = useState<'cover' | 'detail'>('cover');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
     setForm(prev => ({ ...prev, ...patch }));
