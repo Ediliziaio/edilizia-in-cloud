@@ -131,6 +131,17 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out", orderId: s.orderId }));
     expectedCompanyCosts.forEach(c => items.push({ date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out", orderId: null }));
 
+    // Add scadenze as transactions
+    scadenzeForForecast.forEach(s => items.push({
+      date: s.expectedDate,
+      description: s.description + (s.supplierName ? ` (${s.supplierName})` : ""),
+      orderCode: s.orderNumber || null,
+      category: `Scadenza: ${s.tipo.replace(/_/g, " ")}`,
+      amount: s.amount,
+      direction: s.direction === "entrata" ? "in" : "out",
+      orderId: s.orderId,
+    }));
+
     return items
       .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
       .filter(t => {
