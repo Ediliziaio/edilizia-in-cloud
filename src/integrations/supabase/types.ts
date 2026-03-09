@@ -2335,6 +2335,14 @@ export type Database = {
           bank_account_holder: string | null
           bank_iban: string | null
           bank_name: string | null
+          brand_accent_color: string | null
+          brand_favicon_url: string | null
+          brand_hide_powered_by: boolean | null
+          brand_login_bg_url: string | null
+          brand_platform_name: string | null
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
+          brand_text_on_primary: string | null
           business_name: string | null
           created_at: string
           dunning_started_at: string | null
@@ -2385,12 +2393,24 @@ export type Database = {
           updated_at: string
           vat_number: string | null
           website: string | null
+          white_label_enabled: boolean
+          white_label_enabled_at: string | null
+          white_label_enabled_by: string | null
+          white_label_monthly_price: number | null
         }
         Insert: {
           allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          brand_accent_color?: string | null
+          brand_favicon_url?: string | null
+          brand_hide_powered_by?: boolean | null
+          brand_login_bg_url?: string | null
+          brand_platform_name?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          brand_text_on_primary?: string | null
           business_name?: string | null
           created_at?: string
           dunning_started_at?: string | null
@@ -2441,12 +2461,24 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           website?: string | null
+          white_label_enabled?: boolean
+          white_label_enabled_at?: string | null
+          white_label_enabled_by?: string | null
+          white_label_monthly_price?: number | null
         }
         Update: {
           allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          brand_accent_color?: string | null
+          brand_favicon_url?: string | null
+          brand_hide_powered_by?: boolean | null
+          brand_login_bg_url?: string | null
+          brand_platform_name?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          brand_text_on_primary?: string | null
           business_name?: string | null
           created_at?: string
           dunning_started_at?: string | null
@@ -2497,6 +2529,10 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           website?: string | null
+          white_label_enabled?: boolean
+          white_label_enabled_at?: string | null
+          white_label_enabled_by?: string | null
+          white_label_monthly_price?: number | null
         }
         Relationships: [
           {
@@ -2549,6 +2585,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_activity_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_addons_log: {
+        Row: {
+          action: string
+          addon_key: string
+          company_id: string
+          created_at: string | null
+          id: string
+          new_value: Json | null
+          notes: string | null
+          old_value: Json | null
+          performed_by: string | null
+          performed_by_email: string | null
+        }
+        Insert: {
+          action: string
+          addon_key: string
+          company_id: string
+          created_at?: string | null
+          id?: string
+          new_value?: Json | null
+          notes?: string | null
+          old_value?: Json | null
+          performed_by?: string | null
+          performed_by_email?: string | null
+        }
+        Update: {
+          action?: string
+          addon_key?: string
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          new_value?: Json | null
+          notes?: string | null
+          old_value?: Json | null
+          performed_by?: string | null
+          performed_by_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_addons_log_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -10680,6 +10763,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
     }
     Enums: {
       app_role:
