@@ -20,7 +20,7 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
     );
   }
 
-  const saldoNetto = summary.entrate_attese - summary.uscite_attese;
+  const saldoNetto = summary.entrate_previste - summary.uscite_previste;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
