@@ -298,6 +298,7 @@ const App = () => (
                   <Route path="venditori" element={<SettingsSalespeople />} />
                   <Route path="staff" element={<SettingsStaff />} />
                   <Route path="sicurezza" element={<SettingsSecurity />} />
+                  <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
                   <Route path="attivita" element={<SettingsActivityLog />} />
                   <Route path="integrazioni" element={<SettingsIntegrations />} />
                   <Route path="crediti" element={<SettingsCredits />} />

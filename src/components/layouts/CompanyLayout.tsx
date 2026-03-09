@@ -300,6 +300,13 @@ function CompanySidebar() {
                   {isAdmin && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/security-dashboard" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Shield className="h-4 w-4" /><span>Security Dashboard</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/attivita" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
                           <ScrollText className="h-4 w-4" /><span>Registro attività</span>
                         </NavLink>
