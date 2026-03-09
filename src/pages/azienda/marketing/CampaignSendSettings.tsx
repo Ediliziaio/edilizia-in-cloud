@@ -461,6 +461,81 @@ export default function CampaignSendSettings() {
 
             <Separator />
 
+            {/* A/B Testing */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">A/B Test</p>
+                  <p className="text-xs text-muted-foreground">Testa due varianti di oggetto</p>
+                </div>
+                <Switch checked={abTestEnabled} onCheckedChange={setAbTestEnabled} />
+              </div>
+
+              {abTestEnabled && (
+                <div className="space-y-4 p-3 rounded-md border bg-muted/30">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Oggetto variante A</Label>
+                    <Input value={subject} disabled className="h-8 text-xs bg-muted/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Oggetto variante B *</Label>
+                    <Input
+                      placeholder="L'oggetto alternativo..."
+                      value={abSubjectB}
+                      onChange={(e) => setAbSubjectB(e.target.value)}
+                      maxLength={200}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Distribuzione A/B: {abSplitPercent}% / {100 - abSplitPercent}%</Label>
+                    <Slider
+                      value={[abSplitPercent]}
+                      onValueChange={(v) => setAbSplitPercent(v[0])}
+                      min={10}
+                      max={90}
+                      step={5}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>Variante A: {abSplitPercent}%</span>
+                      <span>Variante B: {100 - abSplitPercent}%</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Criterio vincitore</Label>
+                      <Select value={abWinnerCriteria} onValueChange={setAbWinnerCriteria}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open_rate">Tasso apertura</SelectItem>
+                          <SelectItem value="click_rate">Tasso click</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Durata test (ore)</Label>
+                      <Select value={String(abTestDurationHours)} onValueChange={(v) => setAbTestDurationHours(Number(v))}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2">2 ore</SelectItem>
+                          <SelectItem value="4">4 ore</SelectItem>
+                          <SelectItem value="8">8 ore</SelectItem>
+                          <SelectItem value="12">12 ore</SelectItem>
+                          <SelectItem value="24">24 ore</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    I destinatari verranno divisi casualmente tra variante A e B. 
+                    Il confronto dei risultati sarà visibile nei log della campagna.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* Recipients */}
             <div className="space-y-3">
               <Label className="text-base font-medium">Destinatari</Label>

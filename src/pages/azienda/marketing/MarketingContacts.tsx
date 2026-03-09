@@ -16,7 +16,7 @@ import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollA
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
-import { exportToCSV } from "@/lib/csvExport";
+import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
