@@ -713,8 +713,8 @@ export default function MarketingContacts() {
       const existingMap = new Map<string, string>(); // matchKey -> contact id
 
       // Fetch existing contacts by email/phone
-      const emails = parsed.map(p => p.data.email).filter(Boolean);
-      const phones = parsed.map(p => p.data.phone).filter(Boolean);
+      const emails = finalParsed.map(p => p.data.email).filter(Boolean);
+      const phones = finalParsed.map(p => p.data.phone).filter(Boolean);
 
       if (emails.length > 0) {
         // Batch in chunks of 100 for .in()
