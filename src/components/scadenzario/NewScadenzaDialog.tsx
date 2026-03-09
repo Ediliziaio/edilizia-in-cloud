@@ -156,10 +156,10 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
                       <CommandEmpty>Nessun ordine trovato.</CommandEmpty>
                       <CommandGroup>
                         {orders.map((o) => (
-                          <CommandItem key={o.id} value={`${o.order_number} ${o.client_company_name || ""}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
+                          <CommandItem key={o.id} value={`${o.order_code || ""} ${o.customers?.company_name || ""}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
                             <Check className={cn("mr-2 h-4 w-4", orderId === o.id ? "opacity-100" : "opacity-0")} />
-                            <span className="font-mono text-xs mr-2">{o.order_number}</span>
-                            {o.client_company_name}
+                            <span className="font-mono text-xs mr-2">{o.order_code}</span>
+                            {o.customers?.company_name}
                           </CommandItem>
                         ))}
                       </CommandGroup>
