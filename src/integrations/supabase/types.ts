@@ -7983,6 +7983,60 @@ export type Database = {
           },
         ]
       }
+      totp_backup_codes: {
+        Row: {
+          code_hash: string
+          created_at: string
+          id: string
+          is_used: boolean
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code_hash: string
+          created_at?: string
+          id?: string
+          is_used?: boolean
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code_hash?: string
+          created_at?: string
+          id?: string
+          is_used?: boolean
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      totp_secrets: {
+        Row: {
+          created_at: string
+          encrypted_secret: string
+          id: string
+          is_verified: boolean
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          encrypted_secret: string
+          id?: string
+          is_verified?: boolean
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          encrypted_secret?: string
+          id?: string
+          is_verified?: boolean
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       treasury_categories: {
         Row: {
           area: string
