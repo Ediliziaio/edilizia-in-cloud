@@ -406,6 +406,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
         {selectedNode && (
           <InternalNodePanel
             node={selectedNode}
+            flowTriggerType={flow?.trigger_type}
             onUpdate={handleUpdateNode}
             onClose={() => setSelectedNodeId(null)}
           />
