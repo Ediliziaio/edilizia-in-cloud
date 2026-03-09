@@ -13,7 +13,7 @@ interface Props {
   scadenza: Scadenza | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (params: { scadenzaId: string; amount: number; paymentMethod: string; paymentDate: string; notes?: string }) => void;
+  onConfirm: (params: { scadenzaId: string; amount: number; paymentMethod: string; paymentDate: string; notes?: string; accountLabel?: string }) => void;
   isPending: boolean;
 }
 
