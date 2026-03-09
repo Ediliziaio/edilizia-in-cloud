@@ -8,12 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, ListTodo, ExternalLink } from "lucide-react";
+import { Plus, ListTodo, ExternalLink, CheckCircle2 } from "lucide-react";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,23 @@ export default function Tasks() {
   const [filterStatus, setFilterStatus] = useState("active");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredTasks.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTasks.map((t) => t.id)));
+    }
+  };
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks", companyId],
@@ -177,11 +195,18 @@ export default function Tasks() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <>
+          <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+          <Card>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Titolo</TableHead>
                 <TableHead>Assegnatario</TableHead>
                 <TableHead>Collegamento</TableHead>
@@ -198,14 +223,15 @@ export default function Tasks() {
                   className={cn(
                     "cursor-pointer transition-colors",
                     isOverdue(task) && "bg-destructive/5",
-                    task.status === "completata" && "opacity-60"
+                    task.status === "completata" && "opacity-60",
+                    selectedIds.has(task.id) && "bg-primary/5"
                   )}
                   onClick={() => { setEditingTask(task); setDialogOpen(true); }}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
-                      checked={task.status === "completata"}
-                      onCheckedChange={() => handleToggleComplete(task)}
+                      checked={selectedIds.has(task.id)}
+                      onCheckedChange={() => toggleSelect(task.id)}
                     />
                   </TableCell>
                   <TableCell className="font-medium">
@@ -250,14 +276,27 @@ export default function Tasks() {
                       </span>
                     ) : "—"}
                   </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{STATUS_LABELS[task.status] || task.status}</span>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className={cn(
+                        "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
+                        task.status === "completata"
+                          ? "text-primary hover:bg-primary/10"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                      onClick={() => handleToggleComplete(task)}
+                    >
+                      <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
+                      {STATUS_LABELS[task.status] || task.status}
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
+        </>
+
       )}
 
       <TaskDialog
