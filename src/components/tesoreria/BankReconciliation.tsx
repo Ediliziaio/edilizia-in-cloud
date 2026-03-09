@@ -105,6 +105,9 @@ export default function BankReconciliation({ companyId }: Props) {
   const [matching, setMatching] = useState(false);
   const [autoMatching, setAutoMatching] = useState(false);
 
+  // Export
+  const [exporting, setExporting] = useState(false);
+
   // Unlink dialog
   const [unlinkTarget, setUnlinkTarget] = useState<any>(null);
   const [unlinking, setUnlinking] = useState(false);
