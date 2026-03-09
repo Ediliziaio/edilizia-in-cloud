@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2 } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +17,7 @@ import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollA
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
-import { exportToCSV } from "@/lib/csvExport";
+import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
@@ -115,31 +116,26 @@ export default function MarketingContacts() {
 
   const activeFilterCount = countActiveContactFilters(filters);
 
-  const handleExport = useCallback(async () => {
+  const doExport = useCallback(async (format: "csv" | "xlsx") => {
     if (!companyId || exporting) return;
     setExporting(true);
     try {
-      const { data: all, error } = await supabase
+      let query = supabase
         .from("marketing_contacts")
         .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
+
+      // If contacts are selected, export only those
+      if (selectedIds.size > 0) {
+        query = query.in("id", [...selectedIds]);
+      }
+
+      const { data: all, error } = await query;
       if (error) throw error;
-      const rows = (all || []).map((c: any) => ({
-        first_name: c.first_name || "",
-        last_name: c.last_name || "",
-        phone: c.phone || "",
-        email: c.email || "",
-        company_name: c.company_name || "",
-        city: c.city || "",
-        province: c.province || "",
-        tags: (c.tags || []).join(", "),
-        notes: c.notes || "",
-        source: c.source || "",
-        created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
-      }));
-      const today = new Date().toISOString().slice(0, 10);
-      exportToCSV(rows, [
+
+      // Build columns including custom fields
+      const baseColumns = [
         { key: "first_name", label: "Nome" },
         { key: "last_name", label: "Cognome" },
         { key: "phone", label: "Telefono" },
@@ -150,15 +146,65 @@ export default function MarketingContacts() {
         { key: "tags", label: "Tag" },
         { key: "notes", label: "Note" },
         { key: "source", label: "Fonte" },
+        { key: "contact_type", label: "Tipo" },
         { key: "created_at", label: "Data Creazione" },
-      ], `contatti_${today}.csv`);
-      toast.success(`${rows.length} contatti esportati`);
+      ];
+
+      // Add custom field columns
+      const cfColumns = contactCustomFields.map(f => ({ key: `cf_${f.id}`, label: f.name }));
+
+      // Fetch custom field values for exported contacts if any
+      let cfMap: Record<string, Record<string, string>> = {};
+      if (cfColumns.length > 0 && all && all.length > 0) {
+        const ids = all.map((c: any) => c.id);
+        const { data: vals } = await supabase
+          .from("marketing_contact_field_values")
+          .select("contact_id, field_id, value")
+          .in("contact_id", ids);
+        for (const v of vals || []) {
+          if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
+          if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
+        }
+      }
+
+      const rows = (all || []).map((c: any) => {
+        const row: Record<string, string> = {
+          first_name: c.first_name || "",
+          last_name: c.last_name || "",
+          phone: c.phone || "",
+          email: c.email || "",
+          company_name: c.company_name || "",
+          city: c.city || "",
+          province: c.province || "",
+          tags: (c.tags || []).join(", "),
+          notes: c.notes || "",
+          source: c.source || "",
+          contact_type: c.contact_type || "",
+          created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
+        };
+        // Add custom field values
+        for (const cf of contactCustomFields) {
+          row[`cf_${cf.id}`] = cfMap[c.id]?.[cf.id] || "";
+        }
+        return row;
+      });
+
+      const allColumns = [...baseColumns, ...cfColumns];
+      const today = new Date().toISOString().slice(0, 10);
+      const suffix = selectedIds.size > 0 ? `_selezionati_${selectedIds.size}` : "";
+
+      if (format === "xlsx") {
+        exportToXLSX(rows, allColumns, `contatti${suffix}_${today}.xlsx`);
+      } else {
+        exportToCSV(rows, allColumns, `contatti${suffix}_${today}.csv`);
+      }
+      toast.success(`${rows.length} contatti esportati in ${format.toUpperCase()}`);
     } catch {
       toast.error("Errore durante l'esportazione");
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting]);
+  }, [companyId, exporting, selectedIds, contactCustomFields]);
 
   // Pipelines with stages for opportunity filters
   const { data: pipelines = [] } = useQuery({
@@ -592,9 +638,23 @@ export default function MarketingContacts() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExport} disabled={exporting}>
-            <Download className="h-4 w-4 mr-2" /> {exporting ? "Esportando..." : "Esporta"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={exporting}>
+                <Download className="h-4 w-4 mr-2" />
+                {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => doExport("csv")}>
+                <Download className="h-4 w-4 mr-2" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => doExport("xlsx")}>
+                <Download className="h-4 w-4 mr-2" /> Esporta XLSX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Importa
           </Button>

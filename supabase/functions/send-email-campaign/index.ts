@@ -185,13 +185,37 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
+    // A/B Testing: split recipients
+    const isAbTest = campaign.ab_test_enabled && campaign.ab_subject_b;
+    const abSplitPercent = campaign.ab_split_percent ?? 50;
+
+    let recipientsA: any[] = recipients;
+    let recipientsB: any[] = [];
+
+    if (isAbTest) {
+      // Shuffle recipients for random split
+      const shuffled = [...recipients].sort(() => Math.random() - 0.5);
+      const splitIdx = Math.round(shuffled.length * (abSplitPercent / 100));
+      recipientsA = shuffled.slice(0, splitIdx);
+      recipientsB = shuffled.slice(splitIdx);
+    }
+
     // Send emails in parallel batches of 5
     const BATCH_SIZE = 5;
 
-    async function sendToContact(contact: any) {
+    async function sendToContact(contact: any, abVariant?: string) {
       try {
+        // Determine subject based on variant
+        const emailSubject = abVariant === "B" && campaign.ab_subject_b
+          ? campaign.ab_subject_b
+          : campaign.subject || "Senza oggetto";
+
+        // Determine HTML content based on variant
+        let html = abVariant === "B" && campaign.ab_html_content_b
+          ? campaign.ab_html_content_b
+          : campaign.html_content || "<p>Nessun contenuto</p>";
+
         // Personalize HTML
-        let html = campaign.html_content || "<p>Nessun contenuto</p>";
         html = html
           .replace(/\{\{first_name\}\}/g, contact.first_name || "")
           .replace(/\{\{last_name\}\}/g, contact.last_name || "")
@@ -217,7 +241,7 @@ Deno.serve(async (req) => {
         const result = await sendViaProvider(settings.provider, settings.apiKey, {
           from: fromAddress,
           to: [contact.email],
-          subject: campaign.subject || "Senza oggetto",
+          subject: emailSubject,
           html,
           headers: {
             "List-Unsubscribe": unsubHeader,
@@ -225,7 +249,7 @@ Deno.serve(async (req) => {
           },
         }, { domain: settings.domain });
 
-        // Log the send
+        // Log the send with A/B variant
         await adminClient.from("email_logs").insert({
           campaign_id: campaignId,
           contact_id: contact.id,
@@ -236,6 +260,7 @@ Deno.serve(async (req) => {
           stream: "marketing",
           event_timestamp: new Date().toISOString(),
           error_message: result.ok ? null : JSON.stringify(result.body),
+          ...(abVariant ? { ab_variant: abVariant } : {}),
         });
 
         return result.ok;
@@ -249,14 +274,26 @@ Deno.serve(async (req) => {
           stream: "marketing",
           event_timestamp: new Date().toISOString(),
           error_message: err.message,
+          ...(abVariant ? { ab_variant: abVariant } : {}),
         });
         return false;
       }
     }
 
-    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const batch = recipients.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(batch.map(sendToContact));
+    // Send variant A
+    for (let i = 0; i < recipientsA.length; i += BATCH_SIZE) {
+      const batch = recipientsA.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(batch.map((c) => sendToContact(c, isAbTest ? "A" : undefined)));
+      for (const ok of results) {
+        if (ok) sentCount++;
+        else failedCount++;
+      }
+    }
+
+    // Send variant B
+    for (let i = 0; i < recipientsB.length; i += BATCH_SIZE) {
+      const batch = recipientsB.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(batch.map((c) => sendToContact(c, "B")));
       for (const ok of results) {
         if (ok) sentCount++;
         else failedCount++;

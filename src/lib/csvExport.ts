@@ -1,6 +1,7 @@
 /**
- * Utility per esportazione CSV con supporto UTF-8 BOM e separatore punto e virgola.
+ * Utility per esportazione CSV/XLSX con supporto UTF-8 BOM e separatore punto e virgola.
  */
+import * as XLSX from "xlsx";
 
 export interface CsvColumn {
   key: string;
@@ -38,4 +39,27 @@ export function exportToCSV(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export function exportToXLSX(
+  rows: Record<string, string>[],
+  columns: CsvColumn[],
+  filename: string
+) {
+  const headerRow = columns.map((c) => c.label);
+  const dataRows = rows.map((row) => columns.map((c) => row[c.key] || ""));
+  const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+
+  // Auto-width columns
+  ws["!cols"] = columns.map((_, i) => {
+    const maxLen = Math.max(
+      headerRow[i].length,
+      ...dataRows.map((r) => (r[i] || "").length)
+    );
+    return { wch: Math.min(maxLen + 2, 50) };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Contatti");
+  XLSX.writeFile(wb, filename);
 }
