@@ -52,6 +52,20 @@ export default function InvoiceDetail() {
     enabled: !!id,
   });
 
+  const { data: linkedTransactions } = useQuery({
+    queryKey: ["invoice-reconciliations", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bank_reconciliations")
+        .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name, bank_accounts:account_id(display_name))")
+        .eq("invoice_id", id!)
+        .is("unmatched_at", null)
+        .order("matched_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
   const lines = useMemo(() => {
     if (!invoice?.invoice_lines) return [];
     return [...(invoice.invoice_lines as any[])]
