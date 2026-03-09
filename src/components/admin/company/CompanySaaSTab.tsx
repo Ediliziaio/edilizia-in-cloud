@@ -21,7 +21,7 @@ interface CompanySaaSTabProps {
   company?: Company | null;
 }
 
-export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId }: CompanySaaSTabProps) {
+export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId, company }: CompanySaaSTabProps) {
   const queryClient = useQueryClient();
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
