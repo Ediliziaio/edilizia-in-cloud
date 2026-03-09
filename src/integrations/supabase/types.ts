@@ -1729,11 +1729,14 @@ export type Database = {
           bank_name: string | null
           business_name: string | null
           created_at: string
+          dunning_started_at: string | null
+          dunning_status: string | null
           email: string
           enforce_2fa: boolean
           enforce_2fa_roles: string[] | null
           fiscal_code: string | null
           id: string
+          last_payment_failure_at: string | null
           legal_address: string | null
           legal_city: string | null
           legal_postal_code: string | null
@@ -1755,6 +1758,7 @@ export type Database = {
           password_require_numbers: boolean
           password_require_special: boolean
           password_require_uppercase: boolean
+          payment_failure_count: number | null
           payment_method: string
           payment_notes: string | null
           pec: string | null
@@ -1765,6 +1769,7 @@ export type Database = {
           security_notifications: Json | null
           status: string
           stripe_customer_id: string | null
+          stripe_subscription_status: string | null
           subscription_plan_id: string | null
           trial_ends_at: string | null
           trial_extensions_count: number
@@ -1779,11 +1784,14 @@ export type Database = {
           bank_name?: string | null
           business_name?: string | null
           created_at?: string
+          dunning_started_at?: string | null
+          dunning_status?: string | null
           email: string
           enforce_2fa?: boolean
           enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
+          last_payment_failure_at?: string | null
           legal_address?: string | null
           legal_city?: string | null
           legal_postal_code?: string | null
@@ -1805,6 +1813,7 @@ export type Database = {
           password_require_numbers?: boolean
           password_require_special?: boolean
           password_require_uppercase?: boolean
+          payment_failure_count?: number | null
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -1815,6 +1824,7 @@ export type Database = {
           security_notifications?: Json | null
           status?: string
           stripe_customer_id?: string | null
+          stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
           trial_extensions_count?: number
@@ -1829,11 +1839,14 @@ export type Database = {
           bank_name?: string | null
           business_name?: string | null
           created_at?: string
+          dunning_started_at?: string | null
+          dunning_status?: string | null
           email?: string
           enforce_2fa?: boolean
           enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
+          last_payment_failure_at?: string | null
           legal_address?: string | null
           legal_city?: string | null
           legal_postal_code?: string | null
@@ -1855,6 +1868,7 @@ export type Database = {
           password_require_numbers?: boolean
           password_require_special?: boolean
           password_require_uppercase?: boolean
+          payment_failure_count?: number | null
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -1865,6 +1879,7 @@ export type Database = {
           security_notifications?: Json | null
           status?: string
           stripe_customer_id?: string | null
+          stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
           trial_extensions_count?: number
@@ -7194,6 +7209,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "staff_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_events_log: {
+        Row: {
+          company_id: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          payload: Json | null
+          processed_at: string
+          status: string
+          stripe_event_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+          status?: string
+          stripe_event_id: string
+        }
+        Update: {
+          company_id?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+          status?: string
+          stripe_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_events_log_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
