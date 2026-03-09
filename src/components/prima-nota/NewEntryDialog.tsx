@@ -28,6 +28,7 @@ interface Props {
     entry_date: string;
     payment_method?: string;
     reference_number?: string;
+    account_label?: string;
     notes?: string;
   }) => void;
   isPending: boolean;
@@ -41,6 +42,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
   const [method, setMethod] = useState("bonifico");
   const [reference, setReference] = useState("");
+  const [accountLabel, setAccountLabel] = useState("banca");
   const [notes, setNotes] = useState("");
 
   const reset = () => {
@@ -51,6 +53,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setEntryDate(new Date().toISOString().split("T")[0]);
     setMethod("bonifico");
     setReference("");
+    setAccountLabel("banca");
     setNotes("");
   };
 
@@ -122,9 +125,21 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Riferimento (opzionale)</Label>
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Riferimento (opzionale)</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+            </div>
+            <div className="space-y-2">
+              <Label>Conto</Label>
+              <Select value={accountLabel} onValueChange={setAccountLabel}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="banca">Banca</SelectItem>
+                  <SelectItem value="cassa">Cassa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -145,6 +160,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               entry_date: entryDate,
               payment_method: method,
               reference_number: reference || undefined,
+              account_label: accountLabel,
               notes: notes || undefined,
             })}
           >

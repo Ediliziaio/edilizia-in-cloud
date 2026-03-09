@@ -20,6 +20,12 @@ export interface Scadenza {
   supplier_id: string | null;
   cost_id: string | null;
   contact_id: string | null;
+  order_item_id: string | null;
+  prima_nota_entry_id: string | null;
+  alert_days_before: number;
+  alert_sent_at: string | null;
+  is_auto_generated: boolean;
+  auto_source: string | null;
   notes: string | null;
   is_recurring: boolean;
   created_at: string;
@@ -38,8 +44,10 @@ export interface ScadenzarioSummary {
   questa_settimana_amount: number;
   prossimi_30gg_count: number;
   prossimi_30gg_amount: number;
-  entrate_attese: number;
-  uscite_attese: number;
+  questo_mese_count: number;
+  questo_mese_amount: number;
+  entrate_previste: number;
+  uscite_previste: number;
 }
 
 export function useScadenzario() {
@@ -86,6 +94,7 @@ export function useScadenzario() {
       paymentMethod?: string;
       paymentDate?: string;
       notes?: string;
+      accountLabel?: string;
     }) => {
       const { data, error } = await supabase.rpc("mark_scadenza_paid", {
         p_scadenza_id: params.scadenzaId,
@@ -93,6 +102,7 @@ export function useScadenzario() {
         p_payment_method: params.paymentMethod || "bonifico",
         p_payment_date: params.paymentDate || new Date().toISOString().split("T")[0],
         p_notes: params.notes || null,
+        p_account_label: params.accountLabel || "banca",
       });
       if (error) throw error;
       const result = data as any;

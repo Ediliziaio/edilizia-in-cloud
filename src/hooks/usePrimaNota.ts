@@ -18,6 +18,8 @@ export interface PrimaNotaEntry {
   supplier_id: string | null;
   cost_id: string | null;
   scadenza_id: string | null;
+  order_item_id: string | null;
+  account_label: string | null;
   is_auto: boolean;
   auto_source: string | null;
   attachment_url: string | null;
@@ -34,6 +36,7 @@ export interface PrimaNotaSaldo {
   entrate: number;
   uscite: number;
   saldo: number;
+  entry_count: number;
 }
 
 export interface PrimaNotaFilters {
@@ -106,6 +109,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       payment_method?: string;
       reference_number?: string;
       supplier_id?: string | null;
+      account_label?: string;
       notes?: string;
     }) => {
       const { error } = await supabase.from("prima_nota_entries").insert({
@@ -118,6 +122,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
         payment_method: params.payment_method || null,
         reference_number: params.reference_number || null,
         supplier_id: params.supplier_id || null,
+        account_label: params.account_label || "banca",
         notes: params.notes || null,
         is_auto: false,
         created_by: (await supabase.auth.getUser()).data.user?.id,

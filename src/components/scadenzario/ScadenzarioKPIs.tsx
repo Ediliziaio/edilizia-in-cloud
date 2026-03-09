@@ -20,7 +20,7 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
     );
   }
 
-  const saldoNetto = summary.entrate_attese - summary.uscite_attese;
+  const saldoNetto = summary.entrate_previste - summary.uscite_previste;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -70,8 +70,8 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
             {fmtEur(saldoNetto)}
           </p>
           <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-            <span className="text-green-600">↑ {fmtEur(summary.entrate_attese)}</span>
-            <span className="text-destructive">↓ {fmtEur(summary.uscite_attese)}</span>
+            <span className="text-green-600">↑ {fmtEur(summary.entrate_previste)}</span>
+            <span className="text-destructive">↓ {fmtEur(summary.uscite_previste)}</span>
           </div>
         </CardContent>
       </Card>

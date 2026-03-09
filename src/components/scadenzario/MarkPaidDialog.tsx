@@ -13,7 +13,7 @@ interface Props {
   scadenza: Scadenza | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (params: { scadenzaId: string; amount: number; paymentMethod: string; paymentDate: string; notes?: string }) => void;
+  onConfirm: (params: { scadenzaId: string; amount: number; paymentMethod: string; paymentDate: string; notes?: string; accountLabel?: string }) => void;
   isPending: boolean;
 }
 
@@ -23,6 +23,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   const [method, setMethod] = useState("bonifico");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [accountLabel, setAccountLabel] = useState("banca");
 
   const handleOpen = (o: boolean) => {
     if (o && scadenza) {
@@ -84,6 +85,17 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
           </div>
 
           <div className="space-y-2">
+            <Label>Conto</Label>
+            <Select value={accountLabel} onValueChange={setAccountLabel}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="banca">Banca</SelectItem>
+                <SelectItem value="cassa">Cassa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
@@ -98,6 +110,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               paymentMethod: method,
               paymentDate: date,
               notes: notes || undefined,
+              accountLabel,
             })}
             disabled={isPending || !amount || Number(amount) <= 0 || Number(amount) > remaining}
           >

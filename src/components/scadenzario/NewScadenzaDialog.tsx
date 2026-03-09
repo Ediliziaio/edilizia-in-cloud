@@ -16,6 +16,7 @@ interface Props {
     due_date: string;
     notes?: string;
     payment_method?: string;
+    alert_days_before?: number;
   }) => void;
   isPending: boolean;
 }
@@ -27,6 +28,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
   const [dueDate, setDueDate] = useState("");
   const [method, setMethod] = useState("bonifico");
   const [notes, setNotes] = useState("");
+  const [alertDays, setAlertDays] = useState("7");
 
   const reset = () => {
     setTipo("incasso_cliente");
@@ -35,6 +37,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     setDueDate("");
     setMethod("bonifico");
     setNotes("");
+    setAlertDays("7");
   };
 
   const handleOpen = (o: boolean) => {
@@ -60,6 +63,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
                 <SelectItem value="pagamento_fornitore">Pagamento fornitore</SelectItem>
                 <SelectItem value="costo_aziendale">Costo aziendale</SelectItem>
                 <SelectItem value="scadenza_fiscale">Scadenza fiscale</SelectItem>
+                <SelectItem value="altro">Altro</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -95,6 +99,13 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
             </Select>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Alert (giorni prima)</Label>
+              <Input type="number" min="0" max="90" value={alertDays} onChange={(e) => setAlertDays(e.target.value)} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
@@ -112,6 +123,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
               due_date: dueDate,
               notes: notes || undefined,
               payment_method: method,
+              alert_days_before: Number(alertDays) || 7,
             })}
           >
             {isPending ? "Salvataggio..." : "Crea Scadenza"}

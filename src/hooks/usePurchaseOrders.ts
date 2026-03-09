@@ -21,6 +21,10 @@ export interface PurchaseOrder {
   notes: string | null;
   internal_notes: string | null;
   attachment_url: string | null;
+  supplier_reference: string | null;
+  delivery_address: string | null;
+  sent_at: string | null;
+  confirmed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -45,6 +49,7 @@ export interface PurchaseOrderItem {
   quantity_received: number;
   received_date: string | null;
   article_template_id: string | null;
+  order_item_id: string | null;
   sort_order: number;
   notes: string | null;
   created_at: string;
@@ -71,21 +76,16 @@ export function usePurchaseOrders() {
 
   const createMutation = useMutation({
     mutationFn: async (params: { supplier_id: string; notes?: string; expected_delivery_date?: string }) => {
-      // Generate OdA number
-      const { data: odaNum, error: numErr } = await supabase.rpc("generate_oda_number", { p_company_id: companyId! });
-      if (numErr) throw numErr;
-
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
         .from("purchase_orders")
         .insert({
           company_id: companyId!,
           supplier_id: params.supplier_id,
-          oda_number: odaNum as string,
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
           created_by: user?.id,
-        })
+        } as any)
         .select()
         .single();
       if (error) throw error;
