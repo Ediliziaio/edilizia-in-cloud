@@ -56,9 +56,10 @@ const categoryLabels: Record<string, string> = {
 };
 
 export default function SettingsQuoteMaterials() {
-  const { role, companyId } = useAuth();
+  const { role, effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
