@@ -506,11 +506,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
 
       {activeTab === "log" && (
         <div className="flex-1 overflow-y-auto">
-          <InternalAutomationLogDrawer
-            flowId={flowId}
-            open={true}
-            onClose={() => setActiveTab("builder")}
-          />
+          <InternalAutomationLogInline flowId={flowId} />
         </div>
       )}
     </div>
