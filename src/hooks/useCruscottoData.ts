@@ -368,6 +368,7 @@ export function useCruscottoData() {
     operations: opsData || { activeOrders: 0, lateOrders: 0, openTickets: 0, overduePayments: 0, overdueAmount: 0 },
     finance: financeData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, cashFlowNet: 0, thisMonthIncome: 0, thisMonthOutflow: 0, pendingRevenue: 0, supplierDebt: 0 },
     weeklyAgenda: weeklyData || { incomingPayments: 0, incomingPaymentsCount: 0, dueCosts: 0, dueCostsCount: 0, deliveries: 0, appointments: 0 },
+    invoiceStats: invoiceStats || null,
     companyTargets: companyTargets || null,
     isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading,
     error: marketingError as Error | null,
