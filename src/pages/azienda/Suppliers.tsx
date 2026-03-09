@@ -36,7 +36,7 @@ function RatingStars({ rating }: { rating: number | null }) {
 }
 
 // ========== LIST VIEW ==========
-function SuppliersList() {
+function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) => void }) {
   const navigate = useNavigate();
   const { suppliers, isLoading } = useOperationalSuppliers();
   const [search, setSearch] = useState("");
@@ -113,7 +113,7 @@ function SuppliersList() {
             <Card
               key={s.id}
               className={`cursor-pointer hover:shadow-md transition-shadow ${!s.is_active ? "opacity-60" : ""}`}
-              onClick={() => navigate(`/azienda/fornitori/${s.id}`)}
+              onClick={() => onSelectSupplier ? onSelectSupplier(s.id) : navigate(`/azienda/fornitori/${s.id}`)}
             >
               <CardContent className="pt-4 pb-3 space-y-2">
                 <div className="flex items-start justify-between">
@@ -150,7 +150,7 @@ function SuppliersList() {
 }
 
 // ========== DETAIL VIEW ==========
-function SupplierDetail({ supplierId }: { supplierId: string }) {
+function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: () => void }) {
   const navigate = useNavigate();
   const { suppliers, isLoading: isSupLoading, update } = useOperationalSuppliers();
   const supplier = suppliers.find((s) => s.id === supplierId);
@@ -166,7 +166,7 @@ function SupplierDetail({ supplierId }: { supplierId: string }) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Fornitore non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/fornitori")}>Torna alla lista</Button>
+        <Button variant="outline" onClick={() => onBack ? onBack() : navigate("/azienda/fornitori")}>Torna alla lista</Button>
       </div>
     );
   }
@@ -217,7 +217,7 @@ function SupplierDetail({ supplierId }: { supplierId: string }) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/fornitori")}>
+        <Button variant="ghost" size="sm" onClick={() => onBack ? onBack() : navigate("/azienda/fornitori")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Fornitori
         </Button>
       </div>
@@ -678,6 +678,16 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
       )}
     </div>
   );
+}
+
+// ========== EMBEDDED EXPORT (for Settings page) ==========
+export function SuppliersOperational() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  if (selectedId) {
+    return <SupplierDetail supplierId={selectedId} onBack={() => setSelectedId(null)} />;
+  }
+  return <SuppliersList onSelectSupplier={(id) => setSelectedId(id)} />;
 }
 
 // ========== MAIN EXPORT ==========

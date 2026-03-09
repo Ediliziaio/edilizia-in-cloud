@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
+import { SuppliersOperational } from "@/pages/azienda/Suppliers";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Truck } from "lucide-react";
 
 export default function SettingsSuppliers() {
   const { role } = useAuth();
@@ -16,5 +19,25 @@ export default function SettingsSuppliers() {
 
   if (!isAdmin) return null;
 
-  return <SuppliersConfig />;
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Truck className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold">Fornitori</h1>
+      </div>
+
+      <Tabs defaultValue="anagrafica">
+        <TabsList>
+          <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+          <TabsTrigger value="operativo">Operativo</TabsTrigger>
+        </TabsList>
+        <TabsContent value="anagrafica" className="mt-4">
+          <SuppliersConfig />
+        </TabsContent>
+        <TabsContent value="operativo" className="mt-4">
+          <SuppliersOperational />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
 }
