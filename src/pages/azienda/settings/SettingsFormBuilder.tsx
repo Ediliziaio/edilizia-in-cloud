@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useFormBuilder, type FormField, type LeadForm } from "@/hooks/useFormBuilder";
+import { useFormBuilder, type FormField, type FormFieldType, type LeadForm } from "@/hooks/useFormBuilder";
 import { TrackingSnippetSettings } from "@/components/settings/TrackingSnippetSettings";
 import { FormFieldLibrary } from "@/components/settings/FormFieldLibrary";
 import { FormEditorCanvas } from "@/components/settings/FormEditorCanvas";
 import { FormFieldProperties } from "@/components/settings/FormFieldProperties";
+import { FormSettingsPanel } from "@/components/settings/FormSettingsPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
