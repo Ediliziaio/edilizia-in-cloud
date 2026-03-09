@@ -51,6 +51,7 @@ const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
+const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
