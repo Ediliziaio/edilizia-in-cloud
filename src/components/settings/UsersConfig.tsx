@@ -398,6 +398,23 @@ export function UsersConfig() {
     },
   });
 
+  const unlockAccountMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ locked_until: null, failed_login_count: 0 } as never)
+        .eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast.success("Account sbloccato");
+    },
+    onError: () => {
+      toast.error("Errore nello sblocco dell'account");
+    },
+  });
+
   const getInitials = (firstName: string, lastName: string) =>
     `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
