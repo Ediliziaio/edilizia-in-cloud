@@ -80,9 +80,15 @@ Deno.serve(async (req) => {
             balance_updated_at: new Date().toISOString(),
           }).eq("id", account.id);
 
-          // Sync transactions
+          // Sync transactions — dynamic date_from per V2
           const dateFrom = new Date();
-          dateFrom.setDate(dateFrom.getDate() - 30);
+          if (conn.last_sync_at) {
+            const lastSync = new Date(conn.last_sync_at);
+            lastSync.setDate(lastSync.getDate() - 1); // 1-day overlap
+            dateFrom.setTime(lastSync.getTime());
+          } else {
+            dateFrom.setDate(dateFrom.getDate() - 90); // first sync: 90 days
+          }
           const dateTo = new Date();
 
           const { data: txData, token: t2 } = await gcFetch(
