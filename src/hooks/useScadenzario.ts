@@ -44,8 +44,10 @@ export interface ScadenzarioSummary {
   questa_settimana_amount: number;
   prossimi_30gg_count: number;
   prossimi_30gg_amount: number;
-  entrate_attese: number;
-  uscite_attese: number;
+  questo_mese_count: number;
+  questo_mese_amount: number;
+  entrate_previste: number;
+  uscite_previste: number;
 }
 
 export function useScadenzario() {
