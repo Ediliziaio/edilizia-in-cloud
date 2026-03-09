@@ -95,7 +95,7 @@ export default function CruscottoAziendale() {
           finance={finance}
           operations={operations}
           isLoading={isLoading}
-          onDrilldown={setDrilldown}
+          onDrilldown={(type: string) => setDrilldown(type as DrilldownType)}
         />
       </SectionErrorBoundary>
 
