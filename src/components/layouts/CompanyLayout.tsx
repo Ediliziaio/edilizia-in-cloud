@@ -507,7 +507,7 @@ function CompanySidebar() {
                           isOpen={isOpen(sub.id)}
                           onToggle={() => toggle(sub.id)}
                         >
-                          <SidebarMenu>
+                          <SidebarMenu className="divide-y divide-dashed divide-border/40">
                             {items.map((item) => (
                               <SidebarMenuItem key={item.title}>
                                 <SidebarMenuButton asChild>
