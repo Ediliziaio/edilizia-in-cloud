@@ -603,7 +603,7 @@ export default function CompaniesList() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={13} className="p-4">
+                          <TableCell colSpan={14} className="p-4">
                             <CompanyExpandedRow
                               company={company}
                               orderStats={orderStats[company.id]}
