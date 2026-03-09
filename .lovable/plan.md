@@ -30,15 +30,26 @@
 - ✅ **Import/Export utenti CSV**
 
 ### Policy Sicurezza ✅
-- ✅ **CompanySecuritySettings** completo:
-  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
-  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
-  - 2FA: globale + per ruoli specifici
-  - IP Allowlist
-  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
+- ✅ **CompanySecuritySettings** completo
 - ✅ **ChangePasswordForm** con validazione complessità in tempo reale
 - ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
 - ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
+
+---
+
+## Stripe Billing Completo ✅
+
+### Database ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne `companies`: `stripe_subscription_status`, `payment_failure_count`, `dunning_status`, `last_payment_failure_at`, `dunning_started_at`
+
+### Edge Functions ✅
+- ✅ **stripe-webhook** refactored: idempotenza via `stripe_events_log`, handler modulari, gestione `invoice.payment_failed` con dunning automatico (warning → escalated → critical), `customer.subscription.updated`
+- ✅ **customer-portal**: Stripe Customer Portal per self-service gestione abbonamenti
+
+### UI ✅
+- ✅ **AdminDunning** arricchito: query real-time aziende in dunning dal DB, conteggio fallimenti, badge status
+- ✅ **CompanySubscriptionTab**: mostra stato dunning e conteggio fallimenti pagamento
 
 ---
 
@@ -47,3 +58,10 @@
 - ⬜ Round-robin assegnazione team
 - ⬜ KPI per team nella dashboard
 - ⬜ Drag & Drop utenti tra team
+- ⬜ 2FA TOTP + Secure Impersonation (P1)
+- ⬜ Health Score Engine pg_cron (P1)
+- ⬜ Customer Success Platform (P1)
+- ⬜ API Platform per Aziende (P2)
+- ⬜ GDPR & Compliance Tools (P2)
+- ⬜ White-Label (P3)
+- ⬜ Partner Portal Referrer (P3)
