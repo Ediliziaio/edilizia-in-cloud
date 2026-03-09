@@ -189,6 +189,9 @@ Deno.serve(async (req) => {
       ip_hash,
       gclid: gclid || null,
       fbclid: fbclid || null,
+      ttclid: ttclid || null,
+      msclkid: msclkid || null,
+      li_fat_id: li_fat_id || null,
       user_agent: userAgent || null,
       device_type: deviceType,
     }).select("id").single();
