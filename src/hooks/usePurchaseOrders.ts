@@ -21,6 +21,10 @@ export interface PurchaseOrder {
   notes: string | null;
   internal_notes: string | null;
   attachment_url: string | null;
+  supplier_reference: string | null;
+  delivery_address: string | null;
+  sent_at: string | null;
+  confirmed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
