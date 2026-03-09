@@ -75,13 +75,13 @@
   - `create_support_ticket` — Segnalazione/reclamo
   - `schedule_callback` — Programma richiamo come appuntamento
 
-### Fase 2 — Modulo UI Lista + Editor (TODO)
+### Fase 2 — Modulo UI Lista + Editor ✅
 
-- [ ] Creare `src/modules/ai-agents-internal/` con routing
-- [ ] `InternalAgentsListPage` — grid card agenti + wizard creazione
-- [ ] `InternalAgentEditorPage` — 8 tab
-- [ ] Componenti: `InternalAgentCard`, `ToolConfigCard`, `InternalToolsTab`
-- [ ] Riutilizzo `VoiceSelector`, `LLMSelector` dal modulo marketing
+- ✅ `src/modules/ai-agents-internal/` con routing e sidebar
+- ✅ `InternalAgentsListPage` — grid card agenti + wizard creazione + archiviazione
+- ✅ `InternalAgentEditorPage` — 8 tab (Agente, Strumenti CRM, KB, Telefono, Test, Analytics, Sicurezza, Avanzato)
+- ✅ Componenti: `InternalAgentCard`, `CreateInternalAgentWizard`, `InternalToolsTab`, `InternalAgentTab`
+- ✅ Riutilizzo `AgentKBTab` dal modulo marketing
 
 ### Fase 3 — Call Logs + Action Timeline ✅
 
