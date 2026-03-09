@@ -189,15 +189,20 @@ function FormEditor({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
-  const handleAddField = (type: FormField["type"]) => {
+  const handleAddField = (type: FormFieldType) => {
+    const labelMap: Partial<Record<FormFieldType, string>> = {
+      email: "Email", phone: "Telefono", heading: "Titolo sezione",
+      paragraph: "Testo descrittivo", divider: "Separatore", hidden: "Campo nascosto",
+      date: "Data", radio: "Scelta", select: "Selezione", checkbox: "Accetto",
+    };
     const newField: FormField = {
       id: crypto.randomUUID(),
-      name: `field_${fields.length + 1}`,
-      label: type === "email" ? "Email" : type === "phone" ? "Telefono" : `Campo ${fields.length + 1}`,
+      name: type === "divider" ? `divider_${fields.length + 1}` : `field_${fields.length + 1}`,
+      label: labelMap[type] || `Campo ${fields.length + 1}`,
       type,
       required: type === "email",
       placeholder: "",
-      options: type === "select" ? ["Opzione 1", "Opzione 2"] : undefined,
+      options: (type === "select" || type === "radio") ? ["Opzione 1", "Opzione 2"] : undefined,
     };
     setFields([...fields, newField]);
     setSelectedFieldId(newField.id);
