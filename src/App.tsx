@@ -77,6 +77,7 @@ const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/Setting
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
+const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
