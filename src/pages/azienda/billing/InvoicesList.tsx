@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3 } from "lucide-react";
+import BillingReports from "./BillingReports";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -185,124 +186,142 @@ export default function InvoicesList() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Da incassare</p>
-            <p className="text-xl font-bold">{fmtEur(kpis.receivable)}</p>
-          </CardContent>
-        </Card>
-        <Card className={kpis.overdueCount > 0 ? "border-destructive" : ""}>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Fatture scadute</p>
-            <p className="text-xl font-bold text-destructive">{kpis.overdueCount} ({fmtEur(kpis.overdueAmount)})</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Emesse questo mese</p>
-            <p className="text-xl font-bold">{kpis.issuedThisMonth}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Totale fatture</p>
-            <p className="text-xl font-bold">{invoices.length}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Top-level view tabs */}
+      <Tabs defaultValue="fatture" className="w-full">
+        <TabsList>
+          <TabsTrigger value="fatture" className="gap-1.5">
+            <FileText className="h-4 w-4" /> Fatture
+          </TabsTrigger>
+          <TabsTrigger value="report" className="gap-1.5">
+            <BarChart3 className="h-4 w-4" /> Report
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full sm:w-auto">
-          <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="all">Tutte</TabsTrigger>
-            <TabsTrigger value="draft">Bozze</TabsTrigger>
-            <TabsTrigger value="issued">Emesse</TabsTrigger>
-            <TabsTrigger value="sent">Inviate</TabsTrigger>
-            <TabsTrigger value="paid">Pagate</TabsTrigger>
-            <TabsTrigger value="overdue">Scadute</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Cerca cliente o numero..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-        </div>
-      </div>
+        <TabsContent value="fatture" className="space-y-6 mt-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs text-muted-foreground">Da incassare</p>
+                <p className="text-xl font-bold">{fmtEur(kpis.receivable)}</p>
+              </CardContent>
+            </Card>
+            <Card className={kpis.overdueCount > 0 ? "border-destructive" : ""}>
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs text-muted-foreground">Fatture scadute</p>
+                <p className="text-xl font-bold text-destructive">{kpis.overdueCount} ({fmtEur(kpis.overdueAmount)})</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs text-muted-foreground">Emesse questo mese</p>
+                <p className="text-xl font-bold">{kpis.issuedThisMonth}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs text-muted-foreground">Totale fatture</p>
+                <p className="text-xl font-bold">{invoices.length}</p>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          {invoices.length === 0
-            ? integration
-              ? "Nessuna fattura importata. Premi 'Sincronizza' per importare dal gestionale."
-              : "Nessuna fattura. Connetti un gestionale per iniziare."
-            : "Nessun risultato per i filtri selezionati."}
-        </div>
-      ) : (
-        <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Numero</th>
-                <th className="text-left p-3 font-medium">Cliente</th>
-                <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium">Scadenza</th>
-                <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-left p-3 font-medium">Stato</th>
-                <th className="text-left p-3 font-medium">Origine</th>
-                <th className="p-3 w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((inv) => {
-                const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
-                return (
-                  <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                    <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
-                    <td className="p-3 font-medium">{inv.client_company_name}</td>
-                    <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                    <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                    <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
-                    <td className="p-3">
-                      <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
-                    </td>
-                    <td className="p-3">
-                      {inv.external_provider ? (
-                        <Badge variant="outline" className="text-xs">
-                          {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Locale</span>
-                      )}
-                    </td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                            <Eye className="h-4 w-4 mr-2" /> Visualizza
-                          </DropdownMenuItem>
-                          {!["paid", "cancelled"].includes(inv.status) && (
-                            <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
-                              <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full sm:w-auto">
+              <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="all">Tutte</TabsTrigger>
+                <TabsTrigger value="draft">Bozze</TabsTrigger>
+                <TabsTrigger value="issued">Emesse</TabsTrigger>
+                <TabsTrigger value="sent">Inviate</TabsTrigger>
+                <TabsTrigger value="paid">Pagate</TabsTrigger>
+                <TabsTrigger value="overdue">Scadute</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cerca cliente o numero..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
+          </div>
+
+          {/* Table */}
+          {isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              {invoices.length === 0
+                ? integration
+                  ? "Nessuna fattura importata. Premi 'Sincronizza' per importare dal gestionale."
+                  : "Nessuna fattura. Connetti un gestionale per iniziare."
+                : "Nessun risultato per i filtri selezionati."}
+            </div>
+          ) : (
+            <div className="rounded-lg border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium">Numero</th>
+                    <th className="text-left p-3 font-medium">Cliente</th>
+                    <th className="text-left p-3 font-medium">Data</th>
+                    <th className="text-left p-3 font-medium">Scadenza</th>
+                    <th className="text-right p-3 font-medium">Importo</th>
+                    <th className="text-left p-3 font-medium">Stato</th>
+                    <th className="text-left p-3 font-medium">Origine</th>
+                    <th className="p-3 w-10"></th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {filtered.map((inv) => {
+                    const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                    return (
+                      <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                        <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
+                        <td className="p-3 font-medium">{inv.client_company_name}</td>
+                        <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                        <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                        <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
+                        <td className="p-3">
+                          <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                        </td>
+                        <td className="p-3">
+                          {inv.external_provider ? (
+                            <Badge variant="outline" className="text-xs">
+                              {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Locale</span>
+                          )}
+                        </td>
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                                <Eye className="h-4 w-4 mr-2" /> Visualizza
+                              </DropdownMenuItem>
+                              {!["paid", "cancelled"].includes(inv.status) && (
+                                <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
+                                  <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-4">
+          <BillingReports embedded />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

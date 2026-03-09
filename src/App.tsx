@@ -107,7 +107,7 @@ const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
-const BillingReports = lazy(() => import("@/pages/azienda/billing/BillingReports"));
+
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const Suppliers = lazy(() => import("@/pages/azienda/Suppliers"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
@@ -312,7 +312,7 @@ const App = () => (
                 <Route path="fatturazione" element={<InvoicesList />} />
                 <Route path="fatturazione/:id" element={<InvoiceDetail />} />
                 <Route path="scadenzario" element={<Scadenzario />} />
-                <Route path="report-fatturazione" element={<BillingReports />} />
+                
                 <Route path="prima-nota" element={<PrimaNota />} />
                 <Route path="fornitori" element={<Suppliers />} />
                 <Route path="fornitori/:id" element={<Suppliers />} />
