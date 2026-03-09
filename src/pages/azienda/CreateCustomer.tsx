@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, User, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
