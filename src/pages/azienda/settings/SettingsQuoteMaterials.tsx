@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,46 +6,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, FileText, Loader2, Save } from "lucide-react";
 import {
-  Upload,
-  FileText,
-  Trash2,
-  Pencil,
-  Eye,
-  GripVertical,
-  Loader2,
-} from "lucide-react";
-import { useEffect } from "react";
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableMaterialItem } from "@/components/settings/SortableMaterialItem";
 
 const CATEGORIES = ["generale", "scheda_prodotto", "garanzia", "certificazione", "contratto", "altro"];
-
 const categoryLabels: Record<string, string> = {
   generale: "Generale",
   scheda_prodotto: "Scheda Prodotto",
@@ -71,6 +54,11 @@ export default function SettingsQuoteMaterials() {
   const [deleteItem, setDeleteItem] = useState<any | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Local sorted state for DnD
+  const [localMaterials, setLocalMaterials] = useState<any[]>([]);
+  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+
   useEffect(() => {
     if (!isAdmin) navigate("/azienda", { replace: true });
   }, [isAdmin, navigate]);
@@ -88,6 +76,55 @@ export default function SettingsQuoteMaterials() {
       return data;
     },
   });
+
+  // Sync query data → local state when no pending changes
+  useEffect(() => {
+    if (!hasOrderChanges) {
+      setLocalMaterials(materials);
+    }
+  }, [materials, hasOrderChanges]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setLocalMaterials((prev) => {
+      const oldIdx = prev.findIndex((m) => m.id === active.id);
+      const newIdx = prev.findIndex((m) => m.id === over.id);
+      const reordered = arrayMove(prev, oldIdx, newIdx).map((m, i) => ({
+        ...m,
+        sort_order: i,
+      }));
+      return reordered;
+    });
+    setHasOrderChanges(true);
+  }
+
+  async function handleSaveOrder() {
+    setSavingOrder(true);
+    try {
+      const updates = localMaterials.map((m, i) =>
+        supabase.from("quote_pdf_materials").update({ sort_order: i }).eq("id", m.id)
+      );
+      const results = await Promise.all(updates);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+
+      setHasOrderChanges(false);
+      queryClient.invalidateQueries({ queryKey: ["quote-pdf-materials"] });
+      toast.success("Ordinamento salvato");
+    } catch {
+      toast.error("Errore nel salvataggio dell'ordinamento");
+    } finally {
+      setSavingOrder(false);
+    }
+  }
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -111,7 +148,7 @@ export default function SettingsQuoteMaterials() {
           storage_path: storagePath,
           file_size_bytes: file.size,
           created_by: (await supabase.auth.getUser()).data.user!.id,
-          sort_order: materials.length,
+          sort_order: localMaterials.length,
         });
       if (dbError) throw dbError;
     },
@@ -169,26 +206,20 @@ export default function SettingsQuoteMaterials() {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files).filter(
-        (f) => f.type === "application/pdf"
-      );
+      const files = Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf");
       if (!files.length) return;
       setUploading(true);
-      Promise.all(files.map((f) => uploadMutation.mutateAsync(f))).finally(
-        () => setUploading(false)
-      );
+      Promise.all(files.map((f) => uploadMutation.mutateAsync(f))).finally(() => setUploading(false));
     },
     [uploadMutation]
   );
 
   const handlePreview = async (storagePath: string) => {
-    const { data } = await supabase.storage
-      .from("quote-materials")
-      .createSignedUrl(storagePath, 300);
+    const { data } = await supabase.storage.from("quote-materials").createSignedUrl(storagePath, 300);
     if (data?.signedUrl) setPreviewUrl(data.signedUrl);
   };
 
-  const filtered = materials.filter((m: any) => {
+  const filtered = localMaterials.filter((m: any) => {
     if (activeTab === "tutti") return true;
     if (activeTab === "globali") return !m.article_template_id;
     if (activeTab === "prodotto") return !!m.article_template_id;
@@ -199,11 +230,19 @@ export default function SettingsQuoteMaterials() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Materiali Preventivi</h1>
-        <p className="text-muted-foreground">
-          Gestisci i PDF da allegare ai preventivi (schede prodotto, garanzie, certificazioni)
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Materiali Preventivi</h1>
+          <p className="text-muted-foreground">
+            Gestisci i PDF da allegare ai preventivi. Trascina per riordinare.
+          </p>
+        </div>
+        {hasOrderChanges && (
+          <Button onClick={handleSaveOrder} disabled={savingOrder} size="sm">
+            {savingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Salva ordinamento
+          </Button>
+        )}
       </div>
 
       {/* Upload dropzone */}
@@ -213,14 +252,7 @@ export default function SettingsQuoteMaterials() {
         className="border-2 border-dashed border-muted-foreground/25 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
         onClick={() => fileInputRef.current?.click()}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf"
-          multiple
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+        <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handleFileSelect} />
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -238,17 +270,17 @@ export default function SettingsQuoteMaterials() {
       {/* Filter tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="tutti">Tutti ({materials.length})</TabsTrigger>
+          <TabsTrigger value="tutti">Tutti ({localMaterials.length})</TabsTrigger>
           <TabsTrigger value="globali">
-            Globali ({materials.filter((m: any) => !m.article_template_id).length})
+            Globali ({localMaterials.filter((m: any) => !m.article_template_id).length})
           </TabsTrigger>
           <TabsTrigger value="prodotto">
-            Per Prodotto ({materials.filter((m: any) => !!m.article_template_id).length})
+            Per Prodotto ({localMaterials.filter((m: any) => !!m.article_template_id).length})
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {/* Materials grid */}
+      {/* Materials list with DnD */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -259,56 +291,26 @@ export default function SettingsQuoteMaterials() {
           <p>Nessun materiale caricato</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((m: any) => (
-            <Card key={m.id} className="group relative">
-              <CardContent className="p-4 flex items-start gap-3">
-                <GripVertical className="h-5 w-5 text-muted-foreground/40 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{m.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {categoryLabels[m.category] || m.category}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {(m.file_size_bytes / 1024).toFixed(0)} KB
-                    </span>
-                  </div>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => handlePreview(m.storage_path)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      setEditItem(m);
-                      setEditName(m.name);
-                      setEditCategory(m.category || "generale");
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => setDeleteItem(m)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={filtered.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {filtered.map((m: any, index: number) => (
+                <SortableMaterialItem
+                  key={m.id}
+                  material={m}
+                  index={index}
+                  onPreview={handlePreview}
+                  onEdit={(mat) => {
+                    setEditItem(mat);
+                    setEditName(mat.name);
+                    setEditCategory(mat.category || "generale");
+                  }}
+                  onDelete={setDeleteItem}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Edit dialog */}
@@ -325,32 +327,19 @@ export default function SettingsQuoteMaterials() {
             <div>
               <label className="text-sm font-medium">Categoria</label>
               <Select value={editCategory} onValueChange={setEditCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {categoryLabels[c]}
-                    </SelectItem>
+                    <SelectItem key={c} value={c}>{categoryLabels[c]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditItem(null)}>
-              Annulla
-            </Button>
+            <Button variant="outline" onClick={() => setEditItem(null)}>Annulla</Button>
             <Button
-              onClick={() =>
-                editItem &&
-                updateMutation.mutate({
-                  id: editItem.id,
-                  name: editName,
-                  category: editCategory,
-                })
-              }
+              onClick={() => editItem && updateMutation.mutate({ id: editItem.id, name: editName, category: editCategory })}
               disabled={updateMutation.isPending}
             >
               Salva
@@ -386,9 +375,7 @@ export default function SettingsQuoteMaterials() {
           <DialogHeader>
             <DialogTitle>Anteprima PDF</DialogTitle>
           </DialogHeader>
-          {previewUrl && (
-            <iframe src={previewUrl} className="w-full flex-1 rounded-md border" />
-          )}
+          {previewUrl && <iframe src={previewUrl} className="w-full flex-1 rounded-md border" />}
         </DialogContent>
       </Dialog>
     </div>
