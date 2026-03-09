@@ -75,6 +75,7 @@ function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars
       return data || [];
     },
     enabled: !!contactId && !!companyId,
+    staleTime: 120_000,
   });
 
   const now = useMemo(() => new Date(), []);
@@ -307,6 +308,7 @@ function OpportunitiesPanel({ contactId, companyId }: { contactId: string; compa
       return data;
     },
     enabled: !!contactId && !!companyId,
+    staleTime: 120_000,
   });
 
   if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
@@ -349,6 +351,7 @@ function ContactQuotesPanel({ contactId, companyId }: { contactId: string; compa
       return data;
     },
     enabled: !!contactId && !!companyId,
+    staleTime: 120_000,
   });
 
   const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
@@ -420,6 +423,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 300_000,
   });
 
   // ── Fetch staff users for appointment dialog ──
@@ -442,6 +446,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validIds.includes(p.id));
     },
     enabled: !!companyId,
+    staleTime: 600_000,
   });
 
   // ── Fetch contact ──
@@ -457,6 +462,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
+    staleTime: 120_000,
   });
 
   // ── Fetch all contact IDs for navigation ──
@@ -506,6 +512,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: !!companyId,
+    staleTime: 600_000,
   });
 
   // ── Fetch salespeople (salesperson + company_admin) for Titolare ──
@@ -534,6 +541,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: !!companyId,
+    staleTime: 600_000,
   });
 
   // ── Fetch call center users for Call Center dropdown ──
@@ -562,6 +570,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: !!companyId,
+    staleTime: 600_000,
   });
 
   // ── Fetch custom fields (solo tipo "contact") ──
@@ -580,6 +589,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
+    staleTime: 120_000,
   });
 
   // ── Fetch activities ──
@@ -596,6 +606,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
+    staleTime: 120_000,
   });
 
   // ── Fetch notes ──
@@ -612,6 +623,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
+    staleTime: 120_000,
   });
 
   // ── Fetch contact messages ──
@@ -628,6 +640,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
+    staleTime: 120_000,
   });
 
   // ── Send message mutation ──
