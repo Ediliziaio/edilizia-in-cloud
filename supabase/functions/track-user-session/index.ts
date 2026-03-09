@@ -21,16 +21,18 @@ Deno.serve(async (req) => {
     if (action === "start") {
       const { ip_address, user_agent, device_type, browser, os } = body;
 
-      // Get user's company_id
+      // Resolve company_id from profile or explicit payload (super_admin impersonation)
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("company_id")
         .eq("id", userId)
         .single();
 
-      if (!profile?.company_id) {
-        return new Response(JSON.stringify({ error: "No company found" }), {
-          status: 400,
+      const companyId = profile?.company_id || body.company_id || null;
+
+      // If no company context is available, skip session tracking without failing the app
+      if (!companyId) {
+        return new Response(JSON.stringify({ session_id: null, skipped: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -39,7 +41,7 @@ Deno.serve(async (req) => {
         .from("user_sessions")
         .insert({
           user_id: userId,
-          company_id: profile.company_id,
+          company_id: companyId,
           ip_address: ip_address || null,
           user_agent: user_agent || null,
           device_type: device_type || null,
