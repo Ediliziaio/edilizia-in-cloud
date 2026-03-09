@@ -94,9 +94,20 @@
 
 ---
 
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ Partner Portal Referrer (P3)
 - ⬜ Round-robin assegnazione team
 - ⬜ KPI per team nella dashboard
 - ⬜ Drag & Drop utenti tra team

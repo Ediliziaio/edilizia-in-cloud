@@ -17,6 +17,7 @@ import { CustomerLayout } from "@/components/layouts/CustomerLayout";
 import { EmployeeLayout } from "@/components/layouts/EmployeeLayout";
 import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
+import { PartnerLayout } from "@/components/layouts/PartnerLayout";
 
 // Suspense fallback
 const PageLoader = () => (
@@ -137,6 +138,9 @@ const SalespersonDashboard = lazy(() => import("@/pages/venditore/SalespersonDas
 const MyOrders = lazy(() => import("@/pages/venditore/MyOrders"));
 const MyEarnings = lazy(() => import("@/pages/venditore/MyEarnings"));
 const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfile"));
+
+// Partner
+const PartnerPortal = lazy(() => import("@/pages/partner/PartnerPortal"));
 
 // Auth
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
@@ -371,6 +375,20 @@ const App = () => (
                 <Route path="ordini" element={<MyOrders />} />
                 <Route path="guadagni" element={<MyEarnings />} />
                 <Route path="profilo" element={<SalespersonProfile />} />
+              </Route>
+
+              {/* Partner Routes */}
+              <Route
+                path="/partner"
+                element={
+                  <ProtectedRoute allowedRoles={["referrer", "super_admin"]}>
+                    <ErrorBoundary title="Errore nel portale partner">
+                      <PartnerLayout />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<PartnerPortal />} />
               </Route>
 
               {/* Catch-all */}
