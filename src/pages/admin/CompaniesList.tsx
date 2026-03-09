@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
