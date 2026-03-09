@@ -407,7 +407,21 @@ export function useCompanyDetail(id: string | undefined) {
     if (!permissionsUser) return;
     setSavingPermissions(true);
     try {
-      const { error } = await supabase.from("staff_permissions").update(permissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
+      const syncedPermissions = {
+        ...permissions,
+        can_view_marketing: [
+          "can_view_marketing_dashboard", "can_view_marketing_contacts",
+          "can_view_marketing_opportunities", "can_view_marketing_activities",
+          "can_view_marketing_appointments", "can_view_marketing_automations",
+          "can_view_marketing_ai_agent", "can_view_marketing_email",
+          "can_view_marketing_whatsapp", "can_view_marketing_reports",
+        ].some(k => (permissions as any)[k] === true),
+        can_edit_marketing: [
+          "can_edit_marketing_contacts",
+          "can_edit_marketing_opportunities",
+        ].some(k => (permissions as any)[k] === true),
+      };
+      const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
       toast.success("Permessi aggiornati");
