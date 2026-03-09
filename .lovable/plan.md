@@ -114,3 +114,10 @@
 ---
 
 ## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
