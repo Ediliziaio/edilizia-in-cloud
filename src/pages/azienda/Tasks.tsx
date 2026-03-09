@@ -14,6 +14,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
