@@ -155,11 +155,11 @@
 - ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
 - ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
 
-### Fase 4 — TODO
+### Fase 4 ✅
 
-- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
-- [ ] **G**: Enrollment bulk dalla lista contatti CRM
-- [ ] **send_ai_message**: Integrazione con Lovable AI
+- ✅ **F**: `send_sms` già implementato via Telnyx in `process-automation` e `telnyx-proxy`
+- ✅ **G**: Enrollment bulk — `BulkEnrollAutomationDropdown` nel CRM contatti con selezione flussi pubblicati e inserimento in `automation_enrollments` + `automation_trigger_events`
+- ✅ **send_ai_message**: Integrazione con Lovable AI Gateway (`google/gemini-3-flash-preview`) — genera messaggio personalizzato con contesto contatto e dispatcha su email/WhatsApp/SMS
 
 ---
 

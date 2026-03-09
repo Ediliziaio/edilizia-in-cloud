@@ -604,7 +604,107 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
     case "send_ai_message": {
       console.log(`[send_ai_message] entity=${entityId} config=`, JSON.stringify(cfg));
-      return { success: true, output: { action: "send_ai_message", placeholder: true, message: "Integration pending" } };
+      try {
+        // 1. Load contact data for context
+        const { data: aiContact } = await supabase
+          .from("marketing_contacts")
+          .select("first_name, last_name, email, phone, company_name, tags, score")
+          .eq("id", entityId)
+          .eq("company_id", companyId)
+          .maybeSingle();
+
+        if (!aiContact) return { success: false, error: "Contatto non trovato" };
+
+        const aiPrompt = cfg.ai_prompt || "Scrivi un messaggio di follow-up.";
+        const aiTone = cfg.ai_tone || "professional";
+        const aiLanguage = cfg.ai_language || "it";
+        const aiMaxLength = parseInt(cfg.ai_max_length) || 500;
+        const aiChannel = cfg.ai_channel || "email";
+
+        const toneMap: Record<string, string> = {
+          professional: "professionale e cortese",
+          friendly: "amichevole e informale",
+          formal: "formale e istituzionale",
+        };
+        const langMap: Record<string, string> = { it: "italiano", en: "inglese" };
+
+        const systemPrompt = `Sei un assistente marketing. Genera un messaggio per il canale "${aiChannel}".
+Tono: ${toneMap[aiTone] || aiTone}. Lingua: ${langMap[aiLanguage] || aiLanguage}.
+Lunghezza massima: ${aiMaxLength} caratteri.
+${aiChannel === "email" ? "Genera subject (max 60 char) e body separati. Formato:\nSUBJECT: ...\nBODY: ..." : "Genera solo il testo del messaggio."}
+Non usare markdown. Non aggiungere saluti generici se non richiesto.`;
+
+        const userPrompt = `Contatto: ${aiContact.first_name} ${aiContact.last_name}
+Email: ${aiContact.email || "N/A"}, Telefono: ${aiContact.phone || "N/A"}
+Azienda: ${aiContact.company_name || "N/A"}, Score: ${aiContact.score || 0}
+Tags: ${(aiContact.tags || []).join(", ") || "nessuno"}
+
+Istruzione: ${aiPrompt}`;
+
+        // 2. Call Lovable AI Gateway
+        const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+        if (!lovableApiKey) return { success: false, error: "LOVABLE_API_KEY non configurata" };
+
+        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${lovableApiKey}`,
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            max_tokens: 1024,
+          }),
+        });
+
+        if (!aiRes.ok) {
+          const errText = await aiRes.text();
+          return { success: false, error: `AI Gateway error: ${aiRes.status} ${errText.slice(0, 200)}` };
+        }
+
+        const aiData = await aiRes.json();
+        const generatedText = aiData.choices?.[0]?.message?.content || "";
+        if (!generatedText) return { success: false, error: "AI non ha generato testo" };
+
+        // 3. Dispatch to channel
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+        if (aiChannel === "email") {
+          let subject = "Messaggio automatico";
+          let body = generatedText;
+          const subjectMatch = generatedText.match(/SUBJECT:\s*(.+?)(?:\n|$)/i);
+          const bodyMatch = generatedText.match(/BODY:\s*([\s\S]+)/i);
+          if (subjectMatch) subject = subjectMatch[1].trim();
+          if (bodyMatch) body = bodyMatch[1].trim();
+
+          return await executeSendEmail(supabase, { ...cfg, email_subject: subject, email_body: body }, entityId, companyId);
+        } else if (aiChannel === "whatsapp") {
+          return await executeSendWhatsApp(supabase, { ...cfg, whatsapp_body: generatedText }, entityId, companyId);
+        } else if (aiChannel === "sms") {
+          if (!aiContact.phone) return { success: false, error: "Contatto senza telefono" };
+          const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              action: "send_sms", company_id: companyId,
+              payload: { to: aiContact.phone, body: generatedText, contact_id: entityId },
+            }),
+          });
+          const smsResult = await smsRes.json();
+          if (!smsRes.ok || smsResult?.error) return { success: false, error: smsResult?.error || `HTTP ${smsRes.status}` };
+          return { success: true, output: { action: "send_ai_message", channel: "sms", message_id: smsResult?.message_id } };
+        }
+
+        return { success: true, output: { action: "send_ai_message", channel: aiChannel, generated: true } };
+      } catch (aiErr: any) {
+        console.error("[send_ai_message] error:", aiErr);
+        return { success: false, error: aiErr.message };
+      }
     }
 
     case "remove_from_automation": {

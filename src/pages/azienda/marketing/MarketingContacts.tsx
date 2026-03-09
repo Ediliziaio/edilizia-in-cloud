@@ -12,6 +12,7 @@ import { ContactsTable, type MarketingContact, type SortField, type SortDirectio
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
+import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollAutomationDropdown";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
@@ -686,7 +687,7 @@ export default function MarketingContacts() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
-            bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
+            bulkActions={<div className="flex items-center gap-2"><AddToListDropdown selectedIds={selectedIds} /><BulkEnrollAutomationDropdown selectedIds={selectedIds} /></div>}
             visibleColumns={visibleColumns}
             customFields={contactCustomFields}
             customFieldValues={customFieldValues}
