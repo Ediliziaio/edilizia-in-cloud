@@ -28,6 +28,7 @@ interface Props {
     entry_date: string;
     payment_method?: string;
     reference_number?: string;
+    account_label?: string;
     notes?: string;
   }) => void;
   isPending: boolean;
