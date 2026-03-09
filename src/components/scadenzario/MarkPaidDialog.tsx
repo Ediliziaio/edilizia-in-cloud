@@ -23,6 +23,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   const [method, setMethod] = useState("bonifico");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [accountLabel, setAccountLabel] = useState("banca");
 
   const handleOpen = (o: boolean) => {
     if (o && scadenza) {
