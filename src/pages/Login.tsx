@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Loader2 } from "lucide-react";
 
-export default function Login() {
+const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   const { user, role, isLoading } = useAuth();
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
@@ -99,4 +99,6 @@ export default function Login() {
   }
 
   return <LoginForm />;
-}
+});
+
+export default Login;

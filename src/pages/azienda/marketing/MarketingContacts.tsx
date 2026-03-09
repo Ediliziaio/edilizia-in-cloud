@@ -161,6 +161,12 @@ export default function MarketingContacts() {
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
+        // Apply search filter if active
+        if (search && search.trim()) {
+          const s = `%${search.trim()}%`;
+          query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+        }
+
         if (finalIds) query = query.in("id", finalIds);
 
         const { data, error } = await query;
@@ -196,11 +202,18 @@ export default function MarketingContacts() {
       let cfMap: Record<string, Record<string, string>> = {};
       if (cfColumns.length > 0 && all && all.length > 0) {
         const ids = all.map((c: any) => c.id);
-        const { data: vals } = await supabase
-          .from("marketing_contact_field_values")
-          .select("contact_id, field_id, value")
-          .in("contact_id", ids);
-        for (const v of vals || []) {
+        // Chunk .in() queries to avoid Supabase limits
+        const CHUNK_SIZE = 2000;
+        let allVals: any[] = [];
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+          const chunk = ids.slice(i, i + CHUNK_SIZE);
+          const { data: vals } = await supabase
+            .from("marketing_contact_field_values")
+            .select("contact_id, field_id, value")
+            .in("contact_id", chunk);
+          allVals = allVals.concat(vals || []);
+        }
+        for (const v of allVals) {
           if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
           if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
         }
@@ -243,7 +256,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search]);
 
   // Pipelines with stages for opportunity filters
   const { data: pipelines = [] } = useQuery({
@@ -659,9 +672,19 @@ export default function MarketingContacts() {
       }
     }
 
+    // Remove internal duplicates from parsed (keep first occurrence)
+    const seenEmailsForDedup = new Set<string>();
+    const finalParsed = parsed.filter(p => {
+      if (!p.data.email) return true;
+      const key = p.data.email.toLowerCase();
+      if (seenEmailsForDedup.has(key)) return false;
+      seenEmailsForDedup.add(key);
+      return true;
+    });
+
     if (mode === "create") {
       // Simple insert
-      const toInsert = parsed.map(p => p.data);
+      const toInsert = finalParsed.map(p => p.data);
       const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
       if (error) return { success: 0, errors: [...errors, error.message] };
       created = data?.length || 0;
@@ -670,7 +693,7 @@ export default function MarketingContacts() {
       if (data && customKeys.length > 0) {
         const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
         data.forEach((contact, idx) => {
-          const row = parsed[idx]?.row;
+          const row = finalParsed[idx]?.row;
           if (!row) return;
           customKeys.forEach(key => {
             const val = row[key]?.trim();
@@ -690,8 +713,8 @@ export default function MarketingContacts() {
       const existingMap = new Map<string, string>(); // matchKey -> contact id
 
       // Fetch existing contacts by email/phone
-      const emails = parsed.map(p => p.data.email).filter(Boolean);
-      const phones = parsed.map(p => p.data.phone).filter(Boolean);
+      const emails = finalParsed.map(p => p.data.email).filter(Boolean);
+      const phones = finalParsed.map(p => p.data.phone).filter(Boolean);
 
       if (emails.length > 0) {
         // Batch in chunks of 100 for .in()
@@ -731,7 +754,7 @@ export default function MarketingContacts() {
       const toCreate: any[] = [];
       const toCreateRows: Record<string, string>[] = [];
 
-      for (const p of parsed) {
+      for (const p of finalParsed) {
         const matchKey = p.data.email
           ? `email:${p.data.email.toLowerCase()}`
           : p.data.phone

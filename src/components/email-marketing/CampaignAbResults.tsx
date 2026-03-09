@@ -39,6 +39,8 @@ export function CampaignAbResults({ campaignId }: Props) {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["ab-stats", campaignId],
     enabled: !!campaign?.ab_test_enabled,
+    refetchInterval: 60000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data: logs, error } = await supabase
         .from("email_logs")

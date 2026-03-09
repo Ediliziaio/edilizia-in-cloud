@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
 
     // A/B Testing: split recipients
     const isAbTest = campaign.ab_test_enabled && campaign.ab_subject_b;
-    const abSplitPercent = campaign.ab_split_percent ?? 50;
+    const abSplitPercent = Math.max(10, Math.min(90, campaign.ab_split_percent ?? 50));
 
     let recipientsA: any[] = recipients;
     let recipientsB: any[] = [];

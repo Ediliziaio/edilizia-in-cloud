@@ -226,7 +226,7 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
         ? "bg-violet-100 text-violet-600"
         : "bg-sky-100 text-sky-600";
       const channelLabel = msg.channel === "whatsapp" ? "WhatsApp" : msg.channel === "email" ? "Email" : "SMS";
-      const direction = (msg as any).direction;
+      const direction = msg.sent_by ? "outbound" : "inbound";
 
       events.push({
         id: `msg-${msg.id}`,
