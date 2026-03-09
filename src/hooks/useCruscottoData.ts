@@ -264,6 +264,29 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
+  // Invoice stats from RPC
+  const { data: invoiceStats } = useQuery({
+    queryKey: ["cruscotto-invoice-stats", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_cruscotto_invoice_stats" as any, {
+        p_company_id: companyId!,
+      });
+      if (error) throw error;
+      return data as {
+        total_outstanding: number;
+        overdue_count: number;
+        overdue_amount: number;
+        due_this_week_count: number;
+        due_this_week_amount: number;
+        paid_this_month: number;
+        issued_this_month: number;
+        issued_this_month_amount: number;
+      } | null;
+    },
+    enabled: !!companyId,
+    staleTime: 120_000,
+  });
+
   // Company targets/thresholds
   const { data: companyTargets } = useQuery({
     queryKey: ["cruscotto-targets", companyId],
