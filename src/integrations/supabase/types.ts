@@ -2331,6 +2331,10 @@ export type Database = {
       }
       companies: {
         Row: {
+          alert_late_orders_threshold: number | null
+          alert_margin_min_pct: number | null
+          alert_open_tickets_threshold: number | null
+          alert_runway_days_warning: number | null
           allowed_ips: string[] | null
           bank_account_holder: string | null
           bank_iban: string | null
@@ -2361,6 +2365,8 @@ export type Database = {
           logo_url: string | null
           max_failed_attempts: number
           messaging_beta_enabled: boolean
+          monthly_orders_target: number | null
+          monthly_revenue_target: number | null
           name: string
           notes: string | null
           operational_address: string | null
@@ -2399,6 +2405,10 @@ export type Database = {
           white_label_monthly_price: number | null
         }
         Insert: {
+          alert_late_orders_threshold?: number | null
+          alert_margin_min_pct?: number | null
+          alert_open_tickets_threshold?: number | null
+          alert_runway_days_warning?: number | null
           allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
@@ -2429,6 +2439,8 @@ export type Database = {
           logo_url?: string | null
           max_failed_attempts?: number
           messaging_beta_enabled?: boolean
+          monthly_orders_target?: number | null
+          monthly_revenue_target?: number | null
           name: string
           notes?: string | null
           operational_address?: string | null
@@ -2467,6 +2479,10 @@ export type Database = {
           white_label_monthly_price?: number | null
         }
         Update: {
+          alert_late_orders_threshold?: number | null
+          alert_margin_min_pct?: number | null
+          alert_open_tickets_threshold?: number | null
+          alert_runway_days_warning?: number | null
           allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
@@ -2497,6 +2513,8 @@ export type Database = {
           logo_url?: string | null
           max_failed_attempts?: number
           messaging_beta_enabled?: boolean
+          monthly_orders_target?: number | null
+          monthly_revenue_target?: number | null
           name?: string
           notes?: string | null
           operational_address?: string | null
@@ -10894,6 +10912,10 @@ export type Database = {
           company_id: string
           user_count: number
         }[]
+      }
+      get_cruscotto_stats: {
+        Args: { p_company_id: string; p_date_from: string; p_date_to: string }
+        Returns: Json
       }
       get_customers_paginated: {
         Args: {
