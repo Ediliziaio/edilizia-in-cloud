@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -170,17 +170,17 @@ export function EmailCampaignsTab() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
+  const currentFolders = useMemo(() => folders.filter((f: any) => f.parent_id === currentFolderId), [folders, currentFolderId]);
 
-  const filtered = campaigns.filter((c: any) => {
+  const filtered = useMemo(() => campaigns.filter((c: any) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "all" || c.type === category;
     const matchFolder = currentFolderId ? c.folder_id === currentFolderId : !c.folder_id;
     return matchSearch && matchCategory && matchFolder;
-  });
+  }), [campaigns, search, category, currentFolderId]);
 
   const totalPages = Math.ceil(filtered.length / perPage);
-  const paged = filtered.slice(page * perPage, (page + 1) * perPage);
+  const paged = useMemo(() => filtered.slice(page * perPage, (page + 1) * perPage), [filtered, page, perPage]);
   const showing = filtered.length > 0
     ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
     : "";
