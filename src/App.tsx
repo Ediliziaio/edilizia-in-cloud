@@ -17,6 +17,7 @@ import { CustomerLayout } from "@/components/layouts/CustomerLayout";
 import { EmployeeLayout } from "@/components/layouts/EmployeeLayout";
 import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
+import { PartnerLayout } from "@/components/layouts/PartnerLayout";
 
 // Suspense fallback
 const PageLoader = () => (
