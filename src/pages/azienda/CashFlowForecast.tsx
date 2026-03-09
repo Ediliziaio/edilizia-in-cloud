@@ -187,6 +187,8 @@ export default function CashFlowForecast() {
             expectedCommissions={expectedCommissions}
             expectedSupplierPayments={expectedSupplierPayments}
             expectedCompanyCosts={expectedCompanyCosts}
+            scadenzeForForecast={scadenzeForForecast}
+            primaNotaSaldo={primaNotaSaldo}
           />
         </TabsContent>
 
