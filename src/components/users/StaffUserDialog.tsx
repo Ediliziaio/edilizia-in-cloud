@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 interface StaffUserDialogProps {
   open: boolean;
