@@ -226,7 +226,7 @@ export function useCashFlowData() {
 
   // Paid supplier items (order_items with supplier)
   const { data: paidSupplierItems = [], isLoading: loadingPaidSuppliers } = useQuery({
-    queryKey: queryKeys.cashflow.treasury(companyId).concat(["paid-suppliers"]) as any,
+    queryKey: ["cashflow", "treasury", companyId, "paid-suppliers"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
