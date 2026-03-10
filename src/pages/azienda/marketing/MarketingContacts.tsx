@@ -102,7 +102,8 @@ export default function MarketingContacts() {
   }, [contactCustomFields]);
 
   const [activeTab, setActiveTab] = useState<"all" | "lists">("all");
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 350);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
