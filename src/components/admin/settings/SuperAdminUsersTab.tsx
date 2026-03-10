@@ -37,6 +37,7 @@ interface AdminUser {
 
 export default function SuperAdminUsersTab() {
   const { user } = useAuth();
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
