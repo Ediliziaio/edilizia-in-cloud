@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { downloadFile } from "@/lib/csvExport";
 import type { AdminDashboardStats, AdminMrrStats } from "@/hooks/useAdminDashboardData";
 
 interface ExportData {

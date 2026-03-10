@@ -41,6 +41,19 @@ export function exportToCSV(
   URL.revokeObjectURL(url);
 }
 
+/** Download a string as a file with BOM for Excel compatibility */
+export function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob(["\ufeff" + content], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function exportToXLSX(
   rows: Record<string, string>[],
   columns: CsvColumn[],
