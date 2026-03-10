@@ -723,6 +723,11 @@ export default function OrderDetail() {
               vat_rate: i.vat_rate,
             }))}
           />
+          <OrderSignatureCard
+            orderId={id!}
+            customerEmail={order.customer?.email}
+            customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+          />
           <LinkedTasks orderId={id} category="ordini" />
           <LinkedAppointments orderId={id!} />
         </div>
