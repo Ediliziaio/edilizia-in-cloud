@@ -225,7 +225,7 @@ export default function SettingsBilling() {
                             <span className="ml-1.5">Test</span>
                           </Button>
                           {!integ.is_primary && integ.is_active && (
-                            <Button variant="outline" size="sm" onClick={() => setPrimaryMutation.mutate(integ.id)}>
+                            <Button variant="outline" size="sm" onClick={() => setPrimaryMutation.mutate(integ.provider)}>
                               <Star className="h-4 w-4 mr-1" /> Rendi primario
                             </Button>
                           )}
