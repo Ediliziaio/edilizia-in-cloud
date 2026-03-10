@@ -1,0 +1,1169 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║   SUPERADMIN — Sezione Marketing & Vendita                              ║
+║   CRM Cross-Company · Lead · Opportunità · Calendario · Email · Auto   ║
+║   Sequenza: 8 prompt · Marzo 2026                                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+CONTESTO FONDAMENTALE
+─────────────────────
+Questo software è un SaaS multi-tenant chiamato "Edilizia in Cloud".
+Ogni azienda cliente ha la propria area marketing con: contatti, opportunità,
+calendario appuntamenti, email marketing, automazioni.
+
+Il superadmin (questo prompt) ha bisogno di una sezione Marketing & Vendita
+PROPRIA a livello di piattaforma, per gestire i propri lead/prospect
+(potenziali clienti del SaaS stesso), non quelli delle aziende clienti.
+
+Le stesse tabelle marketing_contacts, marketing_opportunities, appointments,
+automation_flows ecc. vengono RIUSATE ma con un company_id dedicato al
+superadmin (o con un flag is_platform = true). In questo modo si riusa
+tutta la logica esistente senza duplicare codice.
+
+Ogni prompt è AUTONOMO e va eseguito in ordine. Non saltare passaggi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM1] — MIGRATION DATABASE + PERMESSO
+             Struttura dati per marketing del superadmin
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Aggiungi colonna can_manage_marketing ai permessi superadmin
+────────────────────────────────────────────────────────────────────────────
+
+Esegui in Supabase SQL Editor:
+
+```sql
+-- Migration: admin_marketing_section_setup
+
+-- 1. Aggiungi permesso can_manage_marketing alla tabella super_admin_permissions
+ALTER TABLE super_admin_permissions
+  ADD COLUMN IF NOT EXISTS can_manage_marketing boolean NOT NULL DEFAULT false;
+
+-- 2. Aggiorna tutti i superadmin esistenti con full access (già attivi)
+--    a true per non bloccare nessuno (migrazione non distruttiva)
+UPDATE super_admin_permissions
+SET can_manage_marketing = true
+WHERE can_manage_companies = true;  -- se già gestisce aziende, può fare marketing
+
+-- 3. Crea la "company virtuale" del superadmin per il marketing
+--    Questa è l'azienda fittizia che contiene i contatti/lead del CRM del superadmin
+INSERT INTO companies (
+  id,
+  name,
+  email,
+  sector,
+  status,
+  is_platform_admin_company
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',  -- UUID fisso e riconoscibile
+  'Platform Admin CRM',
+  'admin@platform.internal',
+  'saas',
+  'active',
+  true
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 4. Aggiungi colonna is_platform_admin_company alla tabella companies
+--    per distinguere questa company fittizia dalle aziende clienti reali
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS is_platform_admin_company boolean NOT NULL DEFAULT false;
+
+UPDATE companies
+SET is_platform_admin_company = true
+WHERE id = '00000000-0000-0000-0000-000000000001';
+
+-- 5. RLS: escluди la platform admin company dalla lista aziende clienti normali
+--    Le query esistenti su companies useranno:
+--    .eq("is_platform_admin_company", false) o .neq("id", PLATFORM_COMPANY_ID)
+--    NOTA: aggiornare le query esistenti in CompaniesList.tsx (vedi AM2)
+
+-- 6. Crea pipeline di default per il marketing del superadmin
+INSERT INTO marketing_pipelines (
+  id,
+  company_id,
+  name,
+  is_default,
+  created_at
+)
+VALUES (
+  gen_random_uuid(),
+  '00000000-0000-0000-0000-000000000001',
+  'Pipeline Vendita SaaS',
+  true,
+  now()
+)
+ON CONFLICT DO NOTHING;
+
+-- 7. Crea gli stage di default per la pipeline SaaS
+--    (usa l'id della pipeline appena creata — sostituire <PIPELINE_ID>)
+DO $$
+DECLARE
+  v_pipeline_id uuid;
+BEGIN
+  SELECT id INTO v_pipeline_id
+  FROM marketing_pipelines
+  WHERE company_id = '00000000-0000-0000-0000-000000000001'
+    AND is_default = true
+  LIMIT 1;
+
+  INSERT INTO marketing_pipeline_stages (pipeline_id, name, position, auto_status, color)
+  VALUES
+    (v_pipeline_id, 'Lead Nuovo',         1, 'open',  '#6366f1'),
+    (v_pipeline_id, 'Primo Contatto',      2, 'open',  '#3b82f6'),
+    (v_pipeline_id, 'Demo Richiesta',      3, 'open',  '#8b5cf6'),
+    (v_pipeline_id, 'Demo Effettuata',     4, 'open',  '#f59e0b'),
+    (v_pipeline_id, 'Proposta Inviata',    5, 'open',  '#f97316'),
+    (v_pipeline_id, 'Negoziazione',        6, 'open',  '#ef4444'),
+    (v_pipeline_id, 'Cliente Acquisito',   7, 'won',   '#22c55e'),
+    (v_pipeline_id, 'Perso',               8, 'lost',  '#94a3b8')
+  ON CONFLICT DO NOTHING;
+END $$;
+
+-- 8. Tag di default per il CRM del superadmin
+INSERT INTO marketing_tags (company_id, name, color)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'Hot Lead',        '#ef4444'),
+  ('00000000-0000-0000-0000-000000000001', 'Demo Richiesta',  '#f59e0b'),
+  ('00000000-0000-0000-0000-000000000001', 'Trial Attivo',    '#22c55e'),
+  ('00000000-0000-0000-0000-000000000001', 'Referral',        '#6366f1'),
+  ('00000000-0000-0000-0000-000000000001', 'Agenzia',         '#3b82f6'),
+  ('00000000-0000-0000-0000-000000000001', 'Imprenditore',    '#8b5cf6')
+ON CONFLICT DO NOTHING;
+
+-- 9. Calendario di default per gli appuntamenti del superadmin
+INSERT INTO marketing_calendars (company_id, name, color, is_default)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Demo & Sales', '#6366f1', true)
+ON CONFLICT DO NOTHING;
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Aggiorna SuperAdminPermissions interface e constants
+────────────────────────────────────────────────────────────────────────────
+
+In src/hooks/useSuperAdminPermissions.ts aggiorna l'interfaccia:
+
+```ts
+// Aggiungi can_manage_marketing all'interfaccia:
+export interface SuperAdminPermissions {
+  can_manage_companies: boolean;
+  can_manage_plans: boolean;
+  can_manage_tickets: boolean;
+  can_manage_referrals: boolean;
+  can_manage_admins: boolean;
+  can_view_platform_stats: boolean;
+  can_manage_marketing: boolean;    // <-- NUOVO
+  allowed_company_ids: string[] | null;
+}
+
+// Aggiorna NO_ACCESS_PERMISSIONS:
+const NO_ACCESS_PERMISSIONS: SuperAdminPermissions = {
+  can_manage_companies: false,
+  can_manage_plans: false,
+  can_manage_tickets: false,
+  can_manage_referrals: false,
+  can_manage_admins: false,
+  can_view_platform_stats: false,
+  can_manage_marketing: false,     // <-- NUOVO
+  allowed_company_ids: [],
+};
+```
+
+In src/lib/adminConstants.ts aggiungi alle SUPER_ADMIN_PERMISSION_LABELS:
+
+```ts
+export const SUPER_ADMIN_PERMISSION_LABELS: Record<string, string> = {
+  can_manage_companies:  "Gestione Aziende",
+  can_manage_plans:      "Gestione Piani",
+  can_manage_tickets:    "Assistenza",
+  can_manage_referrals:  "Referral",
+  can_manage_admins:     "Gestione Admin",
+  can_view_platform_stats: "Statistiche Piattaforma",
+  can_manage_marketing:  "Marketing & Vendita",   // <-- NUOVO
+};
+
+// Costante per la company virtuale del superadmin
+export const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
+```
+
+In src/components/admin/settings/SuperAdminPermissionsDialog.tsx,
+aggiungi il toggle per can_manage_marketing nella lista dei permessi.
+Il sistema di toggle è già esistente, basta aggiungere la chiave.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Escludi la platform company dalla lista aziende clienti
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/CompaniesList.tsx, nella query che carica le aziende,
+aggiungi il filtro per escludere la company virtuale del superadmin:
+
+```tsx
+// Importa la costante
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+
+// Nella queryFn della query companies, aggiungi:
+.neq("id", PLATFORM_ADMIN_COMPANY_ID)
+// oppure:
+.eq("is_platform_admin_company", false)
+```
+
+Stesso filtro nella query del QuickLoginPopover in AdminLayout.tsx.
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM2] — SIDEBAR + ROUTING
+             Macrosezione Marketing & Vendita in AdminLayout
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Aggiorna AdminLayout.tsx con la nuova macrosezione
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/layouts/AdminLayout.tsx aggiorna la struttura del
+sidebar per aggiungere la sezione "Marketing & Vendita".
+
+La struttura attuale ha un array `allNavItems`. Aggiungi una sezione
+separata con un titolo visibile, esattamente come è strutturata l'area
+marketing nell'area aziendale (sidebarConfig.ts con gruppi).
+
+```tsx
+// Aggiungi questi import Lucide (se non già presenti):
+import {
+  TrendingUp,
+  Users2,
+  Target,
+  CalendarDays,
+  Mail,
+  Zap,
+  BarChart3,
+  Megaphone,
+} from "lucide-react";
+
+// Import costante
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+
+// Aggiungi questo array SEPARATO dalle voci principali:
+const marketingNavItems = [
+  {
+    label: "Dashboard",
+    url: "/admin/marketing",
+    icon: BarChart3,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+  {
+    label: "Contatti & Lead",
+    url: "/admin/marketing/contatti",
+    icon: Users2,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+  {
+    label: "Opportunità",
+    url: "/admin/marketing/opportunita",
+    icon: Target,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+  {
+    label: "Calendario",
+    url: "/admin/marketing/calendario",
+    icon: CalendarDays,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+  {
+    label: "Email Marketing",
+    url: "/admin/marketing/email",
+    icon: Mail,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+  {
+    label: "Automazioni",
+    url: "/admin/marketing/automazioni",
+    icon: Zap,
+    permission: "can_manage_marketing" as keyof SuperAdminPermissions,
+  },
+];
+
+// Filtra in base ai permessi (stesso pattern delle voci principali):
+const filteredMarketingItems = marketingNavItems.filter(
+  (item) => permissions[item.permission]
+);
+```
+
+Nel render del sidebar, DOPO le voci principali e PRIMA della sezione
+account/impostazioni, aggiungi la macrosezione:
+
+```tsx
+{/* SEZIONE MARKETING & VENDITA */}
+{filteredMarketingItems.length > 0 && (
+  <div className="mt-4">
+    {/* Titolo sezione con separatore */}
+    <div className="px-3 mb-1">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        Marketing & Vendita
+      </p>
+    </div>
+    {/* Voci di menu */}
+    {filteredMarketingItems.map((item) => (
+      <SidebarMenuButton
+        key={item.url}
+        asChild
+        isActive={location.pathname === item.url || location.pathname.startsWith(item.url + "/")}
+        tooltip={item.label}
+      >
+        <NavLink to={item.url}>
+          <item.icon className="h-4 w-4" />
+          <span>{item.label}</span>
+        </NavLink>
+      </SidebarMenuButton>
+    ))}
+  </div>
+)}
+```
+
+IMPORTANTE: usa esattamente gli stessi componenti SidebarMenuButton,
+SidebarMenuItem, NavLink usati per le altre voci nella sidebar.
+Non inventare nuovi componenti — copia il pattern esistente.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Aggiorna App.tsx con le nuove route
+────────────────────────────────────────────────────────────────────────────
+
+In src/App.tsx nella sezione delle route /admin, aggiungi:
+
+```tsx
+// Import nuove pagine (da creare nei prompt successivi):
+import AdminMarketingDashboard from "@/pages/admin/marketing/AdminMarketingDashboard";
+import AdminMarketingContacts from "@/pages/admin/marketing/AdminMarketingContacts";
+import AdminMarketingOpportunities from "@/pages/admin/marketing/AdminMarketingOpportunities";
+import AdminMarketingCalendar from "@/pages/admin/marketing/AdminMarketingCalendar";
+import AdminEmailMarketing from "@/pages/admin/marketing/AdminEmailMarketing";
+import AdminMarketingAutomations from "@/pages/admin/marketing/AdminMarketingAutomations";
+
+// Dentro il blocco Route path="/admin":
+<Route path="marketing" element={<AdminMarketingDashboard />} />
+<Route path="marketing/contatti" element={<AdminMarketingContacts />} />
+<Route path="marketing/contatti/:id" element={<AdminMarketingContactDetail />} />
+<Route path="marketing/opportunita" element={<AdminMarketingOpportunities />} />
+<Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
+<Route path="marketing/email" element={<AdminEmailMarketing />} />
+<Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Hook condiviso: useAdminMarketing
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/hooks/useAdminMarketing.ts — questo hook fornisce la companyId
+della platform admin company a tutte le pagine marketing del superadmin:
+
+```ts
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+
+/**
+ * Hook base per le pagine marketing del superadmin.
+ * Fornisce il companyId fisso della platform admin company
+ * e verifica il permesso can_manage_marketing.
+ */
+export function useAdminMarketing() {
+  const { permissions, isLoading: permLoading } = useSuperAdminPermissions();
+
+  return {
+    companyId: PLATFORM_ADMIN_COMPANY_ID,
+    hasAccess: permissions.can_manage_marketing,
+    permLoading,
+  };
+}
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM3] — DASHBOARD MARKETING SUPERADMIN
+             Replica di MarketingDashboard per il superadmin
+════════════════════════════════════════════════════════════════════════════
+
+Crea la cartella src/pages/admin/marketing/ e il file
+AdminMarketingDashboard.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingDashboard.tsx con due differenze:
+1. Usa `companyId = PLATFORM_ADMIN_COMPANY_ID` invece del companyId aziendale
+2. Ha il check permesso can_manage_marketing in cima
+
+────────────────────────────────────────────────────────────────────────────
+IMPLEMENTAZIONE
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingDashboard.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
+
+// Importa TUTTI gli stessi componenti dashboard che usa MarketingDashboard.tsx:
+import { DashboardStrategicKPI } from "@/components/marketing/dashboard/DashboardStrategicKPI";
+import { DashboardKPICards } from "@/components/marketing/dashboard/DashboardKPICards";
+import { DashboardAlerts } from "@/components/marketing/dashboard/DashboardAlerts";
+import { DashboardInsights } from "@/components/marketing/dashboard/DashboardInsights";
+import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunnel";
+import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
+import { DashboardSourcesTable } from "@/components/marketing/dashboard/DashboardSourcesTable";
+import { DashboardForecast } from "@/components/marketing/dashboard/DashboardForecast";
+import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
+import { DashboardFilters } from "@/components/marketing/dashboard/DashboardFilters";
+
+export default function AdminMarketingDashboard() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per accedere al Marketing." />;
+
+  // Usa ESATTAMENTE lo stesso hook del marketing aziendale,
+  // passando il PLATFORM_ADMIN_COMPANY_ID come companyId:
+  const {
+    data,
+    isLoading,
+    filters,
+    updateFilters,
+  } = useMarketingDashboard(companyId);
+
+  // Copia IDENTICA del JSX di MarketingDashboard.tsx
+  // L'unica differenza è il titolo nella header:
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Marketing & Vendita</h1>
+          <p className="text-muted-foreground text-sm">
+            CRM piattaforma · Lead e opportunità SaaS
+          </p>
+        </div>
+        <DashboardFilters filters={filters} onUpdate={updateFilters} />
+      </div>
+
+      {/* KPI strategici */}
+      <DashboardStrategicKPI data={data} isLoading={isLoading} />
+
+      {/* Alerts */}
+      <DashboardAlerts data={data} isLoading={isLoading} />
+
+      {/* Funnel + Trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DashboardFunnel data={data} isLoading={isLoading} />
+        <DashboardTrendChart data={data} isLoading={isLoading} />
+      </div>
+
+      {/* KPI secondari */}
+      <DashboardKPICards data={data} isLoading={isLoading} />
+
+      {/* Tabelle performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DashboardSalesTable data={data} isLoading={isLoading} />
+        <DashboardSourcesTable data={data} isLoading={isLoading} />
+      </div>
+
+      {/* Forecast + Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DashboardForecast data={data} isLoading={isLoading} />
+        <DashboardInsights data={data} isLoading={isLoading} />
+      </div>
+    </div>
+  );
+}
+```
+
+NOTA CRITICA: il hook `useMarketingDashboard` chiama la RPC
+`get_marketing_dashboard_stats` con `p_company_id`. La RPC usa già
+`company_id` per filtrare. Passando `PLATFORM_ADMIN_COMPANY_ID`, la RPC
+ritornerà automaticamente i dati del CRM del superadmin. NESSUNA modifica
+alla RPC è necessaria.
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM4] — CONTATTI & LEAD
+             Replica di MarketingContacts per il superadmin
+════════════════════════════════════════════════════════════════════════════
+
+Crea src/pages/admin/marketing/AdminMarketingContacts.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingContacts.tsx (738 righe).
+
+Differenze rispetto all'originale:
+1. `companyId = PLATFORM_ADMIN_COMPANY_ID` (da useAdminMarketing)
+2. Check permesso can_manage_marketing in cima
+3. La colonna "Azienda Cliente" (company_name) nella tabella mostra il nome
+   dell'azienda SaaS (es. "Serramenti Rossi") se il contatto è un lead
+   associato a una company cliente — NON il nome della company interna
+4. Titolo pagina: "Contatti & Lead" invece di "Contatti"
+
+────────────────────────────────────────────────────────────────────────────
+IMPLEMENTAZIONE
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingContacts.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// COPIA TUTTI gli import da MarketingContacts.tsx:
+// - ContactsTable (componente già esistente)
+// - ContactDialog
+// - ContactFiltersSheet
+// - ContactFieldsSheet
+// - AddToListDropdown
+// - CreateListDialog
+// - ContactListsView
+// - useMarketingContacts (hook esistente o inline query)
+// - Tutti gli altri import presenti in MarketingContacts.tsx
+
+export default function AdminMarketingContacts() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per i Contatti." />;
+
+  // DA QUI: copia IDENTICA del codice di MarketingContacts.tsx
+  // Sostituisci ogni riferimento a companyId con la variabile locale `companyId`
+  // (che vale PLATFORM_ADMIN_COMPANY_ID)
+
+  // Tutti gli hook, state, handlers, query, mutations rimangono identici.
+  // La tabella marketing_contacts ha già company_id — le query filtrano automaticamente.
+
+  // UNICA AGGIUNTA: nella colonna "Azienda" della tabella contatti,
+  // il campo company_name mostra il nome dell'azienda del prospect
+  // (es. "Serramenti Bianchi SRL"). Non confonderlo con il company_id interno.
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Crea AdminMarketingContactDetail.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/admin/marketing/AdminMarketingContactDetail.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingContactDetail.tsx (1370 righe).
+
+Stessa logica di AdminMarketingContacts: usa `PLATFORM_ADMIN_COMPANY_ID`
+come companyId e tutte le query esistenti funzionano senza modifiche.
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingContactDetail.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// Importa i sub-componenti già creati nel prompt R1 (refactor lungo termine):
+// - InlineField
+// - ContactActivityTab
+// - ContactNotesTab
+// - ContactDocumentsTab
+// - ContactOpportunitiesTab
+
+export default function AdminMarketingContactDetail() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+  const { id: contactId } = useParams();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied />;
+
+  // Copia identica di MarketingContactDetail.tsx
+  // con companyId = PLATFORM_ADMIN_COMPANY_ID
+}
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM5] — OPPORTUNITÀ / PIPELINE
+             Replica di MarketingOpportunities per il superadmin
+════════════════════════════════════════════════════════════════════════════
+
+Crea src/pages/admin/marketing/AdminMarketingOpportunities.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingOpportunities.tsx (595 righe).
+
+────────────────────────────────────────────────────────────────────────────
+IMPLEMENTAZIONE
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingOpportunities.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// Importa da MarketingOpportunities.tsx:
+// - usePipelines
+// - useOpportunities
+// - useCreateOpportunity
+// - useUpdateOpportunityStage
+// - useDeleteOpportunity
+// - OpportunityKanbanView
+// - OpportunityListView
+// - OpportunityDialog
+// - OpportunityFiltersSheet
+// - BulkEditSheet
+// - Tutti gli altri import di MarketingOpportunities.tsx
+
+export default function AdminMarketingOpportunities() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per le Opportunità." />;
+
+  // Copia IDENTICA del codice di MarketingOpportunities.tsx
+  // Le pipeline create con PLATFORM_ADMIN_COMPANY_ID compaiono automaticamente.
+  // La pipeline di default "Pipeline Vendita SaaS" (creata in AM1) compare subito.
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP AGGIUNTIVO — Arricchisci OpportunityDialog con campo "Azienda cliente"
+────────────────────────────────────────────────────────────────────────────
+
+Nel dialog di creazione/modifica opportunità (OpportunityDialog.tsx),
+quando viene usato dal superadmin (companyId === PLATFORM_ADMIN_COMPANY_ID),
+aggiungi un campo opzionale "Azienda cliente SaaS" che permette di collegare
+l'opportunità a una company esistente del sistema:
+
+```tsx
+// Solo quando companyId === PLATFORM_ADMIN_COMPANY_ID, mostra il campo:
+{companyId === PLATFORM_ADMIN_COMPANY_ID && (
+  <FormField
+    name="linked_company_id"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Azienda Cliente (opzionale)</FormLabel>
+        <Select onValueChange={field.onChange} value={field.value}>
+          <SelectTrigger>
+            <SelectValue placeholder="Seleziona azienda..." />
+          </SelectTrigger>
+          <SelectContent>
+            {/* Lista aziende dal sistema (query companies, is_platform_admin_company=false) */}
+            {companies.map(c => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FormDescription>
+          Collega questa opportunità a un'azienda già registrata nel sistema
+        </FormDescription>
+      </FormItem>
+    )}
+  />
+)}
+```
+
+Aggiungi il campo `linked_company_id uuid REFERENCES companies(id)` alla
+tabella `marketing_opportunities` se non esiste:
+
+```sql
+ALTER TABLE marketing_opportunities
+  ADD COLUMN IF NOT EXISTS linked_company_id uuid REFERENCES companies(id) ON DELETE SET NULL;
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM6] — CALENDARIO APPUNTAMENTI
+             Replica di MarketingCalendar per il superadmin
+════════════════════════════════════════════════════════════════════════════
+
+Crea src/pages/admin/marketing/AdminMarketingCalendar.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingCalendar.tsx (677 righe).
+
+────────────────────────────────────────────────────────────────────────────
+IMPLEMENTAZIONE
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingCalendar.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// Importa da MarketingCalendar.tsx:
+// - MarketingCalendarWeekView
+// - MarketingCalendarDayView
+// - MarketingCalendarMonthView
+// - MarketingCalendarFilters
+// - MarketingAppointmentsList
+// - MarketingAppointmentDialog
+// - Tutti gli altri import di MarketingCalendar.tsx
+
+export default function AdminMarketingCalendar() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per il Calendario." />;
+
+  // Copia IDENTICA di MarketingCalendar.tsx
+  // companyId = PLATFORM_ADMIN_COMPANY_ID
+  // Il calendario "Demo & Sales" creato in AM1 compare automaticamente.
+
+  // NOTA: nel filtro "Utenti" del calendario, gli utenti assegnabili
+  // saranno i superadmin (non i dipendenti aziendali).
+  // Usa una query su profiles dove role = 'super_admin' invece di company_members.
+  // Aggiorna il hook useMarketingCalendarUsers (o la query inline) per filtrare
+  // su profiles.role = 'super_admin' quando companyId === PLATFORM_ADMIN_COMPANY_ID.
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP AGGIUNTIVO — Mostra demo richieste automaticamente nel calendario
+────────────────────────────────────────────────────────────────────────────
+
+Quando un'opportunità viene spostata allo stage "Demo Richiesta" nella
+pipeline SaaS (AM5), crea automaticamente un appuntamento nel calendario
+"Demo & Sales" con un trigger PostgreSQL:
+
+```sql
+-- Migration: auto_appointment_on_demo_stage
+
+CREATE OR REPLACE FUNCTION create_appointment_on_demo_stage()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_stage_name text;
+  v_calendar_id uuid;
+BEGIN
+  -- Recupera il nome dello stage
+  SELECT name INTO v_stage_name
+  FROM marketing_pipeline_stages
+  WHERE id = NEW.stage_id;
+
+  -- Solo per stage "Demo Richiesta" nella platform admin company
+  IF NEW.company_id = '00000000-0000-0000-0000-000000000001'
+     AND v_stage_name ILIKE '%demo%'
+     AND (OLD.stage_id IS NULL OR OLD.stage_id != NEW.stage_id) THEN
+
+    -- Recupera il calendario di default
+    SELECT id INTO v_calendar_id
+    FROM marketing_calendars
+    WHERE company_id = '00000000-0000-0000-0000-000000000001'
+      AND is_default = true
+    LIMIT 1;
+
+    -- Crea l'appuntamento (da confermare/spostare manualmente)
+    INSERT INTO appointments (
+      company_id,
+      calendar_id,
+      contact_id,
+      title,
+      appointment_date,
+      appointment_time,
+      appointment_end_time,
+      appointment_type,
+      status,
+      description
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000001',
+      v_calendar_id,
+      NEW.contact_id,
+      'Demo - ' || COALESCE(NEW.name, 'Opportunità'),
+      (now() + interval '2 days')::date,   -- suggerisce tra 2 giorni
+      '10:00',
+      '11:00',
+      'demo',
+      'pending',
+      'Appuntamento demo creato automaticamente dal cambio stage.'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_auto_appointment_demo ON marketing_opportunities;
+CREATE TRIGGER trg_auto_appointment_demo
+  AFTER UPDATE OF stage_id ON marketing_opportunities
+  FOR EACH ROW
+  EXECUTE FUNCTION create_appointment_on_demo_stage();
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM7] — EMAIL MARKETING
+             Replica di EmailMarketing per il superadmin
+════════════════════════════════════════════════════════════════════════════
+
+Crea src/pages/admin/marketing/AdminEmailMarketing.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/EmailMarketing.tsx e i suoi sotto-componenti.
+
+────────────────────────────────────────────────────────────────────────────
+IMPLEMENTAZIONE
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// src/pages/admin/marketing/AdminEmailMarketing.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// Importa i componenti email marketing esistenti:
+// - EmailCampaignsTab (da src/components/marketing/email/)
+// - EmailTemplatesTab
+// - EmailStatsTab
+// - CampaignEditor (da src/pages/azienda/marketing/CampaignEditor.tsx)
+// - DragDropEmailBuilder
+
+export default function AdminEmailMarketing() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per l'Email Marketing." />;
+
+  // Copia IDENTICA di EmailMarketing.tsx con companyId = PLATFORM_ADMIN_COMPANY_ID
+  // Le campagne email create avranno company_id = PLATFORM_ADMIN_COMPANY_ID
+  // e vengono inviate ai lead/prospect del CRM del superadmin
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP AGGIUNTIVO — Template precaricati per il SaaS
+────────────────────────────────────────────────────────────────────────────
+
+Aggiungi 3 template email di default specifici per vendere il SaaS:
+
+```sql
+-- Migration: admin_email_templates_default
+
+INSERT INTO email_templates (company_id, name, subject, html_body, status)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000001',
+    'Benvenuto nel Trial',
+    'Benvenuto in Edilizia in Cloud — inizia il tuo trial gratuito',
+    '<h1>Benvenuto {{first_name}}!</h1><p>Il tuo trial gratuito di 14 giorni è attivo.</p>',
+    'draft'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    'Follow-up Demo',
+    'Come possiamo aiutarti — seguito alla nostra demo',
+    '<h1>Ciao {{first_name}},</h1><p>Grazie per il tempo dedicatoci durante la demo.</p>',
+    'draft'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    'Trial in Scadenza',
+    'Il tuo trial scade tra 3 giorni — non perdere l'\''accesso',
+    '<h1>{{first_name}}, mancano 3 giorni!</h1><p>Attiva il tuo piano per continuare.</p>',
+    'draft'
+  )
+ON CONFLICT DO NOTHING;
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [AM8] — AUTOMAZIONI + INTEGRAZIONE TRIAL → CRM
+             Replica di MarketingAutomations + flusso automatico lead
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea AdminMarketingAutomations.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/admin/marketing/AdminMarketingAutomations.tsx.
+
+Questa pagina è una COPIA QUASI IDENTICA di
+src/pages/azienda/marketing/MarketingAutomations.tsx (197 righe).
+
+```tsx
+// src/pages/admin/marketing/AdminMarketingAutomations.tsx
+
+import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+
+// Importa da MarketingAutomations.tsx:
+// - automation_folders query
+// - automation_flows query
+// - AutomationFlowCard component (se esiste)
+// - Tutti gli altri import
+
+export default function AdminMarketingAutomations() {
+  const { companyId, hasAccess, permLoading } = useAdminMarketing();
+
+  if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  if (!hasAccess) return <AccessDenied message="Non hai i permessi per le Automazioni." />;
+
+  // Copia IDENTICA di MarketingAutomations.tsx con companyId = PLATFORM_ADMIN_COMPANY_ID
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Trigger automatico: nuovo trial → contatto CRM superadmin
+────────────────────────────────────────────────────────────────────────────
+
+Quando una nuova azienda inizia il trial, crea automaticamente un contatto
+nel CRM del superadmin per seguire il lead:
+
+```sql
+-- Migration: auto_contact_on_trial_start
+
+CREATE OR REPLACE FUNCTION create_crm_contact_on_trial()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_pipeline_id uuid;
+  v_first_stage_id uuid;
+  v_contact_id uuid;
+BEGIN
+  -- Solo per nuove aziende in stato trial
+  IF NEW.status = 'trial' AND (TG_OP = 'INSERT' OR OLD.status != 'trial') THEN
+
+    -- Recupera pipeline di default del superadmin
+    SELECT mp.id, mps.id
+    INTO v_pipeline_id, v_first_stage_id
+    FROM marketing_pipelines mp
+    JOIN marketing_pipeline_stages mps ON mps.pipeline_id = mp.id
+    WHERE mp.company_id = '00000000-0000-0000-0000-000000000001'
+      AND mp.is_default = true
+    ORDER BY mps.position ASC
+    LIMIT 1;
+
+    -- Crea contatto CRM per il superadmin
+    INSERT INTO marketing_contacts (
+      company_id,
+      first_name,
+      last_name,
+      email,
+      company_name,
+      source,
+      tags,
+      notes
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000001',
+      SPLIT_PART(NEW.name, ' ', 1),                -- nome azienda come first_name
+      COALESCE(NULLIF(SPLIT_PART(NEW.name, ' ', 2), ''), 'SRL'),
+      NEW.email,
+      NEW.name,
+      'trial_signup',
+      ARRAY['Trial Attivo'],
+      'Contatto creato automaticamente all''avvio del trial. Company ID: ' || NEW.id::text
+    )
+    RETURNING id INTO v_contact_id;
+
+    -- Crea opportunità collegata nel CRM del superadmin
+    IF v_pipeline_id IS NOT NULL AND v_first_stage_id IS NOT NULL THEN
+      INSERT INTO marketing_opportunities (
+        company_id,
+        pipeline_id,
+        stage_id,
+        contact_id,
+        name,
+        source,
+        linked_company_id,   -- campo aggiunto in AM5
+        status
+      ) VALUES (
+        '00000000-0000-0000-0000-000000000001',
+        v_pipeline_id,
+        v_first_stage_id,
+        v_contact_id,
+        'Trial - ' || NEW.name,
+        'trial_signup',
+        NEW.id,              -- collega alla company reale
+        'open'
+      );
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_crm_contact_on_trial ON companies;
+CREATE TRIGGER trg_crm_contact_on_trial
+  AFTER INSERT OR UPDATE OF status ON companies
+  FOR EACH ROW
+  EXECUTE FUNCTION create_crm_contact_on_trial();
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Trigger: cambio stato azienda → aggiorna opportunità CRM
+────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Migration: sync_company_status_to_crm_opportunity
+
+CREATE OR REPLACE FUNCTION sync_company_status_to_opportunity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_opp_status text;
+BEGIN
+  -- Mappa lo stato azienda allo stato opportunità
+  CASE NEW.status
+    WHEN 'active'    THEN v_opp_status := 'won';
+    WHEN 'suspended' THEN v_opp_status := 'lost';
+    WHEN 'canceled'  THEN v_opp_status := 'lost';
+    ELSE v_opp_status := 'open';
+  END CASE;
+
+  -- Aggiorna l'opportunità collegata nel CRM del superadmin
+  UPDATE marketing_opportunities
+  SET
+    status = v_opp_status,
+    updated_at = now()
+  WHERE linked_company_id = NEW.id
+    AND company_id = '00000000-0000-0000-0000-000000000001';
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_status_to_opportunity ON companies;
+CREATE TRIGGER trg_sync_status_to_opportunity
+  AFTER UPDATE OF status ON companies
+  FOR EACH ROW
+  WHEN (OLD.status IS DISTINCT FROM NEW.status)
+  EXECUTE FUNCTION sync_company_status_to_opportunity();
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 4 — Widget "Lead recenti" nella AdminDashboard principale
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/AdminDashboard.tsx aggiungi, in fondo alla pagina
+(dopo AdminRecentActivity), una card "Lead Recenti" che mostra gli
+ultimi 5 contatti aggiunti al CRM del superadmin:
+
+```tsx
+// Query per lead recenti (se l'admin ha can_manage_marketing):
+const { data: recentLeads } = useQuery({
+  queryKey: ["admin-recent-leads"],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("marketing_contacts")
+      .select("id, first_name, last_name, email, company_name, source, created_at")
+      .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    return data ?? [];
+  },
+  enabled: permissions.can_manage_marketing,
+  staleTime: 2 * 60 * 1000,
+});
+
+// Card da aggiungere nel JSX della dashboard:
+{permissions.can_manage_marketing && (
+  <Card>
+    <CardHeader className="pb-3">
+      <CardTitle className="text-sm flex items-center gap-2">
+        <Users2 className="h-4 w-4 text-indigo-500" />
+        Lead Recenti
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-2">
+      {recentLeads?.map(lead => (
+        <div key={lead.id} className="flex items-center gap-3 py-1">
+          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-medium flex-shrink-0">
+            {lead.first_name?.[0]}{lead.last_name?.[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">
+              {lead.first_name} {lead.last_name}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {lead.company_name ?? lead.email}
+            </p>
+          </div>
+          <Badge variant="outline" className="text-xs capitalize flex-shrink-0">
+            {lead.source ?? "—"}
+          </Badge>
+        </div>
+      ))}
+      {(!recentLeads || recentLeads.length === 0) && (
+        <p className="text-sm text-muted-foreground text-center py-3">
+          Nessun lead ancora
+        </p>
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full mt-1 text-xs"
+        onClick={() => navigate("/admin/marketing/contatti")}
+      >
+        Vedi tutti i contatti →
+      </Button>
+    </CardContent>
+  </Card>
+)}
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║   RIEPILOGO COMPLETO                                                    ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                         ║
+║  PROMPT  COSA CREA                           TECNICA                    ║
+║  ──────  ────────────────────────────────   ─────────────────────────  ║
+║  [AM1]   Migration DB                        Company virtuale UUID fisso ║
+║          can_manage_marketing permission     Pipeline + stage SaaS      ║
+║          Auto-esclusione da lista aziende    Tag + calendario default   ║
+║                                                                         ║
+║  [AM2]   Sidebar macrosezione               6 voci sotto separatore     ║
+║          Route /admin/marketing/*            Hook useAdminMarketing     ║
+║                                                                         ║
+║  [AM3]   AdminMarketingDashboard            Copia MarketingDashboard    ║
+║                                              RPC funziona senza modify  ║
+║                                                                         ║
+║  [AM4]   AdminMarketingContacts             Copia MarketingContacts     ║
+║          AdminMarketingContactDetail        Copia ContactDetail         ║
+║                                                                         ║
+║  [AM5]   AdminMarketingOpportunities        Copia Opportunities         ║
+║          linked_company_id field            Collega a company reale     ║
+║                                                                         ║
+║  [AM6]   AdminMarketingCalendar             Copia Calendar              ║
+║          Trigger demo automatico            Stage→Appuntamento          ║
+║                                                                         ║
+║  [AM7]   AdminEmailMarketing                Copia EmailMarketing        ║
+║          3 template SaaS precaricati        Trial/Demo/Scadenza         ║
+║                                                                         ║
+║  [AM8]   AdminMarketingAutomations          Copia Automations           ║
+║          Trigger trial→contatto CRM        Auto-lead su nuovo trial     ║
+║          Trigger status→opportunità         Sync stato azienda→opp.    ║
+║          Widget lead recenti in dashboard   Card con 5 lead ultimi      ║
+║                                                                         ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  ORDINE: AM1 → AM2 → AM3 → AM4 → AM5 → AM6 → AM7 → AM8               ║
+║                                                                         ║
+║  PRINCIPIO CHIAVE: nessun hook/componente/RPC viene duplicato.         ║
+║  Tutto riusa il codice esistente cambiando solo il companyId passato.  ║
+║  Il PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001" ║
+║  è la chiave che scopa tutti i dati marketing del superadmin.          ║
+╚══════════════════════════════════════════════════════════════════════════╝
