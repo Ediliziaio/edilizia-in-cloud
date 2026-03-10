@@ -230,7 +230,29 @@ export default function Calendar() {
     enabled: !!effectiveCompany?.id,
   });
 
-  const uniqueCustomers = useMemo(() => {
+  // Approved leaves for calendar
+  const calendarYear = currentDate.getFullYear();
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["approved-leaves", effectiveCompany?.id, calendarYear],
+    queryFn: async () => {
+      const yearStart = `${calendarYear}-01-01`;
+      const yearEnd = `${calendarYear}-12-31`;
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("status", "approved")
+        .gte("start_date", yearStart)
+        .lte("end_date", yearEnd)
+        .order("start_date");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
       if (!customersMap.has(order.customer_id)) {
