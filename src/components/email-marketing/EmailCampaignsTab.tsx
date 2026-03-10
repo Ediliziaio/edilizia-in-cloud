@@ -166,7 +166,7 @@ export function EmailCampaignsTab() {
     },
     onSuccess: () => {
       toast.success("Campagna rinominata");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setRenameTarget(null);
     },
     onError: (e: any) => toast.error(e.message),
