@@ -106,7 +106,8 @@ export default function Calendar() {
           order_external_teams(external_team:external_teams(id, name))
         `)
         .eq("company_id", effectiveCompany.id)
-        .order("work_start_date", { ascending: true });
+        .order("work_start_date", { ascending: true })
+        .limit(10000);
       
       if (error) throw error;
       return (data || []) as CalendarOrder[];
@@ -128,7 +129,8 @@ export default function Calendar() {
         `)
         .eq("company_id", effectiveCompany.id)
         .is("calendar_id", null)
-        .order("appointment_date", { ascending: true });
+        .order("appointment_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
 
       // Enrich with assigned profile names
@@ -207,7 +209,7 @@ export default function Calendar() {
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, user_id")
         .eq("company_id", effectiveCompany!.id)
         .eq("is_active", true)
         .order("last_name");
@@ -356,8 +358,19 @@ export default function Calendar() {
     return orders.filter(order => !order.expected_date && !order.work_start_date).length;
   }, [orders]);
 
+  // Build employee user_id → employee mapping for conflict detection bridge
+  const employeeByUserId = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const emp of companyEmployees) {
+      if (emp.user_id) {
+        map.set(emp.user_id, { id: emp.id, name: `${emp.first_name} ${emp.last_name}` });
+      }
+    }
+    return map;
+  }, [companyEmployees]);
+
   // Conflict detection
-  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments);
+  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments, employeeByUserId);
 
   return (
     <div className="space-y-4">

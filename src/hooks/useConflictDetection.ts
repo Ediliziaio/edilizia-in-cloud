@@ -10,7 +10,8 @@ export interface ConflictEntry {
 
 export function useConflictDetection(
   orders: CalendarOrder[],
-  appointments: CalendarAppointment[]
+  appointments: CalendarAppointment[],
+  employeeByUserId?: Map<string, { id: string; name: string }>
 ) {
   const conflicts = useMemo(() => {
     // Map: "date|employeeId" → events[]
@@ -66,8 +67,19 @@ export function useConflictDetection(
       }
     }
 
-    // Appointments with assigned_to (these are user IDs, not employee IDs — skip for now
-    // since appointments use profiles and orders use employees; conflict detection is employee-scoped)
+    // Appointments: bridge assigned_to (user_id) → employee via employeeByUserId map
+    if (employeeByUserId && employeeByUserId.size > 0) {
+      for (const apt of appointments) {
+        if (!apt.assigned_to || !apt.appointment_date) continue;
+        const emp = employeeByUserId.get(apt.assigned_to);
+        if (!emp) continue; // no matching employee — cannot detect cross-module conflict
+        addEvent(apt.appointment_date, emp.id, emp.name, {
+          type: "appointment",
+          label: apt.title || "Appuntamento",
+          id: apt.id,
+        });
+      }
+    }
 
     // Filter to only entries with 2+ events
     const result: ConflictEntry[] = [];
@@ -78,7 +90,7 @@ export function useConflictDetection(
     }
 
     return result;
-  }, [orders, appointments]);
+  }, [orders, appointments, employeeByUserId]);
 
   return { conflicts, conflictCount: conflicts.length };
 }
