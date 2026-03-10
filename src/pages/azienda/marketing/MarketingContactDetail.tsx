@@ -483,7 +483,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         {/* Header */}
         <div className="h-11 border-b flex items-center justify-between px-2 shrink-0">
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate("/azienda/marketing/contatti")}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`${routePrefix}/contatti`)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium">Contatto Dettagli</span>
