@@ -61,7 +61,8 @@ function MarketingOpportunitiesContent() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const searchQuery = useDebounce(searchInput, 350);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
