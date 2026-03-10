@@ -130,6 +130,28 @@ export function WhatsAppBroadcastTab() {
               </Select>
             </div>
 
+            {segment === "tag" && (
+              <div className="space-y-2">
+                <Label>Tag</Label>
+                <Input
+                  placeholder="es. hot, vip, evento2025"
+                  value={segmentTag}
+                  onChange={(e) => setSegmentTag(e.target.value)}
+                />
+              </div>
+            )}
+
+            {segment === "source" && (
+              <div className="space-y-2">
+                <Label>Fonte</Label>
+                <Input
+                  placeholder="es. facebook, google, referral"
+                  value={segmentSource}
+                  onChange={(e) => setSegmentSource(e.target.value)}
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Nome Template WhatsApp</Label>
               <Input

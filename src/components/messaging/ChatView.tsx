@@ -72,6 +72,9 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
         });
       } else {
         setReplyText("");
+        // Invalidate conversations list + current messages for instant UI update
+        queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
+        queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messages(conversationId) });
       }
     } catch (err: any) {
       toast.error("Errore invio", { description: err.message });
