@@ -396,6 +396,7 @@ function AdminMainSidebar() {
           </SidebarGroup>
         )}
 
+        <SidebarGroup>
           <SidebarGroupLabel>Account</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
