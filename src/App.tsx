@@ -231,6 +231,28 @@ const App = () => (
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
               
+              {/* Full-screen Admin Automation Builder routes - OUTSIDE AdminLayout */}
+              <Route
+                path="/admin/marketing/automazioni/nuova"
+                element={
+                  <ProtectedRoute allowedRoles={["super_admin"]}>
+                    <ErrorBoundary title="Errore nel builder automazioni">
+                      <AdminMarketingAutomationBuilder />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/marketing/automazioni/:id"
+                element={
+                  <ProtectedRoute allowedRoles={["super_admin"]}>
+                    <ErrorBoundary title="Errore nel builder automazioni">
+                      <AdminMarketingAutomationBuilder />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Super Admin Routes */}
               <Route
                 path="/admin"
