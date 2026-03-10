@@ -208,6 +208,7 @@ export function CalendarWeekView({
       lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
       merce: "bg-emerald-500/20 border-l-2 border-emerald-500 text-emerald-900 dark:text-emerald-200",
       google_busy: "bg-muted border-l-2 border-muted-foreground/50 text-muted-foreground",
+      leave: "bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200",
     };
     const IconMap: Record<string, any> = { posa: Hammer, lavoro: Wrench, merce: Package };
     const Icon = IconMap[evt.type];

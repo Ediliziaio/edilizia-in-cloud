@@ -237,6 +237,24 @@ export function CalendarMonthView({
                       );
                     }
 
+                    if (event.type === "leave" && event.leave) {
+                      const emp = event.leave.employee;
+                      const empName = emp ? `${emp.first_name} ${emp.last_name}` : "";
+                      return (
+                        <Tooltip key={`leave-${event.leave.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <div className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200 truncate cursor-default">
+                              <span className="truncate">🏖 {empName}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">{event.leave.type === "ferie" ? "Ferie" : "Permesso"}</p>
+                            <p className="text-sm">{empName}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+
                     if (!event.order) return null;
                     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
                     const initials = getEmployeeInitials(event.order);
