@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Send, Loader2, CheckCircle, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 
 interface SendSignatureDialogProps {
   open: boolean;
@@ -19,9 +21,8 @@ interface SendSignatureDialogProps {
   clientEmail: string | null;
   clientName: string | null;
   quoteNumber: string;
-  onSend: () => Promise<any>;
+  onSend: (params: SendSignatureParams) => Promise<any>;
   isSending: boolean;
-  signatureLink?: string | null;
 }
 
 export function SendSignatureDialog({
@@ -32,14 +33,38 @@ export function SendSignatureDialog({
   quoteNumber,
   onSend,
   isSending,
-  signatureLink,
 }: SendSignatureDialogProps) {
+  const [email, setEmail] = useState(clientEmail || "");
+  const [name, setName] = useState(clientName || "");
+  const [message, setMessage] = useState("");
+  const [days, setDays] = useState(30);
   const [sent, setSent] = useState(false);
-  const [resultLink, setResultLink] = useState<string | null>(signatureLink || null);
+  const [resultLink, setResultLink] = useState<string | null>(null);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setEmail(clientEmail || "");
+      setName(clientName || "");
+      setMessage("");
+      setDays(30);
+      setSent(false);
+      setResultLink(null);
+    }
+  }, [open, clientEmail, clientName]);
 
   const handleSend = async () => {
+    if (!email.trim()) {
+      toast.error("Inserisci l'email del destinatario");
+      return;
+    }
     try {
-      const result = await onSend();
+      const result = await onSend({
+        recipientEmail: email.trim(),
+        recipientName: name.trim() || "Cliente",
+        customMessage: message.trim() || undefined,
+        expiresDays: days,
+      });
       if (result?.signature_link) {
         setResultLink(result.signature_link);
       }
@@ -56,16 +81,8 @@ export function SendSignatureDialog({
     }
   };
 
-  const handleClose = (v: boolean) => {
-    if (!v) {
-      setSent(false);
-      setResultLink(signatureLink || null);
-    }
-    onOpenChange(v);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Invia per Firma</DialogTitle>
@@ -78,25 +95,56 @@ export function SendSignatureDialog({
           <>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label>Destinatario</Label>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{clientName || "Cliente"}</span>
-                  <span className="text-muted-foreground">({clientEmail || "nessuna email"})</span>
-                </div>
+                <Label htmlFor="sig-email">Email destinatario *</Label>
+                <Input
+                  id="sig-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="cliente@email.com"
+                />
               </div>
 
-              {!clientEmail && (
-                <p className="text-sm text-destructive">
-                  Il cliente non ha un indirizzo email. Aggiungilo prima di inviare.
-                </p>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="sig-name">Nome destinatario</Label>
+                <Input
+                  id="sig-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Mario Rossi"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sig-message">Messaggio personalizzato (opzionale)</Label>
+                <Textarea
+                  id="sig-message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Gentile cliente, le invio la nostra migliore offerta..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sig-days">Validità (giorni)</Label>
+                <Input
+                  id="sig-days"
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={days}
+                  onChange={(e) => setDays(parseInt(e.target.value) || 30)}
+                  className="max-w-[120px]"
+                />
+              </div>
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => handleClose(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Annulla
               </Button>
-              <Button onClick={handleSend} disabled={isSending || !clientEmail}>
+              <Button onClick={handleSend} disabled={isSending || !email.trim()}>
                 {isSending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
@@ -134,7 +182,7 @@ export function SendSignatureDialog({
             )}
 
             <DialogFooter>
-              <Button onClick={() => handleClose(false)}>Chiudi</Button>
+              <Button onClick={() => onOpenChange(false)}>Chiudi</Button>
             </DialogFooter>
           </div>
         )}

@@ -364,7 +364,7 @@ export default function QuoteDetail() {
         clientEmail={quote.client_email}
         clientName={quote.client_name}
         quoteNumber={quote.quote_number}
-        onSend={() => sendForSignature.mutateAsync()}
+        onSend={(params) => sendForSignature.mutateAsync(params)}
         isSending={sendForSignature.isPending}
       />
     </div>
