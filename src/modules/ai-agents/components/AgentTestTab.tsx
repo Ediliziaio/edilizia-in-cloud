@@ -113,7 +113,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-tests", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       toast.success("Test eliminato");
     },
   });

@@ -176,7 +176,7 @@ export function PhoneNumberManager() {
         .delete()
         .eq("id" as never, num.id as never);
       toast.success("Numero rimosso");
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nella rimozione");
     }
