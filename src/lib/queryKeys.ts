@@ -289,6 +289,17 @@ export const queryKeys = {
     clicks: (referrerId: string | undefined) => ["partner", "clicks", referrerId] as const,
   },
 
+  // ── Marketing Calendar ───────────────────────────────────
+  marketingCalendar: {
+    all: ["marketing-calendar"] as const,
+    appointments: (companyId: string | undefined, ...rest: any[]) =>
+      ["marketing-calendar", "appointments", companyId, ...rest] as const,
+    calendars: (companyId: string | undefined) =>
+      ["marketing-calendar", "calendars", companyId] as const,
+    users: (companyId: string | undefined) =>
+      ["marketing-calendar", "users", companyId] as const,
+  },
+
   // ── Marketing Dashboard ─────────────────────────────────
   marketing: {
     all: ["marketing"] as const,

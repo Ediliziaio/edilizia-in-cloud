@@ -184,7 +184,7 @@ export default function MarketingAppointmentDialog({
         .select("id, first_name, last_name, email")
         .eq("company_id", companyId)
         .order("last_name")
-        .limit(200);
+        .limit(10000);
       return data || [];
     },
     enabled: open && !!companyId,

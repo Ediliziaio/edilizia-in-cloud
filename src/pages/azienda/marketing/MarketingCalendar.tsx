@@ -679,7 +679,14 @@ export default function MarketingCalendar() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         appointment={editingAppointment}
-        onSaved={() => refetchAppointments()}
+        onSaved={() => {
+          refetchAppointments();
+          queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+          queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+          queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+          queryClient.invalidateQueries({ queryKey: ["contact_appointments"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+        }}
         calendars={calendars}
         users={users}
         defaultDate={defaultDate}
