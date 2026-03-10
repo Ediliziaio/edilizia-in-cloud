@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QuoteTemplate } from '@/types/quoteTemplate';
+import { queryKeys } from '@/lib/queryKeys';
 
 export function useQuoteTemplates() {
   const { effectiveCompany } = useAuth();
