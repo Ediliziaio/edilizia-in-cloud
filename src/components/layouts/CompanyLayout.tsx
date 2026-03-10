@@ -71,6 +71,8 @@ import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 
+import { CommandPalette } from "@/components/CommandPalette";
+
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
   const navigate = useNavigate();
