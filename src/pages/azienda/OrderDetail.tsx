@@ -253,6 +253,7 @@ export default function OrderDetail() {
     },
     enabled: orderItems.length > 0,
     staleTime: 120_000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Fetch order statuses
