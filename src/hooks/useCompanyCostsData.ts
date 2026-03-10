@@ -147,7 +147,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query commissions from orders
   const { data: commissionCosts = [] } = useQuery({
-    queryKey: ["order-commission-costs", companyId],
+    queryKey: queryKeys.costs.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
