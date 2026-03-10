@@ -359,6 +359,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const extendTrialMutation = useMutation({
     mutationFn: async (days: number) => {
+      assertCanManage();
       if (!id || !company) return;
       const currentEnd = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
       const newEnd = addDays(currentEnd, days);
