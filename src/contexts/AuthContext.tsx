@@ -256,12 +256,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!permissions.can_manage_companies) {
         console.error("Missing can_manage_companies permission for impersonation");
         // Log unauthorized attempt (fire-and-forget)
-        supabase.rpc("log_superadmin_unauthorized_attempt" as any, {
-          _user_id: state.user?.id,
-          _action: "impersonation",
-          _target_id: companyId,
-          _details: { reason: "missing_can_manage_companies" },
-        }).catch(() => {});
+        supabase.functions.invoke("log-unauthorized", {
+          body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
+        });
         return;
       }
 
