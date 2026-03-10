@@ -472,6 +472,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const createEmployeeMutation = useMutation({
     mutationFn: async (data: EmployeeFormData) => {
+      assertCanManage();
       const { error } = await supabase.from("employees").insert({
         company_id: id!, first_name: data.first_name, last_name: data.last_name,
         email: data.email || null, phone: data.phone || null,
