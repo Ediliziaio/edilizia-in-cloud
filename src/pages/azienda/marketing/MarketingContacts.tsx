@@ -115,8 +115,6 @@ export default function MarketingContacts() {
   const setActiveTab = useCallback((v: "all" | "lists") => setURLParam("activeTab", v), [setURLParam]);
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
-  // Sync debounced search to URL
-  useCallback(() => {}, []); // placeholder — we use effect below
   const page = urlFilters.page;
   const setPage = useCallback((v: number) => setURLParam("page", v), [setURLParam]);
   const pageSize = urlFilters.pageSize;
