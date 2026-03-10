@@ -43,6 +43,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
   const { data: messages, isLoading } = useMessages(conversationId);
   const analyzeMessage = useAnalyzeMessage();
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [replyText, setReplyText] = useState("");
   const scrollEndRef = useRef<HTMLDivElement>(null);
 
