@@ -2,6 +2,7 @@ import { useState, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
