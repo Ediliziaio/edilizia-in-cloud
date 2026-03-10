@@ -31,6 +31,7 @@ type BuilderTab = "builder" | "settings" | "enrollments" | "logs";
 export function AutomationBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const prefix = useMarketingRoutePrefix();
   const isNewFlow = !id || id === "nuova";
   const flowId = isNewFlow ? undefined : id;
 
