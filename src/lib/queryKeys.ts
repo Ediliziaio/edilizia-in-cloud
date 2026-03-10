@@ -205,6 +205,14 @@ export const queryKeys = {
     callCenter: (companyId: string | undefined) => ["staff", "call-center", companyId] as const,
   },
 
+  // ── Quotes ──────────────────────────────────────────────
+  quotes: {
+    all: ["quotes"] as const,
+    list: (companyId: string | undefined) => ["quotes", "list", companyId] as const,
+    detail: (quoteId: string | undefined) => ["quote", quoteId] as const,
+    items: (quoteId: string | undefined) => ["quote-items", quoteId] as const,
+  },
+
   // ── Quote Templates ────────────────────────────────────
   quoteTemplates: {
     all: ["quote-templates"] as const,
