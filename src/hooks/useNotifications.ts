@@ -26,7 +26,7 @@ export function useNotifications() {
   const userId = profile?.id;
 
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: ["notifications", companyId, userId],
+    queryKey: queryKeys.notifications.list(companyId, userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
