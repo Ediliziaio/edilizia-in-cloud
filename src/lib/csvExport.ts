@@ -27,18 +27,7 @@ export function exportToCSV(
     columns.map((c) => escapeCSV(row[c.key])).join(";")
   );
   const csv = [header, ...dataLines].join("\r\n");
-
-  // BOM UTF-8 for Excel compatibility
-  const bom = "\uFEFF";
-  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadFile(csv, filename, "text/csv");
 }
 
 /** Download a string as a file with BOM for Excel compatibility */
