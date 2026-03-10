@@ -38,6 +38,7 @@ const defaults: Permissions = {
   can_manage_referrals: true,
   can_manage_admins: true,
   can_view_platform_stats: true,
+  can_manage_marketing: true,
   allowed_company_ids: null,
 };
 
