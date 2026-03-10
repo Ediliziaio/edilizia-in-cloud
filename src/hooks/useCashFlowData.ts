@@ -479,24 +479,6 @@ export function useCashFlowData() {
     });
   }, [supplierBalances]);
 
-  // Project recurring costs into a future month, optionally filtered by cost_type
-  const projectCostsForMonth = (monthDate: Date, costTypeFilter?: "fixed" | "variable") => {
-    let total = 0;
-    companyCosts.forEach((cost: any) => {
-      if (costTypeFilter && cost.cost_type !== costTypeFilter) return;
-      const dueDate = new Date(cost.due_date);
-      if (cost.recurrence === "monthly") {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "once" && isSameMonth(dueDate, monthDate)) {
-        total += Number(cost.amount);
-      }
-    });
-    return total;
-  };
 
   // Stats from RPC (server-side aggregation replaces heavy client-side useMemo)
   const defaultPeriod = { income: 0, expenses: 0, net: 0 };
