@@ -386,7 +386,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query cost categories from dedicated table
   const { data: dbCategories = [] } = useQuery({
-    queryKey: ["cost-category-names", companyId],
+    queryKey: queryKeys.costs.categories(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_categories")

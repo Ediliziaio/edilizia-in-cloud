@@ -308,7 +308,7 @@ export function useCashFlowData() {
 
   // Prima Nota saldo (current cash position)
   const { data: primaNotaSaldo, isLoading: loadingSaldo } = useQuery({
-    queryKey: ["forecast-prima-nota-saldo", companyId],
+    queryKey: queryKeys.cashflow.bankBalance(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
         p_company_id: companyId!,
