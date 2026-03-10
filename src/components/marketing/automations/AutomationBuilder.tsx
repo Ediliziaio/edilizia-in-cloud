@@ -531,8 +531,8 @@ export function AutomationBuilder() {
             isSaving={updateFlowMutation.isPending}
           />
         )}
-        {activeTab === "enrollments" && <AutomationEnrollmentsTab flowId={flowId!} />}
-        {activeTab === "logs" && <AutomationLogsTab flowId={flowId!} />}
+        {activeTab === "enrollments" && <AutomationEnrollmentsTab flowId={flowId!} companyId={effectiveCompany!.id} />}
+        {activeTab === "logs" && <AutomationLogsTab flowId={flowId!} companyId={effectiveCompany!.id} />}
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

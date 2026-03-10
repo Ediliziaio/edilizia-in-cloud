@@ -62,6 +62,9 @@ const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminM
 const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
 const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomations"));
 const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/AdminMarketingContactDetail"));
+const AdminMarketingWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminMarketingWhatsApp"));
+const AdminMarketingAgents = lazy(() => import("@/pages/admin/marketing/AdminMarketingAgents"));
+const AdminMarketingAutomationBuilder = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomationBuilder"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -229,6 +232,28 @@ const App = () => (
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
               
+              {/* Full-screen Admin Automation Builder routes - OUTSIDE AdminLayout */}
+              <Route
+                path="/admin/marketing/automazioni/nuova"
+                element={
+                  <ProtectedRoute allowedRoles={["super_admin"]}>
+                    <ErrorBoundary title="Errore nel builder automazioni">
+                      <AdminMarketingAutomationBuilder />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/marketing/automazioni/:id"
+                element={
+                  <ProtectedRoute allowedRoles={["super_admin"]}>
+                    <ErrorBoundary title="Errore nel builder automazioni">
+                      <AdminMarketingAutomationBuilder />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Super Admin Routes */}
               <Route
                 path="/admin"
@@ -271,6 +296,8 @@ const App = () => (
                 <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
                 <Route path="marketing/email" element={<AdminEmailMarketing />} />
                 <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
+                <Route path="marketing/whatsapp" element={<AdminMarketingWhatsApp />} />
+                <Route path="marketing/agenti-ai/*" element={<AdminMarketingAgents />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}

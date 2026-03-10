@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   flowId: string;
+  companyId: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,7 +32,7 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   skipped: "secondary",
 };
 
-export function AutomationLogsTab({ flowId }: Props) {
+export function AutomationLogsTab({ flowId, companyId }: Props) {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [activityFilter, setActivityFilter] = useState("all_activity");
@@ -41,11 +42,12 @@ export function AutomationLogsTab({ flowId }: Props) {
   const PAGE_SIZE = 25;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["automation-logs", flowId, startDate, endDate, activityFilter, statusFilter, search, page],
+    queryKey: ["automation-logs", flowId, companyId, startDate, endDate, activityFilter, statusFilter, search, page],
     queryFn: async () => {
       let query = supabase
         .from("automation_execution_log")
         .select("*", { count: "exact" })
+        .eq("company_id", companyId)
         .eq("flow_id", flowId)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);

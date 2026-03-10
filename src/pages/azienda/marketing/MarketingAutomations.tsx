@@ -35,7 +35,14 @@ export default function MarketingAutomations() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
 
   const urlFilter = searchParams.get("filter");
-  const statusFilter = urlFilter === "published" ? "published" : listFilter === "deleted" ? "archived" : listFilter === "needs_review" ? "draft" : "all";
+  const statusFilter = (() => {
+    if (urlFilter === "published") return "published";
+    if (urlFilter === "draft") return "draft";
+    if (urlFilter === "archived") return "archived";
+    if (listFilter === "deleted") return "archived";
+    if (listFilter === "needs_review") return "draft";
+    return "all";
+  })();
 
 
   const createFolderMutation = useMutation({

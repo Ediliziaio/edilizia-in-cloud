@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +34,7 @@ interface Props {
 export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId = null, onNavigateFolder }: Props) {
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
 
   // Enrollment counts
   const { data: enrollmentCounts } = useQuery({
-    queryKey: ["automation-enrollment-counts", effectiveCompany?.id],
+    queryKey: ["automation-enrollment-counts", effectiveCompany?.id, statusFilter, folderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("automation_enrollments")
@@ -253,7 +255,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
         <h3 className="text-lg font-medium mb-1">Nessuna automazione</h3>
         <p className="text-sm text-muted-foreground mb-4">Crea la tua prima automazione visuale.</p>
-        <Button onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+        <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
           <Plus className="h-4 w-4 mr-2" /> Crea Automazione
         </Button>
       </div>
@@ -342,7 +344,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                   <TableRow
                     key={flow.id}
                     className="cursor-pointer hover:bg-muted/40 transition-colors"
-                    onClick={() => navigate(`/azienda/marketing/automazioni/${flow.id}`)}
+                    onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}
                   >
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox
@@ -364,7 +366,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.updated_at)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.created_at)}</TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); navigate(`/azienda/marketing/automazioni/${flow.id}`); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); navigate(`${routePrefix}/automazioni/${flow.id}`); }}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -376,7 +378,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/automazioni/${flow.id}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> Modifica
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateMutation.mutate(flow)}>
