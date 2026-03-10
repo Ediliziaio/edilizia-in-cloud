@@ -270,7 +270,7 @@ export function AutomationBuilder() {
     try {
       await updateFlowMutation.mutateAsync({ status: "archived" });
       toast({ title: "Automazione archiviata con successo" });
-      navigate("/azienda/marketing/automazioni");
+      navigate(`${prefix}/automazioni`);
     } catch (err: any) {
       toast({ title: "Errore durante l'archiviazione", description: err.message, variant: "destructive" });
     }
