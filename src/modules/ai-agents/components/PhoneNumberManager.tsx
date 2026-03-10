@@ -144,7 +144,7 @@ export function PhoneNumberManager() {
     setLinkingId(num.id);
     try {
       const result = await callElevenLabsProxy<{ elevenlabs_phone_number_id?: string }>({
-        action: "link_phone_number" as never,
+        action: "link_phone_number",
         agent_id: agent.elevenlabs_agent_id,
         payload: {
           phone_number: num.phone_number,
