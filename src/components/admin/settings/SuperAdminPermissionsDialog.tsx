@@ -49,6 +49,7 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
   { key: "can_manage_referrals", icon: Users, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_referrals, desc: "Gestire programma referral" },
   { key: "can_manage_admins", icon: ShieldCheck, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_admins, desc: "Creare ed eliminare altri super admin" },
   { key: "can_view_platform_stats", icon: BarChart3, label: SUPER_ADMIN_PERMISSION_LABELS.can_view_platform_stats, desc: "Visualizzare statistiche globali" },
+  { key: "can_manage_marketing", icon: Megaphone, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_marketing, desc: "Gestire CRM e marketing della piattaforma" },
 ];
 
 export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminId, adminName }: Props) {
