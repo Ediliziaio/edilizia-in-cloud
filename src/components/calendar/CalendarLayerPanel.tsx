@@ -27,6 +27,7 @@ interface CalendarLayerPanelProps {
   showAppuntamento: boolean;
   showMerce: boolean;
   showGoogleBusy: boolean;
+  showLeaves: boolean;
   onToggleEmployee: (id: string) => void;
   onToggleTeam: (id: string) => void;
   onToggleAllEmployees: (visible: boolean) => void;
@@ -36,6 +37,7 @@ interface CalendarLayerPanelProps {
   onToggleAppuntamento: (v: boolean) => void;
   onToggleMerce: (v: boolean) => void;
   onToggleGoogleBusy: (v: boolean) => void;
+  onToggleLeaves: (v: boolean) => void;
 }
 
 export function CalendarLayerPanel({
