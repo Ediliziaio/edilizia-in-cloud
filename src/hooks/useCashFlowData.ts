@@ -49,7 +49,7 @@ export function useCashFlowData() {
 
   // Query squadre esterne non pagate
   const { data: externalTeamPayments = [], isLoading: loadingTeams } = useQuery({
-    queryKey: ["forecast-external-teams", companyId],
+    queryKey: queryKeys.cashflow.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
