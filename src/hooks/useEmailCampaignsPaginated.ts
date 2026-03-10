@@ -21,15 +21,14 @@ export function useEmailCampaignsPaginated(
   const { page, perPage } = pagination;
 
   return useQuery({
-    queryKey: [
-      "email-campaigns-paginated",
+    queryKey: queryKeys.emailCampaigns.paginated(
       companyId,
       filters.search,
       filters.category,
       filters.folderId,
       page,
       perPage,
-    ],
+    ),
     queryFn: async () => {
       let query = supabase
         .from("email_campaigns")
