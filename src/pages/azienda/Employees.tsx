@@ -300,6 +300,7 @@ export default function Employees() {
             onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} />
         </TabsContent>
         <TabsContent value="worklogs"><WorkLogsAdminTab /></TabsContent>
+        <TabsContent value="leave"><LeaveAdminTab /></TabsContent>
       </Tabs>
 
       <EmployeeDialog open={employeeDialogOpen}
