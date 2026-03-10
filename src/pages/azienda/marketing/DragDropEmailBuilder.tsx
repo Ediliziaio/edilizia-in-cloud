@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { BuilderBlock, createBlock, type BlockType, type ColumnLayout } from "@/components/email-builder/builderTypes";
@@ -29,6 +31,7 @@ export default function DragDropEmailBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { effectiveCompany: company } = useAuth();
 
   const [blocks, setBlocks] = useState<BuilderBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -49,14 +52,22 @@ export default function DragDropEmailBuilder() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // Cleanup autoSave timer on unmount (Bug 6 fix)
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-builder", id],
-    enabled: !!id,
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", company!.id)
         .single();
       if (error) throw error;
       return data;
@@ -84,7 +95,9 @@ export default function DragDropEmailBuilder() {
     },
     onSuccess: () => {
       setAutoSaveStatus("saved");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
+      qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
+      qc.invalidateQueries({ queryKey: ["campaign-send-settings", id] });
     },
     onError: (e: any) => {
       setAutoSaveStatus("unsaved");

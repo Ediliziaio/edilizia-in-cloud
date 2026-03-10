@@ -3,6 +3,8 @@ import DOMPurify from "dompurify";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +81,7 @@ export default function CampaignEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { effectiveCompany: company } = useAuth();
   const editorRef = useRef<HTMLDivElement>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState("");
@@ -99,12 +102,13 @@ export default function CampaignEditor() {
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-editor", id],
-    enabled: !!id,
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", company!.id)
         .single();
       if (error) throw error;
       return data;
@@ -130,7 +134,9 @@ export default function CampaignEditor() {
     },
     onSuccess: () => {
       setAutoSaveStatus("saved");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
+      qc.invalidateQueries({ queryKey: ["campaign-builder", id] });
+      qc.invalidateQueries({ queryKey: ["campaign-send-settings", id] });
     },
     onError: (e: any) => {
       setAutoSaveStatus("unsaved");

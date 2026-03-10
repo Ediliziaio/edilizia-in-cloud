@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,12 +81,13 @@ export default function CampaignSendSettings() {
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-send-settings", id],
-    enabled: !!id,
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", company!.id)
         .single();
       if (error) throw error;
       return data;
@@ -146,6 +148,19 @@ export default function CampaignSendSettings() {
       setAbSplitPercent((campaign as any).ab_split_percent ?? 50);
       setAbWinnerCriteria((campaign as any).ab_winner_criteria || "open_rate");
       setAbTestDurationHours((campaign as any).ab_test_duration_hours ?? 4);
+      // Restore segment settings from DB (Bug 1 fix)
+      const seg = campaign.segment_json as any;
+      if (seg && typeof seg === "object") {
+        setRecipientMode("segment");
+        setSegmentTags(Array.isArray(seg.tags) ? seg.tags : []);
+        setSegmentSource(seg.source || "");
+        setSegmentContactType(seg.contact_type || "");
+      } else {
+        setRecipientMode("list");
+        setSegmentTags([]);
+        setSegmentSource("");
+        setSegmentContactType("");
+      }
     }
   }, [campaign]);
 
@@ -200,7 +215,9 @@ export default function CampaignSendSettings() {
     onSuccess: () => {
       toast.success("Impostazioni salvate");
       setAttachedFiles([]);
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
+      qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
+      qc.invalidateQueries({ queryKey: ["campaign-builder", id] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -247,7 +264,7 @@ export default function CampaignSendSettings() {
     },
     onSuccess: (data: any) => {
       toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
       navigate("/azienda/marketing/email");
     },
