@@ -106,7 +106,8 @@ export default function Calendar() {
           order_external_teams(external_team:external_teams(id, name))
         `)
         .eq("company_id", effectiveCompany.id)
-        .order("work_start_date", { ascending: true });
+        .order("work_start_date", { ascending: true })
+        .limit(10000);
       
       if (error) throw error;
       return (data || []) as CalendarOrder[];
