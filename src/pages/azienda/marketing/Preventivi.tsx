@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ const statusConfig: Record<QuoteStatus, { label: string; variant: "default" | "s
 };
 
 export default function Preventivi() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -69,12 +70,12 @@ export default function Preventivi() {
   const [deleteQuote, setDeleteQuote] = useState<any | null>(null);
 
   const { data: quotes = [], isLoading } = useQuery({
-    queryKey: ["quotes", companyId],
+    queryKey: queryKeys.quotes.list(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("*")
+        .select("id, quote_number, client_name, title, status, total, created_at")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -88,7 +89,7 @@ export default function Preventivi() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       toast.success("Preventivo eliminato");
       setDeleteQuote(null);
     },
@@ -100,17 +101,18 @@ export default function Preventivi() {
       const { data: numData } = await supabase.rpc("generate_quote_number", {
         p_company_id: companyId!,
       });
-      const { id, created_at, updated_at, quote_number, signature_token, sent_at, viewed_at, signed_at, signed_by_name, signed_by_ip, refused_at, refused_reason, pdf_storage_path, pdf_generated_at, expires_at, ...rest } = quote;
+      const { id, created_at, updated_at, quote_number, signature_token, sent_at, viewed_at, signed_at, signed_by_name, signed_by_ip, refused_at, refused_reason, pdf_storage_path, pdf_generated_at, expires_at, created_by, ...rest } = quote;
       const { error } = await supabase.from("quotes").insert({
         ...rest,
         quote_number: numData || `OFF-${new Date().getFullYear()}-DUP`,
         status: "bozza",
+        created_by: user?.id,
         created_at: new Date().toISOString(),
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       toast.success("Preventivo duplicato");
     },
     onError: () => toast.error("Errore duplicazione"),

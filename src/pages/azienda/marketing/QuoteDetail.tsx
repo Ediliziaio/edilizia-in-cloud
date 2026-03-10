@@ -59,14 +59,17 @@ export default function QuoteDetail() {
     }
   };
 
+  const companyId = effectiveCompany?.id;
+
   const { data: quote, isLoading } = useQuery({
     queryKey: queryKeys.quotes.detail(id),
-    enabled: !!id,
+    enabled: !!id && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", companyId!)
         .single();
       if (error) throw error;
       return data;
@@ -88,7 +91,7 @@ export default function QuoteDetail() {
   });
 
   const { data: attachments = [] } = useQuery({
-    queryKey: ["quote-attachments-detail", id],
+    queryKey: queryKeys.quotes.attachments(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
