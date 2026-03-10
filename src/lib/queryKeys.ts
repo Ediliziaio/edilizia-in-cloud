@@ -385,4 +385,17 @@ export const queryKeys = {
     list: (companyId: string | undefined, ...filters: any[]) =>
       ["appointments", "list", companyId, ...filters] as const,
   },
+
+  // ── Meta Forms (Facebook Lead Ads) ────────────────────
+  metaForms: {
+    all: ["meta-forms"] as const,
+    integration: (companyId: string | undefined) =>
+      ["meta-forms", "integration", companyId] as const,
+    forms: (companyId: string | undefined, integrationId: string | undefined) =>
+      ["meta-forms", "forms", companyId, integrationId] as const,
+    leadCounts: (companyId: string | undefined) =>
+      ["meta-forms", "lead-counts", companyId] as const,
+    pages: (companyId: string | undefined, integrationId: string | undefined) =>
+      ["meta-forms", "pages", companyId, integrationId] as const,
+  },
 } as const;

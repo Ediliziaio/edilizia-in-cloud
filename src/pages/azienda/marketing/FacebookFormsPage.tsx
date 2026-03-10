@@ -113,7 +113,7 @@ export default function FacebookFormsPage() {
           Authorization: `Bearer ${session?.session?.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ action: "backfill-leads", formId }),
+        body: JSON.stringify({ action: "backfill-leads", form_id: formId, company_id: companyId, integration_id: integration?.id }),
       });
       if (!res.ok) throw new Error("Backfill failed");
       toast.success("Backfill avviato", { description: "I lead storici verranno importati a breve." });
