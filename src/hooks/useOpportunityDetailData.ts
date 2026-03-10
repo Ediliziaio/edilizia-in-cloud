@@ -86,8 +86,8 @@ export function useUpdateContact() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
