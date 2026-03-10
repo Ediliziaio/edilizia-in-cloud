@@ -656,7 +656,7 @@ export default function MarketingContacts() {
           company_id: companyId,
           first_name: firstName || "Senza nome",
           last_name: lastName || null,
-          phone: phone,
+          phone: phone ? cleanPhone(phone) : null,
           email: email,
           company_name: r.company_name?.trim() || null,
           city: r.city?.trim() || null,

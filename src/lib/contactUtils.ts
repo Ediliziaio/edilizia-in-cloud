@@ -31,6 +31,13 @@ export function formatContactDate(dateStr: string | null): string {
   }
 }
 
+// ── Phone normalization ──
+
+/** Remove spaces, dashes, dots from phone number for consistent storage and dedup */
+export function cleanPhone(phone: string): string {
+  return phone.replace(/[\s\-\.]/g, "");
+}
+
 // ── Shared types ──
 
 export interface CustomFieldDef {

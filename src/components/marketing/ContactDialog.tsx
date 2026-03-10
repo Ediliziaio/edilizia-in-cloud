@@ -55,9 +55,7 @@ const emptyForm: ContactFormData = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function cleanPhone(phone: string): string {
-  return phone.replace(/[\s\-\.]/g, "");
-}
+// cleanPhone is now imported from @/lib/contactUtils
 
 function isValidItalianPhone(phone: string): boolean {
   const cleaned = cleanPhone(phone);
