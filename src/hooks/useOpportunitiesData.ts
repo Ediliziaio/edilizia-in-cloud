@@ -175,8 +175,8 @@ export function useUpdateOpportunity() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -199,12 +199,12 @@ export function useUpdateOpportunityStage() {
       if (error) throw error;
     },
     onMutate: async ({ id, stage_id, auto_status }) => {
-      await queryClient.cancelQueries({ queryKey: ["marketing_opportunities"] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.opportunities.all });
 
-      const previousData = queryClient.getQueriesData({ queryKey: ["marketing_opportunities"] });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
 
       queryClient.setQueriesData(
-        { queryKey: ["marketing_opportunities"] },
+        { queryKey: queryKeys.opportunities.all },
         (old: any[] | undefined) => {
           if (!old) return old;
           return old.map((o: any) =>
