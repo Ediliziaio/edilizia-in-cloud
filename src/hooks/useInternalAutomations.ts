@@ -1,20 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import type {
   InternalAutomationFlow,
   InternalAutomationNode,
   InternalAutomationConnection,
 } from "@/types/internalAutomationBuilder";
 
-const QK = "internal-automation-flows";
-
 export function useInternalAutomationFlows() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: [QK, companyId],
+    queryKey: queryKeys.internalAutomations.flows(companyId),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("internal_automation_flows")
@@ -30,7 +29,7 @@ export function useInternalAutomationFlows() {
 
 export function useInternalAutomationFlow(flowId: string | undefined) {
   return useQuery({
-    queryKey: [QK, "detail", flowId],
+    queryKey: queryKeys.internalAutomations.flow(flowId),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("internal_automation_flows")
@@ -46,7 +45,7 @@ export function useInternalAutomationFlow(flowId: string | undefined) {
 
 export function useInternalAutomationNodes(flowId: string | undefined) {
   return useQuery({
-    queryKey: [QK, "nodes", flowId],
+    queryKey: queryKeys.internalAutomations.nodes(flowId),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("internal_automation_nodes")
@@ -62,7 +61,7 @@ export function useInternalAutomationNodes(flowId: string | undefined) {
 
 export function useInternalAutomationConnections(flowId: string | undefined) {
   return useQuery({
-    queryKey: [QK, "connections", flowId],
+    queryKey: queryKeys.internalAutomations.connections(flowId),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("internal_automation_connections")
@@ -78,7 +77,7 @@ export function useInternalAutomationConnections(flowId: string | undefined) {
 
 export function useInternalAutomationExecutionLog(flowId: string | undefined) {
   return useQuery({
-    queryKey: [QK, "log", flowId],
+    queryKey: queryKeys.internalAutomations.log(flowId),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("internal_automation_execution_log")
@@ -116,7 +115,7 @@ export function useCreateInternalFlow() {
       if (error) throw error;
       return data as InternalAutomationFlow;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.all }),
   });
 }
 
@@ -131,7 +130,7 @@ export function useUpdateInternalFlow(flowId: string | undefined) {
         .eq("id", flowId!);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.all }),
   });
 }
 
@@ -146,11 +145,11 @@ export function useDeleteInternalFlow() {
         .eq("id", flowId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.all }),
   });
 }
 
-// ── Node mutations ────────────────────────────────────
+// ── Atomic Node Save via RPC ──────────────────────────
 
 export function useSaveInternalNodes(flowId: string | undefined) {
   const { effectiveCompany } = useAuth();
@@ -167,55 +166,35 @@ export function useSaveInternalNodes(flowId: string | undefined) {
       if (!effectiveCompany?.id) {
         throw new Error("Azienda non ancora caricata. Riprova tra poco.");
       }
-      const companyId = effectiveCompany.id;
 
-      // Delete existing nodes + connections then re-insert
-      await (supabase as any)
-        .from("internal_automation_connections")
-        .delete()
-        .eq("flow_id", flowId!);
-      await (supabase as any)
-        .from("internal_automation_nodes")
-        .delete()
-        .eq("flow_id", flowId!);
+      const nodesPayload = nodes.map((n) => ({
+        id: n.id,
+        node_type: n.node_type,
+        config_json: n.config_json,
+        label: n.label,
+        position_x: n.position_x,
+        position_y: n.position_y,
+      }));
 
-      if (nodes.length > 0) {
-        const { error: ne } = await (supabase as any)
-          .from("internal_automation_nodes")
-          .insert(
-            nodes.map((n) => ({
-              id: n.id,
-              flow_id: flowId!,
-              company_id: companyId,
-              node_type: n.node_type,
-              config_json: n.config_json,
-              label: n.label,
-              position_x: n.position_x,
-              position_y: n.position_y,
-            }))
-          );
-        if (ne) throw ne;
-      }
+      const connectionsPayload = connections.map((c) => ({
+        id: c.id,
+        from_node_id: c.from_node_id,
+        to_node_id: c.to_node_id,
+        label: c.label,
+      }));
 
-      if (connections.length > 0) {
-        const { error: ce } = await (supabase as any)
-          .from("internal_automation_connections")
-          .insert(
-            connections.map((c) => ({
-              id: c.id,
-              flow_id: flowId!,
-              company_id: companyId,
-              from_node_id: c.from_node_id,
-              to_node_id: c.to_node_id,
-              label: c.label,
-            }))
-          );
-        if (ce) throw ce;
-      }
+      const { error } = await supabase.rpc("save_internal_automation_nodes" as any, {
+        p_flow_id: flowId!,
+        p_company_id: effectiveCompany.id,
+        p_nodes: nodesPayload,
+        p_connections: connectionsPayload,
+      });
+
+      if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QK, "nodes", flowId] });
-      qc.invalidateQueries({ queryKey: [QK, "connections", flowId] });
+      qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.nodes(flowId) });
+      qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.connections(flowId) });
     },
   });
 }

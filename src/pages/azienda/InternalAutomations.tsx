@@ -225,6 +225,8 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const [actionPickerOpen, setActionPickerOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [flowName, setFlowName] = useState("");
+  const [flowDescription, setFlowDescription] = useState("");
+  const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);
@@ -240,7 +242,11 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     if (dbConnections && !dirty) setLocalConnections(dbConnections);
   }, [dbConnections]);
   useEffect(() => {
-    if (flow && !dirty) setFlowName(flow.name);
+    if (flow && !dirty) {
+      setFlowName(flow.name);
+      setFlowDescription(flow.description || "");
+      setPendingTriggerType(flow.trigger_type || null);
+    }
   }, [flow]);
 
   const selectedNode = localNodes.find((n) => n.id === selectedNodeId) || null;
@@ -279,7 +285,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     };
     setLocalNodes((prev) => [...prev, triggerNode]);
     setDirty(true);
-    updateFlow.mutate({ trigger_type: item.id });
+    setPendingTriggerType(item.id);
   }, [flowId, updateFlow]);
 
   const handleSelectAction = useCallback((item: PickerItem) => {
@@ -353,8 +359,13 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const handleSave = async () => {
     try {
       await saveNodes.mutateAsync({ nodes: localNodes, connections: localConnections });
-      if (flowName !== flow?.name) {
-        await updateFlow.mutateAsync({ name: flowName });
+      // Build metadata updates
+      const metaUpdates: Record<string, unknown> = {};
+      if (flowName !== flow?.name) metaUpdates.name = flowName;
+      if (flowDescription !== (flow?.description || "")) metaUpdates.description = flowDescription;
+      if (pendingTriggerType !== (flow?.trigger_type || null)) metaUpdates.trigger_type = pendingTriggerType;
+      if (Object.keys(metaUpdates).length > 0) {
+        await updateFlow.mutateAsync(metaUpdates);
       }
       setDirty(false);
       toast.success("Automazione salvata");
@@ -494,8 +505,8 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
             <div>
               <label className="text-sm font-medium">Descrizione</label>
               <Input
-                value={flow?.description || ""}
-                onChange={(e) => { updateFlow.mutate({ description: e.target.value }); }}
+                value={flowDescription}
+                onChange={(e) => { setFlowDescription(e.target.value); setDirty(true); }}
                 className="mt-1"
                 placeholder="Descrizione opzionale..."
               />
