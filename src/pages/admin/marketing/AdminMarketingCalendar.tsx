@@ -1,5 +1,9 @@
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
-import { CalendarDays, Loader2 } from "lucide-react";
+import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
+import { Loader2, CalendarDays } from "lucide-react";
+import { lazy, Suspense } from "react";
+
+const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
 
 export default function AdminMarketingCalendar() {
   const { hasAccess, permLoading } = useAdminMarketing();
@@ -8,12 +12,10 @@ export default function AdminMarketingCalendar() {
   if (!hasAccess) return <div className="flex flex-col items-center justify-center py-20 text-center"><CalendarDays className="h-12 w-12 text-muted-foreground/40 mb-4" /><h2 className="text-lg font-semibold text-muted-foreground">Accesso negato</h2></div>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><CalendarDays className="h-6 w-6" />Calendario</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Appuntamenti e demo della piattaforma</p>
-      </div>
-      <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">Pagina calendario in arrivo (AM6).</div>
-    </div>
+    <PlatformCompanyProvider>
+      <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+        <MarketingCalendar />
+      </Suspense>
+    </PlatformCompanyProvider>
   );
 }
