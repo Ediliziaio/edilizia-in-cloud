@@ -113,7 +113,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query external teams from orders
   const { data: externalTeamCosts = [] } = useQuery({
-    queryKey: ["order-external-team-costs", companyId],
+    queryKey: queryKeys.costs.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
