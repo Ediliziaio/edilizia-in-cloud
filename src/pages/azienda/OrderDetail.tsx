@@ -330,6 +330,7 @@ export default function OrderDetail() {
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
       toast.success("Ordine eliminato");
       navigate("/azienda/ordini");
     },
