@@ -764,6 +764,7 @@ export function CompanyLayout() {
         open={notificationsPanelOpen}
         onOpenChange={setNotificationsPanelOpen}
       />
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </SidebarProvider>
   );
 }
