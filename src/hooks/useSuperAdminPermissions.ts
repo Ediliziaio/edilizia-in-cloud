@@ -81,6 +81,7 @@ export function useSuperAdminPermissions() {
         can_manage_referrals: data.can_manage_referrals,
         can_manage_admins: data.can_manage_admins,
         can_view_platform_stats: data.can_view_platform_stats,
+        can_manage_marketing: data.can_manage_marketing,
         allowed_company_ids: data.allowed_company_ids as string[] | null,
       }
     : adminCount === 1

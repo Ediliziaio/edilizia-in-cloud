@@ -71,7 +71,10 @@ export const SUPER_ADMIN_PERMISSION_LABELS: Record<string, string> = {
   can_manage_referrals: "Referral",
   can_manage_admins: "Gestione Admin",
   can_view_platform_stats: "Statistiche Piattaforma",
+  can_manage_marketing: "Marketing & Vendita",
 };
+
+export const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
 export const commissionTypeLabels: Record<string, string> = {
   percentage_sold: "% sul venduto",

@@ -90,6 +90,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         can_manage_referrals: currentPerms.can_manage_referrals,
         can_manage_admins: currentPerms.can_manage_admins,
         can_view_platform_stats: currentPerms.can_view_platform_stats,
+        can_manage_marketing: currentPerms.can_manage_marketing,
         allowed_company_ids: currentPerms.allowed_company_ids,
       });
       setAllCompanies(currentPerms.allowed_company_ids === null);
