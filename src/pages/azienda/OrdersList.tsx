@@ -248,6 +248,7 @@ export default function OrdersList() {
     },
     enabled: supplierIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const supplierMap = useMemo(() => {
