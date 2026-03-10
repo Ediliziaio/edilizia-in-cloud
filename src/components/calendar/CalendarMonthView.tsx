@@ -29,11 +29,23 @@ import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
+interface ApprovedLeave {
+  id: string;
+  employee_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number | null;
+  total_hours: number | null;
+  employee: { id: string; first_name: string; last_name: string } | null;
+}
+
 interface CalendarEvent {
-  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy";
+  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave";
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
   busySlot?: GoogleBusySlot;
+  leave?: ApprovedLeave;
   color: string;
 }
 
@@ -42,6 +54,7 @@ interface CalendarMonthViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
   busySlots?: GoogleBusySlot[];
+  approvedLeaves?: ApprovedLeave[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
@@ -52,6 +65,7 @@ export function CalendarMonthView({
   orders,
   appointments = [],
   busySlots = [],
+  approvedLeaves = [],
   currentDate,
   onDateChange,
   syncedAppointmentIds,
@@ -101,6 +115,15 @@ export function CalendarMonthView({
         const slotEnd = parseISO(slot.end_at);
         if (slot.is_all_day ? isSameDay(slotStart, day) : (day >= slotStart && day <= slotEnd) || isSameDay(slotStart, day)) {
           events.push({ type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("leaves")) {
+      approvedLeaves.forEach((lr) => {
+        const lrStart = parseISO(lr.start_date);
+        const lrEnd = parseISO(lr.end_date);
+        if (day >= lrStart && day <= lrEnd) {
+          events.push({ type: "leave", leave: lr, color: "#F59E0B" });
         }
       });
     }
@@ -209,6 +232,24 @@ export function CalendarMonthView({
                             {apt.assigned_profile && <p className="text-xs flex items-center gap-1"><Users className="h-3 w-3" />Assegnato a: {apt.assigned_profile.first_name} {apt.assigned_profile.last_name}</p>}
                             {isSynced && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3 w-3" />Sincronizzato con Google</p>}
                             <p className="text-xs text-primary mt-1">Clicca per modificare</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+
+                    if (event.type === "leave" && event.leave) {
+                      const emp = event.leave.employee;
+                      const empName = emp ? `${emp.first_name} ${emp.last_name}` : "";
+                      return (
+                        <Tooltip key={`leave-${event.leave.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <div className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200 truncate cursor-default">
+                              <span className="truncate">🏖 {empName}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">{event.leave.type === "ferie" ? "Ferie" : "Permesso"}</p>
+                            <p className="text-sm">{empName}</p>
                           </TooltipContent>
                         </Tooltip>
                       );

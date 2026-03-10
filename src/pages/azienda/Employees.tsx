@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Building2, Clock, Loader2, Check, Copy } from "lucide-react";
+import { Users, Building2, Clock, Loader2, Check, Copy, Palmtree } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees
 import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
 import { WorkLogsAdminTab } from "@/components/employees/WorkLogsAdminTab";
+import { LeaveAdminTab } from "@/components/employees/LeaveAdminTab";
 import { EmployeesTab } from "@/components/employees/EmployeesTab";
 import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
 import type { Employee, ExternalTeam } from "@/types/employees";
@@ -277,6 +278,7 @@ export default function Employees() {
           <TabsTrigger value="teams" className="gap-2"><Building2 className="h-4 w-4" />Squadre ({externalTeams.length})</TabsTrigger>
           <TabsTrigger value="staff-interno" className="gap-2"><Users className="h-4 w-4" />Staff Interno ({staffInterno.length})</TabsTrigger>
           <TabsTrigger value="worklogs" className="gap-2"><Clock className="h-4 w-4" />Rapportini</TabsTrigger>
+          <TabsTrigger value="leave" className="gap-2"><Palmtree className="h-4 w-4" />Ferie & Permessi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
@@ -298,6 +300,7 @@ export default function Employees() {
             onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} />
         </TabsContent>
         <TabsContent value="worklogs"><WorkLogsAdminTab /></TabsContent>
+        <TabsContent value="leave"><LeaveAdminTab /></TabsContent>
       </Tabs>
 
       <EmployeeDialog open={employeeDialogOpen}

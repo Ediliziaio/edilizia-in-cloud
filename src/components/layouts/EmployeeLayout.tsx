@@ -6,6 +6,7 @@ import {
   CalendarDays, 
   User, 
   LogOut,
+  Palmtree,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +35,7 @@ const navigationItems = [
   { title: "Dashboard", url: "/dipendente", icon: Home },
   { title: "Registra Ore", url: "/dipendente/ore", icon: Clock },
   { title: "I Miei Rapportini", url: "/dipendente/rapportini", icon: CalendarDays },
+  { title: "Ferie & Permessi", url: "/dipendente/ferie", icon: Palmtree },
   { title: "Profilo", url: "/dipendente/profilo", icon: User },
 ];
 

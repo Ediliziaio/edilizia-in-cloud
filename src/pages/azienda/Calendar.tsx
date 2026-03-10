@@ -53,6 +53,7 @@ export default function Calendar() {
   const [showAppuntamento, setShowAppuntamento] = useState(savedPrefs.showAppuntamento ?? true);
   const [showMerce, setShowMerce] = useState(savedPrefs.showMerce ?? true);
   const [showGoogleBusy, setShowGoogleBusy] = useState(savedPrefs.showGoogleBusy ?? true);
+  const [showLeaves, setShowLeaves] = useState(savedPrefs.showLeaves ?? true);
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
@@ -72,13 +73,14 @@ export default function Calendar() {
         showAppuntamento,
         showMerce,
         showGoogleBusy,
+        showLeaves,
         visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, visibleEmployeeIds, visibleTeamIds]);
+  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -228,6 +230,28 @@ export default function Calendar() {
     enabled: !!effectiveCompany?.id,
   });
 
+  // Approved leaves for calendar
+  const calendarYear = currentDate.getFullYear();
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["approved-leaves", effectiveCompany?.id, calendarYear],
+    queryFn: async () => {
+      const yearStart = `${calendarYear}-01-01`;
+      const yearEnd = `${calendarYear}-12-31`;
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("status", "approved")
+        .gte("start_date", yearStart)
+        .lte("end_date", yearEnd)
+        .order("start_date");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
@@ -319,8 +343,9 @@ export default function Calendar() {
     if (!showAppuntamento) hidden.add("appuntamento");
     if (!showMerce) hidden.add("merce");
     if (!showGoogleBusy) hidden.add("google_busy");
+    if (!showLeaves) hidden.add("leaves");
     return hidden;
-  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy]);
+  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves]);
 
   // Effective visible sets for layer panel
   const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
@@ -549,6 +574,7 @@ export default function Calendar() {
               onDateChange={setCurrentDate}
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
+              approvedLeaves={showLeaves ? approvedLeaves : []}
             />
           ) : view === "week" ? (
             <CalendarWeekView
@@ -559,6 +585,7 @@ export default function Calendar() {
               onDateChange={setCurrentDate}
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
+              approvedLeaves={showLeaves ? approvedLeaves : []}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
@@ -588,6 +615,7 @@ export default function Calendar() {
             showAppuntamento={showAppuntamento}
             showMerce={showMerce}
             showGoogleBusy={showGoogleBusy}
+            showLeaves={showLeaves}
             onToggleEmployee={(id) => {
               const next = new Set(effectiveVisibleEmployees);
               next.has(id) ? next.delete(id) : next.add(id);
@@ -609,6 +637,7 @@ export default function Calendar() {
             onToggleAppuntamento={setShowAppuntamento}
             onToggleMerce={setShowMerce}
             onToggleGoogleBusy={setShowGoogleBusy}
+            onToggleLeaves={setShowLeaves}
           />
         )}
       </div>

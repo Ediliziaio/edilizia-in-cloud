@@ -153,6 +153,7 @@ const EmployeeDashboard = lazy(() => import("@/pages/dipendente/EmployeeDashboar
 const TimeEntry = lazy(() => import("@/pages/dipendente/TimeEntry"));
 const MyWorkLogs = lazy(() => import("@/pages/dipendente/MyWorkLogs"));
 const EmployeeProfile = lazy(() => import("@/pages/dipendente/EmployeeProfile"));
+const LeaveRequests = lazy(() => import("@/pages/dipendente/LeaveRequests"));
 
 // Salesperson
 const SalespersonDashboard = lazy(() => import("@/pages/venditore/SalespersonDashboard"));
@@ -407,6 +408,7 @@ const App = () => (
                 <Route path="ore" element={<TimeEntry />} />
                 <Route path="rapportini" element={<MyWorkLogs />} />
                 <Route path="profilo" element={<EmployeeProfile />} />
+                <Route path="ferie" element={<LeaveRequests />} />
               </Route>
 
               {/* Salesperson Routes */}

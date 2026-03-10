@@ -27,10 +27,22 @@ import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
+interface ApprovedLeave {
+  id: string;
+  employee_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number | null;
+  total_hours: number | null;
+  employee: { id: string; first_name: string; last_name: string } | null;
+}
+
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
   busySlots?: GoogleBusySlot[];
+  approvedLeaves?: ApprovedLeave[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
@@ -61,6 +73,7 @@ export function CalendarWeekView({
   orders,
   appointments = [],
   busySlots = [],
+  approvedLeaves = [],
   currentDate,
   onDateChange,
   syncedAppointmentIds,
@@ -115,9 +128,20 @@ export function CalendarWeekView({
         addEvent(d, { type: "google_busy", busySlot: s });
       });
     }
+    if (!hiddenEventTypes.has("leaves")) {
+      approvedLeaves.forEach(lr => {
+        const start = new Date(lr.start_date);
+        const end = new Date(lr.end_date);
+        const cur = new Date(start);
+        while (cur <= end) {
+          addEvent(cur.toISOString().split("T")[0], { type: "leave", leave: lr });
+          cur.setDate(cur.getDate() + 1);
+        }
+      });
+    }
 
     return map;
-  }, [orders, busySlots, hiddenEventTypes]);
+  }, [orders, busySlots, approvedLeaves, hiddenEventTypes]);
 
   // Group timed appointments per day
   const timedByDate = useMemo(() => {
@@ -176,14 +200,18 @@ export function CalendarWeekView({
 
   const renderAllDayEvent = (evt: any, idx: number) => {
     const o = evt.order as CalendarOrder | undefined;
-    const label = o
-      ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
-      : evt.busySlot?.summary || "Occupato";
+    const lr = evt.leave as ApprovedLeave | undefined;
+    const label = lr
+      ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
+      : o
+        ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
+        : evt.busySlot?.summary || "Occupato";
     const colorMap: Record<string, string> = {
       posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
       lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
       merce: "bg-emerald-500/20 border-l-2 border-emerald-500 text-emerald-900 dark:text-emerald-200",
       google_busy: "bg-muted border-l-2 border-muted-foreground/50 text-muted-foreground",
+      leave: "bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200",
     };
     const IconMap: Record<string, any> = { posa: Hammer, lavoro: Wrench, merce: Package };
     const Icon = IconMap[evt.type];
