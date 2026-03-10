@@ -8311,6 +8311,59 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          action_url: string | null
+          body: string | null
+          company_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          is_dismissed: boolean
+          is_read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          body?: string | null
+          company_id: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          body?: string | null
+          company_id?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_steps: {
         Row: {
           auto_check_key: string | null
@@ -12755,6 +12808,19 @@ export type Database = {
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      create_notification: {
+        Args: {
+          p_action_url?: string
+          p_body?: string
+          p_company_id: string
+          p_entity_id?: string
+          p_entity_type?: string
+          p_title: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_oda_from_order:
         | {
             Args: {
@@ -13079,6 +13145,10 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      mark_all_notifications_read: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       mark_scadenza_paid:
         | {
             Args: {
