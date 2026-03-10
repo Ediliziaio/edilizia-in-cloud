@@ -178,6 +178,20 @@ Deno.serve(async (req) => {
           })
           .eq("id", quote.id);
 
+        // Notify the quote creator
+        if (quote.created_by) {
+          await supabaseAdmin.rpc("create_notification", {
+            p_company_id: quote.company_id,
+            p_user_id: quote.created_by,
+            p_type: "quote_refused",
+            p_title: `Offerta ${quote.quote_number} rifiutata`,
+            p_body: `Il cliente ha rifiutato l'offerta ${quote.quote_number}.${refuse_reason ? ` Motivo: ${refuse_reason}` : ""}`,
+            p_entity_type: "quote",
+            p_entity_id: quote.id,
+            p_action_url: `/azienda/marketing/preventivi/${quote.id}`,
+          });
+        }
+
         return jsonResponse({ success: true, message: "Offerta rifiutata" });
       }
 
