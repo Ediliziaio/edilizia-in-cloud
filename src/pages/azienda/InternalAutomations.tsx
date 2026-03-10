@@ -285,7 +285,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     };
     setLocalNodes((prev) => [...prev, triggerNode]);
     setDirty(true);
-    updateFlow.mutate({ trigger_type: item.id });
+    setPendingTriggerType(item.id);
   }, [flowId, updateFlow]);
 
   const handleSelectAction = useCallback((item: PickerItem) => {
