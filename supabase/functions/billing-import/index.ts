@@ -15,6 +15,11 @@ Deno.serve(async (req) => {
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
+  // Fix #4: Declare variables outside try for error logging access
+  let companyId: string | null = null;
+  let provider: string | null = null;
+  let integId: string | null = null;
+
   try {
     const token = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) return json({ error: "Unauthorized" }, 401);
@@ -24,15 +29,17 @@ Deno.serve(async (req) => {
     const { data: cu } = await supabase
       .from("company_users").select("company_id").eq("user_id", user.id).single();
     if (!cu?.company_id) return json({ error: "Company not found" }, 404);
-    const companyId = cu.company_id;
+    companyId = cu.company_id;
 
-    const { provider } = await req.json();
+    const body = await req.json();
+    provider = body.provider;
 
     // Get integration
     const { data: integ } = await supabase
       .from("billing_integrations").select("*")
-      .eq("company_id", companyId).eq("provider", provider).eq("is_active", true).single();
+      .eq("company_id", companyId).eq("provider", provider!).eq("is_active", true).single();
     if (!integ) return json({ error: "Provider non connesso" }, 404);
+    integId = integ.id;
 
     const adapter = createAdapter(integ);
 
@@ -51,7 +58,7 @@ Deno.serve(async (req) => {
         .select("id, external_id")
         .eq("company_id", companyId)
         .eq("external_id", externalId)
-        .eq("external_provider", provider)
+        .eq("external_provider", provider!)
         .maybeSingle();
 
       const invoiceData = {
@@ -85,26 +92,9 @@ Deno.serve(async (req) => {
       if (existing) {
         await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
         
-        // Update lines
+        // Fix #5: Atomic line update — insert new first, then delete old
         if (inv.lines?.length) {
-          await supabase.from("invoice_lines").delete().eq("invoice_id", existing.id);
-          await supabase.from("invoice_lines").insert(
-            inv.lines.map((l: any, i: number) => ({
-              invoice_id: existing.id,
-              description: l.description,
-              product_code: l.productCode || null,
-              unit: l.unit || "pz",
-              quantity: l.quantity,
-              unit_price: l.unitPrice,
-              discount_percent: l.discountPercent || 0,
-              tax_rate: l.taxRate,
-              tax_nature: l.taxNature || null,
-              line_net: l.lineNet || 0,
-              line_tax: l.lineTax || 0,
-              line_gross: l.lineGross || 0,
-              sort_order: i,
-            }))
-          );
+          await updateInvoiceLinesAtomically(existing.id, inv.lines);
         }
         updated++;
       } else {
@@ -115,21 +105,7 @@ Deno.serve(async (req) => {
 
         if (newInv && inv.lines?.length) {
           await supabase.from("invoice_lines").insert(
-            inv.lines.map((l: any, i: number) => ({
-              invoice_id: newInv.id,
-              description: l.description,
-              product_code: l.productCode || null,
-              unit: l.unit || "pz",
-              quantity: l.quantity,
-              unit_price: l.unitPrice,
-              discount_percent: l.discountPercent || 0,
-              tax_rate: l.taxRate,
-              tax_nature: l.taxNature || null,
-              line_net: l.lineNet || 0,
-              line_tax: l.lineTax || 0,
-              line_gross: l.lineGross || 0,
-              sort_order: i,
-            }))
+            mapLinesToDb(newInv.id, inv.lines)
           );
         }
         imported++;
@@ -143,38 +119,96 @@ Deno.serve(async (req) => {
       last_sync_error: null,
     }).eq("id", integ.id);
 
-    // Log
+    // Fix #8: Use correct column names for billing_sync_log
     await supabase.from("billing_sync_log").insert({
       company_id: companyId,
-      provider,
+      provider: provider!,
+      direction: "pull",
       action: "import",
       status: "success",
-      details: { imported, updated, total: invoices.length },
+      response_payload: { imported, updated, total: invoices.length },
     });
 
     return json({ success: true, imported, updated, total: invoices.length });
   } catch (e) {
     console.error("billing-import error:", e);
+
+    // Fix #4: Log error to billing_integrations and billing_sync_log
+    if (integId) {
+      try {
+        await supabase.from("billing_integrations").update({
+          last_sync_at: new Date().toISOString(),
+          last_sync_status: "error",
+          last_sync_error: String(e),
+        }).eq("id", integId);
+      } catch { /* best effort */ }
+    }
+    if (companyId && provider) {
+      try {
+        await supabase.from("billing_sync_log").insert({
+          company_id: companyId,
+          provider,
+          direction: "pull",
+          action: "import",
+          status: "error",
+          error_message: String(e),
+        });
+      } catch { /* best effort */ }
+    }
+
     return json({ error: String(e) }, 500);
   }
 });
+
+// Fix #5: Atomic line update helper
+function mapLinesToDb(invoiceId: string, lines: any[]) {
+  return lines.map((l: any, i: number) => ({
+    invoice_id: invoiceId,
+    description: l.description,
+    product_code: l.productCode || null,
+    unit: l.unit || "pz",
+    quantity: l.quantity,
+    unit_price: l.unitPrice,
+    discount_percent: l.discountPercent || 0,
+    tax_rate: l.taxRate,
+    tax_nature: l.taxNature || null,
+    line_net: l.lineNet || 0,
+    line_tax: l.lineTax || 0,
+    line_gross: l.lineGross || 0,
+    sort_order: i,
+  }));
+}
+
+async function updateInvoiceLinesAtomically(invoiceId: string, lines: any[]) {
+  // Read existing lines for rollback
+  const { data: oldLines } = await supabase
+    .from("invoice_lines").select("*").eq("invoice_id", invoiceId);
+
+  // Delete old lines
+  await supabase.from("invoice_lines").delete().eq("invoice_id", invoiceId);
+
+  // Insert new lines
+  const { error: insertErr } = await supabase.from("invoice_lines").insert(
+    mapLinesToDb(invoiceId, lines)
+  );
+
+  // If insert fails, restore old lines
+  if (insertErr && oldLines?.length) {
+    console.error("Line insert failed, restoring old lines:", insertErr);
+    const restore = oldLines.map(({ id: _id, ...rest }) => rest);
+    await supabase.from("invoice_lines").insert(restore);
+    throw new Error(`Failed to update invoice lines: ${insertErr.message}`);
+  }
+}
 
 // Provider-specific fetch logic
 async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   const provider = integ.provider;
 
-  if (provider === "fattureincloud") {
-    return await fetchFICInvoices(integ);
-  }
-  if (provider === "fattura24") {
-    return await fetchFattura24Invoices(integ);
-  }
-  if (provider === "aruba") {
-    return await fetchArubaInvoices(integ);
-  }
-  if (provider === "invoicetronic") {
-    return await fetchInvoicetronicInvoices(integ);
-  }
+  if (provider === "fattureincloud") return await fetchFICInvoices(integ);
+  if (provider === "fattura24") return await fetchFattura24Invoices(integ);
+  if (provider === "aruba") return await fetchArubaInvoices(integ);
+  if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
 
   return [];
 }

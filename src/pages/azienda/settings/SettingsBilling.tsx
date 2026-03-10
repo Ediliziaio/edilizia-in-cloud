@@ -66,21 +66,34 @@ export default function SettingsBilling() {
   const [newCompanyExternalId, setNewCompanyExternalId] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
 
+  // Fix #6: Use server-side validation via billing-connect edge function
   const addMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("billing_integrations").insert({
-        company_id: companyId!,
-        provider: newProvider,
-        api_key: newProvider !== "fattureincloud" ? newApiKey : null,
-        access_token: newProvider === "aruba" ? newApiKey : null,
-        company_external_id: newCompanyExternalId || null,
-        is_active: true,
-        is_primary: integrations.length === 0,
-      } as any);
+      if (newProvider === "fattureincloud") {
+        // OAuth flow — just save minimal record, user will complete OAuth separately
+        const { error } = await supabase.from("billing_integrations").insert({
+          company_id: companyId!,
+          provider: newProvider,
+          company_external_id: newCompanyExternalId || null,
+          is_active: false, // Not active until OAuth completes
+          is_primary: integrations.length === 0,
+        } as any);
+        if (error) throw error;
+        return;
+      }
+      // API key / bearer providers — validate server-side
+      const action = newProvider === "aruba" ? "configure_aruba" : "configure_apikey";
+      const bodyPayload = newProvider === "aruba"
+        ? { bearer_token: newApiKey }
+        : { provider: newProvider, api_key: newApiKey };
+      const { data, error } = await supabase.functions.invoke("billing-connect", {
+        body: { action, ...bodyPayload },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Integrazione aggiunta");
+      toast.success("Integrazione aggiunta e verificata");
       setShowAdd(false);
       setNewProvider("");
       setNewApiKey("");

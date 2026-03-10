@@ -1,11 +1,63 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const WEBHOOK_SECRET = Deno.env.get("BILLING_WEBHOOK_SECRET") || "";
+
+async function verifySignature(req: Request, body: string): Promise<boolean> {
+  const signature = req.headers.get("x-webhook-signature") || 
+                    req.headers.get("x-signature") ||
+                    new URL(req.url).searchParams.get("secret");
+  
+  if (!WEBHOOK_SECRET) {
+    console.warn("BILLING_WEBHOOK_SECRET not configured — accepting request (backward compatible)");
+    return true;
+  }
+  
+  if (!signature) return false;
+
+  // Simple secret comparison (query param or header)
+  if (signature === WEBHOOK_SECRET) return true;
+
+  // HMAC verification
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", encoder.encode(WEBHOOK_SECRET),
+      { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
+    );
+    const sigBytes = new Uint8Array(
+      signature.match(/.{1,2}/g)?.map((b: string) => parseInt(b, 16)) || []
+    );
+    return await crypto.subtle.verify("HMAC", key, sigBytes, encoder.encode(body));
+  } catch {
+    return false;
+  }
+}
 
 Deno.serve(async (req) => {
   try {
     const provider = new URL(req.url).searchParams.get("provider") || "fattureincloud";
-    const body = await req.json();
+    const bodyText = await req.text();
+    
+    // Fix #2: Verify webhook authenticity
+    const isValid = await verifySignature(req, bodyText);
+    if (!isValid) {
+      console.warn("Rejected unauthorized webhook attempt from", req.headers.get("x-forwarded-for") || "unknown");
+      // Log rejected attempt
+      try {
+        await supabase.from("billing_sync_log").insert({
+          company_id: "00000000-0000-0000-0000-000000000000", // unknown
+          provider,
+          direction: "pull",
+          action: "webhook",
+          status: "error",
+          error_message: "Unauthorized webhook: invalid or missing signature",
+        });
+      } catch { /* best effort logging */ }
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const body = JSON.parse(bodyText);
 
     const ficStatusMap: Record<string, string> = {
       ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",

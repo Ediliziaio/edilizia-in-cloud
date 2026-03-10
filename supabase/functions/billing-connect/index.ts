@@ -16,12 +16,23 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+  let action = url.searchParams.get("action");
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return new Response("Unauthorized", { status: 401 });
   const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  // Fix #1: Parse body once and read action from body as fallback
+  let body: Record<string, unknown> = {};
+  if (req.method === "POST") {
+    try {
+      body = await req.json();
+    } catch { /* empty body is ok for GET-like actions */ }
+    if (!action && typeof body.action === "string") {
+      action = body.action;
+    }
+  }
 
   const { data: cu } = await supabase
     .from("company_users").select("company_id").eq("user_id", user.id).single();
@@ -45,7 +56,7 @@ Deno.serve(async (req) => {
 
   // ── OAuth2 FIC: scambia codice con token
   if (action === "fic_oauth_callback" && req.method === "POST") {
-    const { code } = await req.json();
+    const { code } = body as { code: string };
     const tokenRes = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -85,7 +96,7 @@ Deno.serve(async (req) => {
 
   // ── Configura provider con API key
   if (action === "configure_apikey" && req.method === "POST") {
-    const { provider, api_key } = await req.json();
+    const { provider, api_key } = body as { provider: string; api_key: string };
     const adapter = createAdapter({ provider, api_key });
     const test = await adapter.testConnection();
     if (!test.success) return json({ error: test.error || "API key non valida" }, 400);
@@ -105,7 +116,7 @@ Deno.serve(async (req) => {
 
   // ── Configura Aruba (Bearer token)
   if (action === "configure_aruba" && req.method === "POST") {
-    const { bearer_token } = await req.json();
+    const { bearer_token } = body as { bearer_token: string };
     const adapter = createAdapter({ provider: "aruba", api_key: bearer_token });
     const test = await adapter.testConnection();
     if (!test.success) return json({ error: "Bearer token Aruba non valido" }, 400);
@@ -125,7 +136,7 @@ Deno.serve(async (req) => {
 
   // ── Testa connessione provider esistente
   if (action === "test_connection" && req.method === "POST") {
-    const { provider } = await req.json();
+    const { provider } = body as { provider: string };
     const { data: integ } = await supabase
       .from("billing_integrations").select("*")
       .eq("company_id", companyId).eq("provider", provider).single();
@@ -143,21 +154,24 @@ Deno.serve(async (req) => {
     return json(result);
   }
 
-  // ── Imposta provider primario
+  // ── Fix #7: Imposta provider primario — atomico (set new first, then unset others)
   if (action === "set_primary" && req.method === "POST") {
-    const { provider } = await req.json();
-    await supabase.from("billing_integrations")
-      .update({ is_primary: false })
-      .eq("company_id", companyId);
-    await supabase.from("billing_integrations")
+    const { provider } = body as { provider: string };
+    // First set the new one as primary
+    const { error: setErr } = await supabase.from("billing_integrations")
       .update({ is_primary: true })
       .eq("company_id", companyId).eq("provider", provider);
+    if (setErr) return json({ error: "Errore aggiornamento primario" }, 500);
+    // Then unset all others
+    await supabase.from("billing_integrations")
+      .update({ is_primary: false })
+      .eq("company_id", companyId).neq("provider", provider);
     return json({ success: true });
   }
 
   // ── Toggle auto-sync
   if (action === "toggle_auto_sync" && req.method === "POST") {
-    const { provider, auto_sync } = await req.json();
+    const { provider, auto_sync } = body as { provider: string; auto_sync: boolean };
     await supabase.from("billing_integrations")
       .update({ auto_sync })
       .eq("company_id", companyId).eq("provider", provider);
@@ -166,7 +180,7 @@ Deno.serve(async (req) => {
 
   // ── Disconnetti provider
   if (action === "disconnect" && req.method === "POST") {
-    const { provider } = await req.json();
+    const { provider } = body as { provider: string };
     await supabase.from("billing_integrations")
       .update({ is_active: false, access_token: null, refresh_token: null, api_key: null, is_primary: false })
       .eq("company_id", companyId).eq("provider", provider);
