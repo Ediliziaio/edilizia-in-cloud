@@ -255,7 +255,7 @@ export function useCashFlowData() {
 
   // Active employees for salary calculation
   const { data: activeEmployees = [], isLoading: loadingEmployees } = useQuery({
-    queryKey: ["treasury-employees", companyId],
+    queryKey: queryKeys.cashflow.treasury(companyId).concat(["employees"]) as any,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
