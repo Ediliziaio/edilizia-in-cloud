@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
                 received_at: new Date().toISOString(),
                 status: "pending",
                 fail_count: 0,
-              }, { onConflict: "company_id,event_id" });
+              }, { onConflict: "company_id,provider,event_id" });
             imported++;
           }
 

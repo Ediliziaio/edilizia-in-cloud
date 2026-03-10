@@ -347,7 +347,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
 
 function normalizePhone(phone: string): string {
   if (!phone) return "";
-  let normalized = phone.replace(/[^\\d+]/g, "");
+  let normalized = phone.replace(/[^\d+]/g, "");
   if (normalized.startsWith("00")) {
     normalized = "+" + normalized.slice(2);
   }

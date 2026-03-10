@@ -6,11 +6,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, Settings2, AlertTriangle } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useState } from "react";
+import { queryKeys } from "@/lib/queryKeys";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
 
@@ -21,7 +22,7 @@ export default function FacebookFormsPage() {
 
   // Get integration
   const { data: integration } = useQuery({
-    queryKey: ["meta-integration-forms", companyId],
+    queryKey: queryKeys.metaForms.integration(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
@@ -37,7 +38,7 @@ export default function FacebookFormsPage() {
 
   // Get forms
   const { data: forms = [], isLoading } = useQuery({
-    queryKey: ["meta-lead-forms", companyId, integration?.id],
+    queryKey: queryKeys.metaForms.forms(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data } = await supabase
@@ -53,7 +54,7 @@ export default function FacebookFormsPage() {
 
   // Get lead counts per form from webhook events
   const { data: leadCounts = {} } = useQuery({
-    queryKey: ["meta-form-lead-counts", companyId],
+    queryKey: queryKeys.metaForms.leadCounts(companyId),
     queryFn: async () => {
       if (!companyId) return {};
       const { data } = await supabase
@@ -61,7 +62,8 @@ export default function FacebookFormsPage() {
         .select("id, payload, received_at")
         .eq("company_id", companyId)
         .eq("provider", "meta")
-        .eq("event_type", "leadgen");
+        .eq("event_type", "leadgen")
+        .eq("status", "processed");
       
       const counts: Record<string, { total: number; lastAt: string | null }> = {};
       for (const ev of data || []) {
@@ -80,7 +82,7 @@ export default function FacebookFormsPage() {
 
   // Get pages for name lookup
   const { data: pages = [] } = useQuery({
-    queryKey: ["meta-pages", companyId, integration?.id],
+    queryKey: queryKeys.metaForms.pages(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data } = await supabase
@@ -111,7 +113,7 @@ export default function FacebookFormsPage() {
           Authorization: `Bearer ${session?.session?.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ action: "backfill-leads", formId }),
+        body: JSON.stringify({ action: "backfill-leads", form_id: formId, company_id: companyId, integration_id: integration?.id }),
       });
       if (!res.ok) throw new Error("Backfill failed");
       toast.success("Backfill avviato", { description: "I lead storici verranno importati a breve." });
