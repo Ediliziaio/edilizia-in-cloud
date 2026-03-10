@@ -19,6 +19,8 @@ export function WhatsAppBroadcastTab() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [segment, setSegment] = useState("tutti");
+  const [segmentTag, setSegmentTag] = useState("");
+  const [segmentSource, setSegmentSource] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [messageText, setMessageText] = useState("");
   const [showPreview, setShowPreview] = useState(false);
