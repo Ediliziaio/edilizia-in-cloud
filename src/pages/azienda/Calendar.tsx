@@ -209,7 +209,7 @@ export default function Calendar() {
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, user_id")
         .eq("company_id", effectiveCompany!.id)
         .eq("is_active", true)
         .order("last_name");
