@@ -68,7 +68,11 @@ function MarketingOpportunitiesContent() {
     sortDir: { key: "dir", defaultValue: "desc" },
   });
 
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(urlFilters.selectedPipelineId || null);
+  const [selectedPipelineId, _setSelectedPipelineId] = useState<string | null>(urlFilters.selectedPipelineId || null);
+  const setSelectedPipelineId = useCallback((v: string | null) => {
+    _setSelectedPipelineId(v);
+    setURLParam("selectedPipelineId", v || "");
+  }, [setURLParam]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
