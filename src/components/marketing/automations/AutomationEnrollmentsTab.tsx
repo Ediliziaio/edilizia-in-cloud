@@ -32,7 +32,7 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   paused: "outline",
 };
 
-export function AutomationEnrollmentsTab({ flowId }: Props) {
+export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [statusFilter, setStatusFilter] = useState("all");
