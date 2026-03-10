@@ -437,7 +437,7 @@ function MarketingOpportunitiesContent() {
               }}>
                 <Download className="mr-2 h-4 w-4" /> Esporta CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>
+              {!isAdminContext && <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
