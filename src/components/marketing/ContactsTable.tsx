@@ -308,7 +308,7 @@ export const ContactsTable = memo(function ContactsTable({
                       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{val}</TableCell>;
                     }
 
-                    return renderStaticCell(col, c, cls, navigate);
+                    return renderStaticCell(col, c, cls, navigate, routePrefix);
                   })}
                   <TableCell className="py-1.5">
                     <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
