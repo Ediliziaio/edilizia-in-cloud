@@ -79,6 +79,7 @@ export default function SuperAdminUsersTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
+      if (!saPermissions.can_manage_admins) throw new Error("Non hai i permessi per gestire gli admin");
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "delete", userId },
