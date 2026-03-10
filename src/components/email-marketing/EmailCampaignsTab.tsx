@@ -19,6 +19,7 @@ import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRi
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
