@@ -1,18 +1,18 @@
-import { useState, useEffect, useMemo, forwardRef } from "react";
+import { useState, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
-  FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
-  Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge, FileSignature,
+  FileText, Plus, Send, Search,
+  Bell, User, X, Filter,
+  Loader2, AlertCircle, MessageSquare, Smartphone, Merge,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -42,7 +42,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
-import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
 import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
@@ -51,8 +50,15 @@ import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
+import { RefreshCw, CalendarDays } from "lucide-react";
 
-// ── Contact Appointments Panel ──
+// ── Extracted sub-components ──
+import { InlineField } from "@/components/marketing/contacts/InlineField";
+import { ContactAppointmentsPanel } from "@/components/marketing/contacts/ContactAppointmentsPanel";
+import { OpportunitiesPanel } from "@/components/marketing/contacts/OpportunitiesPanel";
+import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuotesPanel";
+import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
+import { getAvatarColor } from "@/lib/contactUtils";
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
   contactId: string; companyId: string; contactName: string;
   calendars: { id: string; name: string; base_lat?: number | null; base_lng?: number | null; base_formatted_address?: string | null }[];
