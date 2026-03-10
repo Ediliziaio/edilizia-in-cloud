@@ -299,7 +299,7 @@ export function EmailCampaignsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paged.map((c: any) => {
+                {campaigns.map((c: any) => {
                   const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const, className: "" };
                   return (
                     <TableRow
