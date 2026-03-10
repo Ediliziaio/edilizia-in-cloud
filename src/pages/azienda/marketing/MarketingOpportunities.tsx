@@ -57,6 +57,7 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 
 function MarketingOpportunitiesContent() {
   const navigate = useNavigate();
+  const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
