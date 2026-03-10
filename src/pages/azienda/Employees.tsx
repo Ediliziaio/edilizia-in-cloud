@@ -278,6 +278,7 @@ export default function Employees() {
           <TabsTrigger value="teams" className="gap-2"><Building2 className="h-4 w-4" />Squadre ({externalTeams.length})</TabsTrigger>
           <TabsTrigger value="staff-interno" className="gap-2"><Users className="h-4 w-4" />Staff Interno ({staffInterno.length})</TabsTrigger>
           <TabsTrigger value="worklogs" className="gap-2"><Clock className="h-4 w-4" />Rapportini</TabsTrigger>
+          <TabsTrigger value="leave" className="gap-2"><Palmtree className="h-4 w-4" />Ferie & Permessi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
