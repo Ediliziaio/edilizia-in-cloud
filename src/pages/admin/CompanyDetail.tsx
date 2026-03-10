@@ -34,6 +34,11 @@ export default function CompanyDetail() {
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
+  // Validate allowed_company_ids restriction
+  if (permissions.allowed_company_ids && id && !permissions.allowed_company_ids.includes(id)) {
+    return <AccessDenied />;
+  }
+
   if (h.isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
