@@ -265,17 +265,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     gcTime: 15 * 60 * 1000,
   });
 
-  // Dynamic categories: DB categories + legacy categories from costs (backward compat)
-  const dynamicCategories = useMemo(() => {
-    const cats = new Set<string>(dbCategories);
-    costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
-    suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
-    allOrderDerivedCosts.forEach((c) => { if (c.category) cats.add(c.category); });
-    if (cats.size === 0) {
-      ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
-    }
-    return Array.from(cats).sort();
-  }, [dbCategories, costs, suppliers, allOrderDerivedCosts]);
+  const dynamicCategories = useMemo(() => buildDynamicCategories(dbCategories, costs as any[], suppliers as any[], allOrderDerivedCosts), [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
   // Monthly distribution — 12 months (6 past + 6 future) — single pass
   const monthlyDistribution = useMemo(() => {
