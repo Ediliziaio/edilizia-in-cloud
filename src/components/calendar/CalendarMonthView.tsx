@@ -65,6 +65,7 @@ export function CalendarMonthView({
   orders,
   appointments = [],
   busySlots = [],
+  approvedLeaves = [],
   currentDate,
   onDateChange,
   syncedAppointmentIds,
