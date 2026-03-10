@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { AutomationCanvas } from "./AutomationCanvas";
 import { AutomationNodeConfig } from "./AutomationNodeConfig";
