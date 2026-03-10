@@ -67,6 +67,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { internalNavItems, marketingNavItems, cruscottoNavItem, internalSubcategories, marketingSubcategories, type NavItem } from "@/lib/sidebarConfig";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
