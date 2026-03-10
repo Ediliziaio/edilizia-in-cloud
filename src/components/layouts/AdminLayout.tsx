@@ -269,6 +269,13 @@ function AdminMainSidebar() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
 
+  const allAdminNavItems = [...allNavItems, ...adminMarketingNavItems];
+  const { toggle, isOpen } = useSidebarSections({
+    navItems: allAdminNavItems,
+    storageKey: "admin_sidebar_sections_state",
+    defaultState: ADMIN_SIDEBAR_DEFAULTS,
+  });
+
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const handleSearchChange = (value: string) => {
     setCompanySearch(value);
@@ -314,6 +321,9 @@ function AdminMainSidebar() {
     await impersonateCompany(companyId, permissions);
     navigate("/azienda");
   };
+
+  const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+  const activeClass = "bg-primary/10 text-primary font-semibold border-l-2 border-primary";
   
   return (
     <Sidebar className="border-r">
@@ -387,65 +397,112 @@ function AdminMainSidebar() {
         )}
       </div>
       <SidebarContent className="flex flex-col">
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigazione</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {filteredNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === "/admin"}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {filteredMarketingItems.length > 0 && (
+        {/* Navigazione */}
+        <Collapsible defaultOpen={false}>
           <SidebarGroup>
-            <SidebarGroupLabel>Marketing & Vendita</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredMarketingItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === "/admin/marketing"}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        activeClassName="bg-muted text-foreground font-medium"
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
+            <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+              <span className="flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5" />
+                Navigazione
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                {adminSubcategories.map((sub) => {
+                  const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <SidebarSubcategory
+                      key={sub.id}
+                      label={sub.label}
+                      isOpen={isOpen(sub.id)}
+                      onToggle={() => toggle(sub.id)}
+                    >
+                      <SidebarMenu className="divide-y divide-dashed divide-border/40">
+                        {items.map((item) => (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink 
+                                to={item.url} 
+                                end={item.url === "/admin"}
+                                className={navLinkClass}
+                                activeClassName={activeClass}
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarSubcategory>
+                  );
+                })}
+              </SidebarGroupContent>
+            </CollapsibleContent>
           </SidebarGroup>
+        </Collapsible>
+
+        {/* Marketing & Vendita */}
+        {filteredMarketingItems.length > 0 && (
+          <Collapsible defaultOpen={false}>
+            <SidebarGroup className="pt-0">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+                <span className="flex items-center gap-2">
+                  <Megaphone className="h-3.5 w-3.5" />
+                  Marketing & Vendita
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  {adminMarketingSubcategories.map((sub) => {
+                    const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
+                    if (items.length === 0) return null;
+                    return (
+                      <SidebarSubcategory
+                        key={sub.id}
+                        label={sub.label}
+                        isOpen={isOpen(sub.id)}
+                        onToggle={() => toggle(sub.id)}
+                      >
+                        <SidebarMenu className="divide-y divide-dashed divide-border/40">
+                          {items.map((item) => (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink
+                                  to={item.url}
+                                  end={item.url === "/admin/marketing"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span>{item.title}</span>
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </SidebarMenu>
+                      </SidebarSubcategory>
+                    );
+                  })}
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
+        <div className="mt-auto border-t">
+          <div className="px-2 pt-3">
             <SidebarMenu>
               {accountItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
+                      className={navLinkClass}
+                      activeClassName={activeClass}
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -454,18 +511,17 @@ function AdminMainSidebar() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        
-        <div className="mt-auto p-4">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-            onClick={() => signOut()}
-          >
-            <LogOut className="h-4 w-4" />
-            Esci
-          </Button>
+          </div>
+          <div className="p-4">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4" />
+              Esci
+            </Button>
+          </div>
         </div>
       </SidebarContent>
     </Sidebar>
