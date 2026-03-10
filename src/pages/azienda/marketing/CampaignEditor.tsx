@@ -162,6 +162,7 @@ export default function CampaignEditor() {
     saveMut.mutate({ html_content: editorRef.current.innerHTML, name });
   };
 
+  // TODO: Migrare a libreria editor (TipTap/Slate) — execCommand è deprecato
   const execCmd = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
     editorRef.current?.focus();
