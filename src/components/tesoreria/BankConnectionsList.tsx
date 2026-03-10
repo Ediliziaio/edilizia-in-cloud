@@ -63,8 +63,13 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
   }, [companyId]);
 
   useEffect(() => {
-    if (hasPendingCallback) {
-      const pending = connections.find((c) => c.status === "authenticating");
+    if (hasPendingCallback && connections.length > 0) {
+      // Fix 9: Use ref from URL for precise correlation, fallback to status-based lookup
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get("ref");
+      const pending = ref
+        ? connections.find((c) => c.requisition_id === ref)
+        : connections.find((c) => c.status === "authenticating");
       if (pending) {
         setPendingRequisitionId(pending.requisition_id);
         setShowCompleteDialog(true);
