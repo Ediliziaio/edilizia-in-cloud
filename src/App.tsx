@@ -64,6 +64,7 @@ const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/Adm
 const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/AdminMarketingContactDetail"));
 const AdminMarketingWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminMarketingWhatsApp"));
 const AdminMarketingAgents = lazy(() => import("@/pages/admin/marketing/AdminMarketingAgents"));
+const AdminMarketingAutomationBuilder = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomationBuilder"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
