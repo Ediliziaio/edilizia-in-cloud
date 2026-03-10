@@ -22,6 +22,17 @@ const ALL_TRUE: SuperAdminPermissions = {
   allowed_company_ids: null,
 };
 
+// Deny-by-default: used when no permission record exists yet
+const NO_ACCESS: SuperAdminPermissions = {
+  can_manage_companies: false,
+  can_manage_plans: false,
+  can_manage_tickets: false,
+  can_manage_referrals: false,
+  can_manage_admins: false,
+  can_view_platform_stats: false,
+  allowed_company_ids: [],
+};
+
 export function useSuperAdminPermissions() {
   const { user, role } = useAuth();
   const isSuperAdmin = role === "super_admin";
