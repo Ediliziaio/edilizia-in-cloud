@@ -400,6 +400,7 @@ export function useAddOpportunityNote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
