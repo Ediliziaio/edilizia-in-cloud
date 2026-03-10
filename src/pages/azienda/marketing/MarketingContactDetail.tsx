@@ -444,7 +444,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Contatto non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/marketing/contatti")}>
+        <Button variant="outline" onClick={() => navigate(`${routePrefix}/contatti`)}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Torna ai contatti
         </Button>
       </div>
