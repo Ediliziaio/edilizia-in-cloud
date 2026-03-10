@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
-import { subDays, startOfMonth, startOfDay, endOfDay } from "date-fns";
+import { subDays } from "date-fns";
+import { getDateRange } from "@/lib/dateRangeUtils";
 
 export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
 
