@@ -137,6 +137,15 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
   const isLoading = loadingPerms || loadingCompanies;
 
+  const [companySearch, setCompanySearch] = useState("");
+  const debouncedCompanySearch = useDebounce(companySearch, 300);
+
+  const filteredCompanies = useMemo(() => {
+    if (!debouncedCompanySearch.trim()) return companies;
+    const q = debouncedCompanySearch.toLowerCase();
+    return companies.filter((c) => c.name.toLowerCase().includes(q));
+  }, [companies, debouncedCompanySearch]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
