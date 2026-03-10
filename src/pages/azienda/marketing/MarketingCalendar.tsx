@@ -25,6 +25,7 @@ import { Plus, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -678,7 +679,14 @@ export default function MarketingCalendar() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         appointment={editingAppointment}
-        onSaved={() => refetchAppointments()}
+        onSaved={() => {
+          refetchAppointments();
+          queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+          queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+          queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+          queryClient.invalidateQueries({ queryKey: ["contact_appointments"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+        }}
         calendars={calendars}
         users={users}
         defaultDate={defaultDate}

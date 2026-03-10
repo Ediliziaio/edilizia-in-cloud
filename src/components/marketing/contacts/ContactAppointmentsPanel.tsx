@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Props {
   contactId: string;
@@ -119,7 +120,14 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         appointment={editingApt}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact_appointments", contactId] })}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["contact_appointments", contactId] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.marketingCalendar.all });
+          queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+          queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+          queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+        }}
         calendars={calendars}
         users={users}
         defaultContactId={contactId}
