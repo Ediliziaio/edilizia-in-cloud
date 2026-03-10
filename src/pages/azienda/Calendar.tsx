@@ -585,6 +585,7 @@ export default function Calendar() {
               onDateChange={setCurrentDate}
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
+              approvedLeaves={showLeaves ? approvedLeaves : []}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
