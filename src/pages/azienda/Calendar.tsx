@@ -358,8 +358,19 @@ export default function Calendar() {
     return orders.filter(order => !order.expected_date && !order.work_start_date).length;
   }, [orders]);
 
+  // Build employee user_id → employee mapping for conflict detection bridge
+  const employeeByUserId = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const emp of companyEmployees) {
+      if (emp.user_id) {
+        map.set(emp.user_id, { id: emp.id, name: `${emp.first_name} ${emp.last_name}` });
+      }
+    }
+    return map;
+  }, [companyEmployees]);
+
   // Conflict detection
-  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments);
+  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments, employeeByUserId);
 
   return (
     <div className="space-y-4">

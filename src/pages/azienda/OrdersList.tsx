@@ -419,18 +419,16 @@ export default function OrdersList() {
 
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
-      const { error: updateError } = await supabase
-        .from("orders")
-        .update({ current_status_id: statusId })
-        .eq("id", orderId);
-      if (updateError) throw updateError;
-      const { error: historyError } = await supabase
-        .from("order_status_history")
-        .insert({ order_id: orderId, status_id: statusId, changed_by: user?.id || "" });
-      if (historyError) throw historyError;
+      const { error } = await supabase.rpc("change_order_status", {
+        p_order_id: orderId,
+        p_new_status_id: statusId,
+        p_changed_by: user?.id || "",
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
       toast({ title: "Stato aggiornato", description: "L'ordine è stato spostato al nuovo stato" });
     },
     onError: () => {

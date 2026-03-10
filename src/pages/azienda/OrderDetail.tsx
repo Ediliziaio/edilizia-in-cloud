@@ -375,21 +375,43 @@ export default function OrderDetail() {
         // @deprecated Legacy path: order has no installments in DB yet.
         // Auto-migrate all legacy installments to order_installments table,
         // then update the target one.
-        const legacyInstallments = buildInstallmentsFromLegacy(order!);
-        const rows = legacyInstallments.map((inst) => ({
-          order_id: id!,
-          position: inst.position,
-          label: inst.label,
-          type: inst.type,
-          amount: inst.amount,
-          is_paid: inst.position === installment.position && inst.type === installment.type ? paid : inst.is_paid,
-          paid_date: inst.position === installment.position && inst.type === installment.type
-            ? (paid ? today : null)
-            : (inst.paid_date || null),
-          expected_date: inst.expected_date || null,
-        }));
-        const { error } = await (supabase as any).from("order_installments").insert(rows);
-        if (error) throw error;
+        // Idempotency check: verify no installments already exist (prevents duplicates on double-click)
+        const { count } = await (supabase as any)
+          .from("order_installments")
+          .select("id", { count: "exact", head: true })
+          .eq("order_id", id!);
+        if (count && count > 0) {
+          // Installments were already migrated (race condition / double-click).
+          // Reload and update the target one by position+type.
+          const { data: existing } = await (supabase as any)
+            .from("order_installments")
+            .select("id, position, type")
+            .eq("order_id", id!);
+          const match = (existing || []).find((r: any) => r.position === installment.position && r.type === installment.type);
+          if (match) {
+            const { error } = await (supabase as any)
+              .from("order_installments")
+              .update({ is_paid: paid, paid_date: paid ? today : null })
+              .eq("id", match.id);
+            if (error) throw error;
+          }
+        } else {
+          const legacyInstallments = buildInstallmentsFromLegacy(order!);
+          const rows = legacyInstallments.map((inst) => ({
+            order_id: id!,
+            position: inst.position,
+            label: inst.label,
+            type: inst.type,
+            amount: inst.amount,
+            is_paid: inst.position === installment.position && inst.type === installment.type ? paid : inst.is_paid,
+            paid_date: inst.position === installment.position && inst.type === installment.type
+              ? (paid ? today : null)
+              : (inst.paid_date || null),
+            expected_date: inst.expected_date || null,
+          }));
+          const { error } = await (supabase as any).from("order_installments").insert(rows);
+          if (error) throw error;
+        }
       }
     },
     onSuccess: (_, { paid, installment }) => {

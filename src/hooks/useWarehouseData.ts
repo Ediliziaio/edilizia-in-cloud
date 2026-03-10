@@ -270,7 +270,7 @@ export function useWarehouseData() {
         .select("id, order_code, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(5000);
       if (error) throw error;
       return (data || []).map((o: any) => ({
         id: o.id,

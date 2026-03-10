@@ -110,10 +110,11 @@ Deno.serve(async (req) => {
 
             case "update_order_status": {
               if (job.entity_type === "order" && config.new_status) {
-                const { error } = await supabase
-                  .from("orders")
-                  .update({ current_status_id: config.new_status, updated_at: new Date().toISOString() })
-                  .eq("id", job.entity_id);
+                const { error } = await supabase.rpc("change_order_status", {
+                  p_order_id: job.entity_id,
+                  p_new_status_id: config.new_status,
+                  p_changed_by: job.company_id,
+                });
                 if (error) throw error;
                 actionResult = { updated: "order_status", new_status: config.new_status };
               }
