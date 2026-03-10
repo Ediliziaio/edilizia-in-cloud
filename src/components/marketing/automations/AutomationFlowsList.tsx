@@ -92,7 +92,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
 
   // Enrollment counts
   const { data: enrollmentCounts } = useQuery({
-    queryKey: ["automation-enrollment-counts", effectiveCompany?.id],
+    queryKey: ["automation-enrollment-counts", effectiveCompany?.id, statusFilter, folderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("automation_enrollments")
