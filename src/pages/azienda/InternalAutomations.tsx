@@ -242,7 +242,11 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     if (dbConnections && !dirty) setLocalConnections(dbConnections);
   }, [dbConnections]);
   useEffect(() => {
-    if (flow && !dirty) setFlowName(flow.name);
+    if (flow && !dirty) {
+      setFlowName(flow.name);
+      setFlowDescription(flow.description || "");
+      setPendingTriggerType(flow.trigger_type || null);
+    }
   }, [flow]);
 
   const selectedNode = localNodes.find((n) => n.id === selectedNodeId) || null;
