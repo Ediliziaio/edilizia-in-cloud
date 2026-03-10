@@ -15,6 +15,7 @@ import {
   Blocks,
   Search,
   ChevronsUpDown,
+  ChevronDown,
   RefreshCw,
   LifeBuoy,
   Megaphone,
@@ -35,7 +36,11 @@ import {
   CalendarDays,
   Zap,
   MessageCircle,
+  Briefcase,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { useSidebarSections } from "@/hooks/useSidebarSections";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
