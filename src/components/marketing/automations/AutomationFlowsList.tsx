@@ -344,7 +344,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                   <TableRow
                     key={flow.id}
                     className="cursor-pointer hover:bg-muted/40 transition-colors"
-                    onClick={() => navigate(`/azienda/marketing/automazioni/${flow.id}`)}
+                    onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}
                   >
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox
