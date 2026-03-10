@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
