@@ -118,6 +118,15 @@ export function CalendarMonthView({
         }
       });
     }
+    if (!hiddenEventTypes.has("leaves")) {
+      approvedLeaves.forEach((lr) => {
+        const lrStart = parseISO(lr.start_date);
+        const lrEnd = parseISO(lr.end_date);
+        if (day >= lrStart && day <= lrEnd) {
+          events.push({ type: "leave", leave: lr, color: "#F59E0B" });
+        }
+      });
+    }
     return events;
   };
 

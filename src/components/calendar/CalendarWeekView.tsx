@@ -27,10 +27,22 @@ import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
+interface ApprovedLeave {
+  id: string;
+  employee_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number | null;
+  total_hours: number | null;
+  employee: { id: string; first_name: string; last_name: string } | null;
+}
+
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
   busySlots?: GoogleBusySlot[];
+  approvedLeaves?: ApprovedLeave[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
