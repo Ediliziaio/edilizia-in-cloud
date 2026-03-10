@@ -129,7 +129,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query all active employees for monthly salary costs
   const { data: activeEmployees = [] } = useQuery({
-    queryKey: ["active-employees-costs", companyId],
+    queryKey: queryKeys.costs.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
