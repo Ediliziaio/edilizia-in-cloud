@@ -56,7 +56,7 @@ export function PhoneNumberManager() {
   const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const { data: numbers, isLoading } = useQuery({
-    queryKey: ["ai-agent-phone-numbers"],
+    queryKey: queryKeys.aiAgents.phoneNumbers(),
     queryFn: async (): Promise<PhoneNumberRow[]> => {
       const { data, error } = await supabase
         .from("ai_agent_phone_numbers" as never)
