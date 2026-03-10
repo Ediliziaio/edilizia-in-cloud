@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
         subtotal: inv.subtotal || 0,
         tax_amount: inv.taxAmount || 0,
         total: inv.total || 0,
+        paid_amount: inv.paidAmount || 0,
         payment_method: inv.paymentMethod || null,
         bank_iban: inv.iban || null,
         notes: inv.notes || null,
