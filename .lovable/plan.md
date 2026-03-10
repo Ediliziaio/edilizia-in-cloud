@@ -1,194 +1,69 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Audit — Dashboard Marketing/Vendite, Contatti, Opportunità
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Bug trovati
 
----
+### Bug 1 (P0): Create/Delete opportunità non invalidano la dashboard marketing
+**File:** `src/hooks/useOpportunitiesData.ts`
+- `useCreateOpportunity` (riga 158-161): invalida solo `queryKeys.opportunities.all`. La dashboard marketing (`queryKeys.marketing.all`) NON viene invalidata. Creare un'opportunità non aggiorna i KPI.
+- `useDeleteOpportunity` (riga 243-245): invalida solo `queryKeys.opportunities.all`, non `marketingContacts` né `marketing`. Dashboard e contatti restano stale.
+- `useBulkDeleteOpportunities` (riga 435-438): stessa mancanza.
+- `useBulkUpdateOpportunities` (riga 415-418): stessa mancanza.
+- `useAddOpportunityNote` (riga 395-396): invalida solo `marketingContacts.all`, non `opportunities.all`. Il conteggio note nella card opportunità resta stale.
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+**Fix:** Aggiungere le invalidazioni mancanti:
+- `useCreateOpportunity.onSuccess`: + `queryKeys.marketingContacts.all` + `queryKeys.marketing.all`
+- `useDeleteOpportunity.onSuccess`: + `queryKeys.marketingContacts.all` + `queryKeys.marketing.all`
+- `useBulkDeleteOpportunities.onSuccess`: + `queryKeys.marketingContacts.all` + `queryKeys.marketing.all`
+- `useBulkUpdateOpportunities.onSuccess`: + `queryKeys.marketingContacts.all` + `queryKeys.marketing.all`
+- `useUpdateOpportunity.onSuccess`: + `queryKeys.marketing.all`
+- `useUpdateOpportunityStage.onSettled`: + `queryKeys.marketing.all`
+- `useAddOpportunityNote.onSuccess`: + `queryKeys.opportunities.all`
 
----
+### Bug 2 (P1): Filtro "Fonte" costruito su dataset troncato a 500 righe
+**File:** `src/components/marketing/dashboard/DashboardFilters.tsx`, riga 60
+La query per le fonti disponibili fa `.limit(500)` sulla tabella `marketing_contacts` e poi estrae le `source` distinte. Con >500 contatti, molte fonti sono invisibili nel filtro. Il filtro diventa incompleto e la dashboard non mostra segmenti reali.
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+**Fix:** Usare una query `SELECT DISTINCT source FROM marketing_contacts WHERE company_id = ? AND source IS NOT NULL` — implementabile con `.select("source")` senza limit ma con una RPC o almeno un limit molto più alto (10000), dato che stiamo estraendo solo una colonna leggera. Soluzione pragmatica: rimuovere il `.limit(500)` e aggiungere `.limit(10000)` per sicurezza, dato che la colonna `source` è piccola.
 
----
+### Bug 3 (P1): Preferenze colonne non isolate per tenant/utente
+**File:** `src/components/marketing/ContactsTable.tsx`, riga 84
+`STORAGE_KEY = "contacts-visible-columns"` è una chiave globale. In ambiente multi-tenant (es. super admin che accede a più aziende, o utenti diversi sullo stesso browser), le preferenze si contaminano.
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+**Fix:** Rendere la chiave scoped per userId + companyId. Modificare `loadVisibleColumns` e `saveVisibleColumns` per accettare una chiave contestuale. Nel componente padre (`MarketingContacts.tsx`), passare `userId-companyId` come parte della chiave.
 
----
+### Bug 4 (P1): Import contatti non normalizza il telefono
+**File:** `src/pages/azienda/marketing/MarketingContacts.tsx`, riga 644-659
+Durante l'import, il telefono viene salvato con `r.phone?.trim()` senza nessuna normalizzazione. Il `ContactDialog` usa `cleanPhone()` che rimuove spazi, trattini e punti. Import e creazione manuale scrivono formati diversi, rompendo la deduplica (riga 749-757 confronta phone raw).
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+**Fix:** Applicare `cleanPhone()` al telefono durante l'import, nella stessa posizione (riga 659). Estrarre `cleanPhone` in un modulo condiviso (`src/lib/contactUtils.ts`) e importarlo sia in `ContactDialog.tsx` che in `MarketingContacts.tsx`.
 
----
+### Bug 5 (P1): `useOpportunityDetailData` usa query key inline, non la factory
+**File:** `src/hooks/useOpportunityDetailData.ts`
+Tutti gli hook usano chiavi inline (`["marketing_contacts"]`, `["marketing_custom_fields"]`, ecc.) che non matchano la factory `queryKeys`. Le invalidazioni da `useOpportunitiesData.ts` (che usano `queryKeys.marketingContacts.all` = `["marketing-contacts"]`) non raggiungono `["marketing_contacts"]` (underscore vs dash). Questo causa mismatch: l'invalidazione dei contatti post-update opportunità non aggiorna il dettaglio contatto.
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+**Fix:** Aggiornare le query key in `useOpportunityDetailData.ts` per usare la factory `queryKeys` dove possibile, e aggiungere le chiavi mancanti alla factory.
+
+### Bug 6 (P2): Enrichment opportunità usa `.limit(5000)` per note/docs
+**File:** `src/hooks/useOpportunitiesData.ts`, righe 74, 79, 92
+Le query di enrichment usano `.limit(5000)`. Superato il limite, i conteggi sono troncati silenziosamente. Dato che servono solo conteggi, non dati, questo è inefficiente. Non è un bug critico ora ma è una fragilità.
+
+**Fix:** Accettabile per ora, ma aggiungere un commento sul limite. Il fix ideale sarebbe una RPC con `COUNT(*)`, ma il vincolo di non over-engineering lo esclude.
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## Piano correzioni
 
----
+| File | Fix | Tipo |
+|------|-----|------|
+| `src/hooks/useOpportunitiesData.ts` | Invalidazioni mancanti su 6 mutation | Cache |
+| `src/components/marketing/dashboard/DashboardFilters.tsx` | Rimuovere `.limit(500)`, usare `.limit(10000)` | Filtri |
+| `src/components/marketing/ContactsTable.tsx` | Scoping chiave localStorage per tenant/utente | Isolamento |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Normalizzare telefono in import | Deduplica |
+| `src/lib/contactUtils.ts` | Centralizzare `cleanPhone` | Standard |
+| `src/components/marketing/ContactDialog.tsx` | Importare `cleanPhone` da contactUtils | Standard |
+| `src/hooks/useOpportunityDetailData.ts` | Allineare query key inline a factory (dove mismatch) | Cache |
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+7 file, 6 bug. Nessun rischio di regressione. Nessun cambio UX.
 
----
-
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
