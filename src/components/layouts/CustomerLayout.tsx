@@ -107,6 +107,11 @@ export function CustomerLayout() {
                   <Link to={item.url} className="flex items-center gap-2">
                     <item.icon className="h-4 w-4" />
                     {item.title}
+                    {item.badge && unreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
+                        {unreadCount}
+                      </Badge>
+                    )}
                   </Link>
                 </DropdownMenuItem>
               ))}
