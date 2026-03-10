@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
-import { subDays, startOfMonth, startOfDay, endOfDay } from "date-fns";
+import { subDays } from "date-fns";
+import { getDateRange } from "@/lib/dateRangeUtils";
 
 export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
 
@@ -116,25 +117,7 @@ export interface DashboardStats {
   trend: TrendPoint[];
 }
 
-function getDateRange(preset: DatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
-  const now = new Date();
-  switch (preset) {
-    case "today":
-      return { from: startOfDay(now), to: endOfDay(now) };
-    case "yesterday": {
-      const y = subDays(now, 1);
-      return { from: startOfDay(y), to: endOfDay(y) };
-    }
-    case "last7":
-      return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
-    case "last30":
-      return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
-    case "month":
-      return { from: startOfMonth(now), to: endOfDay(now) };
-    case "custom":
-      return { from: customFrom || subDays(now, 30), to: customTo || now };
-  }
-}
+// getDateRange is now imported from @/lib/dateRangeUtils
 
 export function useMarketingDashboard() {
   const { effectiveCompany, user } = useAuth();
@@ -160,7 +143,7 @@ export function useMarketingDashboard() {
   }, [permissions.onlyAssigned, user?.id, filters.assignedUserIds]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["marketing-dashboard", companyId, dateRange.from.toISOString().slice(0,10), dateRange.to.toISOString().slice(0,10), effectiveAssignedIds, filters.sources, filters.pipelineId],
+    queryKey: ["marketing-dashboard", companyId, dateRange.from.toISOString().slice(0, 10), dateRange.to.toISOString().slice(0, 10), effectiveAssignedIds, filters.sources, filters.pipelineId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_marketing_dashboard_stats", {
         p_company_id: companyId!,

@@ -2,8 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useMemo, useCallback } from "react";
-import { subDays, startOfDay, endOfDay, startOfMonth, format, addDays } from "date-fns";
+import { subDays, format, addDays } from "date-fns";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
+import { getDateRange } from "@/lib/dateRangeUtils";
+import { safeNumber } from "@/lib/numberUtils";
+
+// Re-export for backward compatibility with existing consumers
+export { safeNumber } from "@/lib/numberUtils";
 
 export type CruscottoDatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "quarter" | "custom";
 
@@ -53,25 +58,6 @@ export interface CompanyTargets {
   alert_open_tickets_threshold: number;
   alert_margin_min_pct: number;
   alert_runway_days_warning: number;
-}
-
-/** Safe number: returns fallback if NaN/Infinity */
-export function safeNumber(value: unknown, fallback = 0): number {
-  const n = Number(value);
-  return isNaN(n) || !isFinite(n) ? fallback : n;
-}
-
-function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
-  const now = new Date();
-  switch (preset) {
-    case "today": return { from: startOfDay(now), to: endOfDay(now) };
-    case "yesterday": { const y = subDays(now, 1); return { from: startOfDay(y), to: endOfDay(y) }; }
-    case "last7": return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
-    case "last30": return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
-    case "month": return { from: startOfMonth(now), to: endOfDay(now) };
-    case "quarter": return { from: startOfDay(subDays(now, 90)), to: endOfDay(now) };
-    case "custom": return { from: customFrom || subDays(now, 30), to: customTo || now };
-  }
 }
 
 export function useCruscottoData() {
@@ -352,7 +338,7 @@ export function useCruscottoData() {
   });
 
   const updateFilters = useCallback((partial: Partial<CruscottoFiltersState>) => {
-    setFilters(prev => {
+    setFilters((prev: CruscottoFiltersState) => {
       const next = { ...prev, ...partial };
       if (partial.datePreset && partial.datePreset !== "custom") {
         const range = getDateRange(partial.datePreset);

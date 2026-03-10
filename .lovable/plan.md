@@ -1,93 +1,194 @@
+# Stato Progetto — Aggiornato
 
-
-# Audit Tecnico Completo — Edilizia in Cloud
-
-## FASE 1: Report Problemi Identificati
-
-### CRITICI (P0)
-
-| # | Area | Problema | Impatto |
-|---|------|----------|---------|
-| 1 | **Lockfile duplicati** | Presenti sia `bun.lock`, `bun.lockb` che `package-lock.json` — rischio di dipendenze incoerenti tra ambienti | Build instabile |
-| 2 | **Global Search: query sequenziali** | `useGlobalSearch.ts` esegue 4 query Supabase in sequenza (orders → profiles → contacts → tickets) invece che in parallelo | Latenza 4x |
-| 3 | **Query keys non centralizzate** | ~31 hook usano `queryKey: ["string-inline"]` invece di `queryKeys.*` dalla factory. Es: `useAdminDashboardData`, `useMarginData` (6 query), `useCruscottoData` (5 query), `usePrimaNota`, `useWarehouseSections`, `usePurchaseOrders`, `useHealthScores`, `useAdminRevenueData`, `useBrandSettings` | Invalidazione cache incoerente, rischio refetch duplicati |
-| 4 | **`select("*")` diffusi** | 135 file con 1053 occorrenze di `select("*")` — 23 solo in `/src/hooks/`. Payload eccessivi specialmente su tabelle grandi (`company_costs`, `notifications`, `suppliers`) | Bandwidth/memoria |
-
-### MEDI (P1)
-
-| # | Area | Problema |
-|---|------|----------|
-| 5 | **`getDateRange` duplicato 3 volte** | Stessa funzione identica in `useCompanyDashboardData`, `useMarketingDashboard`, `useCruscottoData` (+ variante in `Scadenzario.tsx`) |
-| 6 | **`as never` pattern** | 776 occorrenze in 40 file — usato come workaround per tabelle non presenti nel type schema auto-generato. Non è un bug ma degrada la type safety |
-| 7 | **`any` pervasivo negli hook** | 814 occorrenze in 29 hook — casting forzati (`data as any`, `err: any`, `Record<string, any>`) che mascherano errori a compile-time |
-| 8 | **`useCashFlowData` monolitico** | 570 righe, 14 query separate, 14 flag `isLoading` concatenati. Già usa RPC per summary ma mantiene molte query raw parallele |
-| 9 | **`useCruscottoData` dipendenza cascata** | `opsData` e `weeklyData` dipendono da `paymentsData` (cascading queries) — genera 2 waterfall round-trip |
-| 10 | **`@types/dompurify` in dependencies** | Dovrebbe essere in `devDependencies` |
-| 11 | **App.tsx: 512 righe** | File monolitico con ~160 lazy import + tutte le route. Funziona ma è poco manutenibile |
-
-### PULIZIA CODICE (P2)
-
-| # | Area | Problema |
-|---|------|----------|
-| 12 | **`safeNumber` definito in hook** | Utility pura (`safeNumber`) definita in `useCruscottoData.ts` e importata da componenti — dovrebbe stare in `src/lib/` |
-| 13 | **`useAdminDashboardData` calcola MRR client-side** | Scarica TUTTE le companies con join su piani e calcola MRR trend 6 mesi in un loop O(n*6). Con molte aziende diventa costoso |
-| 14 | **`updateFilters` duplicato** | Pattern identico (callback con `getDateRange` + spread) in 3 hook dashboard |
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
 ---
 
-## FASE 2: Piano Interventi (priorità per impatto/sicurezza)
-
-### Task 1: Parallelizzare Global Search
-- Convertire le 4 query sequenziali in `useGlobalSearch.ts` in `Promise.all`
-- Riduzione latenza: da ~4x a ~1x RTT
-
-### Task 2: Estrarre `getDateRange` e `safeNumber` in utility condivise
-- Creare `src/lib/dateRangeUtils.ts` con `getDateRange` generico (unione dei 3 preset types)
-- Spostare `safeNumber` da `useCruscottoData` a `src/lib/numberUtils.ts`
-- Aggiornare import in tutti i consumer (4+ file)
-
-### Task 3: Migrare query keys inline alla factory centralizzata
-- Aggiornare i ~15 hook più importanti per usare `queryKeys.*`
-- Aggiungere entry mancanti alla factory: `margin`, `primaNota` (already exists ma non usata), `warehouseSections`, `purchaseOrders`, `healthScores`, `adminRevenue`, `brandSettings`, `internalAutomations`
-- Aggiornare anche le `invalidateQueries` corrispondenti
-
-### Task 4: Ridurre `select("*")` nei hook critici
-- Sostituire con select espliciti nei hook ad alto traffico: `useNotifications`, `useOperationalSuppliers`, `useInternalAutomations`, `useCashFlowData` (company_costs), `useFormBuilder`, `useAutomationBuilder`, `usePermissions`
-- Non toccare file a basso traffico (admin settings) per evitare regressioni
-
-### Task 5: Modularizzare App.tsx in route modules
-- Estrarre route groups in file separati: `src/routes/adminRoutes.tsx`, `src/routes/companyRoutes.tsx`, `src/routes/customerRoutes.tsx`, `src/routes/employeeRoutes.tsx`, `src/routes/salespersonRoutes.tsx`, `src/routes/partnerRoutes.tsx`, `src/routes/publicRoutes.tsx`
-- App.tsx diventa ~80 righe: providers + composizione route modules
-- Tutte le route, protezioni, lazy load e layout rimangono identici
-
-### Task 6: Pulire lockfile e dipendenze
-- Rimuovere `bun.lock` e `bun.lockb` (il progetto usa npm/`package-lock.json` per Lovable)
-- Spostare `@types/dompurify` da `dependencies` a `devDependencies`
-
-### Task 7: Ottimizzare `useAdminDashboardData`
-- Usare `queryKeys.admin.dashboard()` dalla factory
-- Il calcolo MRR trend lato client è accettabile per ora (poche centinaia di aziende), ma annotare come candidato per RPC futura
-
-### Task 8: Ridurre waterfall in `useCruscottoData`
-- Unificare la query `paymentsData` inline nelle query `opsData` e `financeData` dove possibile, oppure rimuovere il `enabled: paymentsData !== undefined` guard facendo il fetch indipendente e usando i dati nel `useMemo`
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
 ---
 
-## Cosa NON toccare (rischio regressione > beneficio)
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-- **`as never` pattern**: richiede rigenerazione dello schema DB, non un refactor frontend
-- **`useCashFlowData` splitting**: già funziona e usa RPC per summary; splitting ulteriore richiederebbe riscrittura dei consumer
-- **Routing paths**: nessuna modifica a URL, protezioni, o redirect
-- **Business logic**: nessun cambiamento a calcoli, formule, o logiche di dominio
-- **UI/UX**: zero modifiche visive
+---
 
-## Stima effort
-- Task 1: piccolo (1 file)
-- Task 2: piccolo (3 file nuovi + 6 import updates)
-- Task 3: medio (15+ file, ma meccanico)
-- Task 4: medio (7 file, richiede verifica campi usati)
-- Task 5: medio (1 file grande → 8 file, refactor strutturale)
-- Task 6: piccolo (config only)
-- Task 7: piccolo (1 file)
-- Task 8: medio (1 file, logica cascading)
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
+---
+
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+
+---
+
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+
+---
+
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+
+---
+
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
+
+---
+
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+
+---
+
+## UTM Attribution Tracking ✅
+- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
+- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
+- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
+- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
+- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
+- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
+- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
+- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
+- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
+- ✅ **useContactAttribution** + **useAttributionReport** hooks
+
+---
+
+## Form Builder + Lead Capture ✅
+- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
+- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
+- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
+- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
+- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
+- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
+- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
+- ✅ **useFormBuilder** hook: CRUD form con mutations
+- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
+- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
+- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
