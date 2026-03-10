@@ -3846,6 +3846,47 @@ export type Database = {
           },
         ]
       }
+      customer_messages: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          read_at: string | null
+          sender_id: string
+          sender_role: string
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          read_at?: string | null
+          sender_id: string
+          sender_role: string
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_function_rate_limits: {
         Row: {
           called_at: string
