@@ -714,6 +714,7 @@ export function CompanyLayout() {
         <CompanySidebar
           onOpenNotifications={() => setNotificationsPanelOpen(true)}
           notificationCount={notifUnreadCount}
+          onOpenSearch={() => setCommandOpen(true)}
         />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
