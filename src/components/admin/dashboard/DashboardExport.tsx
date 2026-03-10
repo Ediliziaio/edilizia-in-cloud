@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { downloadFile } from "@/lib/csvExport";
 import type { AdminDashboardStats, AdminMrrStats } from "@/hooks/useAdminDashboardData";
 
 interface ExportData {
@@ -134,14 +135,3 @@ export function DashboardExport({ data }: { data: ExportData }) {
   );
 }
 
-function downloadFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob(["\ufeff" + content], { type: `${mimeType};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}

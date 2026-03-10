@@ -27,10 +27,12 @@ export function exportToCSV(
     columns.map((c) => escapeCSV(row[c.key])).join(";")
   );
   const csv = [header, ...dataLines].join("\r\n");
+  downloadFile(csv, filename, "text/csv");
+}
 
-  // BOM UTF-8 for Excel compatibility
-  const bom = "\uFEFF";
-  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+/** Download a string as a file with BOM for Excel compatibility */
+export function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob(["\ufeff" + content], { type: `${mimeType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
