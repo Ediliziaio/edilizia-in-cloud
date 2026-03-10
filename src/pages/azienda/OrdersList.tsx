@@ -118,6 +118,7 @@ export default function OrdersList() {
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const { data: externalTeamCosts = [] } = useQuery({
