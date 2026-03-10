@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "./useDebounce";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface SearchResult {
   id: string;
@@ -15,7 +16,7 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
   const debouncedQuery = useDebounce(query, 250);
 
   return useQuery<SearchResult[]>({
-    queryKey: ["global-search", companyId, debouncedQuery],
+    queryKey: queryKeys.globalSearch.results(companyId, debouncedQuery),
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 2) return [];
 

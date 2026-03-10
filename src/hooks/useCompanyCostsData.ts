@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
@@ -59,7 +60,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query costs with supplier join
   const { data: costs = [], isLoading } = useQuery({
-    queryKey: ["company-costs", companyId],
+    queryKey: queryKeys.costs.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -77,7 +78,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query suppliers for the form
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers-for-costs", companyId],
+    queryKey: queryKeys.costs.suppliers(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
@@ -94,7 +95,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query ALL order items with supplier (for split payments)
   const { data: orderItemCosts = [] } = useQuery({
-    queryKey: ["order-item-costs-full", companyId],
+    queryKey: queryKeys.costs.orderItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -112,7 +113,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query external teams from orders
   const { data: externalTeamCosts = [] } = useQuery({
-    queryKey: ["order-external-team-costs", companyId],
+    queryKey: queryKeys.costs.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
@@ -128,7 +129,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query all active employees for monthly salary costs
   const { data: activeEmployees = [] } = useQuery({
-    queryKey: ["active-employees-costs", companyId],
+    queryKey: queryKeys.costs.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
@@ -146,7 +147,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query commissions from orders
   const { data: commissionCosts = [] } = useQuery({
-    queryKey: ["order-commission-costs", companyId],
+    queryKey: queryKeys.costs.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
@@ -162,7 +163,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query orders for linking
   const { data: orders = [] } = useQuery({
-    queryKey: ["orders-for-costs", companyId],
+    queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -385,7 +386,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query cost categories from dedicated table
   const { data: dbCategories = [] } = useQuery({
-    queryKey: ["cost-category-names", companyId],
+    queryKey: queryKeys.costs.categories(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_categories")

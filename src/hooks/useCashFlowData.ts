@@ -11,6 +11,7 @@ import {
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import type {
   ExpectedPayment,
   ExpectedExpense,
@@ -27,7 +28,7 @@ export function useCashFlowData() {
 
   // Query installments (rate dinamiche da order_installments con join su orders)
   const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ["forecast-installments", companyId],
+    queryKey: queryKeys.cashflow.installments(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_installments" as any)
@@ -48,7 +49,7 @@ export function useCashFlowData() {
 
   // Query squadre esterne non pagate
   const { data: externalTeamPayments = [], isLoading: loadingTeams } = useQuery({
-    queryKey: ["forecast-external-teams", companyId],
+    queryKey: queryKeys.cashflow.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
@@ -92,7 +93,7 @@ export function useCashFlowData() {
 
   // Query articoli da ordinare/ordinati
   const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
-    queryKey: ["forecast-pending-items", companyId],
+    queryKey: ["cashflow", "pending-items", companyId] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -141,7 +142,7 @@ export function useCashFlowData() {
 
   // Query costi aziendali non pagati
   const { data: companyCosts = [], isLoading: loadingCosts } = useQuery({
-    queryKey: ["forecast-company-costs", companyId],
+    queryKey: queryKeys.cashflow.companyCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -162,7 +163,7 @@ export function useCashFlowData() {
 
   // Paid company costs
   const { data: paidCompanyCosts = [], isLoading: loadingPaidCosts } = useQuery({
-    queryKey: ["treasury-paid-costs", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "paid-costs"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -181,7 +182,7 @@ export function useCashFlowData() {
 
   // Paid external teams
   const { data: paidExternalTeams = [], isLoading: loadingPaidTeams } = useQuery({
-    queryKey: ["treasury-paid-teams", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "paid-teams"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
@@ -203,7 +204,7 @@ export function useCashFlowData() {
 
   // Paid commissions
   const { data: paidCommissions = [], isLoading: loadingPaidCommissions } = useQuery({
-    queryKey: ["treasury-paid-commissions", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "paid-commissions"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
@@ -225,7 +226,7 @@ export function useCashFlowData() {
 
   // Paid supplier items (order_items with supplier)
   const { data: paidSupplierItems = [], isLoading: loadingPaidSuppliers } = useQuery({
-    queryKey: ["treasury-paid-suppliers", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "paid-suppliers"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -254,7 +255,7 @@ export function useCashFlowData() {
 
   // Active employees for salary calculation
   const { data: activeEmployees = [], isLoading: loadingEmployees } = useQuery({
-    queryKey: ["treasury-employees", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "employees"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
@@ -271,7 +272,7 @@ export function useCashFlowData() {
 
   // Treasury categories
   const { data: treasuryCategories = [], isLoading: loadingTreasuryCategories } = useQuery({
-    queryKey: ["treasury-categories", companyId],
+    queryKey: ["cashflow", "treasury", companyId, "categories"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("treasury_categories")
@@ -288,7 +289,7 @@ export function useCashFlowData() {
 
   // Open scadenze (da_pagare, parziale) for forecast integration
   const { data: openScadenze = [], isLoading: loadingScadenze } = useQuery({
-    queryKey: ["forecast-scadenze", companyId],
+    queryKey: ["cashflow", "scadenze", companyId] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
@@ -307,7 +308,7 @@ export function useCashFlowData() {
 
   // Prima Nota saldo (current cash position)
   const { data: primaNotaSaldo, isLoading: loadingSaldo } = useQuery({
-    queryKey: ["forecast-prima-nota-saldo", companyId],
+    queryKey: queryKeys.cashflow.bankBalance(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
         p_company_id: companyId!,

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QuoteTemplate } from '@/types/quoteTemplate';
+import { queryKeys } from '@/lib/queryKeys';
 
 export function useQuoteTemplates() {
   const { effectiveCompany } = useAuth();
@@ -9,7 +10,7 @@ export function useQuoteTemplates() {
   const queryClient = useQueryClient();
 
   const { data: templates = [], isLoading, error: fetchError } = useQuery({
-    queryKey: ['quote-templates', companyId],
+    queryKey: queryKeys.quoteTemplates.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('quote_templates')
@@ -45,7 +46,7 @@ export function useQuoteTemplates() {
         if (error) throw error;
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),
   });
 
   const deleteTemplate = useMutation({
@@ -56,7 +57,7 @@ export function useQuoteTemplates() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),
   });
 
   return { templates, defaultTemplate, isLoading, fetchError, upsertTemplate, deleteTemplate };

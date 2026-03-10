@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface Notification {
   id: string;
@@ -25,7 +26,7 @@ export function useNotifications() {
   const userId = profile?.id;
 
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: ["notifications", companyId, userId],
+    queryKey: queryKeys.notifications.list(companyId, userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
@@ -59,7 +60,7 @@ export function useNotifications() {
         },
         (payload) => {
           queryClient.setQueryData<Notification[]>(
-            ["notifications", companyId, userId],
+            queryKeys.notifications.list(companyId, userId),
             (old = []) => [payload.new as Notification, ...old]
           );
         }
@@ -84,7 +85,7 @@ export function useNotifications() {
     },
     onMutate: async (id) => {
       queryClient.setQueryData<Notification[]>(
-        ["notifications", companyId, userId],
+        queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
     },
@@ -99,7 +100,7 @@ export function useNotifications() {
     },
     onMutate: async () => {
       queryClient.setQueryData<Notification[]>(
-        ["notifications", companyId, userId],
+        queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => ({ ...n, is_read: true }))
       );
     },
@@ -116,7 +117,7 @@ export function useNotifications() {
     },
     onMutate: async (id) => {
       queryClient.setQueryData<Notification[]>(
-        ["notifications", companyId, userId],
+        queryKeys.notifications.list(companyId, userId),
         (old = []) => old.filter((n) => n.id !== id)
       );
     },

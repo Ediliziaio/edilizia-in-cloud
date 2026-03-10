@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { subDays, startOfDay, endOfDay, startOfMonth, startOfYear } from "date-fns";
 import type { DatePreset, CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface RecentOrder {
   id: string;
@@ -113,7 +114,7 @@ export function useCompanyDashboardData() {
   );
 
   const { data: dashboardData, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
+    queryKey: queryKeys.dashboard.company(companyId, `${dateRange.from.toISOString()}-${dateRange.to.toISOString()}-${filters.statusId}`),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_dashboard_kpis", {
         p_company_id: companyId!,

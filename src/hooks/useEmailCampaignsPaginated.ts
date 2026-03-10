@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface PaginationParams {
   page: number;       // 0-indexed
@@ -20,15 +21,14 @@ export function useEmailCampaignsPaginated(
   const { page, perPage } = pagination;
 
   return useQuery({
-    queryKey: [
-      "email-campaigns-paginated",
+    queryKey: queryKeys.emailCampaigns.paginated(
       companyId,
       filters.search,
       filters.category,
       filters.folderId,
       page,
       perPage,
-    ],
+    ),
     queryFn: async () => {
       let query = supabase
         .from("email_campaigns")
@@ -83,14 +83,13 @@ export function useEmailTemplatesPaginated(
   const { page, perPage } = pagination;
 
   return useQuery({
-    queryKey: [
-      "email-templates-paginated",
+    queryKey: queryKeys.emailTemplates.paginated(
       companyId,
       filters.search,
       filters.folderId,
       page,
       perPage,
-    ],
+    ),
     queryFn: async () => {
       let query = supabase
         .from("email_templates")

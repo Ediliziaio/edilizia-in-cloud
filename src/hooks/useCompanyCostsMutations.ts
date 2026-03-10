@@ -4,6 +4,7 @@ import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { calculateNetFromGross } from "@/lib/vatUtils";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface CostFormData {
   name: string;
@@ -76,23 +77,23 @@ export function useCompanyCostsMutations({
   const queryClient = useQueryClient();
 
   const invalidateCosts = () => {
-    queryClient.invalidateQueries({ queryKey: ["company-costs"] });
-    queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
   };
 
   const invalidateOrderItems = () => {
-    queryClient.invalidateQueries({ queryKey: ["order-item-costs-full"] });
-    queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costs.orderItems(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
   };
 
   const invalidateExtTeams = () => {
-    queryClient.invalidateQueries({ queryKey: ["order-external-team-costs"] });
-    queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costs.externalTeams(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
   };
 
   const invalidateCommissions = () => {
-    queryClient.invalidateQueries({ queryKey: ["order-commission-costs"] });
-    queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costs.commissions(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
   };
 
   // Save (create/update) mutation

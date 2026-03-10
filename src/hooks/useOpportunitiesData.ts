@@ -2,13 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_pipelines", companyId],
+    queryKey: queryKeys.pipelines.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
@@ -32,7 +33,7 @@ export function useOpportunities(pipelineId: string | null) {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_opportunities", companyId, pipelineId],
+    queryKey: queryKeys.opportunities.list(companyId, pipelineId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunities")
@@ -155,7 +156,7 @@ export function useCreateOpportunity() {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità creata");
     },
     onError: (e: any) => toast.error(e.message),
@@ -174,8 +175,8 @@ export function useUpdateOpportunity() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -198,12 +199,12 @@ export function useUpdateOpportunityStage() {
       if (error) throw error;
     },
     onMutate: async ({ id, stage_id, auto_status }) => {
-      await queryClient.cancelQueries({ queryKey: ["marketing_opportunities"] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.opportunities.all });
 
-      const previousData = queryClient.getQueriesData({ queryKey: ["marketing_opportunities"] });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
 
       queryClient.setQueriesData(
-        { queryKey: ["marketing_opportunities"] },
+        { queryKey: queryKeys.opportunities.all },
         (old: any[] | undefined) => {
           if (!old) return old;
           return old.map((o: any) =>
@@ -225,8 +226,8 @@ export function useUpdateOpportunityStage() {
       toast.error(e.message);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
   });
 }
@@ -240,7 +241,7 @@ export function useDeleteOpportunity() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità eliminata");
     },
     onError: (e: any) => toast.error(e.message),
@@ -252,7 +253,7 @@ export function useCompanyStaff() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["company_staff_roles", companyId],
+    queryKey: queryKeys.staff.roles(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
@@ -286,7 +287,7 @@ export function useCompanySalespeople() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["company_salespeople", companyId],
+    queryKey: queryKeys.staff.salespeople(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
@@ -320,7 +321,7 @@ export function useCompanyCallCenterUsers() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["company_call_center_users", companyId],
+    queryKey: queryKeys.staff.callCenter(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
@@ -351,7 +352,7 @@ export function useCompanyCallCenterUsers() {
 
 export function useOpportunityNotes(opportunityId: string | null, contactId?: string | null) {
   return useQuery({
-    queryKey: ["marketing_contact_notes", "opportunity", opportunityId, contactId],
+    queryKey: queryKeys.marketingContacts.notes(contactId, opportunityId),
     queryFn: async () => {
       if (!contactId) {
         // Fallback: only notes linked to this opportunity
@@ -392,7 +393,7 @@ export function useAddOpportunityNote() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_notes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
@@ -412,7 +413,7 @@ export function useBulkUpdateOpportunities() {
       await Promise.all(promises);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità aggiornate");
     },
     onError: (e: any) => toast.error(e.message),
@@ -432,7 +433,7 @@ export function useBulkDeleteOpportunities() {
       await Promise.all(promises);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità eliminate");
     },
     onError: (e: any) => toast.error(e.message),
