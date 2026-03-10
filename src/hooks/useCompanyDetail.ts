@@ -289,6 +289,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ newStatus, notes }: { newStatus: CompanyStatus; notes: string }) => {
+      assertCanManage();
       if (!id || !company) return;
       const { error: updateError } = await supabase.from("companies").update({ status: newStatus }).eq("id", id);
       if (updateError) throw updateError;
