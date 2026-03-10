@@ -22,7 +22,7 @@ export default function FacebookFormsPage() {
 
   // Get integration
   const { data: integration } = useQuery({
-    queryKey: ["meta-integration-forms", companyId],
+    queryKey: queryKeys.metaForms.integration(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
