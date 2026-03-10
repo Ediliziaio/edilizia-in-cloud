@@ -60,8 +60,7 @@ import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuote
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
 
-
-
+const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
