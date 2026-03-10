@@ -225,11 +225,17 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
     const statusMap: Record<string, string> = {
       ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
     };
+
+    // Fix #6: Map payment status from FIC — use payments_sum and is_marked
+    const isPaid = doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0);
+    const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
+
     return {
       externalId: doc.id?.toString(),
       documentType: doc.type === "credit_note" ? "credit_note" : "invoice",
       number: doc.number?.value || doc.number,
-      status: statusMap[doc.status] || "issued",
+      status: resolvedStatus,
+      paidAmount: isPaid ? doc.amount_gross : (doc.payments_sum || 0),
       clientName: doc.entity?.name || "",
       clientVat: doc.entity?.vat_number,
       clientFiscalCode: doc.entity?.tax_code,
