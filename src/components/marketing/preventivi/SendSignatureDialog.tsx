@@ -109,7 +109,7 @@ export function SendSignatureDialog({
         ) : (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center gap-3 text-center">
-              <CheckCircle className="h-12 w-12 text-green-600" />
+              <CheckCircle className="h-12 w-12 text-primary" />
               <p className="font-medium">Offerta inviata con successo!</p>
               <p className="text-sm text-muted-foreground">
                 Il cliente riceverà un'email con il link per visualizzare e firmare l'offerta.

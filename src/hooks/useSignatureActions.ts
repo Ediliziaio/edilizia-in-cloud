@@ -8,7 +8,7 @@ export function useSignatureActions(quoteId: string | undefined) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["quote", quoteId] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.quotes?.all ?? ["quotes"] });
+    queryClient.invalidateQueries({ queryKey: ["quotes"] });
   };
 
   const sendForSignature = useMutation({
