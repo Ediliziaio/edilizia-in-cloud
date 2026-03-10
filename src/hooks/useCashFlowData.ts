@@ -204,7 +204,7 @@ export function useCashFlowData() {
 
   // Paid commissions
   const { data: paidCommissions = [], isLoading: loadingPaidCommissions } = useQuery({
-    queryKey: queryKeys.cashflow.treasury(companyId).concat(["paid-commissions"]) as any,
+    queryKey: ["cashflow", "treasury", companyId, "paid-commissions"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
