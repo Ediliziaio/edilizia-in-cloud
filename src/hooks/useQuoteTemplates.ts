@@ -10,7 +10,7 @@ export function useQuoteTemplates() {
   const queryClient = useQueryClient();
 
   const { data: templates = [], isLoading, error: fetchError } = useQuery({
-    queryKey: ['quote-templates', companyId],
+    queryKey: queryKeys.quoteTemplates.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('quote_templates')
