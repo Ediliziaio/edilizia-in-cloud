@@ -271,7 +271,7 @@ function MarketingOpportunitiesContent() {
               const phone = r.contact_phone?.trim() || null;
               let contactId: string | null = null;
               if (email) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).single();
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).maybeSingle();
                 if (found) contactId = found.id;
               }
               if (!contactId && phone) {
