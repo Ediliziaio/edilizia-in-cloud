@@ -2,77 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useMemo, useCallback } from "react";
-import { subDays, startOfDay, endOfDay, startOfMonth, format, addDays } from "date-fns";
+import { subDays, format, addDays } from "date-fns";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
-
-export type CruscottoDatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "quarter" | "custom";
-
-export interface CruscottoFiltersState {
-  datePreset: CruscottoDatePreset;
-  dateFrom: Date;
-  dateTo: Date;
-  assignedUserIds: string[];
-  sources: string[];
-  pipelineId: string | null;
-  statusId: string | null;
-}
-
-export interface OperationsData {
-  activeOrders: number;
-  lateOrders: number;
-  openTickets: number;
-  overduePayments: number;
-  overdueAmount: number;
-}
-
-export interface FinanceData {
-  revenueThisMonth: number;
-  revenuePrevMonth: number;
-  marginThisMonth: number;
-  marginPrevMonth: number;
-  cashFlowNet: number;
-  thisMonthIncome: number;
-  thisMonthOutflow: number;
-  pendingRevenue: number;
-  supplierDebt: number;
-}
-
-export interface WeeklyAgendaData {
-  incomingPayments: number;
-  incomingPaymentsCount: number;
-  dueCosts: number;
-  dueCostsCount: number;
-  deliveries: number;
-  appointments: number;
-}
-
-export interface CompanyTargets {
-  monthly_revenue_target: number | null;
-  monthly_orders_target: number | null;
-  alert_late_orders_threshold: number;
-  alert_open_tickets_threshold: number;
-  alert_margin_min_pct: number;
-  alert_runway_days_warning: number;
-}
-
-/** Safe number: returns fallback if NaN/Infinity */
-export function safeNumber(value: unknown, fallback = 0): number {
-  const n = Number(value);
-  return isNaN(n) || !isFinite(n) ? fallback : n;
-}
-
-function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
-  const now = new Date();
-  switch (preset) {
-    case "today": return { from: startOfDay(now), to: endOfDay(now) };
-    case "yesterday": { const y = subDays(now, 1); return { from: startOfDay(y), to: endOfDay(y) }; }
-    case "last7": return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
-    case "last30": return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
-    case "month": return { from: startOfMonth(now), to: endOfDay(now) };
-    case "quarter": return { from: startOfDay(subDays(now, 90)), to: endOfDay(now) };
-    case "custom": return { from: customFrom || subDays(now, 30), to: customTo || now };
-  }
-}
+import { getDateRange } from "@/lib/dateRangeUtils";
+import { safeNumber } from "@/lib/numberUtils";
 
 export function useCruscottoData() {
   const { effectiveCompany } = useAuth();
