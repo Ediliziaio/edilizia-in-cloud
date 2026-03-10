@@ -412,48 +412,73 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return Array.from(cats).sort();
   }, [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
-  // Monthly distribution — 12 months (6 past + 6 future)
+  // Monthly distribution — 12 months (6 past + 6 future) — single pass
   const monthlyDistribution = useMemo(() => {
     const now = new Date();
     const currentMonthStr = format(now, "yyyy-MM");
     const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
-    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; PagatoEffettivo: number; Totale: number; Previsto: number; Sostenuto: number; isCurrent: boolean }[] = [];
+
+    // Pre-compute month boundaries
+    const months: { ms: Date; me: Date; key: string; label: string }[] = [];
     for (let i = -5; i <= 6; i++) {
       const ms = startOfMonth(addMonths(now, i));
       const me = endOfMonth(addMonths(now, i));
-      const monthKey = format(ms, "yyyy-MM");
-      let fixed = 0, variable = 0, paidEffective = 0;
-      let previsto = 0, sostenuto = 0;
-      allRaw.forEach((c: any) => {
-        if (c.due_date) {
-          const d = new Date(c.due_date);
-          if (d >= ms && d <= me) {
-            if (c.cost_type === "fixed") fixed += Number(c.amount);
-            else variable += Number(c.amount);
-            previsto += Number(c.amount);
-          }
-        }
-        if (c.is_paid && c.paid_date) {
-          const pd = new Date(c.paid_date);
-          if (pd >= ms && pd <= me) {
-            paidEffective += Number(c.amount);
-            sostenuto += Number(c.amount);
-          }
-        }
-      });
-      raw.push({
-        month: format(ms, "MMM yy", { locale: it }),
-        monthKey,
-        Fissi: fixed,
-        Variabili: variable,
-        PagatoEffettivo: paidEffective,
-        Totale: fixed + variable,
-        Previsto: previsto,
-        Sostenuto: sostenuto,
-        isCurrent: monthKey === currentMonthStr,
-      });
+      months.push({ ms, me, key: format(ms, "yyyy-MM"), label: format(ms, "MMM yy", { locale: it }) });
     }
-    return raw;
+
+    // Accumulators per month
+    const buckets = new Map<string, { fixed: number; variable: number; paidEffective: number; previsto: number; sostenuto: number }>();
+    for (const m of months) {
+      buckets.set(m.key, { fixed: 0, variable: 0, paidEffective: 0, previsto: 0, sostenuto: 0 });
+    }
+
+    const firstMonth = months[0].ms.getTime();
+    const lastMonth = months[months.length - 1].me.getTime();
+
+    // Single pass over all costs
+    for (const c of allRaw) {
+      if (c.due_date) {
+        const d = new Date(c.due_date);
+        const dt = d.getTime();
+        if (dt >= firstMonth && dt <= lastMonth) {
+          const key = format(d, "yyyy-MM");
+          const b = buckets.get(key);
+          if (b) {
+            const amt = Number(c.amount);
+            if (c.cost_type === "fixed") b.fixed += amt; else b.variable += amt;
+            b.previsto += amt;
+          }
+        }
+      }
+      if (c.is_paid && c.paid_date) {
+        const pd = new Date(c.paid_date);
+        const pdt = pd.getTime();
+        if (pdt >= firstMonth && pdt <= lastMonth) {
+          const key = format(pd, "yyyy-MM");
+          const b = buckets.get(key);
+          if (b) {
+            const amt = Number(c.amount);
+            b.paidEffective += amt;
+            b.sostenuto += amt;
+          }
+        }
+      }
+    }
+
+    return months.map(m => {
+      const b = buckets.get(m.key)!;
+      return {
+        month: m.label,
+        monthKey: m.key,
+        Fissi: b.fixed,
+        Variabili: b.variable,
+        PagatoEffettivo: b.paidEffective,
+        Totale: b.fixed + b.variable,
+        Previsto: b.previsto,
+        Sostenuto: b.sostenuto,
+        isCurrent: m.key === currentMonthStr,
+      };
+    });
   }, [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
