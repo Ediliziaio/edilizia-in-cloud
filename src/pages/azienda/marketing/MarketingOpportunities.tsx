@@ -59,12 +59,22 @@ function MarketingOpportunitiesContent() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
+
+  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
+    selectedPipelineId: { key: "pipeline", defaultValue: "" },
+    viewMode: { key: "view", defaultValue: "kanban" },
+    searchInput: { key: "q", defaultValue: "" },
+    sortField: { key: "ordina", defaultValue: "created_at" },
+    sortDir: { key: "dir", defaultValue: "desc" },
+  });
+
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(urlFilters.selectedPipelineId || null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const searchQuery = useDebounce(searchInput, 350);
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const viewMode = urlFilters.viewMode as "kanban" | "list";
+  const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
   const { data: staff = [] } = useCompanyStaff();
@@ -74,8 +84,10 @@ function MarketingOpportunitiesContent() {
   const queryClient = useQueryClient();
 
   // Sorting state
-  const [sortField, setSortField] = useState<"name" | "value" | "created_at" | "updated_at">("created_at");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const sortField = urlFilters.sortField as "name" | "value" | "created_at" | "updated_at";
+  const setSortField = useCallback((v: "name" | "value" | "created_at" | "updated_at") => setURLParam("sortField", v), [setURLParam]);
+  const sortDir = urlFilters.sortDir as "asc" | "desc";
+  const setSortDir = useCallback((v: "asc" | "desc") => setURLParam("sortDir", v), [setURLParam]);
 
   // List state
   const [createListOpen, setCreateListOpen] = useState(false);
