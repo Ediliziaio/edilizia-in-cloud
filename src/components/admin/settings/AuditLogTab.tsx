@@ -168,7 +168,7 @@ export default function AuditLogTab() {
             Errore nel caricamento.{" "}
             <Button variant="link" onClick={() => refetch()}>Riprova</Button>
           </div>
-        ) : filteredLogs.length === 0 ? (
+        ) : (data?.logs || []).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <ScrollText className="h-10 w-10 mb-3 opacity-40" />
             <p className="font-medium">Nessuna attività registrata</p>
