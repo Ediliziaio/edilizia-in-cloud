@@ -273,6 +273,8 @@ const App = () => (
                 <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
                 <Route path="marketing/email" element={<AdminEmailMarketing />} />
                 <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
+                <Route path="marketing/whatsapp" element={<AdminMarketingWhatsApp />} />
+                <Route path="marketing/agenti-ai/*" element={<AdminMarketingAgents />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
