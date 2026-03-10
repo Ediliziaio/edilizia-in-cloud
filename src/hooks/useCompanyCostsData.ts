@@ -369,24 +369,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
   const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
 
-  const allCostsSorted = useMemo(() => {
-    const now = new Date();
-    const soon = addDays(now, 7);
-    return [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
-      const getPriority = (c: any) => {
-        if (c.is_paid) return 4;
-        const d = c.due_date ? new Date(c.due_date) : null;
-        if (d && d < now) return 1;
-        if (d && d <= soon) return 2;
-        return 3;
-      };
-      const pA = getPriority(a), pB = getPriority(b);
-      if (pA !== pB) return pA - pB;
-      const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
-      const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-      return pA === 4 ? dateB - dateA : dateA - dateB;
-    });
-  }, [filteredCosts, filteredOrderItemCosts]);
+  const allCostsSorted = useMemo(() => sortCostsByPriority([...filteredCosts, ...filteredOrderItemCosts]), [filteredCosts, filteredOrderItemCosts]);
 
   // Status tab pre-filtered lists
   const statusTabLists = useMemo(() => {
