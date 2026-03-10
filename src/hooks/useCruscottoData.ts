@@ -7,6 +7,59 @@ import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 import { getDateRange } from "@/lib/dateRangeUtils";
 import { safeNumber } from "@/lib/numberUtils";
 
+// Re-export for backward compatibility with existing consumers
+export { safeNumber } from "@/lib/numberUtils";
+
+export type CruscottoDatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "quarter" | "custom";
+
+export interface CruscottoFiltersState {
+  datePreset: CruscottoDatePreset;
+  dateFrom: Date;
+  dateTo: Date;
+  assignedUserIds: string[];
+  sources: string[];
+  pipelineId: string | null;
+  statusId: string | null;
+}
+
+export interface OperationsData {
+  activeOrders: number;
+  lateOrders: number;
+  openTickets: number;
+  overduePayments: number;
+  overdueAmount: number;
+}
+
+export interface FinanceData {
+  revenueThisMonth: number;
+  revenuePrevMonth: number;
+  marginThisMonth: number;
+  marginPrevMonth: number;
+  cashFlowNet: number;
+  thisMonthIncome: number;
+  thisMonthOutflow: number;
+  pendingRevenue: number;
+  supplierDebt: number;
+}
+
+export interface WeeklyAgendaData {
+  incomingPayments: number;
+  incomingPaymentsCount: number;
+  dueCosts: number;
+  dueCostsCount: number;
+  deliveries: number;
+  appointments: number;
+}
+
+export interface CompanyTargets {
+  monthly_revenue_target: number | null;
+  monthly_orders_target: number | null;
+  alert_late_orders_threshold: number;
+  alert_open_tickets_threshold: number;
+  alert_margin_min_pct: number;
+  alert_runway_days_warning: number;
+}
+
 export function useCruscottoData() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -285,7 +338,7 @@ export function useCruscottoData() {
   });
 
   const updateFilters = useCallback((partial: Partial<CruscottoFiltersState>) => {
-    setFilters(prev => {
+    setFilters((prev: CruscottoFiltersState) => {
       const next = { ...prev, ...partial };
       if (partial.datePreset && partial.datePreset !== "custom") {
         const range = getDateRange(partial.datePreset);
