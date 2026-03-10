@@ -28,12 +28,12 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
         .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
         .limit(5) as { data: any[] | null };
 
-      const customersRes = await supabase
+      const customersRes = await (supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .eq("role_type", "customer")
-        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`) as any)
         .limit(5) as { data: any[] | null };
 
       const contactsRes = await supabase
