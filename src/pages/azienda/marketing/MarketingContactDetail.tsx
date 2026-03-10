@@ -64,6 +64,7 @@ import { getAvatarColor } from "@/lib/contactUtils";
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
