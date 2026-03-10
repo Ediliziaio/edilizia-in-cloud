@@ -272,7 +272,7 @@ export function useCashFlowData() {
 
   // Treasury categories
   const { data: treasuryCategories = [], isLoading: loadingTreasuryCategories } = useQuery({
-    queryKey: queryKeys.cashflow.treasury(companyId).concat(["categories"]) as any,
+    queryKey: ["cashflow", "treasury", companyId, "categories"] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("treasury_categories")
