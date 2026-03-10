@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useMessages, useMessagingRealtime, useAnalyzeMessage } from "@/hooks/useMessagingData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { MessageBubble } from "./MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
   const { data: messages, isLoading } = useMessages(conversationId);
   const analyzeMessage = useAnalyzeMessage();
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [replyText, setReplyText] = useState("");
   const scrollEndRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +72,9 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
         });
       } else {
         setReplyText("");
+        // Invalidate conversations list + current messages for instant UI update
+        queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
+        queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messages(conversationId) });
       }
     } catch (err: any) {
       toast.error("Errore invio", { description: err.message });

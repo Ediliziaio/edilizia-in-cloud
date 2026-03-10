@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useConversations } from "@/hooks/useMessagingData";
+import { useConversations, useConversationsRealtime } from "@/hooks/useMessagingData";
+import { useAuth } from "@/contexts/AuthContext";
 import { ConversationList } from "@/components/messaging/ConversationList";
 import { ChatView } from "@/components/messaging/ChatView";
 import { AiPanel } from "@/components/messaging/AiPanel";
@@ -13,7 +14,9 @@ import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 export default function MarketingWhatsApp() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const { effectiveCompany } = useAuth();
   const { data: conversations } = useConversations();
+  useConversationsRealtime(effectiveCompany?.id);
 
   const selectedConversation = conversations?.find((c: any) => c.id === selectedConvId);
 

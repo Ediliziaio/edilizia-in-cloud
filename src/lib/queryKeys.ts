@@ -249,12 +249,26 @@ export const queryKeys = {
   // ── Messaging ──────────────────────────────────────────
   messaging: {
     all: ["messaging"] as const,
+    conversationsAll: ["messaging-conversations"] as const,
     conversations: (companyId: string | undefined, filter?: string) =>
-      ["messaging", "conversations", companyId, filter] as const,
+      ["messaging-conversations", companyId, filter] as const,
+    messagesAll: ["messaging-messages"] as const,
     messages: (conversationId: string | null) =>
-      ["messaging", "messages", conversationId] as const,
+      ["messaging-messages", conversationId] as const,
+    aiRunsAll: ["messaging-ai-runs"] as const,
     aiRuns: (messageId: string | null) =>
-      ["messaging", "ai-runs", messageId] as const,
+      ["messaging-ai-runs", messageId] as const,
+  },
+
+  // ── WhatsApp ───────────────────────────────────────────
+  whatsapp: {
+    all: ["whatsapp"] as const,
+    config: (companyId: string | undefined) =>
+      ["whatsapp-config", companyId] as const,
+    broadcasts: (companyId: string | undefined) =>
+      ["whatsapp-broadcasts", companyId] as const,
+    templates: (companyId: string | undefined) =>
+      ["whatsapp-templates", companyId] as const,
   },
 
   // ── Global Search ──────────────────────────────────────

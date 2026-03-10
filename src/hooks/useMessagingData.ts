@@ -258,13 +258,39 @@ export function useMessagingRealtime(conversationId: string | null) {
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
-      .channel(`messaging-${conversationId}`)
+    const msgChannel = supabase
+      .channel(`messaging-msgs-${conversationId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messaging_messages", filter: `conversation_id=eq.${conversationId}` },
         () => {
           queryClient.invalidateQueries({ queryKey: ["messaging-messages", conversationId] });
+          // Also refresh conversations list (last_message_at, status changes)
+          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(msgChannel);
+    };
+  }, [conversationId, queryClient]);
+}
+
+/** Realtime listener for conversation list updates (new incoming messages, status changes) */
+export function useConversationsRealtime(companyId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!companyId) return;
+
+    const channel = supabase
+      .channel(`messaging-convs-${companyId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messaging_conversations", filter: `company_id=eq.${companyId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
         }
       )
       .subscribe();
@@ -272,5 +298,5 @@ export function useMessagingRealtime(conversationId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [companyId, queryClient]);
 }

@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     }
     // "tutti" and "pipeline" use all contacts with phone
 
-    const { data: contacts, error: contactsErr } = await query.limit(1000);
+    const { data: rawContacts, error: contactsErr } = await query.limit(10000);
 
     if (contactsErr) {
       return new Response(
@@ -122,12 +122,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!contacts || contacts.length === 0) {
+    if (!rawContacts || rawContacts.length === 0) {
       return new Response(
         JSON.stringify({ error: "Nessun contatto trovato per il segmento selezionato" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Deduplicate contacts by normalized phone number
+    const seenPhones = new Set<string>();
+    const contacts = rawContacts.filter((c) => {
+      const clean = (c.phone || "").replace(/[^0-9]/g, "");
+      if (!clean || seenPhones.has(clean)) return false;
+      seenPhones.add(clean);
+      return true;
+    });
 
     // Create broadcast record
     const { data: broadcast, error: broadcastErr } = await adminClient

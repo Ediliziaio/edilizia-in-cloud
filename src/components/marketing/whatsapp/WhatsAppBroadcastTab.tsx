@@ -19,6 +19,8 @@ export function WhatsAppBroadcastTab() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [segment, setSegment] = useState("tutti");
+  const [segmentTag, setSegmentTag] = useState("");
+  const [segmentSource, setSegmentSource] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [messageText, setMessageText] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -47,7 +49,10 @@ export function WhatsAppBroadcastTab() {
         body: {
           company_id: companyId,
           segment,
-          segment_config: {},
+          segment_config: {
+            ...(segment === "tag" && segmentTag ? { tag: segmentTag } : {}),
+            ...(segment === "source" && segmentSource ? { source: segmentSource } : {}),
+          },
           template_name: templateName.trim(),
           message_text: messageText.trim(),
         },
@@ -124,6 +129,28 @@ export function WhatsAppBroadcastTab() {
                 </SelectContent>
               </Select>
             </div>
+
+            {segment === "tag" && (
+              <div className="space-y-2">
+                <Label>Tag</Label>
+                <Input
+                  placeholder="es. hot, vip, evento2025"
+                  value={segmentTag}
+                  onChange={(e) => setSegmentTag(e.target.value)}
+                />
+              </div>
+            )}
+
+            {segment === "source" && (
+              <div className="space-y-2">
+                <Label>Fonte</Label>
+                <Input
+                  placeholder="es. facebook, google, referral"
+                  value={segmentSource}
+                  onChange={(e) => setSegmentSource(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Nome Template WhatsApp</Label>

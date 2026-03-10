@@ -135,13 +135,14 @@ Deno.serve(async (req) => {
 
     if (!metaRes.ok) {
       console.error("[send-whatsapp-reply] Meta API error:", metaResult);
-      // Still save the message as failed
+      // Save the message as failed so UI can show error indicator
       await adminClient.from("messaging_messages").insert({
         conversation_id,
         sender_type: "operator",
         sender_name: "Operatore",
         message_type: "text",
         content: content.trim(),
+        delivery_status: "failed",
       });
 
       return new Response(
