@@ -559,8 +559,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const totalExpiringSoon = expiringSoon.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalPrevisti = previstiList.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
-    // Scostamento: previsto (all due in period) vs sostenuto (all paid in period)
-    const scostamento = totalPaid - (totalPaid + totalUnpaid - totalOverdue);
+    // Scostamento: previsto vs sostenuto (positivo = risparmio)
 
     return {
       totalUnpaidThisMonth: totalUnpaid,
@@ -575,7 +574,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       totalCount: allFiltered.length,
       totalPrevisti,
       previstiCount: previstiList.length,
-      scostamento: totalPaid - totalPrevisti,
+      scostamento: totalPrevisti - totalPaid,
     };
   }, [filteredCosts, filteredOrderItemCosts]);
 

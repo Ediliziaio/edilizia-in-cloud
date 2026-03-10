@@ -62,6 +62,18 @@ const VARIABLES = [
   { label: "Nome azienda", value: "{{company.name}}" },
   { label: "Link disiscrizione", value: "{{unsubscribe_url}}" },
 ];
+const sanitizeUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) return "#";
+    return parsed.toString();
+  } catch {
+    return "#";
+  }
+};
+
+const escapeHtml = (str: string): string =>
+  str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
 
 export default function CampaignEditor() {
   const { id } = useParams<{ id: string }>();
@@ -136,6 +148,13 @@ export default function CampaignEditor() {
     }, 3000);
   }, [name, saveMut]);
 
+  // Cleanup timer on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
   const handleManualSave = () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     if (!editorRef.current) return;
@@ -143,6 +162,7 @@ export default function CampaignEditor() {
     saveMut.mutate({ html_content: editorRef.current.innerHTML, name });
   };
 
+  // TODO: Migrare a libreria editor (TipTap/Slate) — execCommand è deprecato
   const execCmd = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
     editorRef.current?.focus();
@@ -158,10 +178,11 @@ export default function CampaignEditor() {
 
   const confirmInsertLink = () => {
     if (!linkUrl) return;
+    const safeUrl = sanitizeUrl(linkUrl);
     if (linkText) {
-      execCmd("insertHTML", `<a href="${linkUrl}" target="_blank">${linkText}</a>`);
+      execCmd("insertHTML", `<a href="${safeUrl}" target="_blank">${escapeHtml(linkText)}</a>`);
     } else {
-      execCmd("createLink", linkUrl);
+      execCmd("createLink", safeUrl);
     }
     setLinkDialogOpen(false);
   };
@@ -174,7 +195,8 @@ export default function CampaignEditor() {
 
   const confirmInsertImage = () => {
     if (!imageUrl) return;
-    execCmd("insertHTML", `<img src="${imageUrl}" alt="${imageAlt}" style="max-width:100%" />`);
+    const safeUrl = sanitizeUrl(imageUrl);
+    execCmd("insertHTML", `<img src="${safeUrl}" alt="${escapeHtml(imageAlt)}" style="max-width:100%" />`);
     setImageDialogOpen(false);
   };
 
