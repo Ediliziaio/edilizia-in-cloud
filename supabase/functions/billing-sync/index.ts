@@ -32,9 +32,11 @@ Deno.serve(async (req) => {
 
     let { data: integration } = await query.maybeSingle();
     if (!integration && !preferredProvider) {
+      // Fix #9: Deterministic fallback — oldest integration first
       const { data: fallback } = await supabase
         .from("billing_integrations").select("*")
-        .eq("company_id", invoice.company_id).eq("is_active", true).limit(1).maybeSingle();
+        .eq("company_id", invoice.company_id).eq("is_active", true)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
       integration = fallback;
     }
     if (!integration) return json({ error: "No active integration found" }, 400);
