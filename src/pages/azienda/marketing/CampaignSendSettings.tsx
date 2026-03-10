@@ -214,7 +214,9 @@ export default function CampaignSendSettings() {
     onSuccess: () => {
       toast.success("Impostazioni salvate");
       setAttachedFiles([]);
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
+      qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
+      qc.invalidateQueries({ queryKey: ["campaign-builder", id] });
     },
     onError: (e: any) => toast.error(e.message),
   });
