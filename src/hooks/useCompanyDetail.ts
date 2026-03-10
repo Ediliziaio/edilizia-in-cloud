@@ -495,6 +495,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const handleCreateAccount = async (type: "salesperson" | "employee", entityId: string, email: string, name: string) => {
+    assertCanManage();
     setCreatingAccountFor(entityId);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
