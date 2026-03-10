@@ -11,6 +11,7 @@ import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight, Search } fro
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const PAGE_SIZE = 20;
 
@@ -51,18 +52,28 @@ export default function AuditLogTab() {
   const [actionFilter, setActionFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
-
+  const debouncedSearch = useDebounce(searchQuery, 350);
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
+    queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString(), debouncedSearch],
     queryFn: async () => {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
+      // If searching, first resolve matching user IDs from profiles
+      let matchingUserIds: string[] | null = null;
+      if (debouncedSearch.trim()) {
+        const q = `%${debouncedSearch.trim()}%`;
+        const { data: profileMatches } = await supabase
+          .from("profiles")
+          .select("id")
+          .or(`first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q}`);
+        matchingUserIds = (profileMatches || []).map((p) => p.id);
+      }
+
       let query = supabase
         .from("admin_audit_log")
         .select("*", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, to);
+        .order("created_at", { ascending: false });
 
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
@@ -73,6 +84,18 @@ export default function AuditLogTab() {
       if (dateRange.to) {
         query = query.lte("created_at", dateRange.to.toISOString());
       }
+
+      // Server-side search: match on user_id (from profile lookup) or target_id
+      if (debouncedSearch.trim()) {
+        const conditions: string[] = [];
+        if (matchingUserIds && matchingUserIds.length > 0) {
+          conditions.push(`user_id.in.(${matchingUserIds.join(",")})`);
+        }
+        conditions.push(`target_id.ilike.%${debouncedSearch.trim()}%`);
+        query = query.or(conditions.join(","));
+      }
+
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -94,17 +117,6 @@ export default function AuditLogTab() {
     staleTime: 30_000,
   });
 
-  const filteredLogs = useMemo(() => {
-    if (!data?.logs || !searchQuery.trim()) return data?.logs || [];
-    const q = searchQuery.toLowerCase();
-    return data.logs.filter((log) => {
-      const adminName = (data.profiles[log.user_id] || "").toLowerCase();
-      const details = log.details as Record<string, any> | null;
-      const detailStr = (details?.target_name || details?.company_name || log.target_id || "").toLowerCase();
-      return adminName.includes(q) || detailStr.includes(q);
-    });
-  }, [data, searchQuery]);
-
   const totalPages = Math.ceil((data?.total || 0) / PAGE_SIZE);
 
   return (
@@ -125,12 +137,9 @@ export default function AuditLogTab() {
             <Input
               placeholder="Cerca admin o dettaglio..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
               className="pl-9"
             />
-            {searchQuery.trim() && (
-              <p className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground">Ricerca limitata alla pagina corrente</p>
-            )}
           </div>
           <DateRangeFilter
             label="Periodo"
@@ -159,7 +168,7 @@ export default function AuditLogTab() {
             Errore nel caricamento.{" "}
             <Button variant="link" onClick={() => refetch()}>Riprova</Button>
           </div>
-        ) : filteredLogs.length === 0 ? (
+        ) : (data?.logs || []).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <ScrollText className="h-10 w-10 mb-3 opacity-40" />
             <p className="font-medium">Nessuna attività registrata</p>
@@ -177,7 +186,7 @@ export default function AuditLogTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.map((log) => {
+                {(data?.logs || []).map((log) => {
                   const details = log.details as Record<string, any> | null;
                   return (
                     <TableRow key={log.id}>

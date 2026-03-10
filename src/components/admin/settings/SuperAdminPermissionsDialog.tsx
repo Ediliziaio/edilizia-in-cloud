@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe } from "lucide-react";
+import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
 
@@ -136,6 +137,15 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
   const isLoading = loadingPerms || loadingCompanies;
 
+  const [companySearch, setCompanySearch] = useState("");
+  const debouncedCompanySearch = useDebounce(companySearch, 300);
+
+  const filteredCompanies = useMemo(() => {
+    if (!debouncedCompanySearch.trim()) return companies;
+    const q = debouncedCompanySearch.toLowerCase();
+    return companies.filter((c) => c.name.toLowerCase().includes(q));
+  }, [companies, debouncedCompanySearch]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
@@ -184,18 +194,31 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
               {!allCompanies && (
                 <div className="rounded-lg border p-3 space-y-2">
-                  {companies.length === 0 ? (
+                  {companies.length > 5 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cerca azienda..."
+                        value={companySearch}
+                        onChange={(e) => setCompanySearch(e.target.value)}
+                        className="pl-9 h-8 text-sm"
+                      />
+                    </div>
+                  )}
+                  {filteredCompanies.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-2">Nessuna azienda trovata</p>
                   ) : (
-                    companies.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-muted/50 rounded px-2">
-                        <Checkbox
-                          checked={(perms.allowed_company_ids || []).includes(c.id)}
-                          onCheckedChange={() => toggleCompany(c.id)}
-                        />
-                        <span className="text-sm">{c.name}</span>
-                      </label>
-                    ))
+                    <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                      {filteredCompanies.map((c) => (
+                        <label key={c.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-muted/50 rounded px-2">
+                          <Checkbox
+                            checked={(perms.allowed_company_ids || []).includes(c.id)}
+                            onCheckedChange={() => toggleCompany(c.id)}
+                          />
+                          <span className="text-sm">{c.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
