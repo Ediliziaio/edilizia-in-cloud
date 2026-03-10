@@ -148,6 +148,13 @@ export default function CampaignEditor() {
     }, 3000);
   }, [name, saveMut]);
 
+  // Cleanup timer on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
   const handleManualSave = () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     if (!editorRef.current) return;
