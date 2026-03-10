@@ -119,7 +119,7 @@ export function AutomationBuilder() {
       creationAttemptedRef.current = true;
       createFlowMutation.mutate("Nuova Automazione", {
         onSuccess: (data) => {
-          navigate(`/azienda/marketing/automazioni/${data.id}`, { replace: true });
+          navigate(`${prefix}/automazioni/${data.id}`, { replace: true });
         },
         onError: (err) => {
           toast({ title: "Errore creazione automazione", description: err.message, variant: "destructive" });
