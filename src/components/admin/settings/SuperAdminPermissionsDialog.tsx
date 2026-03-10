@@ -194,18 +194,31 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
               {!allCompanies && (
                 <div className="rounded-lg border p-3 space-y-2">
-                  {companies.length === 0 ? (
+                  {companies.length > 5 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cerca azienda..."
+                        value={companySearch}
+                        onChange={(e) => setCompanySearch(e.target.value)}
+                        className="pl-9 h-8 text-sm"
+                      />
+                    </div>
+                  )}
+                  {filteredCompanies.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-2">Nessuna azienda trovata</p>
                   ) : (
-                    companies.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-muted/50 rounded px-2">
-                        <Checkbox
-                          checked={(perms.allowed_company_ids || []).includes(c.id)}
-                          onCheckedChange={() => toggleCompany(c.id)}
-                        />
-                        <span className="text-sm">{c.name}</span>
-                      </label>
-                    ))
+                    <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+                      {filteredCompanies.map((c) => (
+                        <label key={c.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-muted/50 rounded px-2">
+                          <Checkbox
+                            checked={(perms.allowed_company_ids || []).includes(c.id)}
+                            onCheckedChange={() => toggleCompany(c.id)}
+                          />
+                          <span className="text-sm">{c.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
