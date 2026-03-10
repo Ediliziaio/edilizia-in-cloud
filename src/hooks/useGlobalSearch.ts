@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "./useDebounce";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface SearchResult {
   id: string;
