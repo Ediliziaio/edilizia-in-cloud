@@ -49,6 +49,8 @@ export function EmailStatsTab() {
       if (error) throw error;
       return data?.[0] ?? null;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const stats = {
