@@ -136,12 +136,24 @@ export function EmailCampaignsTab() {
         sender_email: campaign.sender_email,
         folder_id: campaign.folder_id,
         json_content: campaign.json_content,
+        // Advanced settings (Bug 4 fix)
+        segment_json: campaign.segment_json,
+        ab_test_enabled: campaign.ab_test_enabled ?? false,
+        ab_subject_b: campaign.ab_subject_b,
+        ab_split_percent: campaign.ab_split_percent ?? 50,
+        ab_winner_criteria: campaign.ab_winner_criteria ?? "open_rate",
+        ab_test_duration_hours: campaign.ab_test_duration_hours ?? 4,
+        track_clicks: campaign.track_clicks ?? false,
+        utm_tracking: campaign.utm_tracking ?? false,
+        auto_tag: campaign.auto_tag ?? false,
+        resend_to_unopened: campaign.resend_to_unopened ?? false,
+        send_mode: campaign.send_mode ?? "immediate",
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Campagna duplicata");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
