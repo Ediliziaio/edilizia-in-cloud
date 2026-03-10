@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import type { AutomationFlow, AutomationNode, AutomationConnection } from "@/types/automationBuilder";
 
 interface BuilderState {
@@ -39,51 +40,56 @@ export function useAutomationBuilder(flowId: string | undefined) {
     };
   }, []);
 
-  // Load flow
+  const companyId = effectiveCompany?.id;
+
+  // Load flow — Bug 2 fix: add company_id filter
   const { data: flow, isLoading: flowLoading } = useQuery({
-    queryKey: ["automation-flow", flowId],
+    queryKey: queryKeys.automations.flow(flowId),
     queryFn: async () => {
-      if (!flowId || flowId === "nuova") return null;
+      if (!flowId || flowId === "nuova" || !companyId) return null;
       const { data, error } = await supabase
         .from("automation_flows")
         .select("*")
         .eq("id", flowId)
+        .eq("company_id", companyId)
         .single();
       if (error) throw error;
       return data as AutomationFlow;
     },
-    enabled: !!flowId && flowId !== "nuova",
+    enabled: !!flowId && flowId !== "nuova" && !!companyId,
   });
 
-  // Load nodes
+  // Load nodes — Bug 2 fix: add company_id filter
   const { data: dbNodes, isLoading: nodesLoading } = useQuery({
-    queryKey: ["automation-nodes", flowId],
+    queryKey: queryKeys.automations.nodes(flowId),
     queryFn: async () => {
-      if (!flowId || flowId === "nuova") return [];
+      if (!flowId || flowId === "nuova" || !companyId) return [];
       const { data, error } = await supabase
         .from("automation_nodes")
         .select("*")
         .eq("flow_id", flowId)
+        .eq("company_id", companyId)
         .order("created_at");
       if (error) throw error;
       return data as AutomationNode[];
     },
-    enabled: !!flowId && flowId !== "nuova",
+    enabled: !!flowId && flowId !== "nuova" && !!companyId,
   });
 
-  // Load connections
+  // Load connections — Bug 2 fix: add company_id filter
   const { data: dbConnections, isLoading: connectionsLoading } = useQuery({
-    queryKey: ["automation-connections", flowId],
+    queryKey: queryKeys.automations.connections(flowId),
     queryFn: async () => {
-      if (!flowId || flowId === "nuova") return [];
+      if (!flowId || flowId === "nuova" || !companyId) return [];
       const { data, error } = await supabase
         .from("automation_connections")
         .select("*")
-        .eq("flow_id", flowId);
+        .eq("flow_id", flowId)
+        .eq("company_id", companyId);
       if (error) throw error;
       return data as AutomationConnection[];
     },
-    enabled: !!flowId && flowId !== "nuova",
+    enabled: !!flowId && flowId !== "nuova" && !!companyId,
   });
 
   const [nodes, setNodes] = useState<AutomationNode[]>([]);
@@ -170,7 +176,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     return errors;
   }, [nodes]);
 
-  // Save all nodes + connections
+  // Save all nodes + connections — Bug 4 fix: invalidate flows list after save
   const saveAll = useCallback(async () => {
     if (!flowId || flowId === "nuova") return;
     const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
@@ -233,8 +239,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
 
       setHasUnsavedChanges(false);
       toast.success("Salvato con successo");
-      queryClient.invalidateQueries({ queryKey: ["automation-nodes", flowId] });
-      queryClient.invalidateQueries({ queryKey: ["automation-connections", flowId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.nodes(flowId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.connections(flowId) });
+      // Bug 4 fix: invalidate flows list so updated_at refreshes
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
     } catch (err: any) {
       toast.error("Errore salvataggio", { description: err.message });
     } finally {
@@ -327,12 +335,12 @@ export function useAutomationBuilder(flowId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automation-flow", flowId] });
-      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.flow(flowId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
     },
   });
 
-  // Publish / Unpublish
+  // Bug 1 fix: Publish / Unpublish — save canvas before publishing
   const togglePublish = useCallback(async () => {
     if (!flow) {
       toast.error("Flow non ancora pronto");
@@ -347,6 +355,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
           toast.error("Impossibile pubblicare", { description: errors[0] });
           return;
         }
+        // Bug 1 fix: save all unsaved changes before publishing
+        if (hasUnsavedChanges) {
+          await saveAll();
+        }
       }
       const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
       await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
@@ -354,7 +366,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     } catch (err: any) {
       toast.error("Errore aggiornamento stato", { description: err.message });
     }
-  }, [flow, updateFlowMutation, validateForPublish]);
+  }, [flow, updateFlowMutation, validateForPublish, hasUnsavedChanges, saveAll]);
 
   const isLoading = flowLoading || nodesLoading || connectionsLoading;
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;

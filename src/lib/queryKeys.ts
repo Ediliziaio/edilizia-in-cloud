@@ -243,6 +243,7 @@ export const queryKeys = {
     flow: (flowId: string | undefined) => ["automations", "flow", flowId] as const,
     nodes: (flowId: string | undefined) => ["automations", "nodes", flowId] as const,
     connections: (flowId: string | undefined) => ["automations", "connections", flowId] as const,
+    executionCounts: (flowId: string | undefined) => ["automations", "execution-counts", flowId] as const,
   },
 
   // ── Messaging ──────────────────────────────────────────

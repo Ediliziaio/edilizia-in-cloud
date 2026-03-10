@@ -77,13 +77,16 @@ export function AutomationBuilder() {
     refetchInterval: 30000, // refresh every 30s
   });
 
+  // Bug 3+7 fix: add company_id filter + invalidate flows list on delete
   const deleteFlowMutation = useMutation({
     mutationFn: async () => {
       if (!flowId) throw new Error("No flow ID");
-      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId);
+      if (!effectiveCompany?.id) throw new Error("Nessuna azienda selezionata");
+      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId).eq("company_id", effectiveCompany.id);
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
       toast({ title: "Automazione eliminata" });
       navigate(`${prefix}/automazioni`);
     },
