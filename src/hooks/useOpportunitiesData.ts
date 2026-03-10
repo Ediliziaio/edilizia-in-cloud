@@ -9,7 +9,7 @@ export function usePipelines() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_pipelines", companyId],
+    queryKey: queryKeys.pipelines.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
