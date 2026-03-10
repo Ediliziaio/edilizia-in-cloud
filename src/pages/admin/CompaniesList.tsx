@@ -343,7 +343,7 @@ export default function CompaniesList() {
 
   const handleImpersonate = async (e: React.MouseEvent, companyId: string) => {
     e.stopPropagation();
-    await impersonateCompany(companyId);
+    await impersonateCompany(companyId, permissions);
     navigate("/azienda");
   };
 

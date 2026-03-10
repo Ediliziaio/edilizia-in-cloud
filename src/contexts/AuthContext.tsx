@@ -11,7 +11,7 @@ interface AuthContextType extends AuthState {
   impersonatedCompanyId: string | null;
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
-  impersonateCompany: (companyId: string) => Promise<void>;
+  impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<void>;
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
@@ -244,11 +244,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
 
-  const impersonateCompany = async (companyId: string) => {
+  const impersonateCompany = async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     // Only super_admin can impersonate
     if (state.role !== "super_admin") {
       console.error("Only super_admin can impersonate companies");
       return;
+    }
+
+    // Verify permissions if provided
+    if (permissions) {
+      if (!permissions.can_manage_companies) {
+        console.error("Missing can_manage_companies permission for impersonation");
+        // Log unauthorized attempt (fire-and-forget)
+        supabase.functions.invoke("log-unauthorized", {
+          body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
+        });
+        return;
+      }
+
+      if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
+        console.error("Company not in allowed_company_ids for impersonation");
+        supabase.functions.invoke("log-unauthorized", {
+          body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
+        });
+        return;
+      }
     }
 
     try {

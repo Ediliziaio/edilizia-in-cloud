@@ -253,7 +253,7 @@ function AdminMainSidebar() {
   const handleImpersonate = async (companyId: string) => {
     setPopoverOpen(false);
     setCompanySearch("");
-    await impersonateCompany(companyId);
+    await impersonateCompany(companyId, permissions);
     navigate("/azienda");
   };
   

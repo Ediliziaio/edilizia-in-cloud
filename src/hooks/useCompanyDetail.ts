@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { toast } from "sonner";
 import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
@@ -47,6 +48,7 @@ export interface CompanyStats {
 
 export function useCompanyDetail(id: string | undefined) {
   const { user, impersonateCompany } = useAuth();
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
 
   // UI state
@@ -379,7 +381,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const handleImpersonate = async () => {
     if (company) {
-      await impersonateCompany(company.id);
+      await impersonateCompany(company.id, saPermissions);
     }
   };
 
