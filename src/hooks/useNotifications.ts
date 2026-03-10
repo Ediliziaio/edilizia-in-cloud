@@ -30,7 +30,7 @@ export function useNotifications() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("*")
+        .select("id, company_id, user_id, type, title, body, entity_type, entity_id, action_url, is_read, is_dismissed, created_at")
         .eq("company_id", companyId!)
         .eq("user_id", userId!)
         .eq("is_dismissed", false)

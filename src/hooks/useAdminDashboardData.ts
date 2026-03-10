@@ -61,7 +61,7 @@ export function useAdminDashboardData() {
         supabase.rpc("get_total_orders_value"),
         supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
         supabase.from("support_conversations").select("id", { count: "exact", head: true }).not("status", "in", '("resolved","closed")'),
-        supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("companies").select("id, name, email, sector, logo_url, created_at").order("created_at", { ascending: false }).limit(5),
         supabase.from("orders").select(`
           id,
           description,

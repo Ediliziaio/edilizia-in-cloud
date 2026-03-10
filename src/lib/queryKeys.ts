@@ -272,6 +272,19 @@ export const queryKeys = {
     clicks: (referrerId: string | undefined) => ["partner", "clicks", referrerId] as const,
   },
 
+  // ── Marketing Dashboard ─────────────────────────────────
+  marketing: {
+    all: ["marketing"] as const,
+    dashboard: (
+      companyId: string | undefined,
+      dateFrom?: string,
+      dateTo?: string,
+      assignedIds?: string[] | null,
+      sources?: string[],
+      pipelineId?: string | null,
+    ) => ["marketing", "dashboard", companyId, dateFrom, dateTo, assignedIds, sources, pipelineId] as const,
+  },
+
   // ── Admin ──────────────────────────────────────────────
   admin: {
     all: ["admin"] as const,
