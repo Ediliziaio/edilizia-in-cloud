@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
@@ -143,7 +144,7 @@ export function useMarketingDashboard() {
   }, [permissions.onlyAssigned, user?.id, filters.assignedUserIds]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["marketing-dashboard", companyId, dateRange.from.toISOString().slice(0, 10), dateRange.to.toISOString().slice(0, 10), effectiveAssignedIds, filters.sources, filters.pipelineId],
+    queryKey: queryKeys.marketing.dashboard(companyId, dateRange.from.toISOString().slice(0, 10), dateRange.to.toISOString().slice(0, 10), effectiveAssignedIds, filters.sources, filters.pipelineId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_marketing_dashboard_stats", {
         p_company_id: companyId!,

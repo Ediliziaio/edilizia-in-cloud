@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { addDays, subMonths, format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -44,7 +45,7 @@ export interface MrrChartData {
 
 export function useAdminDashboardData() {
   return useQuery({
-    queryKey: ["admin-dashboard-data"],
+    queryKey: queryKeys.admin.dashboard(),
     queryFn: async () => {
       const [
         companiesRes,
@@ -60,7 +61,7 @@ export function useAdminDashboardData() {
         supabase.rpc("get_total_orders_value"),
         supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
         supabase.from("support_conversations").select("id", { count: "exact", head: true }).not("status", "in", '("resolved","closed")'),
-        supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("companies").select("id, name, email, sector, logo_url, created_at").order("created_at", { ascending: false }).limit(5),
         supabase.from("orders").select(`
           id,
           description,
