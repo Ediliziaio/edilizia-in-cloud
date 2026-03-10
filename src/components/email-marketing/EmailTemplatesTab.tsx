@@ -49,6 +49,8 @@ export function EmailTemplatesTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const { data: folders = [] } = useQuery({
