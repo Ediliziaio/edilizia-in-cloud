@@ -306,22 +306,30 @@ export function useCashFlowData() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Prima Nota saldo (current cash position)
-  const { data: primaNotaSaldo, isLoading: loadingSaldo } = useQuery({
-    queryKey: queryKeys.cashflow.bankBalance(companyId),
+  // Aggregated cashflow summary via RPC (replaces heavy client-side stats + prima nota)
+  const { data: cashflowSummary, isLoading: loadingSummary } = useQuery({
+    queryKey: queryKeys.cashflow.summary(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
+      const { data, error } = await supabase.rpc("get_cashflow_summary", {
         p_company_id: companyId!,
+        p_months_ahead: 6,
       });
       if (error) throw error;
-      return data as { entrate: number; uscite: number; saldo: number; entry_count: number } | null;
+      return data as {
+        primaNota: { entrate: number; uscite: number; saldo: number; entryCount: number };
+        thisMonth: { income: number; expenses: number; net: number; incomeCount: number; expensesCount: number };
+        nextMonth: { income: number; expenses: number; net: number };
+        next3Months: { income: number; expenses: number; net: number };
+        total: { income: number; expenses: number; net: number; incomeCount: number; expensesCount: number; commissionsTotal: number; costsTotal: number; supplierPaymentsTotal: number };
+        monthlyForecast: Array<{ month: string; monthLabel: string; income: number; expense: number; net: number }>;
+      };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSaldo;
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSummary;
 
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
