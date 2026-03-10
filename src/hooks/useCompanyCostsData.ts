@@ -1,11 +1,23 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, differenceInCalendarDays } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
-import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
+import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  type UnifiedCost,
+  buildOrderItemCosts,
+  buildExternalTeamCosts,
+  buildEmployeeCosts,
+  buildCommissionCosts,
+  buildDynamicCategories,
+  buildMonthlyDistribution,
+  sortCostsByPriority,
+  buildCategoryDistribution,
+  exportCostsToCSV,
+} from "@/lib/costsUtils";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
