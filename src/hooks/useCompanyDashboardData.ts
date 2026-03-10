@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { subDays, startOfDay, endOfDay, startOfMonth, startOfYear } from "date-fns";
 import type { DatePreset, CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface RecentOrder {
   id: string;
