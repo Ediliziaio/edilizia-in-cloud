@@ -408,6 +408,7 @@ const App = () => (
                 <Route path="ore" element={<TimeEntry />} />
                 <Route path="rapportini" element={<MyWorkLogs />} />
                 <Route path="profilo" element={<EmployeeProfile />} />
+                <Route path="ferie" element={<LeaveRequests />} />
               </Route>
 
               {/* Salesperson Routes */}
