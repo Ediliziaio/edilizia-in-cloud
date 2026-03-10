@@ -359,8 +359,13 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const handleSave = async () => {
     try {
       await saveNodes.mutateAsync({ nodes: localNodes, connections: localConnections });
-      if (flowName !== flow?.name) {
-        await updateFlow.mutateAsync({ name: flowName });
+      // Build metadata updates
+      const metaUpdates: Record<string, unknown> = {};
+      if (flowName !== flow?.name) metaUpdates.name = flowName;
+      if (flowDescription !== (flow?.description || "")) metaUpdates.description = flowDescription;
+      if (pendingTriggerType !== (flow?.trigger_type || null)) metaUpdates.trigger_type = pendingTriggerType;
+      if (Object.keys(metaUpdates).length > 0) {
+        await updateFlow.mutateAsync(metaUpdates);
       }
       setDirty(false);
       toast.success("Automazione salvata");
