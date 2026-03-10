@@ -440,6 +440,7 @@ export default function OrdersList() {
     mutationFn: deleteOrderCascading,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
       toast({ title: "Ordine eliminato", description: "L'ordine è stato eliminato con successo" });
     },
     onError: () => {
