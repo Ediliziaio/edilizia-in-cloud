@@ -50,6 +50,7 @@ export function CalendarLayerPanel({
   showAppuntamento,
   showMerce,
   showGoogleBusy,
+  showLeaves,
   onToggleEmployee,
   onToggleTeam,
   onToggleAllEmployees,
@@ -59,6 +60,7 @@ export function CalendarLayerPanel({
   onToggleAppuntamento,
   onToggleMerce,
   onToggleGoogleBusy,
+  onToggleLeaves,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
 
