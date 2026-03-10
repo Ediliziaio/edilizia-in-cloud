@@ -139,7 +139,7 @@ function calculateHealthScore(
 
 export function useAdminRevenueData() {
   return useQuery({
-    queryKey: ["admin-revenue-intelligence"],
+    queryKey: queryKeys.admin.revenueIntelligence(),
     queryFn: async () => {
       const [companiesRes, healthRes, subscriptionLogsRes, plansRes] = await Promise.all([
         supabase
