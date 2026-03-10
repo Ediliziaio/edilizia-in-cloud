@@ -54,16 +54,26 @@ export default function AuditLogTab() {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const debouncedSearch = useDebounce(searchQuery, 350);
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
+    queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString(), debouncedSearch],
     queryFn: async () => {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
+      // If searching, first resolve matching user IDs from profiles
+      let matchingUserIds: string[] | null = null;
+      if (debouncedSearch.trim()) {
+        const q = `%${debouncedSearch.trim()}%`;
+        const { data: profileMatches } = await supabase
+          .from("profiles")
+          .select("id")
+          .or(`first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q}`);
+        matchingUserIds = (profileMatches || []).map((p) => p.id);
+      }
+
       let query = supabase
         .from("admin_audit_log")
         .select("*", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, to);
+        .order("created_at", { ascending: false });
 
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
@@ -74,6 +84,18 @@ export default function AuditLogTab() {
       if (dateRange.to) {
         query = query.lte("created_at", dateRange.to.toISOString());
       }
+
+      // Server-side search: match on user_id (from profile lookup) or target_id
+      if (debouncedSearch.trim()) {
+        const conditions: string[] = [];
+        if (matchingUserIds && matchingUserIds.length > 0) {
+          conditions.push(`user_id.in.(${matchingUserIds.join(",")})`);
+        }
+        conditions.push(`target_id.ilike.%${debouncedSearch.trim()}%`);
+        query = query.or(conditions.join(","));
+      }
+
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -94,17 +116,6 @@ export default function AuditLogTab() {
     },
     staleTime: 30_000,
   });
-
-  const filteredLogs = useMemo(() => {
-    if (!data?.logs || !searchQuery.trim()) return data?.logs || [];
-    const q = searchQuery.toLowerCase();
-    return data.logs.filter((log) => {
-      const adminName = (data.profiles[log.user_id] || "").toLowerCase();
-      const details = log.details as Record<string, any> | null;
-      const detailStr = (details?.target_name || details?.company_name || log.target_id || "").toLowerCase();
-      return adminName.includes(q) || detailStr.includes(q);
-    });
-  }, [data, searchQuery]);
 
   const totalPages = Math.ceil((data?.total || 0) / PAGE_SIZE);
 
