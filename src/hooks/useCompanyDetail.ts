@@ -525,6 +525,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const onSaveDetails = async (data: CompanyFormData) => {
+    assertCanManage();
     if (!id) return;
     setIsSaving(true);
     try {
