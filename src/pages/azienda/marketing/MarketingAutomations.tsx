@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,7 @@ type ListFilterType = "all" | "needs_review" | "deleted";
 
 export default function MarketingAutomations() {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -117,7 +119,7 @@ export default function MarketingAutomations() {
               <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
                 <FolderPlus className="h-4 w-4 mr-1.5" /> Crea Cartella
               </Button>
-              <Button size="sm" onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+              <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
                 <Plus className="h-4 w-4 mr-1.5" /> Crea Flusso di lavoro
               </Button>
             </div>

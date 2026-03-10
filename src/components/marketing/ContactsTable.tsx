@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -126,7 +127,7 @@ function SortIcon({ field, currentField, direction }: { field: string; currentFi
   );
 }
 
-function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>) {
+function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>, routePrefix: string) {
   const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
   switch (col.key) {
     case "name":
@@ -136,7 +137,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
             <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
               {getInitials(c.first_name, c.last_name)}
             </div>
-            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
+            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}>
               {fullName}
             </span>
           </div>
@@ -218,6 +219,7 @@ export const ContactsTable = memo(function ContactsTable({
   customFields = [], customFieldValues = {},
 }: ContactsTableProps) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
 
@@ -306,7 +308,7 @@ export const ContactsTable = memo(function ContactsTable({
                       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{val}</TableCell>;
                     }
 
-                    return renderStaticCell(col, c, cls, navigate);
+                    return renderStaticCell(col, c, cls, navigate, routePrefix);
                   })}
                   <TableCell className="py-1.5">
                     <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>

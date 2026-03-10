@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   startOfWeek,
@@ -47,6 +48,7 @@ type CalendarView = "day" | "week" | "month";
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
+  const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -555,13 +557,15 @@ export default function MarketingCalendar() {
                 {t.label}
               </button>
             ))}
-            <button
-              onClick={() => navigate("/azienda/impostazioni/calendari")}
-              className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Impostazioni
-            </button>
+            {!isAdminContext && (
+              <button
+                onClick={() => navigate("/azienda/impostazioni/calendari")}
+                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Impostazioni
+              </button>
+            )}
           </nav>
         </div>
         <Button size="sm" onClick={() => openNewDialog()}>

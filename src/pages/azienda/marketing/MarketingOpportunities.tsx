@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import {
@@ -56,6 +57,7 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 
 function MarketingOpportunitiesContent() {
   const navigate = useNavigate();
+  const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
@@ -349,9 +351,11 @@ function MarketingOpportunitiesContent() {
         <p className="text-muted-foreground max-w-md">
           Per iniziare, crea una sequenza (pipeline) nelle impostazioni sotto "Marketing e Vendita" → "Sequenze".
         </p>
-        <Button variant="outline" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>
-          Vai alle Impostazioni
-        </Button>
+        {!isAdminContext && (
+          <Button variant="outline" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>
+            Vai alle Impostazioni
+          </Button>
+        )}
       </div>
     );
   }
@@ -433,7 +437,7 @@ function MarketingOpportunitiesContent() {
               }}>
                 <Download className="mr-2 h-4 w-4" /> Esporta CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>
+              {!isAdminContext && <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -540,7 +544,7 @@ function MarketingOpportunitiesContent() {
       ) : stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
           <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
-          <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>Configura fasi</Button>
+          {!isAdminContext && <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>Configura fasi</Button>}
         </div>
       ) : (
         <>

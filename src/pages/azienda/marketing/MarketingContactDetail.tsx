@@ -2,6 +2,7 @@ import { useState, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,6 +64,7 @@ import { getAvatarColor } from "@/lib/contactUtils";
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -410,7 +412,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     onSuccess: () => {
       toast.success("Contatto eliminato");
-      navigate("/azienda/marketing/contatti");
+      navigate(`${routePrefix}/contatti`);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -442,7 +444,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Contatto non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/marketing/contatti")}>
+        <Button variant="outline" onClick={() => navigate(`${routePrefix}/contatti`)}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Torna ai contatti
         </Button>
       </div>
@@ -481,7 +483,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         {/* Header */}
         <div className="h-11 border-b flex items-center justify-between px-2 shrink-0">
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate("/azienda/marketing/contatti")}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`${routePrefix}/contatti`)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium">Contatto Dettagli</span>
@@ -492,10 +494,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 {currentIdx >= 0 ? currentIdx + 1 : "?"}/{totalContacts}
               </span>
             )}
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!prevId} onClick={() => prevId && navigate(`/azienda/marketing/contatti/${prevId}`)}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!nextId} onClick={() => nextId && navigate(`/azienda/marketing/contatti/${nextId}`)}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
