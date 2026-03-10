@@ -562,9 +562,10 @@ export default function MarketingCalendar() {
                 onClick={() => navigate("/azienda/impostazioni/calendari")}
                 className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1"
               >
-              <Settings className="h-3.5 w-3.5" />
-              Impostazioni
-            </button>
+                <Settings className="h-3.5 w-3.5" />
+                Impostazioni
+              </button>
+            )}
           </nav>
         </div>
         <Button size="sm" onClick={() => openNewDialog()}>
