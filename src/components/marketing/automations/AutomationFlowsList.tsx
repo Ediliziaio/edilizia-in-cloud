@@ -255,7 +255,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
         <h3 className="text-lg font-medium mb-1">Nessuna automazione</h3>
         <p className="text-sm text-muted-foreground mb-4">Crea la tua prima automazione visuale.</p>
-        <Button onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+        <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
           <Plus className="h-4 w-4 mr-2" /> Crea Automazione
         </Button>
       </div>
