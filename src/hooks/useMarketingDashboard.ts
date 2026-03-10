@@ -136,10 +136,10 @@ function getDateRange(preset: DatePreset, customFrom?: Date, customTo?: Date): {
   }
 }
 
-export function useMarketingDashboard(overrideCompanyId?: string) {
+export function useMarketingDashboard() {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
-  const companyId = overrideCompanyId || effectiveCompany?.id;
+  const companyId = effectiveCompany?.id;
 
   const [filters, setFilters] = useState<DashboardFiltersState>({
     datePreset: "last30",
