@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     }
     // "tutti" and "pipeline" use all contacts with phone
 
-    const { data: contacts, error: contactsErr } = await query.limit(1000);
+    const { data: rawContacts, error: contactsErr } = await query.limit(10000);
 
     if (contactsErr) {
       return new Response(
