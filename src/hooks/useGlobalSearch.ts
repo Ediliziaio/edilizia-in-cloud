@@ -21,35 +21,37 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
 
       const pattern = `%${debouncedQuery}%`;
 
+      const ordersPromise = supabase
+        .from("orders")
+        .select("id, order_code, description")
+        .eq("company_id", companyId!)
+        .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
+        .limit(5);
+
+      const customersPromise = supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, phone")
+        .eq("company_id", companyId!)
+        .eq("role_type", "customer")
+        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(5);
+
+      const contactsPromise = supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email, phone")
+        .eq("company_id", companyId!)
+        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(5);
+
+      const ticketsPromise = supabase
+        .from("tickets")
+        .select("id, subject, status")
+        .eq("company_id", companyId!)
+        .ilike("subject", pattern)
+        .limit(5);
+
       const [ordersRes, customersRes, contactsRes, ticketsRes] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("id, order_code, description")
-          .eq("company_id", companyId!)
-          .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
-          .limit(5) as any,
-
-        supabase
-          .from("profiles")
-          .select("id, first_name, last_name, email, phone")
-          .eq("company_id", companyId!)
-          .eq("role_type", "customer")
-          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-          .limit(5),
-
-        supabase
-          .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone")
-          .eq("company_id", companyId!)
-          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-          .limit(5),
-
-        supabase
-          .from("tickets")
-          .select("id, subject, status")
-          .eq("company_id", companyId!)
-          .ilike("subject", pattern)
-          .limit(5),
+        ordersPromise, customersPromise, contactsPromise, ticketsPromise,
       ]);
 
       const results: SearchResult[] = [];
