@@ -81,6 +81,7 @@ export default function CampaignEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { effectiveCompany: company } = useAuth();
   const editorRef = useRef<HTMLDivElement>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState("");
