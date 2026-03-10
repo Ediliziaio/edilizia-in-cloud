@@ -311,7 +311,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const all = allCostsSorted;
 
     const sostenuti = all.filter(c => c.is_paid);
-    const previsti = all.filter(c => c.recurrence !== "once" && !c.is_paid && c.due_date && new Date(c.due_date) > now);
+    const previsti = all.filter(c => !c.is_paid && c.due_date && new Date(c.due_date) > now);
     const inRitardo = all.filter(c => !c.is_paid && c.due_date && new Date(c.due_date) < now);
     const inScadenza = all.filter(c => {
       if (c.is_paid || !c.due_date) return false;
