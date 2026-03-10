@@ -127,7 +127,7 @@ export function PhoneNumberManager() {
       setSelectedNumber(null);
       setSearchResults([]);
       setBuyLabel("");
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'acquisto");
     } finally {
