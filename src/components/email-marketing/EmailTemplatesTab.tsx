@@ -232,7 +232,7 @@ export function EmailTemplatesTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paged.map((t: any) => (
+              {templates.map((t: any) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell className="text-muted-foreground">{t.type}</TableCell>
