@@ -198,6 +198,17 @@ export function CalendarLayerPanel({
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Ferie */}
+          <div className="pt-1">
+            <LayerCheckbox
+              checked={showLeaves}
+              onCheckedChange={onToggleLeaves}
+              icon={<Palmtree className="h-3 w-3 text-amber-500" />}
+              label="Ferie & Permessi"
+              colorDot="bg-amber-500"
+            />
+          </div>
+
           {/* Google Calendar */}
           <div className="pt-1">
             <LayerCheckbox
