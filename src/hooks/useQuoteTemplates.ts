@@ -46,7 +46,7 @@ export function useQuoteTemplates() {
         if (error) throw error;
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),
   });
 
   const deleteTemplate = useMutation({
