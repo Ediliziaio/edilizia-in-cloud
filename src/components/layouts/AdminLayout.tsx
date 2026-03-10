@@ -241,6 +241,10 @@ function AdminMainSidebar() {
     (item) => permissions[item.permission]
   );
 
+  const filteredMarketingItems = adminMarketingNavItems.filter(
+    (item) => permissions[item.permission]
+  );
+
   const { data: companies = [] } = useQuery({
     queryKey: ["admin-sidebar-companies", debouncedSearch],
     queryFn: async () => {
