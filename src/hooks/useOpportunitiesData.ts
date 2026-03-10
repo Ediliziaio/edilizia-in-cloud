@@ -156,7 +156,7 @@ export function useCreateOpportunity() {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità creata");
     },
     onError: (e: any) => toast.error(e.message),
