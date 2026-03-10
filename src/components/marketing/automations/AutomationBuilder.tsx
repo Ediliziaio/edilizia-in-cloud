@@ -82,7 +82,7 @@ export function AutomationBuilder() {
     },
     onSuccess: () => {
       toast({ title: "Automazione eliminata" });
-      navigate("/azienda/marketing/automazioni");
+      navigate(`${prefix}/automazioni`);
     },
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
