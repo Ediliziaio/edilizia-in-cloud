@@ -1,48 +1,94 @@
 
 
-# Verifica Post-Refactoring — Stato del Progetto
+# Audit Tecnico Billing — Edilizia in Cloud
 
-## Risultato: Tutto OK — Nessun intervento necessario
+## FASE 1: Bug e Problemi Identificati
 
-Ho verificato tutti i file modificati nelle Fasi 1 e 2 del refactoring. Lo stato attuale e corretto e stabile.
+### CRITICI (P0)
 
-### Checklist di verifica
+| # | Area | Bug | Impatto |
+|---|------|-----|---------|
+| 1 | **Test connessione** | Frontend invia `action` nel body (`{ action: "test_connection", provider }`) ma `billing-connect` legge `action` solo da query string (`url.searchParams.get("action")`). Il body viene ignorato → test connessione **sempre fallisce** (ritorna `{ error: "Unknown action" }`) | Funzionalita rotta |
+| 2 | **Webhook senza autenticazione** | `billing-webhook` accetta qualsiasi richiesta POST senza verificare firma, secret o origin. Chiunque puo aggiornare lo stato delle fatture | Sicurezza critica |
+| 3 | **"Segna come pagata" non aggiorna invoice** | `markPaidMutation` inserisce un record in `invoice_payments` ma non aggiorna `invoices.paid_amount`, `invoices.payment_date` ne `invoices.status`. Dashboard e lista fatture vedono la fattura ancora non pagata | Coerenza dati |
+| 4 | **Import error: no error logging** | Il `catch` in `billing-import` non aggiorna `billing_integrations.last_sync_status` a "error" ne scrive in `billing_sync_log` — dopo un errore lo stato resta ambiguo | Diagnostica impossibile |
+| 5 | **Import: righe orfane su errore parziale** | `delete invoice_lines` + `insert invoice_lines` non e atomico. Se l'insert fallisce, le righe vengono perse senza recovery | Integrita dati |
 
-| Area | Stato | Dettaglio |
-|------|-------|-----------|
-| **Bootstrap** (`main.tsx` → `App.tsx`) | OK | Render chain corretta, `App` esportato come default |
-| **Routing** (`App.tsx` ~98 righe) | OK | Modularizzato in `adminRoutes`, `companyRoutes`, `portalRoutes`. Tutte le route, protezioni, lazy load e layout preservati |
-| **Route admin** (113 righe) | OK | 40 lazy imports, ProtectedRoute `super_admin`, ErrorBoundary, layout nesting corretto |
-| **Route company** (215 righe) | OK | 87 lazy imports, SettingsLayout annidato, marketing sub-routes, automation builder fuori layout |
-| **Route portali** (130 righe) | OK | customer/employee/salesperson/partner con ruoli e layout corretti |
-| **`queryKeys.ts`** (344 righe) | OK | Factory completa con 25 domini, inclusi `marketing.dashboard()` e `admin.dashboard()` aggiunti in Fase 2 |
-| **`dateRangeUtils.ts`** | OK | Utility centralizzata con tutti i preset (`today`/`yesterday`/`last7`/`last30`/`month`/`quarter`/`year`/`custom`) |
-| **`numberUtils.ts`** | OK | `safeNumber` centralizzato, gestisce NaN/Infinity |
-| **`useCruscottoData.ts`** | OK | Query keys factory, waterfall eliminato (ops/weekly/finance indipendenti da payments, merge via `useMemo`), re-export backward-compatible di `safeNumber` |
-| **`useGlobalSearch.ts`** | OK | 4 query parallele via `Promise.all`, debounce 250ms, `gcTime` configurato |
-| **`useNotifications.ts`** | OK | Select esplicito (12 campi), realtime subscription, optimistic updates |
-| **`useAdminDashboardData.ts`** | OK | `queryKeys.admin.dashboard()`, select esplicito su recentCompanies |
-| **`useMarketingDashboard.ts`** | OK | `queryKeys.marketing.dashboard(...)`, `getDateRange` da lib condivisa |
-| **`useCompanyDashboardData.ts`** | OK | `queryKeys` e `getDateRange` da lib condivise |
-| **Console errors** | OK | Solo 1 warning recharts (`CartesianGrid` ref) — e un problema noto della libreria, non del codice |
-| **TypeErrors runtime** | OK | Zero errori TypeError in console |
+### MEDI (P1)
 
-### Warning non critico presente
+| # | Area | Problema |
+|---|------|----------|
+| 6 | **Add provider bypass server** | Frontend salva direttamente in `billing_integrations` senza validazione server (no test API key). Possibile creare integrazioni "attive" con credenziali invalide |
+| 7 | **Set primary non atomico** | `billing-connect` `set_primary`: due query separate (`UPDATE is_primary=false` + `UPDATE is_primary=true`). Se la seconda fallisce, nessun provider resta primario |
+| 8 | **billing-import: column mismatch** | Import scrive `details` nel log ma il tipo corretto e `response_payload` (tipo Json) — probabilmente fallisce silenziosamente o il campo viene ignorato |
+| 9 | **billing-sync: provider selection** | `billing-sync` usa `is_primary` + fallback su qualsiasi attivo con `limit(1)` senza `order()` — selezione non deterministica |
 
-Il warning `Function components cannot be given refs` in `AdminTrialIntelligence` e causato internamente da Recharts `CartesianGrid` — e un bug noto della libreria (non del progetto). Non causa crash ne comportamenti anomali.
+## FASE 2: Piano Correzioni
 
-### Riepilogo miglioramenti gia applicati
+### Fix 1: Test connessione — allineare frontend/backend
+**File:** `supabase/functions/billing-connect/index.ts`
+- Leggere `action` sia da query string che dal body JSON come fallback
+- Il backend gia gestisce `test_connection` con POST + body `{ provider }`, basta che legga anche `action` dal body
 
-1. **Performance**: Global search 4x piu veloce (parallel queries), cruscotto senza waterfall
-2. **Manutenibilita**: App.tsx da ~500 righe a ~98 righe, utilities centralizzate
-3. **Cache consistency**: Query keys factory usata nei 5 hook principali
-4. **Payload reduction**: Select espliciti su notifications e admin dashboard
-5. **Backward compatibility**: Re-export di `safeNumber` preservato, tutte le route identiche
+### Fix 2: Webhook signature verification
+**File:** `supabase/functions/billing-webhook/index.ts`
+- Aggiungere verifica del secret `BILLING_WEBHOOK_SECRET` tramite query param o header
+- Loggare tentativi non autorizzati in `billing_sync_log` con status "rejected"
+- Se il secret non e configurato, accettare (backward compatible) ma loggare warning
 
-### Raccomandazioni future (non urgenti)
+### Fix 3: Trigger DB per coerenza pagamenti
+**Database migration:** Creare trigger `trg_update_invoice_on_payment` su `invoice_payments` (INSERT/DELETE)
+- Calcola `SUM(amount)` da `invoice_payments` per l'invoice
+- Aggiorna `invoices.paid_amount` e `invoices.payment_date` (data ultimo pagamento)
+- Se `paid_amount >= total` → `status = 'paid'`
+- Se `paid_amount > 0 AND paid_amount < total` → mantieni status corrente (parziale)
+- Gestisce anche DELETE per reverse
 
-- Migrare i restanti ~26 hook con query keys inline alla factory
-- Ridurre `select("*")` nei rimanenti hook a basso traffico
-- Considerare RPC aggregata per MRR trend admin (attualmente O(n*6) client-side)
-- Monitorare il warning Recharts per fix upstream
+### Fix 4: Error logging in billing-import
+**File:** `supabase/functions/billing-import/index.ts`
+- Nel catch: aggiornare `billing_integrations` con `last_sync_status: "error"` e `last_sync_error`
+- Inserire record in `billing_sync_log` con status "error" e `error_message`
+- Richiede accesso a `companyId` e `provider` nel catch — ristrutturare per renderli disponibili
+
+### Fix 5: Atomicita update righe fattura
+**File:** `supabase/functions/billing-import/index.ts`
+- Wrappare delete+insert righe in una RPC atomica, oppure: se l'insert righe fallisce, re-inserire le vecchie righe (compensazione)
+- Approccio pragmatico: inserire prima le nuove righe con un batch, e solo se l'insert riesce, eliminare le vecchie. Alternativa: usare upsert con `invoice_id + sort_order` come chiave
+
+### Fix 6: Validazione server-side per add provider
+**File:** `src/pages/azienda/settings/SettingsBilling.tsx`
+- Cambiare `addMutation` per invocare `billing-connect?action=configure_apikey` (o `configure_aruba`) invece di inserire direttamente nel DB
+- Il backend gia esiste e valida le credenziali prima di salvare
+
+### Fix 7: Set primary atomico
+**File:** `supabase/functions/billing-connect/index.ts`
+- Usare una RPC o invertire l'ordine: prima set `is_primary=true` sul nuovo, poi set `is_primary=false` sugli altri (escludendo il nuovo)
+
+### Fix 8: Fix billing_sync_log column name
+**File:** `supabase/functions/billing-import/index.ts`
+- Cambiare `details` → `response_payload` per allinearsi allo schema `billing_sync_log`
+- Aggiungere `direction: "pull"` che e required
+
+### Fix 9: Provider selection deterministica
+**File:** `supabase/functions/billing-sync/index.ts`
+- Aggiungere `.order("created_at", { ascending: true })` al fallback per garantire selezione deterministica
+
+---
+
+## File modificati (totale: 5)
+
+| File | Modifiche |
+|------|-----------|
+| `supabase/functions/billing-connect/index.ts` | Fix action read (body fallback), set_primary atomico |
+| `supabase/functions/billing-import/index.ts` | Error logging, column fix, atomicita righe |
+| `supabase/functions/billing-webhook/index.ts` | Signature verification |
+| `supabase/functions/billing-sync/index.ts` | Deterministic provider selection |
+| `src/pages/azienda/settings/SettingsBilling.tsx` | Server-side validation per add provider |
+| **DB Migration** | Trigger `trg_update_invoice_on_payment` per coerenza `paid_amount`/`status` |
+
+## Rischi e mitigazioni
+
+- **Trigger DB**: opera solo su INSERT/DELETE di `invoice_payments`, non tocca logica esistente di import o sync
+- **Webhook secret**: backward compatible — se `BILLING_WEBHOOK_SECRET` non e configurato, il webhook continua a funzionare (con warning nel log)
+- **Frontend add provider**: la UX resta identica, solo il backend cambia da insert diretto a invocazione edge function
 
