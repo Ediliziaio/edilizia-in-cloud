@@ -178,10 +178,11 @@ export default function CampaignEditor() {
 
   const confirmInsertLink = () => {
     if (!linkUrl) return;
+    const safeUrl = sanitizeUrl(linkUrl);
     if (linkText) {
-      execCmd("insertHTML", `<a href="${linkUrl}" target="_blank">${linkText}</a>`);
+      execCmd("insertHTML", `<a href="${safeUrl}" target="_blank">${escapeHtml(linkText)}</a>`);
     } else {
-      execCmd("createLink", linkUrl);
+      execCmd("createLink", safeUrl);
     }
     setLinkDialogOpen(false);
   };
