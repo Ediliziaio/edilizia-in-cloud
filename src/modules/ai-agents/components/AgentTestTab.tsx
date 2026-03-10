@@ -99,7 +99,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
         .eq("id" as never, testId as never);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-tests", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       toast.success("Test completato");
     },
   });
