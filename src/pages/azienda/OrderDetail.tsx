@@ -269,6 +269,7 @@ export default function OrderDetail() {
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 600_000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Fetch status history
