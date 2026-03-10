@@ -52,7 +52,7 @@ export default function AuditLogTab() {
   const [actionFilter, setActionFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
-
+  const debouncedSearch = useDebounce(searchQuery, 350);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
     queryFn: async () => {
