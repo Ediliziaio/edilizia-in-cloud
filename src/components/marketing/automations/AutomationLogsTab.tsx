@@ -42,11 +42,12 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
   const PAGE_SIZE = 25;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["automation-logs", flowId, startDate, endDate, activityFilter, statusFilter, search, page],
+    queryKey: ["automation-logs", flowId, companyId, startDate, endDate, activityFilter, statusFilter, search, page],
     queryFn: async () => {
       let query = supabase
         .from("automation_execution_log")
         .select("*", { count: "exact" })
+        .eq("company_id", companyId)
         .eq("flow_id", flowId)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);

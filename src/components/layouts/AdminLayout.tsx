@@ -79,6 +79,8 @@ const adminMarketingNavItems = [
   { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing" as const },
   { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing" as const },
   { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing" as const },
+  { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing" as const },
+  { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing" as const },
 ];
 
 const accountItems = [

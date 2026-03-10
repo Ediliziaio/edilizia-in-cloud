@@ -378,7 +378,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/automazioni/${flow.id}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> Modifica
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateMutation.mutate(flow)}>

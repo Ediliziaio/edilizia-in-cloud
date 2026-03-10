@@ -41,11 +41,12 @@ export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
   const PAGE_SIZE = 25;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["automation-enrollments", flowId, startDate, endDate, statusFilter, search, page],
+    queryKey: ["automation-enrollments", flowId, companyId, startDate, endDate, statusFilter, search, page],
     queryFn: async () => {
       let query = supabase
         .from("automation_enrollments")
         .select("*", { count: "exact" })
+        .eq("company_id", companyId)
         .eq("flow_id", flowId)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
