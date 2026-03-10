@@ -117,7 +117,7 @@ export function useNotifications() {
     },
     onMutate: async (id) => {
       queryClient.setQueryData<Notification[]>(
-        ["notifications", companyId, userId],
+        queryKeys.notifications.list(companyId, userId),
         (old = []) => old.filter((n) => n.id !== id)
       );
     },

@@ -83,14 +83,13 @@ export function useEmailTemplatesPaginated(
   const { page, perPage } = pagination;
 
   return useQuery({
-    queryKey: [
-      "email-templates-paginated",
+    queryKey: queryKeys.emailTemplates.paginated(
       companyId,
       filters.search,
       filters.folderId,
       page,
       perPage,
-    ],
+    ),
     queryFn: async () => {
       let query = supabase
         .from("email_templates")

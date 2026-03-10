@@ -114,7 +114,7 @@ export function useCompanyDashboardData() {
   );
 
   const { data: dashboardData, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
+    queryKey: queryKeys.dashboard.company(companyId, `${dateRange.from.toISOString()}-${dateRange.to.toISOString()}-${filters.statusId}`),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_dashboard_kpis", {
         p_company_id: companyId!,
