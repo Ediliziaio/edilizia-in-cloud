@@ -209,7 +209,7 @@ export function EmailTemplatesTab() {
       {/* Table */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-      ) : paged.length === 0 ? (
+      ) : templates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <FileText className="h-10 w-10 text-muted-foreground" />
