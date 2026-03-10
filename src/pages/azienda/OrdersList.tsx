@@ -564,26 +564,24 @@ export default function OrdersList() {
       }
     }
 
-    // New filters: salesperson, labor, supplier
+    // Reverse lookup maps for O(1) filter matching
     const matchesSalesperson = salespersonFilter === "all" || 
       (salespeopleMap.get(order.id) || []).some(name => {
-        const profile = salespersonProfiles.find(p => `${p.first_name} ${p.last_name}` === name);
-        return profile && profile.id === salespersonFilter;
+        return spNameToIdMap.get(name) === salespersonFilter;
       });
 
     const matchesLabor = laborFilter === "all" ||
       (laborMap.get(order.id) || []).some(name => {
-        const emp = employeeProfiles.find(e => `${e.first_name} ${e.last_name}` === name);
-        if (emp && `emp-${emp.id}` === laborFilter) return true;
-        const team = externalTeamProfiles.find(t => t.name === name);
-        if (team && `team-${team.id}` === laborFilter) return true;
+        const empId = empNameToIdMap.get(name);
+        if (empId && `emp-${empId}` === laborFilter) return true;
+        const teamId = teamNameToIdMap.get(name);
+        if (teamId && `team-${teamId}` === laborFilter) return true;
         return false;
       });
 
     const matchesSupplier = supplierFilter === "all" ||
       (supplierMap.get(order.id) || []).some(name => {
-        const sup = supplierProfiles.find(s => s.name === name);
-        return sup && sup.id === supplierFilter;
+        return supNameToIdMap.get(name) === supplierFilter;
       });
 
     const matchesCompleted = !(hideCompleted && lastStatusId && order.current_status_id === lastStatusId);
