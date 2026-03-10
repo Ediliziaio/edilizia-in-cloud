@@ -1,44 +1,33 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { queryKeys } from "@/lib/queryKeys";
+import { useSignatureActions } from "@/hooks/useSignatureActions";
+import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
+import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft,
-  Pencil,
-  Send,
-  CheckCircle,
-  XCircle,
-  FileDown,
-  Loader2,
-  User,
-  FileText,
-  Clock,
-  Eye,
+  ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
 } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
-  bozza: { label: "Bozza", variant: "secondary", color: "text-muted-foreground" },
-  inviata: { label: "Inviata", variant: "default", color: "text-blue-600" },
-  accettata: { label: "Accettata", variant: "default", color: "text-green-600" },
-  rifiutata: { label: "Rifiutata", variant: "destructive", color: "text-red-600" },
-  scaduta: { label: "Scaduta", variant: "outline", color: "text-orange-600" },
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; }> = {
+  bozza: { label: "Bozza", variant: "secondary" },
+  inviata: { label: "Inviata", variant: "default" },
+  accettata: { label: "Accettata", variant: "default" },
+  rifiutata: { label: "Rifiutata", variant: "destructive" },
+  scaduta: { label: "Scaduta", variant: "outline" },
 };
 
 export default function QuoteDetail() {
@@ -47,7 +36,9 @@ export default function QuoteDetail() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+
+  const { sendForSignature } = useSignatureActions(id);
 
   const handleGeneratePdf = async () => {
     setGenerating(true);
@@ -60,7 +51,7 @@ export default function QuoteDetail() {
         window.open(data.signed_url, "_blank");
       }
       toast.success("PDF generato con successo");
-      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e: any) {
       toast.error("Errore generazione PDF: " + (e.message || "errore"));
     } finally {
@@ -68,24 +59,8 @@ export default function QuoteDetail() {
     }
   };
 
-  const handleSendForSignature = async () => {
-    setSending(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-quote-signature", {
-        body: { quote_id: id },
-      });
-      if (error) throw error;
-      toast.success("Offerta inviata al cliente");
-      queryClient.invalidateQueries({ queryKey: ["quote", id] });
-    } catch (e: any) {
-      toast.error("Errore invio: " + (e.message || "errore"));
-    } finally {
-      setSending(false);
-    }
-  };
-
   const { data: quote, isLoading } = useQuery({
-    queryKey: ["quote", id],
+    queryKey: queryKeys.quotes.detail(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -99,7 +74,7 @@ export default function QuoteDetail() {
   });
 
   const { data: items = [] } = useQuery({
-    queryKey: ["quote-items", id],
+    queryKey: queryKeys.quotes.items(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -147,19 +122,6 @@ export default function QuoteDetail() {
 
   const sc = statusConfig[quote.status] || statusConfig.bozza;
 
-  // Timeline events
-  const timelineEvents = [
-    { label: "Creato", date: quote.created_at, icon: FileText },
-    quote.sent_at ? { label: "Inviato", date: quote.sent_at, icon: Send } : null,
-    quote.viewed_at ? { label: "Visualizzato", date: quote.viewed_at, icon: Eye } : null,
-    quote.signed_at
-      ? { label: `Firmato da ${quote.signed_by_name || "—"}`, date: quote.signed_at, icon: CheckCircle }
-      : null,
-    quote.refused_at
-      ? { label: "Rifiutato", date: quote.refused_at, icon: XCircle }
-      : null,
-  ].filter(Boolean) as { label: string; date: string; icon: any }[];
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -175,13 +137,11 @@ export default function QuoteDetail() {
           <p className="text-muted-foreground">{quote.title}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Generate PDF */}
           <Button variant="outline" onClick={handleGeneratePdf} disabled={generating}>
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
             {generating ? "Generando..." : "Genera PDF"}
           </Button>
 
-          {/* Edit (only draft) */}
           {quote.status === "bozza" && (
             <Button
               variant="outline"
@@ -192,11 +152,10 @@ export default function QuoteDetail() {
             </Button>
           )}
 
-          {/* Send for signature (draft or already sent) */}
-          {(quote.status === "bozza" || quote.status === "inviata") && quote.client_email && (
-            <Button onClick={handleSendForSignature} disabled={sending}>
-              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              {sending ? "Invio..." : quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
+          {(quote.status === "bozza" || quote.status === "inviata") && (
+            <Button onClick={() => setSendDialogOpen(true)}>
+              <Send className="h-4 w-4 mr-2" />
+              {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
             </Button>
           )}
         </div>
@@ -211,7 +170,6 @@ export default function QuoteDetail() {
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-6 mt-4">
-          {/* Items table */}
           <Card>
             <CardHeader>
               <CardTitle>Prodotti e Servizi</CardTitle>
@@ -254,7 +212,6 @@ export default function QuoteDetail() {
                 </Table>
               )}
 
-              {/* Totals */}
               <div className="mt-4 flex justify-end">
                 <div className="w-full max-w-xs space-y-1 text-sm">
                   <div className="flex justify-between">
@@ -281,7 +238,6 @@ export default function QuoteDetail() {
             </CardContent>
           </Card>
 
-          {/* Notes */}
           {(quote.notes || quote.description) && (
             <Card>
               <CardHeader>
@@ -386,36 +342,31 @@ export default function QuoteDetail() {
         </TabsContent>
 
         <TabsContent value="attivita" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {timelineEvents.map((ev, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-full bg-muted p-1.5">
-                      <ev.icon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{ev.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(ev.date), "dd MMM yyyy HH:mm", { locale: it })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {quote.refused_reason && (
-                <div className="mt-4 p-3 bg-destructive/10 rounded-lg text-sm">
-                  <p className="font-medium text-destructive">Motivo rifiuto:</p>
-                  <p>{quote.refused_reason}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <QuoteSignatureStatusCard
+            status={quote.status}
+            createdAt={quote.created_at}
+            sentAt={quote.sent_at}
+            viewedAt={quote.viewed_at}
+            signedAt={quote.signed_at}
+            signedByName={quote.signed_by_name}
+            signedByIp={quote.signed_by_ip}
+            refusedAt={quote.refused_at}
+            refusedReason={quote.refused_reason}
+            expiresAt={quote.expires_at}
+          />
         </TabsContent>
       </Tabs>
+
+      {/* Send Signature Dialog */}
+      <SendSignatureDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        clientEmail={quote.client_email}
+        clientName={quote.client_name}
+        quoteNumber={quote.quote_number}
+        onSend={() => sendForSignature.mutateAsync()}
+        isSending={sendForSignature.isPending}
+      />
     </div>
   );
 }
