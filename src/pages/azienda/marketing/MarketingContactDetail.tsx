@@ -412,7 +412,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     onSuccess: () => {
       toast.success("Contatto eliminato");
-      navigate("/azienda/marketing/contatti");
+      navigate(`${routePrefix}/contatti`);
     },
     onError: (e: any) => toast.error(e.message),
   });
