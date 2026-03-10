@@ -2668,6 +2668,7 @@ export type Database = {
           enforce_2fa_roles: string[] | null
           fiscal_code: string | null
           id: string
+          is_platform_admin_company: boolean
           last_payment_failure_at: string | null
           legal_address: string | null
           legal_city: string | null
@@ -2742,6 +2743,7 @@ export type Database = {
           enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
+          is_platform_admin_company?: boolean
           last_payment_failure_at?: string | null
           legal_address?: string | null
           legal_city?: string | null
@@ -2816,6 +2818,7 @@ export type Database = {
           enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
+          is_platform_admin_company?: boolean
           last_payment_failure_at?: string | null
           legal_address?: string | null
           legal_city?: string | null
@@ -11632,6 +11635,7 @@ export type Database = {
           allowed_company_ids: string[] | null
           can_manage_admins: boolean
           can_manage_companies: boolean
+          can_manage_marketing: boolean
           can_manage_plans: boolean
           can_manage_referrals: boolean
           can_manage_tickets: boolean
@@ -11645,6 +11649,7 @@ export type Database = {
           allowed_company_ids?: string[] | null
           can_manage_admins?: boolean
           can_manage_companies?: boolean
+          can_manage_marketing?: boolean
           can_manage_plans?: boolean
           can_manage_referrals?: boolean
           can_manage_tickets?: boolean
@@ -11658,6 +11663,7 @@ export type Database = {
           allowed_company_ids?: string[] | null
           can_manage_admins?: boolean
           can_manage_companies?: boolean
+          can_manage_marketing?: boolean
           can_manage_plans?: boolean
           can_manage_referrals?: boolean
           can_manage_tickets?: boolean
