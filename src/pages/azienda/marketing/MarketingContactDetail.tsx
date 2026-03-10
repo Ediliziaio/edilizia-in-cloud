@@ -494,10 +494,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 {currentIdx >= 0 ? currentIdx + 1 : "?"}/{totalContacts}
               </span>
             )}
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!prevId} onClick={() => prevId && navigate(`/azienda/marketing/contatti/${prevId}`)}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!nextId} onClick={() => nextId && navigate(`/azienda/marketing/contatti/${nextId}`)}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
