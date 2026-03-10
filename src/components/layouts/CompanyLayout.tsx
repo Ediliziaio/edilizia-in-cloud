@@ -596,6 +596,20 @@ function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNoti
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <button
+                        onClick={() => onOpenSearch?.()}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
+                      >
+                        <Search className="h-4 w-4" />
+                        <span>Cerca...</span>
+                        <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-60">
+                          ⌘K
+                        </kbd>
+                      </button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <button
                         onClick={onOpenNotifications}
                         className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
                       >
