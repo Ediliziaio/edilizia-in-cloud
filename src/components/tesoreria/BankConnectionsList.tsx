@@ -177,7 +177,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
   async function handleSyncOne(connectionId: string) {
     toast.info("Sincronizzazione in corso...");
     const { data, error } = await supabase.functions.invoke("bank-sync", {
-      body: { company_id: companyId },
+      body: { company_id: companyId, connection_id: connectionId },
     });
     if (error) toast.error(error.message);
     else if (data?.success) {
