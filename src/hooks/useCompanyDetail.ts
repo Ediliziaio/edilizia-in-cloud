@@ -381,7 +381,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const handleImpersonate = async () => {
     if (company) {
-      await impersonateCompany(company.id);
+      await impersonateCompany(company.id, saPermissions);
     }
   };
 
