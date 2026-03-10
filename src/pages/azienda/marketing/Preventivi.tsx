@@ -89,7 +89,7 @@ export default function Preventivi() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       toast.success("Preventivo eliminato");
       setDeleteQuote(null);
     },
