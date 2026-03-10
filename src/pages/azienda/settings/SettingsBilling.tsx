@@ -104,9 +104,12 @@ export default function SettingsBilling() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("billing_integrations").delete().eq("id", id);
+    mutationFn: async (provider: string) => {
+      const { data, error } = await supabase.functions.invoke("billing-connect", {
+        body: { action: "disconnect", provider },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success("Integrazione rimossa");
@@ -116,10 +119,12 @@ export default function SettingsBilling() {
   });
 
   const setPrimaryMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await supabase.from("billing_integrations").update({ is_primary: false }).eq("company_id", companyId!);
-      const { error } = await supabase.from("billing_integrations").update({ is_primary: true }).eq("id", id);
+    mutationFn: async (provider: string) => {
+      const { data, error } = await supabase.functions.invoke("billing-connect", {
+        body: { action: "set_primary", provider },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success("Provider primario aggiornato");
