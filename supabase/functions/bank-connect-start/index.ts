@@ -24,20 +24,16 @@ Deno.serve(async (req) => {
     const { institution_id, institution_name, institution_logo, redirect_url } = await req.json();
     if (!institution_id || !redirect_url) return errorResponse("institution_id e redirect_url richiesti", 400);
 
-    // Validate redirect_url origin
+    // Fix 6: Strict redirect URL validation — reject unauthorized origins
     try {
       const redirectOrigin = new URL(redirect_url).origin;
-      const allowedOrigins = [
-        new URL(supabaseUrl).origin,
-        // Accept any origin that ends with .lovable.app or localhost
-      ];
       const isAllowed =
         redirectOrigin.endsWith(".lovable.app") ||
         redirectOrigin.includes("localhost") ||
-        redirectOrigin.includes("127.0.0.1") ||
-        allowedOrigins.includes(redirectOrigin);
+        redirectOrigin.includes("127.0.0.1");
       if (!isAllowed) {
-        console.warn(`Redirect URL origin not in allowlist: ${redirectOrigin}, allowing anyway for flexibility`);
+        console.error(`Redirect URL origin rejected: ${redirectOrigin}`);
+        return errorResponse("redirect_url non autorizzato", 403);
       }
     } catch {
       return errorResponse("redirect_url non valido", 400);

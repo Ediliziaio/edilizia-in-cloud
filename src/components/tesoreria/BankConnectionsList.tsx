@@ -123,7 +123,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
           institution_id: selectedInstitution.id,
           institution_name: selectedInstitution.name,
           institution_logo: selectedInstitution.logo,
-          redirect_url: window.location.origin + "/azienda/tesoreria?bank_callback=1",
+          redirect_url: window.location.origin + "/azienda/tesoreria?bank_callback=1", // ref added after response
         },
       });
       if (error) throw error;
