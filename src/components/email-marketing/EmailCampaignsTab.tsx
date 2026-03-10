@@ -173,17 +173,9 @@ export function EmailCampaignsTab() {
 
   const currentFolders = useMemo(() => folders.filter((f: any) => f.parent_id === currentFolderId), [folders, currentFolderId]);
 
-  const filtered = useMemo(() => campaigns.filter((c: any) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "all" || c.type === category;
-    const matchFolder = currentFolderId ? c.folder_id === currentFolderId : !c.folder_id;
-    return matchSearch && matchCategory && matchFolder;
-  }), [campaigns, search, category, currentFolderId]);
-
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paged = useMemo(() => filtered.slice(page * perPage, (page + 1) * perPage), [filtered, page, perPage]);
-  const showing = filtered.length > 0
-    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
+  const totalPages = Math.ceil(totalCount / perPage);
+  const showing = totalCount > 0
+    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, totalCount)} di ${totalCount}`
     : "";
 
   const navigateToFolder = (folderId: string, folderName: string) => {
