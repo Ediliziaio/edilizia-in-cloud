@@ -45,7 +45,7 @@ export interface MrrChartData {
 
 export function useAdminDashboardData() {
   return useQuery({
-    queryKey: ["admin-dashboard-data"],
+    queryKey: queryKeys.admin.dashboard(),
     queryFn: async () => {
       const [
         companiesRes,
