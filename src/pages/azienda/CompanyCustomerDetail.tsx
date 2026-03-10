@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { ClientMessagesPanel } from "@/components/clients/ClientMessagesPanel";
 
 interface CustomerProfile {
   id: string;
