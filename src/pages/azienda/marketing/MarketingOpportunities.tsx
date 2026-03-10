@@ -544,7 +544,7 @@ function MarketingOpportunitiesContent() {
       ) : stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
           <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
-          <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>Configura fasi</Button>
+          {!isAdminContext && <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>Configura fasi</Button>}
         </div>
       ) : (
         <>
