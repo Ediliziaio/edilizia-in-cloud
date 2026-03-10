@@ -61,7 +61,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
         .select(`*, suppliers(name), invoices(invoice_number), orders(order_number)`)
         .eq("company_id", companyId!)
         .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(10000);
 
       if (filters.fromDate) query = query.gte("entry_date", filters.fromDate);
       if (filters.toDate) query = query.lte("entry_date", filters.toDate);
