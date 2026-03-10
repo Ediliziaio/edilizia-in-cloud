@@ -179,6 +179,7 @@ export function useUpdateOpportunity() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
