@@ -69,7 +69,8 @@ export function useScadenzario() {
           marketing_contacts(first_name, last_name, company_name)
         `)
         .eq("company_id", companyId!)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
       return data as unknown as Scadenza[];
     },
