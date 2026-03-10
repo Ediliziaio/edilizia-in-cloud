@@ -29,11 +29,23 @@ import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
+interface ApprovedLeave {
+  id: string;
+  employee_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number | null;
+  total_hours: number | null;
+  employee: { id: string; first_name: string; last_name: string } | null;
+}
+
 interface CalendarEvent {
-  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy";
+  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave";
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
   busySlot?: GoogleBusySlot;
+  leave?: ApprovedLeave;
   color: string;
 }
 
@@ -42,6 +54,7 @@ interface CalendarMonthViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
   busySlots?: GoogleBusySlot[];
+  approvedLeaves?: ApprovedLeave[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
