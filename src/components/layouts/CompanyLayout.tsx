@@ -588,6 +588,26 @@ function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNoti
             )}
             
             <div className="mt-auto border-t">
+              <div className="px-2 pt-3">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <button
+                        onClick={onOpenNotifications}
+                        className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
+                      >
+                        <Bell className="h-4 w-4" />
+                        <span>Notifiche</span>
+                        {notificationCount > 0 && (
+                          <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold">
+                            {notificationCount > 99 ? "99+" : notificationCount}
+                          </Badge>
+                        )}
+                      </button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </div>
               {permissions.canViewSettings && (
                 <div className="px-2 pt-3">
                   <SidebarMenu>
