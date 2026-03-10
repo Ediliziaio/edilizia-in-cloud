@@ -226,8 +226,8 @@ export function useUpdateOpportunityStage() {
       toast.error(e.message);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
   });
 }
