@@ -482,6 +482,8 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
       toast.success("Articolo aggiunto");
     },
     onError: () => { toast.error("Impossibile aggiungere l'articolo."); },
