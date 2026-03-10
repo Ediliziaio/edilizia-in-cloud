@@ -729,6 +729,10 @@ export function CompanyLayout() {
           <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
         </>
       )}
+      <NotificationsPanel
+        open={notificationsPanelOpen}
+        onOpenChange={setNotificationsPanelOpen}
+      />
     </SidebarProvider>
   );
 }
