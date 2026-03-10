@@ -16,7 +16,9 @@ export default function MessagingBeta() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [simulateOpen, setSimulateOpen] = useState(false);
+  const { effectiveCompany } = useAuth();
   const { data: conversations } = useConversations();
+  useConversationsRealtime(effectiveCompany?.id);
 
   const selectedConversation = conversations?.find((c: any) => c.id === selectedConvId);
 
