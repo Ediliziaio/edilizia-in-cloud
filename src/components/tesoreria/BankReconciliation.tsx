@@ -172,7 +172,7 @@ export default function BankReconciliation({ companyId }: Props) {
     setSuggestions(matches);
   }
 
-  // Confirm match
+  // Fix 5: Sequential reconciliation — execute operations in order, stop on failure
   async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto") {
     setMatching(true);
     try {
@@ -180,23 +180,34 @@ export default function BankReconciliation({ companyId }: Props) {
       const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
       const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
 
-      const [linkRes, recRes, invRes] = await Promise.all([
-        supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id),
-        supabase.from("bank_reconciliations").insert({
-          company_id: companyId,
-          transaction_id: tx.id,
-          invoice_id: inv.id,
-          matched_amount: matchedAmount,
-          match_type: matchType,
-          matched_by: user?.id,
-          notes: matchNote || null,
-        } as any),
-        supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id),
-      ]);
-
+      // Step 1: link transaction
+      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id);
       if (linkRes.error) throw linkRes.error;
-      if (recRes.error) throw recRes.error;
-      if (invRes.error) throw invRes.error;
+
+      // Step 2: create reconciliation record
+      const recRes = await supabase.from("bank_reconciliations").insert({
+        company_id: companyId,
+        transaction_id: tx.id,
+        invoice_id: inv.id,
+        matched_amount: matchedAmount,
+        match_type: matchType,
+        matched_by: user?.id,
+        notes: matchNote || null,
+      } as any);
+      if (recRes.error) {
+        // Rollback step 1
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        throw recRes.error;
+      }
+
+      // Step 3: update invoice
+      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id);
+      if (invRes.error) {
+        // Rollback steps 1 & 2
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).is("unmatched_at", null);
+        throw invRes.error;
+      }
 
       toast.success(`Riconciliata transazione con fattura ${inv.invoice_number}`);
       setSelectedTx(null);
@@ -207,26 +218,78 @@ export default function BankReconciliation({ companyId }: Props) {
     setMatching(false);
   }
 
-  // Auto-match
+  // Internal version for auto-match batch — no loadData() during loop
+  async function confirmMatchBatch(tx: any, inv: any): Promise<boolean> {
+    try {
+      const matchedAmount = Math.abs(tx.amount);
+      const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
+      const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
+
+      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id);
+      if (linkRes.error) throw linkRes.error;
+
+      const recRes = await supabase.from("bank_reconciliations").insert({
+        company_id: companyId,
+        transaction_id: tx.id,
+        invoice_id: inv.id,
+        matched_amount: matchedAmount,
+        match_type: "auto",
+        matched_by: user?.id,
+      } as any);
+      if (recRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        throw recRes.error;
+      }
+
+      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id);
+      if (invRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).is("unmatched_at", null);
+        throw invRes.error;
+      }
+
+      // Update invoice snapshot so next iteration uses updated paid_amount
+      inv.paid_amount = newPaidAmount;
+      inv.status = newStatus;
+      return true;
+    } catch (e: any) {
+      console.error("Auto-match error:", e);
+      return false;
+    }
+  }
+
+  // Fix 7: Auto-match works on snapshot, no reload during loop
   async function runAutoMatch() {
     setAutoMatching(true);
     let matched = 0;
-    for (const tx of transactions) {
-      const best = invoices
+    // Snapshot: work on current arrays, don't reload
+    const txSnapshot = [...transactions];
+    const invSnapshot = [...invoices];
+    const matchedTxIds = new Set<string>();
+    const matchedInvIds = new Set<string>();
+
+    for (const tx of txSnapshot) {
+      if (matchedTxIds.has(tx.id)) continue;
+      const best = invSnapshot
+        .filter((inv) => !matchedInvIds.has(inv.id))
         .map((inv) => computeMatchScore(tx, inv))
         .filter((m): m is MatchSuggestion => m !== null && m.score >= 80)
         .sort((a, b) => b.score - a.score)[0];
       if (best) {
-        await confirmMatch(tx, best.invoice, "auto");
-        matched++;
+        const ok = await confirmMatchBatch(tx, best.invoice);
+        if (ok) {
+          matched++;
+          matchedTxIds.add(tx.id);
+          matchedInvIds.add(best.invoice.id);
+        }
       }
     }
     toast.success(`Auto-match completato: ${matched} riconciliazioni`);
     setAutoMatching(false);
-    loadData();
+    loadData(); // Single reload at end
   }
 
-  // Unlink
+  // Fix 10: Sequential unlink with rollback
   async function handleUnlink() {
     if (!unlinkTarget) return;
     setUnlinking(true);
@@ -240,14 +303,27 @@ export default function BankReconciliation({ companyId }: Props) {
       const newPaid = Math.max(0, Number(inv?.paid_amount || 0) - Number(rec.matched_amount || 0));
       const wasFullyPaid = inv?.status === "paid";
 
-      await Promise.all([
-        supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId),
-        supabase.from("bank_reconciliations").update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id),
-        supabase.from("invoices").update({
-          paid_amount: newPaid,
-          status: wasFullyPaid ? "delivered" : inv?.status,
-        }).eq("id", invId),
-      ]);
+      // Step 1: unlink transaction
+      const unlinkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId);
+      if (unlinkRes.error) throw unlinkRes.error;
+
+      // Step 2: mark reconciliation as unmatched
+      const recRes = await supabase.from("bank_reconciliations").update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id);
+      if (recRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        throw recRes.error;
+      }
+
+      // Step 3: update invoice
+      const invRes = await supabase.from("invoices").update({
+        paid_amount: newPaid,
+        status: wasFullyPaid ? "delivered" : inv?.status,
+      }).eq("id", invId);
+      if (invRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
+        throw invRes.error;
+      }
 
       toast.success("Riconciliazione rimossa");
       setUnlinkTarget(null);

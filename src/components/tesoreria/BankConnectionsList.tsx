@@ -63,8 +63,13 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
   }, [companyId]);
 
   useEffect(() => {
-    if (hasPendingCallback) {
-      const pending = connections.find((c) => c.status === "authenticating");
+    if (hasPendingCallback && connections.length > 0) {
+      // Fix 9: Use ref from URL for precise correlation, fallback to status-based lookup
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get("ref");
+      const pending = ref
+        ? connections.find((c) => c.requisition_id === ref)
+        : connections.find((c) => c.status === "authenticating");
       if (pending) {
         setPendingRequisitionId(pending.requisition_id);
         setShowCompleteDialog(true);
@@ -118,7 +123,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
           institution_id: selectedInstitution.id,
           institution_name: selectedInstitution.name,
           institution_logo: selectedInstitution.logo,
-          redirect_url: window.location.origin + "/azienda/tesoreria?bank_callback=1",
+          redirect_url: window.location.origin + "/azienda/tesoreria?bank_callback=1", // ref added after response
         },
       });
       if (error) throw error;
@@ -177,7 +182,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
   async function handleSyncOne(connectionId: string) {
     toast.info("Sincronizzazione in corso...");
     const { data, error } = await supabase.functions.invoke("bank-sync", {
-      body: { company_id: companyId },
+      body: { company_id: companyId, connection_id: connectionId },
     });
     if (error) toast.error(error.message);
     else if (data?.success) {

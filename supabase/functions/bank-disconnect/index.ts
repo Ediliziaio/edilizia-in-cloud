@@ -30,7 +30,12 @@ Deno.serve(async (req) => {
 
     if (!conn) return errorResponse("Connessione non trovata", 404);
 
-    await supabase.from("bank_connections").update({ status: "disconnected" }).eq("id", connection_id);
+    // Fix 10: clean state on disconnect — clear error_message and operational fields
+    await supabase.from("bank_connections").update({
+      status: "disconnected",
+      error_message: null,
+    }).eq("id", connection_id);
+
     await supabase.from("bank_accounts").update({ is_active: false }).eq("connection_id", connection_id);
 
     // Try to revoke on GoCardless (non-critical)

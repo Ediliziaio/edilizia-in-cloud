@@ -32,7 +32,6 @@ Deno.serve(async (req) => {
 
     let token = await getGoCardlessToken();
 
-    // Fetch requisition to get accounts
     const { data: reqData, token: t2 } = await gcFetch(`/requisitions/${requisition_id}/`, token);
     token = t2;
 
@@ -41,10 +40,8 @@ Deno.serve(async (req) => {
       return errorResponse("Nessun account trovato nella requisition", 400);
     }
 
-    // Process accounts with Promise.allSettled for resilience
     const results = await Promise.allSettled(
       reqData.accounts.map(async (accountId: string, idx: number) => {
-        // 500ms delay between accounts
         if (idx > 0) await sleep(500);
 
         const { data: detailsData, token: t3 } = await gcFetch(`/accounts/${accountId}/details/`, token);
@@ -74,8 +71,16 @@ Deno.serve(async (req) => {
     const accountsSynced = results.filter((r) => r.status === "fulfilled").length;
     const errors = results.filter((r) => r.status === "rejected").map((r: any) => r.reason?.message);
 
+    // Fix 8: differentiate status based on results
+    let connectionStatus: string;
+    if (accountsSynced === 0) {
+      connectionStatus = "error";
+    } else {
+      connectionStatus = "active";
+    }
+
     await supabase.from("bank_connections").update({
-      status: "active",
+      status: connectionStatus,
       accounts_count: accountsSynced,
       last_sync_at: new Date().toISOString(),
       error_message: errors.length > 0 ? errors.join("; ") : null,
@@ -85,13 +90,14 @@ Deno.serve(async (req) => {
       company_id: profile.company_id,
       connection_id: connection.id,
       sync_type: "reconnect",
-      status: errors.length > 0 ? "partial" : "success",
+      status: accountsSynced === 0 ? "error" : (errors.length > 0 ? "partial" : "success"),
       accounts_synced: accountsSynced,
       completed_at: new Date().toISOString(),
       triggered_by: user.id,
+      error_message: errors.length > 0 ? errors.join("; ") : null,
     });
 
-    return jsonResponse({ success: true, accounts_count: accountsSynced });
+    return jsonResponse({ success: accountsSynced > 0, accounts_count: accountsSynced });
   } catch (e) {
     console.error("bank-connect-complete error:", e);
     return errorResponse(e.message, 500);
