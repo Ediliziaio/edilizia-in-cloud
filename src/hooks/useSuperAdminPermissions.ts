@@ -9,6 +9,7 @@ export interface SuperAdminPermissions {
   can_manage_referrals: boolean;
   can_manage_admins: boolean;
   can_view_platform_stats: boolean;
+  can_manage_marketing: boolean;
   allowed_company_ids: string[] | null;
 }
 
