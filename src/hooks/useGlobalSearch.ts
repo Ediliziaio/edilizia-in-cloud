@@ -22,34 +22,34 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
 
       const pattern = `%${debouncedQuery}%`;
 
-      const ordersRes: { data: any[] | null } = await (supabase
-        .from("orders")
-        .select("id, order_code, description")
-        .eq("company_id", companyId!) as any)
-        .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
-        .limit(5);
-
-      const customersRes: { data: any[] | null } = await (supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, phone")
-        .eq("company_id", companyId!) as any)
-        .eq("role_type", "customer")
-        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(5);
-
-      const contactsRes: { data: any[] | null } = await (supabase
-        .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone")
-        .eq("company_id", companyId!) as any)
-        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(5);
-
-      const ticketsRes: { data: any[] | null } = await (supabase
-        .from("tickets")
-        .select("id, subject, status")
-        .eq("company_id", companyId!) as any)
-        .ilike("subject", pattern)
-        .limit(5);
+      // Execute all 4 searches in parallel instead of sequentially
+      const [ordersRes, customersRes, contactsRes, ticketsRes] = await Promise.all([
+        (supabase
+          .from("orders")
+          .select("id, order_code, description")
+          .eq("company_id", companyId!) as any)
+          .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
+          .limit(5),
+        (supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone")
+          .eq("company_id", companyId!) as any)
+          .eq("role_type", "customer")
+          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+          .limit(5),
+        (supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, email, phone")
+          .eq("company_id", companyId!) as any)
+          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+          .limit(5),
+        (supabase
+          .from("tickets")
+          .select("id, subject, status")
+          .eq("company_id", companyId!) as any)
+          .ilike("subject", pattern)
+          .limit(5),
+      ]);
 
       const results: SearchResult[] = [];
 
