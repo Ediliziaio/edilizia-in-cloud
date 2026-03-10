@@ -8,6 +8,7 @@ import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, 
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { queryKeys } from "@/lib/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";

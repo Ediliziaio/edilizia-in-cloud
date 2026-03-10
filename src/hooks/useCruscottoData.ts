@@ -120,7 +120,7 @@ export function useCruscottoData() {
 
   // Operations data — fires immediately, NO dependency on paymentsData
   const { data: rawOpsData, isLoading: opsLoading } = useQuery({
-    queryKey: queryKeys.cruscotto.operations(companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId),
+    queryKey: queryKeys.cruscotto.operations(companyId, filters.statusId),
     queryFn: async () => {
       const now = new Date();
       const todayStr = format(now, "yyyy-MM-dd");

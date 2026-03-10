@@ -121,7 +121,7 @@ export function useCompanyDashboardData() {
       };
     },
     enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
   });
 
   return {

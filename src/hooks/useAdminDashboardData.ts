@@ -103,6 +103,9 @@ export function useAdminDashboardData() {
       const churnRate = totalActive > 0 ? ((expiredCompanies.length / (totalActive + expiredCompanies.length)) * 100) : 0;
 
       // Build MRR trend (last 6 months)
+      // NOTE: Without a status history table, we approximate historical MRR.
+      // A company contributes to a month's MRR if it was created before that month's end
+      // AND was likely active at that time (active now, or expired/trial but not yet expired then).
       const mrrChartData: MrrChartData[] = [];
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(now, i);
@@ -110,9 +113,19 @@ export function useAdminDashboardData() {
         const monthMrr = allCompanies.reduce((sum, c) => {
           const created = new Date(c.created_at);
           if (created > monthEnd) return sum;
+          const plan = c.subscription_plans as { price_monthly: number } | null;
+          const price = plan?.price_monthly || 0;
+          if (price === 0) return sum;
+
           if (c.status === "active") {
-            const plan = c.subscription_plans as { price_monthly: number } | null;
-            return sum + (plan?.price_monthly || 0);
+            return sum + price;
+          }
+          // For expired/trial companies: count them if they hadn't expired by monthEnd
+          if (c.status === "expired" || c.status === "trial") {
+            const trialEnd = c.trial_ends_at ? new Date(c.trial_ends_at) : null;
+            if (!trialEnd || trialEnd > monthEnd) {
+              return sum + price;
+            }
           }
           return sum;
         }, 0);
