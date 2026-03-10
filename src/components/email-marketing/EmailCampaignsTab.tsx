@@ -41,7 +41,8 @@ export function EmailCampaignsTab() {
   const { effectiveCompany: company, user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 350);
   const [category, setCategory] = useState("all");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([

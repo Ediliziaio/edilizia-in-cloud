@@ -928,8 +928,8 @@ export default function MarketingContacts() {
                 <Input
                   placeholder="Cerca contatti..."
                   className="pl-8 h-8 w-[220px] text-xs"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  value={searchInput}
+                  onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
                 />
               </div>
               <Button

@@ -649,7 +649,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Send message mutation ──

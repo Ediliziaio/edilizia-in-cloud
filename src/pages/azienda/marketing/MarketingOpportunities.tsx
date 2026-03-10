@@ -508,7 +508,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Cerca Lead..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
+            <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
           </div>
           <Button variant="link" size="sm" className="h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
             <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
