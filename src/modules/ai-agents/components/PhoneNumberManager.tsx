@@ -154,7 +154,7 @@ export function PhoneNumberManager() {
       });
       if (result?.elevenlabs_phone_number_id) {
         toast.success("Numero collegato a ElevenLabs");
-        queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nel collegamento");
