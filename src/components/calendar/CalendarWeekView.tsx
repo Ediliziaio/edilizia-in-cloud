@@ -128,9 +128,20 @@ export function CalendarWeekView({
         addEvent(d, { type: "google_busy", busySlot: s });
       });
     }
+    if (!hiddenEventTypes.has("leaves")) {
+      approvedLeaves.forEach(lr => {
+        const start = new Date(lr.start_date);
+        const end = new Date(lr.end_date);
+        const cur = new Date(start);
+        while (cur <= end) {
+          addEvent(cur.toISOString().split("T")[0], { type: "leave", leave: lr });
+          cur.setDate(cur.getDate() + 1);
+        }
+      });
+    }
 
     return map;
-  }, [orders, busySlots, hiddenEventTypes]);
+  }, [orders, busySlots, approvedLeaves, hiddenEventTypes]);
 
   // Group timed appointments per day
   const timedByDate = useMemo(() => {
