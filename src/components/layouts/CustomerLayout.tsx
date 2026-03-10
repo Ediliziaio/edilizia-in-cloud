@@ -41,6 +41,7 @@ const navItems = [
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
   const { effectiveBrand } = useBrandSettings(company?.id);
+  const unreadCount = useCustomerUnreadCount();
 
   // Apply CSS variables for brand colors
   useEffect(() => {
