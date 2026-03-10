@@ -1,13 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  addMonths,
-  startOfMonth,
-  endOfMonth,
-  isWithinInterval,
-  isSameMonth,
-  format,
-} from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
