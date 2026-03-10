@@ -11,6 +11,7 @@ import {
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import type {
   ExpectedPayment,
   ExpectedExpense,
