@@ -60,7 +60,7 @@ export function useNotifications() {
         },
         (payload) => {
           queryClient.setQueryData<Notification[]>(
-            ["notifications", companyId, userId],
+            queryKeys.notifications.list(companyId, userId),
             (old = []) => [payload.new as Notification, ...old]
           );
         }
