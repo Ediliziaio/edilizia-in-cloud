@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   startOfWeek,
