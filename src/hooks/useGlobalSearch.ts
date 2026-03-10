@@ -21,38 +21,34 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
 
       const pattern = `%${debouncedQuery}%`;
 
-      const ordersPromise: Promise<{ data: any[] | null }> = supabase
+      const ordersRes = await supabase
         .from("orders")
         .select("id, order_code, description")
         .eq("company_id", companyId!)
         .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
-        .limit(5);
+        .limit(5) as { data: any[] | null };
 
-      const customersPromise: Promise<{ data: any[] | null }> = supabase
+      const customersRes = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .eq("role_type", "customer")
         .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(5);
+        .limit(5) as { data: any[] | null };
 
-      const contactsPromise: Promise<{ data: any[] | null }> = supabase
+      const contactsRes = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(5);
+        .limit(5) as { data: any[] | null };
 
-      const ticketsPromise: Promise<{ data: any[] | null }> = supabase
+      const ticketsRes = await supabase
         .from("tickets")
         .select("id, subject, status")
         .eq("company_id", companyId!)
         .ilike("subject", pattern)
-        .limit(5);
-
-      const [ordersRes, customersRes, contactsRes, ticketsRes] = await Promise.all([
-        ordersPromise, customersPromise, contactsPromise, ticketsPromise,
-      ]);
+        .limit(5) as { data: any[] | null };
 
       const results: SearchResult[] = [];
 
