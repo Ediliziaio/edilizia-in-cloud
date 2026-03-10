@@ -17,7 +17,7 @@ interface AuthContextType extends AuthState {
   effectiveCompany: Company | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Impersonation is now in-memory only (no sessionStorage) to prevent manipulation
 const SESSION_ID_KEY = "user_session_id";
