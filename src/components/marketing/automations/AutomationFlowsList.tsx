@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
