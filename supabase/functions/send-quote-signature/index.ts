@@ -10,7 +10,13 @@ Deno.serve(async (req) => {
 
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    const { quote_id } = await req.json();
+    const {
+      quote_id,
+      recipient_email,
+      recipient_name,
+      custom_message,
+      expires_days,
+    } = await req.json();
 
     if (!quote_id) return errorResponse("quote_id richiesto");
 
@@ -32,7 +38,11 @@ Deno.serve(async (req) => {
       return errorResponse("Non autorizzato", 403);
     }
 
-    if (!quote.client_email) {
+    // Determine recipient
+    const finalEmail = recipient_email || quote.client_email;
+    const finalName = recipient_name || quote.client_name || "Cliente";
+
+    if (!finalEmail) {
       return errorResponse("Il cliente non ha un indirizzo email");
     }
 
@@ -42,13 +52,21 @@ Deno.serve(async (req) => {
       signatureToken = crypto.randomUUID();
     }
 
-    // Update quote status to inviata and set token
+    // Calculate expires_at
+    const daysValid = expires_days && expires_days > 0 ? expires_days : 30;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + daysValid);
+
+    // Update quote
     await supabaseAdmin
       .from("quotes")
       .update({
         status: "inviata",
         signature_token: signatureToken,
         sent_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+        client_email: finalEmail,
+        client_name: finalName,
         updated_at: new Date().toISOString(),
       })
       .eq("id", quote_id);
@@ -66,41 +84,73 @@ Deno.serve(async (req) => {
 
     const companyName = company?.name || "L'azienda";
 
+    // Format total
+    const formattedTotal = new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(Number(quote.total || 0));
+
+    const expiresFormatted = expiresAt.toLocaleDateString("it-IT", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
     // Build email HTML
     const emailHtml = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f4f4f5;">
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    <div style="background: white; border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-      <h1 style="margin: 0 0 8px; font-size: 22px; color: #18181b;">${companyName}</h1>
-      <p style="margin: 0 0 30px; color: #71717a; font-size: 14px;">Offerta n. ${quote.quote_number}</p>
+    <!-- Header -->
+    <div style="background: #1e3a5f; border-radius: 12px 12px 0 0; padding: 32px 40px; text-align: center;">
+      ${company?.logo_url ? `<img src="${company.logo_url}" alt="${companyName}" style="height: 48px; margin-bottom: 12px;" />` : ""}
+      <h1 style="margin: 0; font-size: 22px; color: #ffffff; font-weight: 700;">${companyName}</h1>
+      <p style="margin: 8px 0 0; color: rgba(255,255,255,0.75); font-size: 14px;">Offerta n. ${quote.quote_number}</p>
+    </div>
 
-      <p style="color: #3f3f46; line-height: 1.6; margin-bottom: 15px;">
-        Gentile <strong>${quote.client_name || "Cliente"}</strong>,
+    <!-- Body -->
+    <div style="background: #ffffff; padding: 40px; border-left: 1px solid #e4e4e7; border-right: 1px solid #e4e4e7;">
+      <p style="color: #3f3f46; line-height: 1.6; margin: 0 0 15px;">
+        Gentile <strong>${finalName}</strong>,
       </p>
-      <p style="color: #3f3f46; line-height: 1.6; margin-bottom: 15px;">
-        Le inviamo in allegato la nostra offerta${quote.title ? ` per <strong>${quote.title}</strong>` : ""}.
-      </p>
-      <p style="color: #3f3f46; line-height: 1.6; margin-bottom: 25px;">
-        Importo totale: <strong>€ ${Number(quote.total || 0).toFixed(2)}</strong>
+      <p style="color: #3f3f46; line-height: 1.6; margin: 0 0 15px;">
+        Le inviamo la nostra offerta${quote.title ? ` per <strong>${quote.title}</strong>` : ""}.
       </p>
 
-      ${quote.expires_at ? `
-        <p style="color: #71717a; font-size: 13px; margin-bottom: 25px;">
-          Offerta valida fino al ${new Date(quote.expires_at).toLocaleDateString("it-IT")}
-        </p>
+      ${custom_message ? `
+        <div style="background: #f8fafc; border-left: 3px solid #2563eb; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="color: #3f3f46; line-height: 1.6; margin: 0; font-size: 14px;">${custom_message}</p>
+        </div>
       ` : ""}
+
+      <!-- Amount box -->
+      <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; text-align: center; margin: 25px 0;">
+        <p style="color: #71717a; font-size: 13px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.5px;">Importo Totale</p>
+        <p style="color: #1e3a5f; font-size: 28px; font-weight: 700; margin: 0;">${formattedTotal}</p>
+      </div>
+
+      <p style="color: #71717a; font-size: 13px; margin: 0 0 25px; text-align: center;">
+        Offerta valida fino al <strong>${expiresFormatted}</strong>
+      </p>
 
       <div style="text-align: center; margin: 30px 0;">
         <a href="${signatureLink}" 
-           style="display: inline-block; background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+           style="display: inline-block; background: #2563eb; color: #ffffff; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
           Visualizza e Firma l'Offerta
         </a>
       </div>
 
-      <p style="color: #a1a1aa; font-size: 12px; text-align: center; margin-top: 30px; border-top: 1px solid #e4e4e7; padding-top: 20px;">
+      <p style="color: #a1a1aa; font-size: 12px; text-align: center; margin: 20px 0 0;">
+        Oppure copia questo link nel browser:<br />
+        <a href="${signatureLink}" style="color: #2563eb; word-break: break-all;">${signatureLink}</a>
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #fafafa; border-radius: 0 0 12px 12px; padding: 20px 40px; border: 1px solid #e4e4e7; border-top: none; text-align: center;">
+      <p style="color: #a1a1aa; font-size: 11px; margin: 0;">
         Questa email è stata inviata da ${companyName} tramite Edilizia in Cloud.
       </p>
     </div>
@@ -120,7 +170,7 @@ Deno.serve(async (req) => {
       settings.apiKey,
       {
         from: settings.fromDefault,
-        to: [quote.client_email],
+        to: [finalEmail],
         subject: `Offerta ${quote.quote_number} — ${companyName}`,
         html: emailHtml,
       },

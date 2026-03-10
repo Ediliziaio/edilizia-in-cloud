@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import {
   CheckCircle, XCircle, FileDown, Loader2, Building2, Calendar,
-  AlertTriangle, ShieldCheck,
+  AlertTriangle, ShieldCheck, Clock,
 } from "lucide-react";
 
 type QuoteData = {
@@ -131,8 +131,8 @@ export default function QuoteSignPage() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f4f4f5" }}>
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#71717a" }} />
       </div>
     );
   }
@@ -141,14 +141,18 @@ export default function QuoteSignPage() {
   if (!data?.valid) {
     const reason = data?.reason;
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <div className="max-w-md w-full text-center space-y-4 bg-background rounded-xl p-8 shadow-lg border">
-          <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
-          <h2 className="text-xl font-bold">
-            {reason === "expired" ? "Offerta scaduta" :
-             reason === "token_invalid" ? "Link non valido" : "Errore"}
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#f4f4f5" }}>
+        <div className="max-w-md w-full text-center space-y-4 rounded-xl p-8 shadow-lg border" style={{ background: "#ffffff" }}>
+          {reason === "expired" ? (
+            <Clock className="h-12 w-12 mx-auto" style={{ color: "#f59e0b" }} />
+          ) : (
+            <AlertTriangle className="h-12 w-12 mx-auto" style={{ color: "#ef4444" }} />
+          )}
+          <h2 className="text-xl font-bold" style={{ color: "#18181b" }}>
+            {reason === "expired" ? "Offerta Scaduta" :
+             reason === "token_invalid" ? "Link Non Valido" : "Errore"}
           </h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm" style={{ color: "#71717a" }}>
             {reason === "expired"
               ? "Questa offerta ha superato la data di validità. Contatta l'azienda per maggiori informazioni."
               : reason === "token_invalid"
@@ -164,17 +168,18 @@ export default function QuoteSignPage() {
   const items = data.items || [];
   const company = data.company || {};
   const status = data.status;
+  const hasDiscounts = items.some(i => i.discount_percent > 0);
 
   // ── Already signed ──
   if (status === "accettata" || actionDone === "signed") {
     return (
-      <div className="min-h-screen bg-muted/30">
-        <Header company={company} />
+      <div className="min-h-screen" style={{ background: "#f4f4f5" }}>
+        <BlueHeader company={company} quoteNumber={quote.quote_number} statusLabel="Accettata" statusColor="#22c55e" />
         <div className="max-w-2xl mx-auto px-4 py-12">
-          <div className="bg-background rounded-xl p-8 shadow-lg border text-center space-y-4">
-            <CheckCircle className="h-16 w-16 text-primary mx-auto" />
-            <h2 className="text-2xl font-bold">Offerta Accettata</h2>
-            <p className="text-muted-foreground">
+          <div className="rounded-xl p-8 shadow-lg border text-center space-y-4" style={{ background: "#ffffff" }}>
+            <CheckCircle className="h-16 w-16 mx-auto" style={{ color: "#22c55e" }} />
+            <h2 className="text-2xl font-bold" style={{ color: "#18181b" }}>Offerta Accettata</h2>
+            <p style={{ color: "#71717a" }}>
               {actionDone === "signed"
                 ? "Grazie! L'offerta è stata accettata con successo. Riceverai una conferma a breve."
                 : `Questa offerta è stata accettata da ${quote.signed_by_name || "—"} il ${quote.signed_at ? new Date(quote.signed_at).toLocaleDateString("it-IT") : "—"}.`}
@@ -188,13 +193,13 @@ export default function QuoteSignPage() {
   // ── Already refused ──
   if (status === "rifiutata" || actionDone === "refused") {
     return (
-      <div className="min-h-screen bg-muted/30">
-        <Header company={company} />
+      <div className="min-h-screen" style={{ background: "#f4f4f5" }}>
+        <BlueHeader company={company} quoteNumber={quote.quote_number} statusLabel="Rifiutata" statusColor="#ef4444" />
         <div className="max-w-2xl mx-auto px-4 py-12">
-          <div className="bg-background rounded-xl p-8 shadow-lg border text-center space-y-4">
-            <XCircle className="h-16 w-16 text-destructive mx-auto" />
-            <h2 className="text-2xl font-bold">Offerta Rifiutata</h2>
-            <p className="text-muted-foreground">
+          <div className="rounded-xl p-8 shadow-lg border text-center space-y-4" style={{ background: "#ffffff" }}>
+            <XCircle className="h-16 w-16 mx-auto" style={{ color: "#ef4444" }} />
+            <h2 className="text-2xl font-bold" style={{ color: "#18181b" }}>Offerta Rifiutata</h2>
+            <p style={{ color: "#71717a" }}>
               {actionDone === "refused"
                 ? "L'offerta è stata rifiutata. L'azienda ne verrà informata."
                 : "Questa offerta è stata rifiutata."}
@@ -207,49 +212,57 @@ export default function QuoteSignPage() {
 
   // ── Active quote ──
   return (
-    <div className="min-h-screen bg-muted/30">
-      <Header company={company} />
+    <div className="min-h-screen" style={{ background: "#f4f4f5" }}>
+      <BlueHeader company={company} quoteNumber={quote.quote_number} statusLabel="In attesa di firma" statusColor="#f59e0b" />
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* Quote title & info */}
-        <div className="bg-background rounded-xl p-6 shadow-sm border">
-          <div className="flex items-start justify-between flex-wrap gap-3">
-            <div>
-              <h2 className="text-xl font-bold">
-                {quote.title || `Offerta ${quote.quote_number}`}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                N. {quote.quote_number} • {new Date(quote.created_at).toLocaleDateString("it-IT")}
-              </p>
+        {/* Quote info + Company info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl p-6 shadow-sm border" style={{ background: "#ffffff" }}>
+            <h3 className="font-semibold text-sm mb-3" style={{ color: "#71717a" }}>DETTAGLI OFFERTA</h3>
+            <p className="font-bold text-lg" style={{ color: "#18181b" }}>
+              {quote.title || `Offerta ${quote.quote_number}`}
+            </p>
+            <p className="text-sm mt-1" style={{ color: "#71717a" }}>
+              N. {quote.quote_number} • {new Date(quote.created_at).toLocaleDateString("it-IT")}
+            </p>
+            {quote.description && (
+              <p className="text-sm mt-3" style={{ color: "#52525b" }}>{quote.description}</p>
+            )}
+          </div>
+
+          <div className="rounded-xl p-6 shadow-sm border" style={{ background: "#ffffff" }}>
+            <h3 className="font-semibold text-sm mb-3" style={{ color: "#71717a" }}>AZIENDA</h3>
+            <div className="space-y-1 text-sm">
+              {company.name && <p className="font-bold" style={{ color: "#18181b" }}>{company.name}</p>}
+              {company.address && <p style={{ color: "#52525b" }}>{company.address}</p>}
+              {company.phone && <p style={{ color: "#52525b" }}>Tel: {company.phone}</p>}
+              {company.email && <p style={{ color: "#52525b" }}>{company.email}</p>}
+              {company.vat_number && <p style={{ color: "#71717a" }}>P.IVA: {company.vat_number}</p>}
             </div>
             {quote.expires_at && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-1.5 text-xs mt-4 px-3 py-1.5 rounded-full" style={{ background: "#fef3c7", color: "#92400e" }}>
                 <Calendar className="h-3 w-3" />
                 Valida fino al {new Date(quote.expires_at).toLocaleDateString("it-IT")}
               </div>
             )}
           </div>
-          {quote.description && (
-            <p className="text-sm text-muted-foreground mt-4">{quote.description}</p>
-          )}
         </div>
 
         {/* Items table */}
         {items.length > 0 && (
-          <div className="bg-background rounded-xl shadow-sm border overflow-hidden">
+          <div className="rounded-xl shadow-sm border overflow-hidden" style={{ background: "#ffffff" }}>
             <div className="px-6 py-4 border-b">
-              <h3 className="font-semibold">Dettaglio Prodotti e Servizi</h3>
+              <h3 className="font-semibold" style={{ color: "#18181b" }}>Dettaglio Prodotti e Servizi</h3>
             </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
+                  <TableRow style={{ background: "#f8fafc" }}>
                     <TableHead>Prodotto</TableHead>
                     <TableHead className="text-right">Q.tà</TableHead>
                     <TableHead className="text-right">Prezzo Unit.</TableHead>
-                    {items.some(i => i.discount_percent > 0) && (
-                      <TableHead className="text-right">Sconto</TableHead>
-                    )}
+                    {hasDiscounts && <TableHead className="text-right">Sconto</TableHead>}
                     <TableHead className="text-right">IVA</TableHead>
                     <TableHead className="text-right">Totale</TableHead>
                   </TableRow>
@@ -259,9 +272,9 @@ export default function QuoteSignPage() {
                     <TableRow key={idx}>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-sm">{item.name}</p>
+                          <p className="font-medium text-sm" style={{ color: "#18181b" }}>{item.name}</p>
                           {item.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                            <p className="text-xs mt-0.5" style={{ color: "#71717a" }}>{item.description}</p>
                           )}
                         </div>
                       </TableCell>
@@ -269,9 +282,9 @@ export default function QuoteSignPage() {
                         {item.quantity} {item.unit_of_measure || ""}
                       </TableCell>
                       <TableCell className="text-right text-sm">{formatCurrency(item.unit_price)}</TableCell>
-                      {items.some(i => i.discount_percent > 0) && (
-                        <TableCell className="text-right text-sm">
-                          {item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}
+                      {hasDiscounts && (
+                        <TableCell className="text-right text-sm" style={{ color: item.discount_percent > 0 ? "#ef4444" : "#71717a" }}>
+                          {item.discount_percent > 0 ? `-${item.discount_percent}%` : "—"}
                         </TableCell>
                       )}
                       <TableCell className="text-right text-sm">{item.vat_rate}%</TableCell>
@@ -285,27 +298,27 @@ export default function QuoteSignPage() {
             </div>
 
             {/* Totals */}
-            <div className="px-6 py-4 border-t bg-muted/30">
+            <div className="px-6 py-4 border-t" style={{ background: "#f8fafc" }}>
               <div className="flex justify-end">
                 <div className="w-full max-w-xs space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotale</span>
+                    <span style={{ color: "#71717a" }}>Subtotale</span>
                     <span>{formatCurrency(quote.subtotal)}</span>
                   </div>
                   {(quote.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-destructive">
+                    <div className="flex justify-between" style={{ color: "#ef4444" }}>
                       <span>Sconto {quote.discount_percent}%</span>
                       <span>-{formatCurrency(quote.discount_amount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">IVA</span>
+                    <span style={{ color: "#71717a" }}>IVA</span>
                     <span>{formatCurrency(quote.vat_amount)}</span>
                   </div>
-                  <hr className="border-border" />
+                  <hr style={{ borderColor: "#e4e4e7" }} />
                   <div className="flex justify-between font-bold text-lg">
                     <span>Totale</span>
-                    <span>{formatCurrency(quote.total)}</span>
+                    <span style={{ color: "#1e3a5f" }}>{formatCurrency(quote.total)}</span>
                   </div>
                 </div>
               </div>
@@ -315,39 +328,46 @@ export default function QuoteSignPage() {
 
         {/* Notes */}
         {quote.notes && (
-          <div className="bg-background rounded-xl p-6 shadow-sm border">
-            <h3 className="font-semibold mb-3">Note e Condizioni</h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quote.notes}</p>
+          <div className="rounded-xl p-6 shadow-sm border" style={{ background: "#ffffff" }}>
+            <h3 className="font-semibold mb-3" style={{ color: "#18181b" }}>Note e Condizioni</h3>
+            <p className="text-sm whitespace-pre-wrap" style={{ color: "#52525b" }}>{quote.notes}</p>
           </div>
         )}
 
         {/* PDF download */}
         {data.pdf_url && (
           <div className="text-center">
-            <Button variant="outline" asChild>
-              <a href={data.pdf_url} target="_blank" rel="noopener noreferrer">
-                <FileDown className="h-4 w-4 mr-2" />
-                Scarica PDF completo
-              </a>
-            </Button>
+            <a
+              href={data.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border"
+              style={{ color: "#1e3a5f", borderColor: "#cbd5e1", background: "#ffffff" }}
+            >
+              <FileDown className="h-4 w-4" />
+              Scarica PDF completo
+            </a>
           </div>
         )}
 
-        {/* Sign / Refuse section */}
+        {/* Sign / Refuse section — dark blue box */}
         {status === "inviata" && !actionDone && (
-          <div className="bg-card rounded-xl p-6 shadow-lg border-2 border-primary/20 space-y-5">
+          <div className="rounded-xl p-6 shadow-lg space-y-5" style={{ background: "#1e3a5f", color: "#ffffff" }}>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold">Accetta o Rifiuta l'Offerta</h3>
+              <ShieldCheck className="h-5 w-5" style={{ color: "#93c5fd" }} />
+              <h3 className="font-semibold text-lg">Accetta o Rifiuta l'Offerta</h3>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Il tuo nome completo (per la firma)</label>
+              <label className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
+                Il tuo nome completo (per la firma)
+              </label>
               <Input
                 value={signName}
                 onChange={(e) => setSignName(e.target.value)}
                 placeholder="Mario Rossi"
-                className="max-w-sm"
+                className="max-w-sm border-0"
+                style={{ background: "rgba(255,255,255,0.15)", color: "#ffffff" }}
               />
             </div>
 
@@ -357,6 +377,7 @@ export default function QuoteSignPage() {
                 disabled={!signName.trim() || submitting}
                 size="lg"
                 className="min-w-[180px]"
+                style={{ background: "#22c55e", color: "#ffffff" }}
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -369,21 +390,23 @@ export default function QuoteSignPage() {
                 variant="outline"
                 onClick={() => setShowRefuseDialog(true)}
                 size="lg"
+                style={{ borderColor: "rgba(255,255,255,0.3)", color: "#ffffff", background: "transparent" }}
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Rifiuta
               </Button>
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
               Accettando questa offerta confermi i termini e le condizioni indicate.
-              La firma digitale ha valore legale ai sensi dell'art. 20 del CAD.
+              La firma digitale ha valore legale ai sensi del Regolamento eIDAS (UE) n. 910/2014 e dell'art. 20 del CAD (D.Lgs. 82/2005).
+              Il tuo nome, indirizzo IP e data/ora saranno registrati come prova della firma.
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground pt-4 pb-8">
+        <p className="text-center text-xs pt-4 pb-8" style={{ color: "#a1a1aa" }}>
           Powered by Edilizia in Cloud
         </p>
       </div>
@@ -421,29 +444,46 @@ export default function QuoteSignPage() {
   );
 }
 
-// ── Header component ──
-function Header({ company }: { company: { name?: string; logo_url?: string; address?: string; phone?: string; email?: string; vat_number?: string } }) {
+// ── Blue Header component ──
+function BlueHeader({
+  company,
+  quoteNumber,
+  statusLabel,
+  statusColor,
+}: {
+  company: { name?: string; logo_url?: string };
+  quoteNumber: string;
+  statusLabel: string;
+  statusColor: string;
+}) {
   return (
-    <div className="bg-primary text-primary-foreground">
+    <div style={{ background: "#1e3a5f" }}>
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-4">
-          {company.logo_url ? (
-            <img
-              src={company.logo_url}
-              alt={company.name}
-              className="h-12 w-12 object-contain rounded-lg bg-background/10 p-1"
-            />
-          ) : (
-            <div className="h-12 w-12 rounded-lg bg-background/10 flex items-center justify-center">
-              <Building2 className="h-6 w-6" />
-            </div>
-          )}
-          <div>
-            <h1 className="text-xl font-bold">{company.name || "Offerta"}</h1>
-            {company.address && (
-              <p className="text-sm opacity-80">{company.address}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {company.logo_url ? (
+              <img
+                src={company.logo_url}
+                alt={company.name}
+                className="h-12 w-12 object-contain rounded-lg p-1"
+                style={{ background: "rgba(255,255,255,0.15)" }}
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,0.15)" }}>
+                <Building2 className="h-6 w-6" style={{ color: "#ffffff" }} />
+              </div>
             )}
+            <div>
+              <h1 className="text-xl font-bold" style={{ color: "#ffffff" }}>{company.name || "Offerta"}</h1>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Offerta n. {quoteNumber}</p>
+            </div>
           </div>
+          <span
+            className="text-xs font-semibold px-3 py-1.5 rounded-full"
+            style={{ background: statusColor, color: "#ffffff" }}
+          >
+            {statusLabel}
+          </span>
         </div>
       </div>
     </div>
