@@ -11,7 +11,7 @@ interface AuthContextType extends AuthState {
   impersonatedCompanyId: string | null;
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
-  impersonateCompany: (companyId: string) => Promise<void>;
+  impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<void>;
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
