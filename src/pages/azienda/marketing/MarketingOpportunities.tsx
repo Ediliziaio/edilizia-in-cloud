@@ -351,9 +351,11 @@ function MarketingOpportunitiesContent() {
         <p className="text-muted-foreground max-w-md">
           Per iniziare, crea una sequenza (pipeline) nelle impostazioni sotto "Marketing e Vendita" → "Sequenze".
         </p>
-        <Button variant="outline" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>
-          Vai alle Impostazioni
-        </Button>
+        {!isAdminContext && (
+          <Button variant="outline" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>
+            Vai alle Impostazioni
+          </Button>
+        )}
       </div>
     );
   }
