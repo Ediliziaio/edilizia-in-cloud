@@ -284,6 +284,12 @@ export default function OrdersList() {
     return supplierProfiles.map(s => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [supplierProfiles]);
 
+  // Reverse lookup Maps: name → id for O(1) filter matching
+  const spNameToIdMap = useMemo(() => new Map(salespersonProfiles.map(p => [`${p.first_name} ${p.last_name}`, p.id])), [salespersonProfiles]);
+  const empNameToIdMap = useMemo(() => new Map(employeeProfiles.map(e => [`${e.first_name} ${e.last_name}`, e.id])), [employeeProfiles]);
+  const teamNameToIdMap = useMemo(() => new Map(externalTeamProfiles.map(t => [t.name, t.id])), [externalTeamProfiles]);
+  const supNameToIdMap = useMemo(() => new Map(supplierProfiles.map(s => [s.name, s.id])), [supplierProfiles]);
+
   // Column visibility state
   const OPTIONAL_COLUMNS = [
     { key: "date", label: "Data Ordine" },

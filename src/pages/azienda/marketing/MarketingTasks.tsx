@@ -94,11 +94,22 @@ export default function MarketingTasks() {
   const weekStart = startOfWeek(now, { locale: it });
 
   const stats = useMemo(() => {
-    const active = tasks.filter((t) => t.status !== "completata").length;
-    const expiring = tasks.filter((t) => t.status !== "completata" && t.due_date && isAfter(new Date(t.due_date), now) && isBefore(new Date(t.due_date), in48h)).length;
-    const overdue = tasks.filter((t) => t.status !== "completata" && t.due_date && isBefore(new Date(t.due_date), now)).length;
-    const completedThisWeek = tasks.filter((t) => t.status === "completata" && t.completed_at && isAfter(new Date(t.completed_at), weekStart)).length;
-    return { active, expiring, overdue, completedThisWeek };
+    return tasks.reduce(
+      (acc, t) => {
+        if (t.status === "completata") {
+          if (t.completed_at && isAfter(new Date(t.completed_at), weekStart)) acc.completedThisWeek++;
+          return acc;
+        }
+        acc.active++;
+        if (t.due_date) {
+          const due = new Date(t.due_date);
+          if (isBefore(due, now)) acc.overdue++;
+          else if (isAfter(due, now) && isBefore(due, in48h)) acc.expiring++;
+        }
+        return acc;
+      },
+      { active: 0, expiring: 0, overdue: 0, completedThisWeek: 0 }
+    );
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
