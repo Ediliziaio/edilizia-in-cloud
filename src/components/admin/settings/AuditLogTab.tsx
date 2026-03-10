@@ -137,12 +137,9 @@ export default function AuditLogTab() {
             <Input
               placeholder="Cerca admin o dettaglio..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
               className="pl-9"
             />
-            {searchQuery.trim() && (
-              <p className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground">Ricerca limitata alla pagina corrente</p>
-            )}
           </div>
           <DateRangeFilter
             label="Periodo"
