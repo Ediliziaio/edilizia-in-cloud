@@ -54,7 +54,7 @@ export default function FacebookFormsPage() {
 
   // Get lead counts per form from webhook events
   const { data: leadCounts = {} } = useQuery({
-    queryKey: ["meta-form-lead-counts", companyId],
+    queryKey: queryKeys.metaForms.leadCounts(companyId),
     queryFn: async () => {
       if (!companyId) return {};
       const { data } = await supabase
@@ -62,7 +62,8 @@ export default function FacebookFormsPage() {
         .select("id, payload, received_at")
         .eq("company_id", companyId)
         .eq("provider", "meta")
-        .eq("event_type", "leadgen");
+        .eq("event_type", "leadgen")
+        .eq("status", "processed");
       
       const counts: Record<string, { total: number; lastAt: string | null }> = {};
       for (const ev of data || []) {
