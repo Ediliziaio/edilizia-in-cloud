@@ -347,7 +347,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       const d = new Date(c.due_date);
       return d >= now && d <= soon;
     });
-    const previstiList = allFiltered.filter((c: any) => c.recurrence !== "once" && !c.is_paid && c.due_date && new Date(c.due_date) > now);
+    const previstiList = allFiltered.filter((c: any) => !c.is_paid && c.due_date && new Date(c.due_date) > now);
 
     const totalUnpaid = unpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalPaid = paid.reduce((s: number, c: any) => s + Number(c.amount), 0);
