@@ -321,6 +321,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const changePlanMutation = useMutation({
     mutationFn: async (planId: string) => {
+      assertCanManage();
       if (!id || !company) return;
       const { error } = await supabase.from("companies").update({ subscription_plan_id: planId }).eq("id", id);
       if (error) throw error;
