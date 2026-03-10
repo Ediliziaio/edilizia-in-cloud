@@ -21,14 +21,14 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
 
       const pattern = `%${debouncedQuery}%`;
 
-      const ordersPromise = supabase
+      const ordersPromise: Promise<{ data: any[] | null }> = supabase
         .from("orders")
         .select("id, order_code, description")
         .eq("company_id", companyId!)
         .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
         .limit(5);
 
-      const customersPromise = supabase
+      const customersPromise: Promise<{ data: any[] | null }> = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
@@ -36,14 +36,14 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
         .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
         .limit(5);
 
-      const contactsPromise = supabase
+      const contactsPromise: Promise<{ data: any[] | null }> = supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
         .limit(5);
 
-      const ticketsPromise = supabase
+      const ticketsPromise: Promise<{ data: any[] | null }> = supabase
         .from("tickets")
         .select("id, subject, status")
         .eq("company_id", companyId!)
