@@ -253,7 +253,7 @@ export function useCompanyStaff() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["company_staff_roles", companyId],
+    queryKey: queryKeys.staff.roles(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
