@@ -136,16 +136,9 @@ export function EmailTemplatesTab() {
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
 
-  const filtered = templates.filter((t: any) => {
-    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase());
-    const matchFolder = currentFolderId ? t.folder_id === currentFolderId : !t.folder_id;
-    return matchSearch && matchFolder;
-  });
-
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paged = filtered.slice(page * perPage, (page + 1) * perPage);
-  const showing = filtered.length > 0
-    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
+  const totalPages = Math.ceil(totalCount / perPage);
+  const showing = totalCount > 0
+    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, totalCount)} di ${totalCount}`
     : "";
 
   const navigateToFolder = (folderId: string, folderName: string) => {
