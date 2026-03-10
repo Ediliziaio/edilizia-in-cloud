@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface Scadenza {
   id: string;
@@ -68,7 +69,8 @@ export function useScadenzario() {
           marketing_contacts(first_name, last_name, company_name)
         `)
         .eq("company_id", companyId!)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
       return data as unknown as Scadenza[];
     },
@@ -114,6 +116,9 @@ export function useScadenzario() {
       queryClient.invalidateQueries({ queryKey: ["scadenze"] });
       queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
       queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
+      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -155,6 +160,8 @@ export function useScadenzario() {
       toast.success("Scadenza creata");
       queryClient.invalidateQueries({ queryKey: ["scadenze"] });
       queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -171,6 +178,8 @@ export function useScadenzario() {
       toast.success("Scadenza annullata");
       queryClient.invalidateQueries({ queryKey: ["scadenze"] });
       queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

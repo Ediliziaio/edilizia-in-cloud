@@ -79,21 +79,25 @@ export function useCompanyCostsMutations({
   const invalidateCosts = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
   };
 
   const invalidateOrderItems = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.costs.orderItems(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
   };
 
   const invalidateExtTeams = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.costs.externalTeams(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
   };
 
   const invalidateCommissions = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.costs.commissions(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
   };
 
   // Save (create/update) mutation

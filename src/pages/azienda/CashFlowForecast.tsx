@@ -52,6 +52,7 @@ export default function CashFlowForecast() {
       ...expectedCommissions.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: "Provvigione", label: c.salespersonName, orderCode: c.orderCode })),
       ...expectedCompanyCosts.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: c.type, label: c.name, orderCode: null as string | null })),
       ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({ expectedDate: s.expectedDate, amount: s.amount, direction: "out" as const, type: s.type, label: s.supplierName, orderCode: s.orderCode })),
+      ...scadenzeForForecast.map((s: any) => ({ expectedDate: s.due_date ? new Date(s.due_date) : null, amount: Number(s.amount) - Number(s.paid_amount || 0), direction: (s.direction === "entrata" ? "in" : "out") as "in" | "out", type: "Scadenza", label: s.description, orderCode: null as string | null })),
     ];
 
     const columns = [

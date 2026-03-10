@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface PrimaNotaEntry {
   id: string;
@@ -60,7 +61,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
         .select(`*, suppliers(name), invoices(invoice_number), orders(order_number)`)
         .eq("company_id", companyId!)
         .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(10000);
 
       if (filters.fromDate) query = query.gte("entry_date", filters.fromDate);
       if (filters.toDate) query = query.lte("entry_date", filters.toDate);
@@ -133,6 +135,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       toast.success("Registrazione creata");
       queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
       queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -146,6 +149,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       toast.success("Registrazione eliminata");
       queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
       queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
