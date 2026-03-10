@@ -48,6 +48,7 @@ export interface CompanyStats {
 
 export function useCompanyDetail(id: string | undefined) {
   const { user, impersonateCompany } = useAuth();
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
 
   // UI state
