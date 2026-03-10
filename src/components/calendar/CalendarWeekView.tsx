@@ -200,9 +200,12 @@ export function CalendarWeekView({
 
   const renderAllDayEvent = (evt: any, idx: number) => {
     const o = evt.order as CalendarOrder | undefined;
-    const label = o
-      ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
-      : evt.busySlot?.summary || "Occupato";
+    const lr = evt.leave as ApprovedLeave | undefined;
+    const label = lr
+      ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
+      : o
+        ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
+        : evt.busySlot?.summary || "Occupato";
     const colorMap: Record<string, string> = {
       posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
       lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
