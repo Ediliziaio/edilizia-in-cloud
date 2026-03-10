@@ -27,7 +27,7 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
           .select("id, order_code, description")
           .eq("company_id", companyId!)
           .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
-          .limit(5),
+          .limit(5) as any,
 
         supabase
           .from("profiles")
