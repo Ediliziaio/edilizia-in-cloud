@@ -398,6 +398,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const handleCreateStaff = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
+    assertCanManage();
     setCreateStaffLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
