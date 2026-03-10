@@ -53,6 +53,7 @@ export default function Calendar() {
   const [showAppuntamento, setShowAppuntamento] = useState(savedPrefs.showAppuntamento ?? true);
   const [showMerce, setShowMerce] = useState(savedPrefs.showMerce ?? true);
   const [showGoogleBusy, setShowGoogleBusy] = useState(savedPrefs.showGoogleBusy ?? true);
+  const [showLeaves, setShowLeaves] = useState(savedPrefs.showLeaves ?? true);
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
