@@ -186,7 +186,7 @@ export default function AuditLogTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.map((log) => {
+                {(data?.logs || []).map((log) => {
                   const details = log.details as Record<string, any> | null;
                   return (
                     <TableRow key={log.id}>
