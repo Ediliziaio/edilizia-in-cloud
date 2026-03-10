@@ -353,7 +353,8 @@ function ContactQuotesPanel({ contactId, companyId }: { contactId: string; compa
       return data;
     },
     enabled: !!contactId && !!companyId,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
