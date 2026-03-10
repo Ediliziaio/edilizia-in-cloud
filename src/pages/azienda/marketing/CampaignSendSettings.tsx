@@ -263,7 +263,7 @@ export default function CampaignSendSettings() {
     },
     onSuccess: (data: any) => {
       toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
       navigate("/azienda/marketing/email");
     },
