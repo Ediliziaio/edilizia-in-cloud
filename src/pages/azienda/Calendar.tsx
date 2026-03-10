@@ -129,7 +129,8 @@ export default function Calendar() {
         `)
         .eq("company_id", effectiveCompany.id)
         .is("calendar_id", null)
-        .order("appointment_date", { ascending: true });
+        .order("appointment_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
 
       // Enrich with assigned profile names
