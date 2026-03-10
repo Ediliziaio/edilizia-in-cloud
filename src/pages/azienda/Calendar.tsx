@@ -73,13 +73,14 @@ export default function Calendar() {
         showAppuntamento,
         showMerce,
         showGoogleBusy,
+        showLeaves,
         visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, visibleEmployeeIds, visibleTeamIds]);
+  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
