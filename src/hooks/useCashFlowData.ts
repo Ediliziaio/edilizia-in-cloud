@@ -93,7 +93,7 @@ export function useCashFlowData() {
 
   // Query articoli da ordinare/ordinati
   const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
-    queryKey: queryKeys.cashflow.all.concat(["pending-items", companyId]) as any,
+    queryKey: ["cashflow", "pending-items", companyId] as const,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
