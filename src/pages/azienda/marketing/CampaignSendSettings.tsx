@@ -80,12 +80,13 @@ export default function CampaignSendSettings() {
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-send-settings", id],
-    enabled: !!id,
+    enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", company!.id)
         .single();
       if (error) throw error;
       return data;
