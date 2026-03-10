@@ -52,6 +52,13 @@ export default function DragDropEmailBuilder() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // Cleanup autoSave timer on unmount (Bug 6 fix)
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-builder", id],
     enabled: !!id && !!company?.id,

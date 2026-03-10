@@ -179,7 +179,7 @@ export function EmailCampaignsTab() {
     },
     onSuccess: () => {
       toast.success("Campagna spostata");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setMoveTarget(null);
     },
     onError: (e: any) => toast.error(e.message),
