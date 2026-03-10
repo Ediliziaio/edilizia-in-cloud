@@ -62,6 +62,18 @@ const VARIABLES = [
   { label: "Nome azienda", value: "{{company.name}}" },
   { label: "Link disiscrizione", value: "{{unsubscribe_url}}" },
 ];
+const sanitizeUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) return "#";
+    return parsed.toString();
+  } catch {
+    return "#";
+  }
+};
+
+const escapeHtml = (str: string): string =>
+  str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
 
 export default function CampaignEditor() {
   const { id } = useParams<{ id: string }>();
