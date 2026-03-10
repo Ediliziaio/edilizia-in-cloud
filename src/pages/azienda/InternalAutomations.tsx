@@ -225,6 +225,8 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const [actionPickerOpen, setActionPickerOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [flowName, setFlowName] = useState("");
+  const [flowDescription, setFlowDescription] = useState("");
+  const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);

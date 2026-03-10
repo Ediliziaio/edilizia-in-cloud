@@ -219,6 +219,23 @@ export const queryKeys = {
     list: (companyId: string | undefined) => ["quote-templates", "list", companyId] as const,
   },
 
+  // ── Internal Automations ─────────────────────────────
+  internalAutomations: {
+    all: ["internal-automation-flows"] as const,
+    flows: (companyId: string | undefined) => ["internal-automation-flows", companyId] as const,
+    flow: (flowId: string | undefined) => ["internal-automation-flows", "detail", flowId] as const,
+    nodes: (flowId: string | undefined) => ["internal-automation-flows", "nodes", flowId] as const,
+    connections: (flowId: string | undefined) => ["internal-automation-flows", "connections", flowId] as const,
+    log: (flowId: string | undefined) => ["internal-automation-flows", "log", flowId] as const,
+  },
+
+  // ── Internal AI Agents ──────────────────────────────
+  internalAgents: {
+    all: ["internal-ai-agents"] as const,
+    list: (companyId: string | undefined) => ["internal-ai-agents", "list", companyId] as const,
+    detail: (agentId: string | undefined) => ["internal-ai-agents", "detail", agentId] as const,
+  },
+
   // ── Automation ─────────────────────────────────────────
   automations: {
     all: ["automations"] as const,
