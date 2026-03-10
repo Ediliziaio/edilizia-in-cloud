@@ -47,23 +47,49 @@ export default function OrdersList() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
-  const [viewMode, setViewMode] = useState<"table" | "pipeline">("table");
+  const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
+    searchQuery: { key: "q", defaultValue: "" },
+    statusFilter: { key: "status", defaultValue: "all" },
+    paymentFilter: { key: "payment", defaultValue: "all" },
+    viewMode: { key: "view", defaultValue: "table" },
+    customerFilter: { key: "cliente", defaultValue: "all" },
+    monthFilter: { key: "mese", defaultValue: "all" },
+    salespersonFilter: { key: "venditore", defaultValue: "all" },
+    laborFilter: { key: "manodopera", defaultValue: "all" },
+    supplierFilter: { key: "fornitore", defaultValue: "all" },
+    hideCompleted: { key: "nascondi_completati", defaultValue: true, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
+    currentPage: { key: "pagina", defaultValue: 1, serialize: String, deserialize: Number },
+  });
+
+  const searchQuery = urlFilters.searchQuery;
+  const setSearchQuery = useCallback((v: string) => setURLParam("searchQuery", v), [setURLParam]);
+  const statusFilter = urlFilters.statusFilter;
+  const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
+  const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid";
+  const setPaymentFilter = useCallback((v: "all" | "pending" | "paid") => setURLParam("paymentFilter", v), [setURLParam]);
+  const viewMode = urlFilters.viewMode as "table" | "pipeline";
+  const setViewMode = useCallback((v: "table" | "pipeline") => setURLParam("viewMode", v), [setURLParam]);
+  const customerFilter = urlFilters.customerFilter;
+  const setCustomerFilter = useCallback((v: string) => setURLParam("customerFilter", v), [setURLParam]);
+  const monthFilter = urlFilters.monthFilter;
+  const setMonthFilter = useCallback((v: string) => setURLParam("monthFilter", v), [setURLParam]);
+  const salespersonFilter = urlFilters.salespersonFilter;
+  const setSalespersonFilter = useCallback((v: string) => setURLParam("salespersonFilter", v), [setURLParam]);
+  const laborFilter = urlFilters.laborFilter;
+  const setLaborFilter = useCallback((v: string) => setURLParam("laborFilter", v), [setURLParam]);
+  const supplierFilter = urlFilters.supplierFilter;
+  const setSupplierFilter = useCallback((v: string) => setURLParam("supplierFilter", v), [setURLParam]);
+  const hideCompleted = urlFilters.hideCompleted;
+  const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
+  const currentPage = urlFilters.currentPage;
+  const setCurrentPage = useCallback((v: number) => setURLParam("currentPage", v), [setURLParam]);
+
   const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
-  const [monthFilter, setMonthFilter] = useState<string>("all");
-  const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
-  const [laborFilter, setLaborFilter] = useState<string>("all");
-  const [supplierFilter, setSupplierFilter] = useState<string>("all");
-  const [hideCompleted, setHideCompleted] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 20;
 
   const { data: orders = [], isLoading } = useQuery({
