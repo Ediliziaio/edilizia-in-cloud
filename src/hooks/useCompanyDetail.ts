@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { toast } from "sonner";
 import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
