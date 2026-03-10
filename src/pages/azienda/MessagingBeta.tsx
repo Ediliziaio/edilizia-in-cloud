@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useMessagingEnabled, useConversations } from "@/hooks/useMessagingData";
+import { useMessagingEnabled, useConversations, useConversationsRealtime } from "@/hooks/useMessagingData";
+import { useAuth } from "@/contexts/AuthContext";
 import { ConversationList } from "@/components/messaging/ConversationList";
 import { ChatView } from "@/components/messaging/ChatView";
 import { AiPanel } from "@/components/messaging/AiPanel";
