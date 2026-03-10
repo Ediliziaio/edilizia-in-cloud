@@ -116,7 +116,7 @@ export function EmailCampaignsTab() {
     },
     onSuccess: () => {
       toast.success("Campagna eliminata");
-      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       setDeleteTarget(null);
     },
     onError: (e: any) => toast.error(e.message),
