@@ -104,7 +104,8 @@ export default function OrdersList() {
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `)
         .eq("company_id", effectiveCompany.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(10000);
       if (error) throw error;
       return data as OrderWithDetails[];
     },
