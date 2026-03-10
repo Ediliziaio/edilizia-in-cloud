@@ -95,7 +95,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query ALL order items with supplier (for split payments)
   const { data: orderItemCosts = [] } = useQuery({
-    queryKey: ["order-item-costs-full", companyId],
+    queryKey: queryKeys.costs.orderItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
