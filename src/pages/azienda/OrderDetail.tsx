@@ -286,6 +286,7 @@ export default function OrderDetail() {
     },
     enabled: !!id && !!user,
     staleTime: 120_000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Update status mutation
