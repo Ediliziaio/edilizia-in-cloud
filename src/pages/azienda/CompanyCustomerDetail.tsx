@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { logger } from "@/utils/logger";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink, Phone, Calendar, CreditCard } from "lucide-react";
+import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink, Phone, Calendar, CreditCard, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { ClientMessagesPanel } from "@/components/clients/ClientMessagesPanel";
 
 interface CustomerProfile {
   id: string;
@@ -429,6 +430,13 @@ export default function CompanyCustomerDetail() {
               )}
             </CardContent>
           </Card>
+          {/* Messages Panel */}
+          {customer && (
+            <ClientMessagesPanel
+              customerId={customer.id}
+              customerName={`${customer.first_name || ""} ${customer.last_name}`.trim()}
+            />
+          )}
         </div>
       </div>
     </div>

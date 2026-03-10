@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageCircle, Loader2, Send } from "lucide-react";
+import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -19,14 +20,20 @@ interface Message {
   created_at: string;
 }
 
-export default function CustomerMessages() {
-  const { user } = useAuth();
+interface ClientMessagesPanelProps {
+  customerId: string;
+  customerName: string;
+}
+
+export function ClientMessagesPanel({ customerId, customerName }: ClientMessagesPanelProps) {
+  const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const companyId = effectiveCompany?.id;
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
-  const queryKey = ["customer-messages", user?.id];
+  const queryKey = ["staff-customer-messages", customerId];
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey,
@@ -34,21 +41,25 @@ export default function CustomerMessages() {
       const { data, error } = await supabase
         .from("customer_messages")
         .select("id, sender_role, sender_id, body, read_at, created_at")
-        .eq("customer_id", user!.id)
+        .eq("customer_id", customerId)
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: true })
         .limit(500);
       if (error) throw error;
       return (data || []) as Message[];
     },
-    enabled: !!user?.id,
+    enabled: !!customerId && !!companyId,
     staleTime: 15 * 1000,
   });
 
-  // Mark staff messages as read
+  // Count unread from customer
+  const unreadCount = messages.filter((m) => m.sender_role === "customer" && !m.read_at).length;
+
+  // Mark customer messages as read
   useEffect(() => {
-    if (!user?.id || messages.length === 0) return;
+    if (!customerId || !companyId || messages.length === 0) return;
     const unreadIds = messages
-      .filter((m) => m.sender_role === "staff" && !m.read_at)
+      .filter((m) => m.sender_role === "customer" && !m.read_at)
       .map((m) => m.id);
     if (unreadIds.length === 0) return;
 
@@ -56,12 +67,10 @@ export default function CustomerMessages() {
       .from("customer_messages")
       .update({ read_at: new Date().toISOString() })
       .in("id", unreadIds)
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["customer-messages-unread", user.id] });
-      });
-  }, [messages, user?.id, queryClient]);
+      .then();
+  }, [messages, customerId, companyId]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll
   useEffect(() => {
     if (messages.length > prevCountRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -69,18 +78,18 @@ export default function CustomerMessages() {
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
-  // Realtime subscription
+  // Realtime
   useEffect(() => {
-    if (!user?.id) return;
+    if (!customerId) return;
     const channel = supabase
-      .channel("customer-chat")
+      .channel(`staff-chat-${customerId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "customer_messages",
-          filter: `customer_id=eq.${user.id}`,
+          filter: `customer_id=eq.${customerId}`,
         },
         () => {
           queryClient.invalidateQueries({ queryKey });
@@ -89,33 +98,23 @@ export default function CustomerMessages() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user?.id, queryClient]);
+  }, [customerId, queryClient]);
 
   const sendMutation = useMutation({
     mutationFn: async (body: string) => {
-      // Get company_id from profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
       const { error } = await supabase.from("customer_messages").insert({
-        company_id: profile.company_id,
-        customer_id: user!.id,
-        sender_role: "customer",
+        company_id: companyId!,
+        customer_id: customerId,
+        sender_role: "staff",
         sender_id: user!.id,
         body,
       });
       if (error) throw error;
     },
     onMutate: async (body) => {
-      // Optimistic insert
       const optimistic: Message = {
         id: `temp-${Date.now()}`,
-        sender_role: "customer",
+        sender_role: "staff",
         sender_id: user!.id,
         body,
         read_at: null,
@@ -142,50 +141,46 @@ export default function CustomerMessages() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Messaggi</h1>
+    <Card className="flex flex-col h-[400px]">
+      <CardHeader className="pb-2 shrink-0">
+        <CardTitle className="flex items-center justify-between text-base">
+          <span className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-primary" />
+            Messaggi con {customerName}
+          </span>
+          {unreadCount > 0 && (
+            <Badge variant="destructive" className="text-xs">{unreadCount} non letti</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
 
-      <Card className="flex flex-col" style={{ height: "calc(100vh - 260px)", minHeight: "400px" }}>
-        <CardHeader className="pb-2 shrink-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            Chat con l'azienda
-          </CardTitle>
-        </CardHeader>
-
-        {/* Messages area */}
-        <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
+        {isLoading ? (
+          <div className="flex items-center justify-center flex-1">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
             {messages.length === 0 && (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-muted-foreground">Nessun messaggio. Scrivi per iniziare la conversazione.</p>
-              </div>
+              <p className="text-sm text-muted-foreground text-center py-6">Nessun messaggio. Inizia la conversazione.</p>
             )}
             {messages.map((msg) => {
-              const isMe = msg.sender_role === "customer";
+              const isStaff = msg.sender_role === "staff";
               return (
-                <div key={msg.id} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
+                <div key={msg.id} className={cn("flex", isStaff ? "justify-end" : "justify-start")}>
                   <div
                     className={cn(
-                      "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
-                      isMe
+                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+                      isStaff
                         ? "bg-primary text-primary-foreground rounded-br-md"
                         : "bg-muted rounded-bl-md"
                     )}
                   >
                     <p className="whitespace-pre-wrap break-words">{msg.body}</p>
                     <p className={cn(
-                      "text-[10px] mt-1",
-                      isMe ? "text-primary-foreground/60" : "text-muted-foreground"
+                      "text-[10px] mt-0.5",
+                      isStaff ? "text-primary-foreground/60" : "text-muted-foreground"
                     )}>
                       {format(new Date(msg.created_at), "HH:mm", { locale: it })}
                     </p>
@@ -194,30 +189,29 @@ export default function CustomerMessages() {
               );
             })}
           </div>
+        )}
 
-          {/* Input area */}
-          <div className="border-t p-3 shrink-0">
-            <div className="flex gap-2">
-              <Textarea
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Scrivi un messaggio..."
-                className="resize-none min-h-[44px] max-h-[120px]"
-                rows={1}
-              />
-              <Button
-                size="icon"
-                onClick={handleSend}
-                disabled={!newMessage.trim() || sendMutation.isPending}
-                className="shrink-0 h-11 w-11"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="border-t p-3 shrink-0">
+          <div className="flex gap-2">
+            <Textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Scrivi un messaggio..."
+              className="resize-none min-h-[40px] max-h-[100px]"
+              rows={1}
+            />
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={!newMessage.trim() || sendMutation.isPending}
+              className="shrink-0 h-10 w-10"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
