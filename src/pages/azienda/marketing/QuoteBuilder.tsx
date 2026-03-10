@@ -162,13 +162,14 @@ export default function QuoteBuilder() {
 
   // Load existing quote if editing
   const { data: existingQuote } = useQuery({
-    queryKey: ["quote", id],
-    enabled: isEdit,
+    queryKey: queryKeys.quotes.detail(id),
+    enabled: isEdit && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", companyId!)
         .single();
       if (error) throw error;
       return data;
@@ -176,7 +177,7 @@ export default function QuoteBuilder() {
   });
 
   const { data: existingItems = [] } = useQuery({
-    queryKey: ["quote-items", id],
+    queryKey: queryKeys.quotes.items(id),
     enabled: isEdit,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -190,7 +191,7 @@ export default function QuoteBuilder() {
   });
 
   const { data: existingAttachments = [] } = useQuery({
-    queryKey: ["quote-attachments", id],
+    queryKey: queryKeys.quotes.attachments(id),
     enabled: isEdit,
     queryFn: async () => {
       const { data, error } = await supabase
