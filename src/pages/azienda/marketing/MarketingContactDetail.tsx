@@ -483,6 +483,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data.map((c: any) => c.id);
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const currentIdx = contactIds.indexOf(id || "");
