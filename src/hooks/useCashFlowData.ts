@@ -505,88 +505,47 @@ export function useCashFlowData() {
     return total;
   };
 
-  // Statistiche
+  // Stats from RPC (server-side aggregation replaces heavy client-side useMemo)
+  const defaultPeriod = { income: 0, expenses: 0, net: 0 };
   const stats = useMemo<ForecastStats>(() => {
-    const now = new Date();
-    const thisMonth = { start: startOfMonth(now), end: endOfMonth(now) };
-    const nextMonth = { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
-    const next3Months = { start: startOfMonth(now), end: endOfMonth(addMonths(now, 2)) };
-
-    const filterByInterval = <T extends { expectedDate: Date | null; amount: number }>(
-      items: T[],
-      interval: { start: Date; end: Date }
-    ) => items.filter((i) => i.expectedDate && isWithinInterval(i.expectedDate, interval));
-
-    const sumAmount = <T extends { amount: number }>(items: T[]) =>
-      items.reduce((sum, i) => sum + i.amount, 0);
-
-    const thisMonthIncome = sumAmount(filterByInterval(expectedPayments, thisMonth));
-    const nextMonthIncome = sumAmount(filterByInterval(expectedPayments, nextMonth));
-    const next3MonthsIncome = sumAmount(filterByInterval(expectedPayments, next3Months));
-    const totalIncome = sumAmount(expectedPayments);
-
-    const thisMonthExpenses = sumAmount(filterByInterval(expectedExpenses, thisMonth));
-    const nextMonthExpenses = sumAmount(filterByInterval(expectedExpenses, nextMonth));
-    const next3MonthsExpenses = sumAmount(filterByInterval(expectedExpenses, next3Months));
-    const totalExpenses = sumAmount(expectedExpenses);
-
-    const totalCommissions = sumAmount(expectedCommissions);
-    const thisMonthCommissions = sumAmount(filterByInterval(expectedCommissions, thisMonth));
-    const nextMonthCommissions = sumAmount(filterByInterval(expectedCommissions, nextMonth));
-    const next3MonthsCommissions = sumAmount(filterByInterval(expectedCommissions, next3Months));
-
-    const thisMonthCosts = sumAmount(filterByInterval(expectedCompanyCosts, thisMonth));
-    const nextMonthCosts = projectCostsForMonth(addMonths(now, 1));
-    const next3MonthsCosts =
-      projectCostsForMonth(now) + projectCostsForMonth(addMonths(now, 1)) + projectCostsForMonth(addMonths(now, 2));
-    const totalCosts = sumAmount(expectedCompanyCosts);
-
-    // Supplier payments
-    const unpaidSupplierPayments = expectedSupplierPayments.filter(p => !p.isPaid);
-    const totalSupplierPayments = sumAmount(unpaidSupplierPayments);
-    const thisMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, thisMonth));
-    const nextMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, nextMonth));
-    const next3MonthsSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, next3Months));
-
-    const totalAllExpenses = totalExpenses + totalCommissions + totalCosts + totalSupplierPayments;
-    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions + thisMonthCosts + thisMonthSupplier;
-    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions + nextMonthCosts + nextMonthSupplier;
-    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions + next3MonthsCosts + next3MonthsSupplier;
-
+    if (!cashflowSummary) {
+      return {
+        thisMonth: { ...defaultPeriod, incomeCount: 0, expensesCount: 0 },
+        nextMonth: defaultPeriod,
+        next3Months: defaultPeriod,
+        total: { ...defaultPeriod, incomeCount: 0, expensesCount: 0, commissionsTotal: 0, costsTotal: 0, supplierPaymentsTotal: 0 },
+      };
+    }
     return {
       thisMonth: {
-        income: thisMonthIncome,
-        expenses: thisMonthAllExpenses,
-        net: thisMonthIncome - thisMonthAllExpenses,
-        incomeCount: filterByInterval(expectedPayments, thisMonth).length,
-        expensesCount:
-          filterByInterval(expectedExpenses, thisMonth).length +
-          filterByInterval(expectedCommissions, thisMonth).length +
-          filterByInterval(expectedCompanyCosts, thisMonth).length +
-          filterByInterval(unpaidSupplierPayments, thisMonth).length,
+        income: cashflowSummary.thisMonth.income,
+        expenses: cashflowSummary.thisMonth.expenses,
+        net: cashflowSummary.thisMonth.net,
+        incomeCount: cashflowSummary.thisMonth.incomeCount,
+        expensesCount: cashflowSummary.thisMonth.expensesCount,
       },
       nextMonth: {
-        income: nextMonthIncome,
-        expenses: nextMonthAllExpenses,
-        net: nextMonthIncome - nextMonthAllExpenses,
+        income: cashflowSummary.nextMonth.income,
+        expenses: cashflowSummary.nextMonth.expenses,
+        net: cashflowSummary.nextMonth.net,
       },
       next3Months: {
-        income: next3MonthsIncome,
-        expenses: next3MonthsAllExpenses,
-        net: next3MonthsIncome - next3MonthsAllExpenses,
+        income: cashflowSummary.next3Months.income,
+        expenses: cashflowSummary.next3Months.expenses,
+        net: cashflowSummary.next3Months.net,
       },
       total: {
-        income: totalIncome,
-        expenses: totalAllExpenses,
-        net: totalIncome - totalAllExpenses,
-        incomeCount: expectedPayments.length,
-        expensesCount: expectedExpenses.length + expectedCommissions.length + expectedCompanyCosts.length + unpaidSupplierPayments.length,
-        commissionsTotal: totalCommissions,
-        costsTotal: totalCosts,
-        supplierPaymentsTotal: totalSupplierPayments,
+        income: cashflowSummary.total.income,
+        expenses: cashflowSummary.total.expenses,
+        net: cashflowSummary.total.net,
+        incomeCount: cashflowSummary.total.incomeCount,
+        expensesCount: cashflowSummary.total.expensesCount,
+        commissionsTotal: cashflowSummary.total.commissionsTotal,
+        costsTotal: cashflowSummary.total.costsTotal,
+        supplierPaymentsTotal: cashflowSummary.total.supplierPaymentsTotal,
       },
     };
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
+  }, [cashflowSummary]);
 
   // Scadenze as forecast entries (not already covered by order_installments/company_costs)
   const scadenzeForForecast = useMemo(() => {
@@ -606,6 +565,8 @@ export function useCashFlowData() {
     }).filter((s: any) => s.amount > 0);
   }, [openScadenze]);
 
+  const pn = cashflowSummary?.primaNota;
+
   return {
     isLoading,
     orders,
@@ -623,8 +584,12 @@ export function useCashFlowData() {
     activeEmployees,
     treasuryCategories,
     companyId,
-    // New: scadenze + prima nota
+    // New: scadenze + prima nota (from RPC)
     scadenzeForForecast,
-    primaNotaSaldo: primaNotaSaldo || { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
+    primaNotaSaldo: pn
+      ? { entrate: pn.entrate, uscite: pn.uscite, saldo: pn.saldo, entry_count: pn.entryCount }
+      : { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
+    // Monthly forecast from RPC
+    monthlyForecast: cashflowSummary?.monthlyForecast ?? [],
   };
 }
