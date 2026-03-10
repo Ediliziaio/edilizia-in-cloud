@@ -613,6 +613,7 @@ export default function Calendar() {
             showAppuntamento={showAppuntamento}
             showMerce={showMerce}
             showGoogleBusy={showGoogleBusy}
+            showLeaves={showLeaves}
             onToggleEmployee={(id) => {
               const next = new Set(effectiveVisibleEmployees);
               next.has(id) ? next.delete(id) : next.add(id);
@@ -634,6 +635,7 @@ export default function Calendar() {
             onToggleAppuntamento={setShowAppuntamento}
             onToggleMerce={setShowMerce}
             onToggleGoogleBusy={setShowGoogleBusy}
+            onToggleLeaves={setShowLeaves}
           />
         )}
       </div>
