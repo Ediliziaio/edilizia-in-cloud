@@ -17,57 +17,71 @@ const DEFAULT_STATE: Record<string, boolean> = {
 };
 
 // Build route → subcategory map from nav items
-const ROUTE_TO_SECTION: Record<string, string> = {};
-[...internalNavItems, ...marketingNavItems].forEach((item) => {
-  if (item.subcategory) {
-    ROUTE_TO_SECTION[item.url] = item.subcategory;
-  }
-});
-
-function loadState(): Record<string, boolean> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return { ...DEFAULT_STATE, ...JSON.parse(stored) };
-  } catch {}
-  return { ...DEFAULT_STATE };
+function buildRouteMap(navItems: { url: string; subcategory?: string }[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  navItems.forEach((item) => {
+    if (item.subcategory) {
+      map[item.url] = item.subcategory;
+    }
+  });
+  return map;
 }
 
-function saveState(state: Record<string, boolean>) {
+const DEFAULT_ROUTE_MAP = buildRouteMap([...internalNavItems, ...marketingNavItems]);
+
+function loadState(storageKey: string, defaults: Record<string, boolean>): Record<string, boolean> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const stored = localStorage.getItem(storageKey);
+    if (stored) return { ...defaults, ...JSON.parse(stored) };
+  } catch {}
+  return { ...defaults };
+}
+
+function saveState(storageKey: string, state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(state));
   } catch {}
 }
 
-function findActiveSection(pathname: string): string | undefined {
-  // Try exact match first, then prefix match (longest first)
-  if (ROUTE_TO_SECTION[pathname]) return ROUTE_TO_SECTION[pathname];
+function findActiveSection(pathname: string, routeMap: Record<string, string>): string | undefined {
+  if (routeMap[pathname]) return routeMap[pathname];
   
-  const sorted = Object.keys(ROUTE_TO_SECTION).sort((a, b) => b.length - a.length);
+  const sorted = Object.keys(routeMap).sort((a, b) => b.length - a.length);
   for (const route of sorted) {
     if (pathname.startsWith(route + "/") || pathname === route) {
-      return ROUTE_TO_SECTION[route];
+      return routeMap[route];
     }
   }
   return undefined;
 }
 
-export function useSidebarSections() {
+interface UseSidebarSectionsOptions {
+  navItems?: { url: string; subcategory?: string }[];
+  storageKey?: string;
+  defaultState?: Record<string, boolean>;
+}
+
+export function useSidebarSections(options?: UseSidebarSectionsOptions) {
   const location = useLocation();
 
+  const storageKey = options?.storageKey ?? STORAGE_KEY;
+  const defaults = options?.defaultState ?? DEFAULT_STATE;
+  const routeMap = options?.navItems ? buildRouteMap(options.navItems) : DEFAULT_ROUTE_MAP;
+
   const [sections, setSections] = useState<Record<string, boolean>>(() => {
-    const state = loadState();
-    const active = findActiveSection(location.pathname);
+    const state = loadState(storageKey, defaults);
+    const active = findActiveSection(location.pathname, routeMap);
     if (active) state[active] = true;
     return state;
   });
 
   // Auto-expand on route change
   useEffect(() => {
-    const active = findActiveSection(location.pathname);
+    const active = findActiveSection(location.pathname, routeMap);
     if (active && !sections[active]) {
       setSections((prev) => {
         const next = { ...prev, [active]: true };
-        saveState(next);
+        saveState(storageKey, next);
         return next;
       });
     }
@@ -76,10 +90,10 @@ export function useSidebarSections() {
   const toggle = useCallback((sectionId: string) => {
     setSections((prev) => {
       const next = { ...prev, [sectionId]: !prev[sectionId] };
-      saveState(next);
+      saveState(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const isOpen = useCallback(
     (sectionId: string) => sections[sectionId] ?? true,

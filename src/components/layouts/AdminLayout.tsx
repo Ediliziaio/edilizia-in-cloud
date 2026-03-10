@@ -15,6 +15,7 @@ import {
   Blocks,
   Search,
   ChevronsUpDown,
+  ChevronDown,
   RefreshCw,
   LifeBuoy,
   Megaphone,
@@ -35,7 +36,11 @@ import {
   CalendarDays,
   Zap,
   MessageCircle,
+  Briefcase,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { useSidebarSections } from "@/hooks/useSidebarSections";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,30 +63,61 @@ import { NavLink } from "@/components/NavLink";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
 
-const allNavItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, permission: "can_view_platform_stats" as const },
-  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies" as const },
-  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets" as const },
-  { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans" as const },
-  { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals" as const },
-  { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies" as const },
-  { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies" as const },
-  { title: "CS Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies" as const },
-  { title: "CS Tasks", url: "/admin/cs-tasks", icon: ClipboardCheck, permission: "can_manage_companies" as const },
-  { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats" as const },
-  { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats" as const },
-  { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies" as const },
+interface AdminNavItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission: keyof ReturnType<typeof useSuperAdminPermissions>["permissions"];
+  subcategory?: string;
+}
+
+const adminSubcategories = [
+  { id: "sa_overview", label: "Overview" },
+  { id: "sa_clienti", label: "Gestione Clienti" },
+  { id: "sa_piattaforma", label: "Piattaforma" },
+  { id: "sa_programmi", label: "Programmi" },
 ];
 
-const adminMarketingNavItems = [
-  { title: "Dashboard", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing" as const },
-  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing" as const },
-  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing" as const },
-  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing" as const },
-  { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing" as const },
-  { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing" as const },
-  { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing" as const },
-  { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing" as const },
+const adminMarketingSubcategories = [
+  { id: "sa_mkt_crm", label: "CRM" },
+  { id: "sa_mkt_comunicazione", label: "Comunicazione" },
+  { id: "sa_mkt_automation", label: "Automazione & AI" },
+];
+
+const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
+  sa_overview: false,
+  sa_clienti: false,
+  sa_piattaforma: false,
+  sa_programmi: false,
+  sa_mkt_crm: false,
+  sa_mkt_comunicazione: false,
+  sa_mkt_automation: false,
+};
+
+const allNavItems: AdminNavItem[] = [
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, permission: "can_view_platform_stats", subcategory: "sa_overview" },
+  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_clienti" },
+  { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "CS Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "CS Tasks", url: "/admin/cs-tasks", icon: ClipboardCheck, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans", subcategory: "sa_piattaforma" },
+  { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_piattaforma" },
+  { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
+  { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
+  { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies", subcategory: "sa_piattaforma" },
+  { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_programmi" },
+];
+
+const adminMarketingNavItems: AdminNavItem[] = [
+  { title: "Dashboard", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
+  { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
+  { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
+  { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
 ];
 
 const accountItems = [
@@ -233,6 +269,13 @@ function AdminMainSidebar() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
 
+  const allAdminNavItems = [...allNavItems, ...adminMarketingNavItems];
+  const { toggle, isOpen } = useSidebarSections({
+    navItems: allAdminNavItems,
+    storageKey: "admin_sidebar_sections_state",
+    defaultState: ADMIN_SIDEBAR_DEFAULTS,
+  });
+
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const handleSearchChange = (value: string) => {
     setCompanySearch(value);
@@ -278,6 +321,9 @@ function AdminMainSidebar() {
     await impersonateCompany(companyId, permissions);
     navigate("/azienda");
   };
+
+  const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+  const activeClass = "bg-primary/10 text-primary font-semibold border-l-2 border-primary";
   
   return (
     <Sidebar className="border-r">
@@ -351,65 +397,112 @@ function AdminMainSidebar() {
         )}
       </div>
       <SidebarContent className="flex flex-col">
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigazione</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {filteredNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === "/admin"}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {filteredMarketingItems.length > 0 && (
+        {/* Navigazione */}
+        <Collapsible defaultOpen={false}>
           <SidebarGroup>
-            <SidebarGroupLabel>Marketing & Vendita</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredMarketingItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === "/admin/marketing"}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        activeClassName="bg-muted text-foreground font-medium"
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
+            <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+              <span className="flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5" />
+                Navigazione
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                {adminSubcategories.map((sub) => {
+                  const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <SidebarSubcategory
+                      key={sub.id}
+                      label={sub.label}
+                      isOpen={isOpen(sub.id)}
+                      onToggle={() => toggle(sub.id)}
+                    >
+                      <SidebarMenu className="divide-y divide-dashed divide-border/40">
+                        {items.map((item) => (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink 
+                                to={item.url} 
+                                end={item.url === "/admin"}
+                                className={navLinkClass}
+                                activeClassName={activeClass}
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarSubcategory>
+                  );
+                })}
+              </SidebarGroupContent>
+            </CollapsibleContent>
           </SidebarGroup>
+        </Collapsible>
+
+        {/* Marketing & Vendita */}
+        {filteredMarketingItems.length > 0 && (
+          <Collapsible defaultOpen={false}>
+            <SidebarGroup className="pt-0">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+                <span className="flex items-center gap-2">
+                  <Megaphone className="h-3.5 w-3.5" />
+                  Marketing & Vendita
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  {adminMarketingSubcategories.map((sub) => {
+                    const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
+                    if (items.length === 0) return null;
+                    return (
+                      <SidebarSubcategory
+                        key={sub.id}
+                        label={sub.label}
+                        isOpen={isOpen(sub.id)}
+                        onToggle={() => toggle(sub.id)}
+                      >
+                        <SidebarMenu className="divide-y divide-dashed divide-border/40">
+                          {items.map((item) => (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink
+                                  to={item.url}
+                                  end={item.url === "/admin/marketing"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span>{item.title}</span>
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </SidebarMenu>
+                      </SidebarSubcategory>
+                    );
+                  })}
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
         )}
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
+        <div className="mt-auto border-t">
+          <div className="px-2 pt-3">
             <SidebarMenu>
               {accountItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
+                      className={navLinkClass}
+                      activeClassName={activeClass}
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -418,18 +511,17 @@ function AdminMainSidebar() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        
-        <div className="mt-auto p-4">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-            onClick={() => signOut()}
-          >
-            <LogOut className="h-4 w-4" />
-            Esci
-          </Button>
+          </div>
+          <div className="p-4">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4" />
+              Esci
+            </Button>
+          </div>
         </div>
       </SidebarContent>
     </Sidebar>
