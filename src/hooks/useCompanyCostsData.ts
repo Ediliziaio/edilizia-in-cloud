@@ -267,74 +267,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   const dynamicCategories = useMemo(() => buildDynamicCategories(dbCategories, costs as any[], suppliers as any[], allOrderDerivedCosts), [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
-  // Monthly distribution — 12 months (6 past + 6 future) — single pass
-  const monthlyDistribution = useMemo(() => {
-    const now = new Date();
-    const currentMonthStr = format(now, "yyyy-MM");
-    const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
-
-    // Pre-compute month boundaries
-    const months: { ms: Date; me: Date; key: string; label: string }[] = [];
-    for (let i = -5; i <= 6; i++) {
-      const ms = startOfMonth(addMonths(now, i));
-      const me = endOfMonth(addMonths(now, i));
-      months.push({ ms, me, key: format(ms, "yyyy-MM"), label: format(ms, "MMM yy", { locale: it }) });
-    }
-
-    // Accumulators per month
-    const buckets = new Map<string, { fixed: number; variable: number; paidEffective: number; previsto: number; sostenuto: number }>();
-    for (const m of months) {
-      buckets.set(m.key, { fixed: 0, variable: 0, paidEffective: 0, previsto: 0, sostenuto: 0 });
-    }
-
-    const firstMonth = months[0].ms.getTime();
-    const lastMonth = months[months.length - 1].me.getTime();
-
-    // Single pass over all costs
-    for (const c of allRaw) {
-      if (c.due_date) {
-        const d = new Date(c.due_date);
-        const dt = d.getTime();
-        if (dt >= firstMonth && dt <= lastMonth) {
-          const key = format(d, "yyyy-MM");
-          const b = buckets.get(key);
-          if (b) {
-            const amt = Number(c.amount);
-            if (c.cost_type === "fixed") b.fixed += amt; else b.variable += amt;
-            b.previsto += amt;
-          }
-        }
-      }
-      if (c.is_paid && c.paid_date) {
-        const pd = new Date(c.paid_date);
-        const pdt = pd.getTime();
-        if (pdt >= firstMonth && pdt <= lastMonth) {
-          const key = format(pd, "yyyy-MM");
-          const b = buckets.get(key);
-          if (b) {
-            const amt = Number(c.amount);
-            b.paidEffective += amt;
-            b.sostenuto += amt;
-          }
-        }
-      }
-    }
-
-    return months.map(m => {
-      const b = buckets.get(m.key)!;
-      return {
-        month: m.label,
-        monthKey: m.key,
-        Fissi: b.fixed,
-        Variabili: b.variable,
-        PagatoEffettivo: b.paidEffective,
-        Totale: b.fixed + b.variable,
-        Previsto: b.previsto,
-        Sostenuto: b.sostenuto,
-        isCurrent: m.key === currentMonthStr,
-      };
-    });
-  }, [costs, allOrderDerivedCosts]);
+  const monthlyDistribution = useMemo(() => buildMonthlyDistribution(costs as any[], allOrderDerivedCosts), [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
   const costNameCounts = useMemo(() => {
