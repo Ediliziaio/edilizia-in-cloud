@@ -6733,6 +6733,132 @@ export type Database = {
           },
         ]
       }
+      leave_balances: {
+        Row: {
+          company_id: string
+          employee_id: string
+          ferie_days_total: number
+          ferie_days_used: number
+          id: string
+          permessi_hours_total: number
+          permessi_hours_used: number
+          rol_hours_total: number
+          rol_hours_used: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          company_id: string
+          employee_id: string
+          ferie_days_total?: number
+          ferie_days_used?: number
+          id?: string
+          permessi_hours_total?: number
+          permessi_hours_used?: number
+          rol_hours_total?: number
+          rol_hours_used?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          company_id?: string
+          employee_id?: string
+          ferie_days_total?: number
+          ferie_days_used?: number
+          id?: string
+          permessi_hours_total?: number
+          permessi_hours_used?: number
+          rol_hours_total?: number
+          rol_hours_used?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_balances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          company_id: string
+          created_at: string
+          employee_id: string
+          end_date: string
+          id: string
+          notes: string | null
+          rejection_note: string | null
+          start_date: string
+          status: string
+          total_days: number | null
+          total_hours: number | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id: string
+          created_at?: string
+          employee_id: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          rejection_note?: string | null
+          start_date: string
+          status?: string
+          total_days?: number | null
+          total_hours?: number | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id?: string
+          created_at?: string
+          employee_id?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          rejection_note?: string | null
+          start_date?: string
+          status?: string
+          total_days?: number | null
+          total_hours?: number | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lifecycle_notifications: {
         Row: {
           company_id: string
@@ -12778,6 +12904,14 @@ export type Database = {
         }
         Returns: Json
       }
+      approve_leave_request: {
+        Args: {
+          p_approved: boolean
+          p_rejection_note?: string
+          p_request_id: string
+        }
+        Returns: undefined
+      }
       assign_round_robin: { Args: { p_team_id: string }; Returns: string }
       attach_attribution_to_contact: {
         Args: {
@@ -13043,6 +13177,23 @@ export type Database = {
         }[]
       }
       get_feature_usage_stats: { Args: never; Returns: Json }
+      get_leave_summary: {
+        Args: { p_company_id: string; p_year?: number }
+        Returns: {
+          employee_id: string
+          employee_name: string
+          ferie_days_remaining: number
+          ferie_days_total: number
+          ferie_days_used: number
+          pending_requests: number
+          permessi_hours_remaining: number
+          permessi_hours_total: number
+          permessi_hours_used: number
+          rol_hours_remaining: number
+          rol_hours_total: number
+          rol_hours_used: number
+        }[]
+      }
       get_marketing_dashboard_stats: {
         Args: {
           p_assigned_user_ids?: string[]
