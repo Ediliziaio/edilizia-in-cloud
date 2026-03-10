@@ -196,6 +196,8 @@ export default function MarketingCalendar() {
       return data || [];
     },
     enabled: contactIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Enrich with names

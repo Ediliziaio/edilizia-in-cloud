@@ -87,6 +87,8 @@ export function EmailCampaignsTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const createFolderMut = useMutation({
