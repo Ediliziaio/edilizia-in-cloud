@@ -7,7 +7,11 @@ import {
   HeadphonesIcon,
   User,
   LogOut,
-  Menu
+  Menu,
+  FileText,
+  CreditCard,
+  CalendarDays,
+  MessageCircle,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -21,9 +25,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NavLink } from "@/components/NavLink";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
-  { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList },
+  { title: "Ordini", url: "/cliente", icon: ClipboardList },
+  { title: "Documenti", url: "/cliente/documenti", icon: FileText },
+  { title: "Rate", url: "/cliente/rate", icon: CreditCard },
+  { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
+  { title: "Messaggi", url: "/cliente/messaggi", icon: MessageCircle, badge: true },
   { title: "Assistenza", url: "/cliente/assistenza", icon: HeadphonesIcon },
   { title: "Profilo", url: "/cliente/profilo", icon: User },
 ];
