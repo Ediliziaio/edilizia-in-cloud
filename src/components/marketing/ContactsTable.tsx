@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { Checkbox } from "@/components/ui/checkbox";
