@@ -289,8 +289,8 @@ export function AutomationBuilder() {
         <p className="text-sm text-muted-foreground max-w-md">
           Per creare un'automazione, devi prima selezionare un'azienda tramite il pannello di amministrazione.
         </p>
-        <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
-          ← Torna alla lista
+         <Button variant="outline" onClick={() => navigate(`${prefix}/automazioni`)}>
+            ← Torna alla lista
         </Button>
       </div>
     );
