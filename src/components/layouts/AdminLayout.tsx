@@ -28,7 +28,12 @@ import {
   Bot,
   ListChecks,
   ClipboardCheck,
-  ShieldCheck as ShieldCheckIcon
+  ShieldCheck as ShieldCheckIcon,
+  BarChart3,
+  Users,
+  Target,
+  CalendarDays,
+  Zap,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -65,6 +70,15 @@ const allNavItems = [
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats" as const },
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats" as const },
   { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies" as const },
+];
+
+const adminMarketingNavItems = [
+  { title: "Dashboard", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing" as const },
+  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing" as const },
+  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing" as const },
+  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing" as const },
+  { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing" as const },
+  { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing" as const },
 ];
 
 const accountItems = [
@@ -227,6 +241,10 @@ function AdminMainSidebar() {
     (item) => permissions[item.permission]
   );
 
+  const filteredMarketingItems = adminMarketingNavItems.filter(
+    (item) => permissions[item.permission]
+  );
+
   const { data: companies = [] } = useQuery({
     queryKey: ["admin-sidebar-companies", debouncedSearch],
     queryFn: async () => {
@@ -352,6 +370,31 @@ function AdminMainSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {filteredMarketingItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Marketing & Vendita</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredMarketingItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/admin/marketing"}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        activeClassName="bg-muted text-foreground font-medium"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Account</SidebarGroupLabel>

@@ -55,6 +55,12 @@ const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
+const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
+const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
+const AdminMarketingOpportunities = lazy(() => import("@/pages/admin/marketing/AdminMarketingOpportunities"));
+const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminMarketingCalendar"));
+const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
+const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomations"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -257,6 +263,12 @@ const App = () => (
                 <Route path="customer-success" element={<CustomerSuccess />} />
                 <Route path="cs-tasks" element={<AdminCSTasks />} />
                 <Route path="gdpr" element={<AdminGDPR />} />
+                <Route path="marketing" element={<AdminMarketingDashboard />} />
+                <Route path="marketing/contatti" element={<AdminMarketingContacts />} />
+                <Route path="marketing/opportunita" element={<AdminMarketingOpportunities />} />
+                <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
+                <Route path="marketing/email" element={<AdminEmailMarketing />} />
+                <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
