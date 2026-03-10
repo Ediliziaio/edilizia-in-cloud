@@ -219,6 +219,7 @@ export const ContactsTable = memo(function ContactsTable({
   customFields = [], customFieldValues = {},
 }: ContactsTableProps) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
 
