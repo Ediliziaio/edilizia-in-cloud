@@ -1,36 +1,29 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, differenceInCalendarDays } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
-import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
+import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  type UnifiedCost,
+  buildOrderItemCosts,
+  buildExternalTeamCosts,
+  buildEmployeeCosts,
+  buildCommissionCosts,
+  buildDynamicCategories,
+  buildMonthlyDistribution,
+  sortCostsByPriority,
+  buildCategoryDistribution,
+  exportCostsToCSV,
+} from "@/lib/costsUtils";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
 export type StatusTabFilter = "all" | "sostenuti" | "previsti" | "in_ritardo" | "in_scadenza";
 
-export interface UnifiedCost {
-  id: string;
-  realOrderItemId?: string;
-  name: string;
-  cost_type: string;
-  amount: number;
-  category: string | null;
-  recurrence: string;
-  due_date: string;
-  is_paid: boolean;
-  paid_date: string | null;
-  notes: string | null;
-  order_id: string | null;
-  order?: { id: string; order_code: string | null } | null;
-  isFromOrder?: boolean;
-  orderItemStatus?: string;
-  supplierName?: string | null;
-  supplier_id?: string | null;
-  vat_rate?: number | null;
-}
+export type { UnifiedCost } from "@/lib/costsUtils";
 
 export interface CostsFilters {
   periodFilter: PeriodFilter;
@@ -179,140 +172,11 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     gcTime: 15 * 60 * 1000,
   });
 
-  // Transform order items into unified cost format (split installments)
-  const orderItemsAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    const rows: UnifiedCost[] = [];
-    orderItemCosts.forEach((item: any) => {
-      const pm = item.payment_method;
-      const order = item.order ? { id: item.order.id, order_code: item.order.order_code } : null;
-      const supplierName = item.supplier?.name || null;
-
-      if (pm === "50_50" || pm === "30_70") {
-        rows.push({
-          id: `${COST_ID_PREFIX.ORDER_ITEM_DEPOSIT}${item.id}`,
-          realOrderItemId: item.id,
-          name: `Acconto - ${item.name}`,
-          cost_type: "variable",
-          amount: Number(item.deposit_amount) || 0,
-          category: "Fornitori",
-          recurrence: "once",
-          due_date: item.deposit_paid_date || new Date().toISOString().split("T")[0],
-          is_paid: !!item.deposit_paid,
-          paid_date: item.deposit_paid_date || null,
-          notes: null,
-          order_id: order?.id || null,
-          order,
-          isFromOrder: true,
-          orderItemStatus: item.status,
-          supplierName,
-          vat_rate: item.supplier?.vat_rate ?? null,
-        });
-        rows.push({
-          id: `${COST_ID_PREFIX.ORDER_ITEM_BALANCE}${item.id}`,
-          realOrderItemId: item.id,
-          name: `Saldo - ${item.name}`,
-          cost_type: "variable",
-          amount: Number(item.balance_amount) || 0,
-          category: "Fornitori",
-          recurrence: "once",
-          due_date: item.balance_expected_date || item.balance_paid_date || new Date().toISOString().split("T")[0],
-          is_paid: !!item.balance_paid,
-          paid_date: item.balance_paid_date || null,
-          notes: null,
-          order_id: order?.id || null,
-          order,
-          isFromOrder: true,
-          orderItemStatus: item.status,
-          supplierName,
-          vat_rate: item.supplier?.vat_rate ?? null,
-        });
-      } else {
-        rows.push({
-          id: `${COST_ID_PREFIX.ORDER_ITEM}${item.id}`,
-          realOrderItemId: item.id,
-          name: item.name,
-          cost_type: "variable",
-          amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
-          category: "Fornitori",
-          recurrence: "once",
-          due_date: item.paid_date || new Date().toISOString().split("T")[0],
-          is_paid: !!item.is_paid,
-          paid_date: item.paid_date || null,
-          notes: null,
-          order_id: order?.id || null,
-          order,
-          isFromOrder: true,
-          orderItemStatus: item.status,
-          supplierName,
-          vat_rate: item.supplier?.vat_rate ?? null,
-        });
-      }
-    });
-    return rows;
-  }, [orderItemCosts]);
-
-  // Transform external teams into unified cost format
-  const externalTeamAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return externalTeamCosts.map((item: any): UnifiedCost => ({
-      id: `${COST_ID_PREFIX.EXT_TEAM}${item.id}`,
-      name: item.external_team?.name || "Squadra Esterna",
-      cost_type: "variable",
-      amount: Number(item.total_cost) || 0,
-      category: "Squadre Esterne",
-      recurrence: "once",
-      due_date: item.payment_date || new Date().toISOString().split("T")[0],
-      is_paid: !!item.is_paid,
-      paid_date: item.paid_date || null,
-      notes: null,
-      order_id: item.order?.id || null,
-      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
-      isFromOrder: true,
-      supplierName: null,
-      vat_rate: 0,
-    }));
-  }, [externalTeamCosts]);
-
-  // Transform active employees into fixed monthly salary costs
-  const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
-    return activeEmployees.map((emp): UnifiedCost => ({
-      id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}`,
-      name: `${emp.first_name} ${emp.last_name} (stipendio)`,
-      cost_type: "fixed",
-      amount: Number(emp.gross_salary) || 0,
-      category: "Personale",
-      recurrence: "monthly",
-      due_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
-      is_paid: false,
-      paid_date: null,
-      notes: null,
-      order_id: null,
-      order: null,
-      isFromOrder: true,
-      supplierName: null,
-      vat_rate: 0,
-    }));
-  }, [activeEmployees]);
-
-  // Transform commissions into unified cost format
-  const commissionAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return commissionCosts.map((item: any): UnifiedCost => ({
-      id: `${COST_ID_PREFIX.COMMISSION}${item.id}`,
-      name: `${item.salesperson?.first_name || ""} ${item.salesperson?.last_name || ""}`.trim() || "Venditore",
-      cost_type: "variable",
-      amount: Number(item.commission_amount) || 0,
-      category: "Provvigioni",
-      recurrence: "once",
-      due_date: item.payment_expected_date || new Date().toISOString().split("T")[0],
-      is_paid: !!item.is_paid,
-      paid_date: item.paid_date || null,
-      notes: null,
-      order_id: item.order?.id || null,
-      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
-      isFromOrder: true,
-      supplierName: null,
-      vat_rate: 0,
-    }));
-  }, [commissionCosts]);
+  // Transform raw data into unified cost format using extracted utilities
+  const orderItemsAsVariableCosts = useMemo(() => buildOrderItemCosts(orderItemCosts), [orderItemCosts]);
+  const externalTeamAsVariableCosts = useMemo(() => buildExternalTeamCosts(externalTeamCosts), [externalTeamCosts]);
+  const employeeAsFixedCosts = useMemo(() => buildEmployeeCosts(activeEmployees), [activeEmployees]);
+  const commissionAsVariableCosts = useMemo(() => buildCommissionCosts(commissionCosts), [commissionCosts]);
 
   // All order-derived costs combined
   const allOrderDerivedCosts = useMemo(() => [
@@ -401,86 +265,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     gcTime: 15 * 60 * 1000,
   });
 
-  // Dynamic categories: DB categories + legacy categories from costs (backward compat)
-  const dynamicCategories = useMemo(() => {
-    const cats = new Set<string>(dbCategories);
-    costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
-    suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
-    allOrderDerivedCosts.forEach((c) => { if (c.category) cats.add(c.category); });
-    if (cats.size === 0) {
-      ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
-    }
-    return Array.from(cats).sort();
-  }, [dbCategories, costs, suppliers, allOrderDerivedCosts]);
+  const dynamicCategories = useMemo(() => buildDynamicCategories(dbCategories, costs as any[], suppliers as any[], allOrderDerivedCosts), [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
-  // Monthly distribution — 12 months (6 past + 6 future) — single pass
-  const monthlyDistribution = useMemo(() => {
-    const now = new Date();
-    const currentMonthStr = format(now, "yyyy-MM");
-    const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
-
-    // Pre-compute month boundaries
-    const months: { ms: Date; me: Date; key: string; label: string }[] = [];
-    for (let i = -5; i <= 6; i++) {
-      const ms = startOfMonth(addMonths(now, i));
-      const me = endOfMonth(addMonths(now, i));
-      months.push({ ms, me, key: format(ms, "yyyy-MM"), label: format(ms, "MMM yy", { locale: it }) });
-    }
-
-    // Accumulators per month
-    const buckets = new Map<string, { fixed: number; variable: number; paidEffective: number; previsto: number; sostenuto: number }>();
-    for (const m of months) {
-      buckets.set(m.key, { fixed: 0, variable: 0, paidEffective: 0, previsto: 0, sostenuto: 0 });
-    }
-
-    const firstMonth = months[0].ms.getTime();
-    const lastMonth = months[months.length - 1].me.getTime();
-
-    // Single pass over all costs
-    for (const c of allRaw) {
-      if (c.due_date) {
-        const d = new Date(c.due_date);
-        const dt = d.getTime();
-        if (dt >= firstMonth && dt <= lastMonth) {
-          const key = format(d, "yyyy-MM");
-          const b = buckets.get(key);
-          if (b) {
-            const amt = Number(c.amount);
-            if (c.cost_type === "fixed") b.fixed += amt; else b.variable += amt;
-            b.previsto += amt;
-          }
-        }
-      }
-      if (c.is_paid && c.paid_date) {
-        const pd = new Date(c.paid_date);
-        const pdt = pd.getTime();
-        if (pdt >= firstMonth && pdt <= lastMonth) {
-          const key = format(pd, "yyyy-MM");
-          const b = buckets.get(key);
-          if (b) {
-            const amt = Number(c.amount);
-            b.paidEffective += amt;
-            b.sostenuto += amt;
-          }
-        }
-      }
-    }
-
-    return months.map(m => {
-      const b = buckets.get(m.key)!;
-      return {
-        month: m.label,
-        monthKey: m.key,
-        Fissi: b.fixed,
-        Variabili: b.variable,
-        PagatoEffettivo: b.paidEffective,
-        Totale: b.fixed + b.variable,
-        Previsto: b.previsto,
-        Sostenuto: b.sostenuto,
-        isCurrent: m.key === currentMonthStr,
-      };
-    });
-  }, [costs, allOrderDerivedCosts]);
+  const monthlyDistribution = useMemo(() => buildMonthlyDistribution(costs as any[], allOrderDerivedCosts), [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
   const costNameCounts = useMemo(() => {
@@ -515,24 +302,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
   const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
 
-  const allCostsSorted = useMemo(() => {
-    const now = new Date();
-    const soon = addDays(now, 7);
-    return [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
-      const getPriority = (c: any) => {
-        if (c.is_paid) return 4;
-        const d = c.due_date ? new Date(c.due_date) : null;
-        if (d && d < now) return 1;
-        if (d && d <= soon) return 2;
-        return 3;
-      };
-      const pA = getPriority(a), pB = getPriority(b);
-      if (pA !== pB) return pA - pB;
-      const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
-      const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-      return pA === 4 ? dateB - dateA : dateA - dateB;
-    });
-  }, [filteredCosts, filteredOrderItemCosts]);
+  const allCostsSorted = useMemo(() => sortCostsByPriority([...filteredCosts, ...filteredOrderItemCosts]), [filteredCosts, filteredOrderItemCosts]);
 
   // Status tab pre-filtered lists
   const statusTabLists = useMemo(() => {
@@ -658,20 +428,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   };
 
   // Category distribution for PieChart
-  const categoryDistribution = useMemo(() => {
-    const catMap = new Map<string, number>();
-    allCostsSorted.forEach((c: any) => {
-      const cat = c.category || "Altro";
-      catMap.set(cat, (catMap.get(cat) || 0) + Number(c.amount));
-    });
-    const sorted = Array.from(catMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-    if (sorted.length <= 7) return sorted;
-    const top6 = sorted.slice(0, 6);
-    const otherValue = sorted.slice(6).reduce((s, c) => s + c.value, 0);
-    return [...top6, { name: "Altro", value: otherValue }];
-  }, [allCostsSorted]);
+  const categoryDistribution = useMemo(() => buildCategoryDistribution(allCostsSorted), [allCostsSorted]);
 
   // Available years from costs data
   const availableYears = useMemo(() => {

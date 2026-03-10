@@ -1,18 +1,18 @@
-import { useState, useEffect, useMemo, forwardRef } from "react";
+import { useState, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
-  FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
-  Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge, FileSignature,
+  FileText, Plus, Send, Search,
+  Bell, User, X, Filter,
+  Loader2, AlertCircle, MessageSquare, Smartphone, Merge,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -42,7 +42,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
-import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
 import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
@@ -51,349 +50,15 @@ import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
+import { RefreshCw, CalendarDays } from "lucide-react";
 
-// ── Contact Appointments Panel ──
-function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
-  contactId: string; companyId: string; contactName: string;
-  calendars: { id: string; name: string; base_lat?: number | null; base_lng?: number | null; base_formatted_address?: string | null }[];
-  users: { id: string; first_name: string; last_name: string }[];
-}) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingApt, setEditingApt] = useState<MarketingAppointmentData | null>(null);
-  const queryClient = useQueryClient();
-
-  const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["contact_appointments", contactId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*, marketing_calendars:calendar_id(name)")
-        .eq("contact_id", contactId)
-        .eq("company_id", companyId)
-        .order("appointment_date", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!contactId && !!companyId,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 8 * 60 * 1000,
-  });
-
-  const now = useMemo(() => new Date(), []);
-  const upcoming = appointments.filter((a: any) => new Date(a.appointment_date) >= now && a.status !== "annullato");
-  const past = appointments.filter((a: any) => new Date(a.appointment_date) < now || a.status === "annullato");
-
-  const openEdit = (apt: any) => {
-    setEditingApt({
-      id: apt.id, title: apt.title, description: apt.description,
-      appointment_date: apt.appointment_date, appointment_time: apt.appointment_time,
-      appointment_end_time: apt.appointment_end_time, appointment_type: apt.appointment_type,
-      assigned_to: apt.assigned_to, calendar_id: apt.calendar_id, contact_id: apt.contact_id,
-      status: apt.status, is_completed: apt.is_completed, is_blocked_slot: apt.is_blocked_slot,
-      internal_notes: apt.internal_notes, address_line: apt.address_line, address_city: apt.address_city,
-      address_postal_code: apt.address_postal_code, address_province: apt.address_province,
-      address_country: apt.address_country, formatted_address: apt.formatted_address,
-      lat: apt.lat, lng: apt.lng, place_id: apt.place_id,
-    });
-    setDialogOpen(true);
-  };
-
-  const renderApt = (apt: any) => (
-    <div
-      key={apt.id}
-      className="rounded bg-muted/50 p-2 space-y-0.5 cursor-pointer hover:bg-muted/80 transition-colors"
-      onClick={() => openEdit(apt)}
-    >
-      <p className="text-[11px] font-medium truncate">{apt.title}</p>
-      <p className="text-[10px] text-muted-foreground">
-        {format(new Date(apt.appointment_date), "d MMM yyyy", { locale: it })}
-        {apt.appointment_time && ` · ${apt.appointment_time.substring(0, 5)}`}
-      </p>
-      <div className="flex items-center gap-1">
-        <Badge
-          variant={apt.status === "completato" ? "default" : apt.status === "annullato" ? "destructive" : "secondary"}
-          className="text-[9px] h-4 px-1"
-        >
-          {apt.status}
-        </Badge>
-        {(apt as any).marketing_calendars?.name && (
-          <span className="text-[9px] text-muted-foreground">{(apt as any).marketing_calendars.name}</span>
-        )}
-      </div>
-      {apt.formatted_address && (
-        <p className="text-[9px] text-muted-foreground truncate">{apt.formatted_address}</p>
-      )}
-    </div>
-  );
-
-  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
-
-  return (
-    <div className="space-y-2.5">
-      <Button
-        size="sm"
-        className="w-full h-7 text-[11px]"
-        onClick={() => { setEditingApt(null); setDialogOpen(true); }}
-      >
-        <Plus className="h-3 w-3 mr-1" /> Prenota appuntamento
-      </Button>
-
-      {upcoming.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Prossimi</p>
-          {upcoming.map(renderApt)}
-        </div>
-      )}
-
-      {past.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Passati</p>
-          {past.map(renderApt)}
-        </div>
-      )}
-
-      {appointments.length === 0 && (
-        <p className="text-[11px] text-muted-foreground text-center py-4">Nessun appuntamento</p>
-      )}
-
-      <MarketingAppointmentDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        appointment={editingApt}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact_appointments", contactId] })}
-        calendars={calendars}
-        users={users}
-        defaultContactId={contactId}
-      />
-    </div>
-  );
-}
-
-// ── Inline editable field ──
-function InlineField({ label, value, onSave, type = "text", options }: {
-  label: string; value: string; onSave: (v: string) => void; type?: string; options?: string[];
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value || "");
-
-  useEffect(() => { setDraft(value || ""); }, [value]);
-
-  const [saved, setSaved] = useState(false);
-
-  const commit = () => {
-    setEditing(false);
-    if (draft !== (value || "")) {
-      onSave(draft);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    }
-  };
-
-  if (type === "select" && options) {
-    return (
-      <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
-        <Label className="text-xs text-muted-foreground truncate">{label}</Label>
-        <Select value={value || ""} onValueChange={onSave}>
-          <SelectTrigger className="h-7 text-xs border-0 bg-transparent shadow-none px-1 hover:bg-muted/50"><SelectValue placeholder="—" /></SelectTrigger>
-          <SelectContent>
-            {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
-      <Label className="text-xs text-muted-foreground truncate">{label}</Label>
-      {editing ? (
-        <Input
-          autoFocus
-          type={type}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === "Enter" && commit()}
-          className="h-7 text-xs px-1"
-        />
-      ) : (
-        <div className="flex items-center gap-1">
-          <p
-            className="text-xs min-h-[32px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1 flex-1"
-            onClick={() => setEditing(true)}
-          >
-            {value || <span className="text-muted-foreground">—</span>}
-          </p>
-          {saved && <Check className="h-3 w-3 text-emerald-500 animate-in fade-in duration-200" />}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// ── Extracted sub-components ──
+import { InlineField } from "@/components/marketing/contacts/InlineField";
+import { ContactAppointmentsPanel } from "@/components/marketing/contacts/ContactAppointmentsPanel";
+import { OpportunitiesPanel } from "@/components/marketing/contacts/OpportunitiesPanel";
+import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuotesPanel";
+import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
-
-// ── Activity type icons & labels ──
-function getActivityIcon(type: string) {
-  switch (type) {
-    case "created":
-    case "contact_created": return <UserPlus className="h-3.5 w-3.5" />;
-    case "updated": return <Settings className="h-3.5 w-3.5" />;
-    case "note_added": return <StickyNote className="h-3.5 w-3.5" />;
-    case "email_sent": return <Mail className="h-3.5 w-3.5" />;
-    case "message_sent": return <MessageSquare className="h-3.5 w-3.5" />;
-    case "opportunity_linked":
-    case "opportunity_created": return <Target className="h-3.5 w-3.5" />;
-    case "stage_changed": return <ArrowRight className="h-3.5 w-3.5" />;
-    case "status_changed": return <RefreshCw className="h-3.5 w-3.5" />;
-    case "opportunity_assigned":
-    case "contact_assigned": return <UserCheck className="h-3.5 w-3.5" />;
-    case "document_uploaded": return <FileText className="h-3.5 w-3.5" />;
-    default: return <Activity className="h-3.5 w-3.5" />;
-  }
-}
-
-function getActivityColor(type: string) {
-  switch (type) {
-    case "created":
-    case "contact_created": return "bg-emerald-100 text-emerald-600";
-    case "updated": return "bg-blue-100 text-blue-600";
-    case "note_added": return "bg-amber-100 text-amber-600";
-    case "email_sent": return "bg-violet-100 text-violet-600";
-    case "message_sent": return "bg-emerald-100 text-emerald-600";
-    case "opportunity_created": return "bg-purple-100 text-purple-600";
-    case "stage_changed": return "bg-sky-100 text-sky-600";
-    case "status_changed": return "bg-orange-100 text-orange-600";
-    case "opportunity_assigned":
-    case "contact_assigned": return "bg-indigo-100 text-indigo-600";
-    case "document_uploaded": return "bg-cyan-100 text-cyan-600";
-    default: return "bg-muted text-muted-foreground";
-  }
-}
-
-// ── Date separator helper ──
-function getDateLabel(dateStr: string) {
-  const d = new Date(dateStr);
-  if (isToday(d)) return "Oggi";
-  if (isYesterday(d)) return "Ieri";
-  return format(d, "d MMMM yyyy", { locale: it });
-}
-
-// ── RIGHT SIDEBAR TABS ──
-type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "sms_log" | "settings";
-const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
-  { key: "documents", icon: FileText, label: "Documenti" },
-  { key: "activities", icon: Activity, label: "Attività" },
-  { key: "notes", icon: StickyNote, label: "Note" },
-  { key: "appointments", icon: CalendarDays, label: "Calendario" },
-  { key: "opportunities", icon: Target, label: "Opportunità" },
-  { key: "quotes", icon: FileSignature, label: "Preventivi" },
-  { key: "invoices", icon: FileText, label: "Fatture" },
-  { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
-  { key: "sms_log", icon: Smartphone, label: "Log SMS" },
-  { key: "settings", icon: Settings, label: "Impostazioni" },
-];
-
-// ── Opportunities Panel for right sidebar ──
-function OpportunitiesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
-  const { data: opps = [], isLoading } = useQuery({
-    queryKey: ["contact_opportunities", contactId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_opportunities")
-        .select("id, name, value, status, marketing_pipeline_stages(name), marketing_pipelines(name)")
-        .eq("contact_id", contactId)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!contactId && !!companyId,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 8 * 60 * 1000,
-  });
-
-  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
-
-  if (opps.length === 0) return <p className="text-[11px] text-muted-foreground text-center py-8">Nessuna opportunità collegata</p>;
-
-  return (
-    <div className="space-y-2">
-      {opps.map((opp: any) => (
-        <div key={opp.id} className="rounded bg-muted/50 p-2 space-y-0.5">
-          <p className="text-[11px] font-medium">{opp.name}</p>
-          <div className="flex items-center gap-1">
-            <Badge variant={opp.status === "won" ? "default" : opp.status === "lost" ? "destructive" : "secondary"} className="text-[9px] h-4 px-1">
-              {opp.status === "open" ? "Aperta" : opp.status === "won" ? "Vinta" : "Persa"}
-            </Badge>
-            {opp.value > 0 && <span className="text-[10px] text-muted-foreground">{Number(opp.value).toLocaleString("it-IT")} €</span>}
-          </div>
-          {opp.marketing_pipelines?.name && (
-            <p className="text-[10px] text-muted-foreground">{opp.marketing_pipelines.name} → {opp.marketing_pipeline_stages?.name}</p>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Quotes Panel for right sidebar ──
-function ContactQuotesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
-  const navigate = useNavigate();
-  const { data: quotes = [], isLoading } = useQuery({
-    queryKey: ["contact_quotes", contactId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("quotes")
-        .select("id, quote_number, title, total, status, created_at")
-        .eq("contact_id", contactId)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!contactId && !!companyId,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 8 * 60 * 1000,
-  });
-
-  const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
-
-  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
-
-  return (
-    <div className="space-y-2">
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full text-[10px] h-7"
-        onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?contact_id=${contactId}`)}
-      >
-        <Plus className="h-3 w-3 mr-1" /> Nuovo Preventivo
-      </Button>
-      {quotes.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground text-center py-6">Nessun preventivo</p>
-      ) : (
-        quotes.map((q: any) => (
-          <div
-            key={q.id}
-            className="rounded bg-muted/50 p-2 space-y-0.5 cursor-pointer hover:bg-muted transition-colors"
-            onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
-          >
-            <p className="text-[11px] font-medium">{q.quote_number}</p>
-            {q.title && <p className="text-[10px] text-muted-foreground truncate">{q.title}</p>}
-            <div className="flex items-center gap-1">
-              <Badge variant={q.status === "accettata" ? "default" : q.status === "rifiutata" ? "destructive" : "secondary"} className="text-[9px] h-4 px-1">
-                {statusLabels[q.status] || q.status}
-              </Badge>
-              {q.total > 0 && <span className="text-[10px] text-muted-foreground">{Number(q.total).toLocaleString("it-IT")} €</span>}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
 
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
