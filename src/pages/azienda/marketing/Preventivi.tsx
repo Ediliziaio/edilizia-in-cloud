@@ -70,12 +70,12 @@ export default function Preventivi() {
   const [deleteQuote, setDeleteQuote] = useState<any | null>(null);
 
   const { data: quotes = [], isLoading } = useQuery({
-    queryKey: ["quotes", companyId],
+    queryKey: queryKeys.quotes.list(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("*")
+        .select("id, quote_number, client_name, title, status, total, created_at")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
