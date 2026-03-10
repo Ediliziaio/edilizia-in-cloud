@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cleanPhone } from "@/lib/contactUtils";
 
 export interface ContactFormData {
   first_name: string;
