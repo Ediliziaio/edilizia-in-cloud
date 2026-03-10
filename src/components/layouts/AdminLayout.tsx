@@ -28,7 +28,12 @@ import {
   Bot,
   ListChecks,
   ClipboardCheck,
-  ShieldCheck as ShieldCheckIcon
+  ShieldCheck as ShieldCheckIcon,
+  BarChart3,
+  Users,
+  Target,
+  CalendarDays,
+  Zap,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
