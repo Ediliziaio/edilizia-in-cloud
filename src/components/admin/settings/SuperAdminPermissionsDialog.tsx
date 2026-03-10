@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search } from "lucide-react";
+import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search, Megaphone } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
