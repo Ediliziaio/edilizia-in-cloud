@@ -172,6 +172,8 @@ export default function MarketingCalendar() {
       return (data || []) as any[];
     },
     enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Extract unique contact IDs from loaded appointments
