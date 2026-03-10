@@ -452,6 +452,8 @@ export default function OrderDetail() {
       queryClient.invalidateQueries({ queryKey: ["forecast-pending-items"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-supplier-balances"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-installments"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
       toast.success("Articolo aggiornato");
     },
     onError: () => { toast.error("Errore nell'aggiornamento dell'articolo."); },
