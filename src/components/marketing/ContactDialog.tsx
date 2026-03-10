@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cleanPhone } from "@/lib/contactUtils";
 
 export interface ContactFormData {
   first_name: string;
@@ -54,9 +55,7 @@ const emptyForm: ContactFormData = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function cleanPhone(phone: string): string {
-  return phone.replace(/[\s\-\.]/g, "");
-}
+// cleanPhone is now imported from @/lib/contactUtils
 
 function isValidItalianPhone(phone: string): boolean {
   const cleaned = cleanPhone(phone);

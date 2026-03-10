@@ -157,6 +157,8 @@ export function useCreateOpportunity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
       toast.success("Opportunità creata");
     },
     onError: (e: any) => toast.error(e.message),
@@ -177,6 +179,7 @@ export function useUpdateOpportunity() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -228,6 +231,7 @@ export function useUpdateOpportunityStage() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
     },
   });
 }
@@ -242,6 +246,8 @@ export function useDeleteOpportunity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
       toast.success("Opportunità eliminata");
     },
     onError: (e: any) => toast.error(e.message),
@@ -394,6 +400,7 @@ export function useAddOpportunityNote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
@@ -414,6 +421,8 @@ export function useBulkUpdateOpportunities() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
       toast.success("Opportunità aggiornate");
     },
     onError: (e: any) => toast.error(e.message),
@@ -434,6 +443,8 @@ export function useBulkDeleteOpportunities() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
       toast.success("Opportunità eliminate");
     },
     onError: (e: any) => toast.error(e.message),

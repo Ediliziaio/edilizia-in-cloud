@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns } from "@/components/marketing/ContactsTable";
+import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
+import { cleanPhone } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
@@ -87,8 +88,9 @@ const CSV_FIELDS: ImportField[] = [
 ];
 
 export default function MarketingContacts() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();
 
@@ -127,7 +129,7 @@ export default function MarketingContacts() {
   const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);
   const sortDirection = urlFilters.sortDirection as SortDirection;
   const setSortDirection = useCallback((v: SortDirection) => setURLParam("sortDirection", v), [setURLParam]);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(loadVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => loadVisibleColumns(columnsStorageKey));
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
@@ -612,7 +614,7 @@ export default function MarketingContacts() {
 
   const handleApplyColumns = (cols: Set<string>) => {
     setVisibleColumns(cols);
-    saveVisibleColumns(cols);
+    saveVisibleColumns(cols, columnsStorageKey);
   };
 
   const handleApplyFilters = (f: ContactFilters) => {
@@ -656,7 +658,7 @@ export default function MarketingContacts() {
           company_id: companyId,
           first_name: firstName || "Senza nome",
           last_name: lastName || null,
-          phone: phone,
+          phone: phone ? cleanPhone(phone) : null,
           email: email,
           company_name: r.company_name?.trim() || null,
           city: r.city?.trim() || null,

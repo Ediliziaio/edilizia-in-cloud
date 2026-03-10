@@ -57,7 +57,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
         .select("source")
         .eq("company_id", companyId!)
         .not("source", "is", null)
-        .limit(500);
+        .limit(10000);
       const unique = [...new Set((data || []).map(d => d.source).filter(Boolean))] as string[];
       return unique.sort();
     },

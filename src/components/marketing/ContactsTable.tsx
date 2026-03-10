@@ -81,18 +81,29 @@ export type ColumnKey = (typeof COLUMNS)[number]["key"];
 
 export const DEFAULT_VISIBLE: ColumnKey[] = ["name", "phone", "email", "company_name", "created_at", "last_activity_at", "tags"];
 
-const STORAGE_KEY = "contacts-visible-columns";
+const STORAGE_KEY_PREFIX = "contacts-visible-columns";
 
-export function loadVisibleColumns(): Set<string> {
+export function getStorageKey(userId?: string, companyId?: string): string {
+  if (userId && companyId) return `${STORAGE_KEY_PREFIX}:${userId}:${companyId}`;
+  return STORAGE_KEY_PREFIX;
+}
+
+export function loadVisibleColumns(storageKey?: string): Set<string> {
+  const key = storageKey || STORAGE_KEY_PREFIX;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(key);
     if (stored) return new Set(JSON.parse(stored) as string[]);
+    // Migration: try legacy global key if scoped key not found
+    if (key !== STORAGE_KEY_PREFIX) {
+      const legacy = localStorage.getItem(STORAGE_KEY_PREFIX);
+      if (legacy) return new Set(JSON.parse(legacy) as string[]);
+    }
   } catch {}
   return new Set(DEFAULT_VISIBLE);
 }
 
-export function saveVisibleColumns(cols: Set<string>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(cols)));
+export function saveVisibleColumns(cols: Set<string>, storageKey?: string) {
+  localStorage.setItem(storageKey || STORAGE_KEY_PREFIX, JSON.stringify(Array.from(cols)));
 }
 
 interface ContactsTableProps {

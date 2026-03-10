@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useContactCustomFields() {
   const { effectiveCompany } = useAuth();
@@ -85,8 +86,8 @@ export function useUpdateContact() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -121,7 +122,7 @@ export function useUpsertContactFieldValues() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_field_values"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -156,7 +157,7 @@ export function useUpsertOpportunityFieldValues() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunity_field_values"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
