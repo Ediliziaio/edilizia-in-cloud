@@ -105,6 +105,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase
         .from("companies")
         .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)")
+        .eq("is_platform_admin_company", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];

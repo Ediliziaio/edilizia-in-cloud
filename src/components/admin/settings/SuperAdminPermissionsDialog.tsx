@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search } from "lucide-react";
+import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search, Megaphone } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
@@ -27,6 +27,7 @@ interface Permissions {
   can_manage_referrals: boolean;
   can_manage_admins: boolean;
   can_view_platform_stats: boolean;
+  can_manage_marketing: boolean;
   allowed_company_ids: string[] | null;
 }
 
@@ -37,6 +38,7 @@ const defaults: Permissions = {
   can_manage_referrals: true,
   can_manage_admins: true,
   can_view_platform_stats: true,
+  can_manage_marketing: true,
   allowed_company_ids: null,
 };
 
@@ -47,6 +49,7 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
   { key: "can_manage_referrals", icon: Users, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_referrals, desc: "Gestire programma referral" },
   { key: "can_manage_admins", icon: ShieldCheck, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_admins, desc: "Creare ed eliminare altri super admin" },
   { key: "can_view_platform_stats", icon: BarChart3, label: SUPER_ADMIN_PERMISSION_LABELS.can_view_platform_stats, desc: "Visualizzare statistiche globali" },
+  { key: "can_manage_marketing", icon: Megaphone, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_marketing, desc: "Gestire CRM e marketing della piattaforma" },
 ];
 
 export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminId, adminName }: Props) {
@@ -87,6 +90,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         can_manage_referrals: currentPerms.can_manage_referrals,
         can_manage_admins: currentPerms.can_manage_admins,
         can_view_platform_stats: currentPerms.can_view_platform_stats,
+        can_manage_marketing: currentPerms.can_manage_marketing,
         allowed_company_ids: currentPerms.allowed_company_ids,
       });
       setAllCompanies(currentPerms.allowed_company_ids === null);

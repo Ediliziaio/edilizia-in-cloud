@@ -233,6 +233,7 @@ function AdminMainSidebar() {
       let query = supabase
         .from("companies")
         .select("id, name, logo_url")
+        .eq("is_platform_admin_company", false)
         .order("name")
         .limit(50);
       if (debouncedSearch) {

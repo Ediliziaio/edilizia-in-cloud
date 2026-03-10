@@ -9,6 +9,7 @@ export interface SuperAdminPermissions {
   can_manage_referrals: boolean;
   can_manage_admins: boolean;
   can_view_platform_stats: boolean;
+  can_manage_marketing: boolean;
   allowed_company_ids: string[] | null;
 }
 
@@ -19,6 +20,7 @@ const ALL_TRUE: SuperAdminPermissions = {
   can_manage_referrals: true,
   can_manage_admins: true,
   can_view_platform_stats: true,
+  can_manage_marketing: true,
   allowed_company_ids: null,
 };
 
@@ -30,6 +32,7 @@ const NO_ACCESS: SuperAdminPermissions = {
   can_manage_referrals: false,
   can_manage_admins: false,
   can_view_platform_stats: false,
+  can_manage_marketing: false,
   allowed_company_ids: [],
 };
 
@@ -78,6 +81,7 @@ export function useSuperAdminPermissions() {
         can_manage_referrals: data.can_manage_referrals,
         can_manage_admins: data.can_manage_admins,
         can_view_platform_stats: data.can_view_platform_stats,
+        can_manage_marketing: data.can_manage_marketing,
         allowed_company_ids: data.allowed_company_ids as string[] | null,
       }
     : adminCount === 1
