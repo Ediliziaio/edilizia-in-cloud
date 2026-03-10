@@ -244,11 +244,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
 
-  const impersonateCompany = async (companyId: string) => {
+  const impersonateCompany = async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     // Only super_admin can impersonate
     if (state.role !== "super_admin") {
       console.error("Only super_admin can impersonate companies");
       return;
+    }
+
+    // Verify permissions if provided
+    if (permissions) {
+      if (!permissions.can_manage_companies) {
+        console.error("Missing can_manage_companies permission for impersonation");
+        // Log unauthorized attempt (fire-and-forget)
+        supabase.rpc("log_superadmin_unauthorized_attempt" as any, {
+          _user_id: state.user?.id,
+          _action: "impersonation",
+          _target_id: companyId,
+          _details: { reason: "missing_can_manage_companies" },
+        }).catch(() => {});
+        return;
+      }
+
+      if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
+        console.error("Company not in allowed_company_ids for impersonation");
+        supabase.rpc("log_superadmin_unauthorized_attempt" as any, {
+          _user_id: state.user?.id,
+          _action: "impersonation",
+          _target_id: companyId,
+          _details: { reason: "company_not_allowed" },
+        }).catch(() => {});
+        return;
+      }
     }
 
     try {
