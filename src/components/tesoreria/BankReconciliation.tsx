@@ -289,7 +289,7 @@ export default function BankReconciliation({ companyId }: Props) {
     loadData(); // Single reload at end
   }
 
-  // Unlink
+  // Fix 10: Sequential unlink with rollback
   async function handleUnlink() {
     if (!unlinkTarget) return;
     setUnlinking(true);
@@ -303,14 +303,27 @@ export default function BankReconciliation({ companyId }: Props) {
       const newPaid = Math.max(0, Number(inv?.paid_amount || 0) - Number(rec.matched_amount || 0));
       const wasFullyPaid = inv?.status === "paid";
 
-      await Promise.all([
-        supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId),
-        supabase.from("bank_reconciliations").update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id),
-        supabase.from("invoices").update({
-          paid_amount: newPaid,
-          status: wasFullyPaid ? "delivered" : inv?.status,
-        }).eq("id", invId),
-      ]);
+      // Step 1: unlink transaction
+      const unlinkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId);
+      if (unlinkRes.error) throw unlinkRes.error;
+
+      // Step 2: mark reconciliation as unmatched
+      const recRes = await supabase.from("bank_reconciliations").update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id);
+      if (recRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        throw recRes.error;
+      }
+
+      // Step 3: update invoice
+      const invRes = await supabase.from("invoices").update({
+        paid_amount: newPaid,
+        status: wasFullyPaid ? "delivered" : inv?.status,
+      }).eq("id", invId);
+      if (invRes.error) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
+        throw invRes.error;
+      }
 
       toast.success("Riconciliazione rimossa");
       setUnlinkTarget(null);
