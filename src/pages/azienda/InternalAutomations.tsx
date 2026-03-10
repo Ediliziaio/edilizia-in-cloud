@@ -505,8 +505,8 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
             <div>
               <label className="text-sm font-medium">Descrizione</label>
               <Input
-                value={flow?.description || ""}
-                onChange={(e) => { updateFlow.mutate({ description: e.target.value }); }}
+                value={flowDescription}
+                onChange={(e) => { setFlowDescription(e.target.value); setDirty(true); }}
                 className="mt-1"
                 placeholder="Descrizione opzionale..."
               />
