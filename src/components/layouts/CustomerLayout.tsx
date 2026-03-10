@@ -134,11 +134,16 @@ export function CustomerLayout() {
                 key={item.url}
                 to={item.url}
                 end={item.url === "/cliente"}
-                className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground border-b-2 border-transparent whitespace-nowrap transition-colors hover:text-foreground"
+                className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground border-b-2 border-transparent whitespace-nowrap transition-colors hover:text-foreground"
                 activeClassName="text-foreground border-primary font-medium"
               >
                 <item.icon className="h-4 w-4" />
                 <span className="hidden sm:inline">{item.title}</span>
+                {item.badge && unreadCount > 0 && (
+                  <Badge variant="destructive" className="h-5 min-w-5 text-[10px] px-1">
+                    {unreadCount}
+                  </Badge>
+                )}
               </NavLink>
             ))}
           </div>
