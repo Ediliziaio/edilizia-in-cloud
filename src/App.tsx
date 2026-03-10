@@ -148,6 +148,10 @@ const CustomerSupport = lazy(() => import("@/pages/cliente/CustomerSupport"));
 const CreateTicket = lazy(() => import("@/pages/cliente/CreateTicket"));
 const CustomerTicketDetail = lazy(() => import("@/pages/cliente/CustomerTicketDetail"));
 const CustomerProfile = lazy(() => import("@/pages/cliente/CustomerProfile"));
+const CustomerDocuments = lazy(() => import("@/pages/cliente/CustomerDocuments"));
+const CustomerInstallments = lazy(() => import("@/pages/cliente/CustomerInstallments"));
+const CustomerAppointments = lazy(() => import("@/pages/cliente/CustomerAppointments"));
+const CustomerMessages = lazy(() => import("@/pages/cliente/CustomerMessages"));
 
 // Employee
 const EmployeeDashboard = lazy(() => import("@/pages/dipendente/EmployeeDashboard"));
