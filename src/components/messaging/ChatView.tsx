@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useMessages, useMessagingRealtime, useAnalyzeMessage } from "@/hooks/useMessagingData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { MessageBubble } from "./MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
