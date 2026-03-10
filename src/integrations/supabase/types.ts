@@ -13458,6 +13458,15 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      save_internal_automation_nodes: {
+        Args: {
+          p_company_id: string
+          p_connections?: Json
+          p_flow_id: string
+          p_nodes?: Json
+        }
+        Returns: undefined
+      }
       staff_update_own_password_flag: {
         Args: { _must_change: boolean }
         Returns: undefined
