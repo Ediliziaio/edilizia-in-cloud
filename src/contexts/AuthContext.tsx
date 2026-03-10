@@ -264,12 +264,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
         console.error("Company not in allowed_company_ids for impersonation");
-        supabase.rpc("log_superadmin_unauthorized_attempt" as any, {
-          _user_id: state.user?.id,
-          _action: "impersonation",
-          _target_id: companyId,
-          _details: { reason: "company_not_allowed" },
-        }).catch(() => {});
+        supabase.functions.invoke("log-unauthorized", {
+          body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
+        });
         return;
       }
     }
