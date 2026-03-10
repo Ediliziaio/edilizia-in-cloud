@@ -11134,6 +11134,79 @@ export type Database = {
           },
         ]
       }
+      signature_requests: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          order_id: string
+          signature_data: string | null
+          signed_at: string | null
+          signed_by_ip: string | null
+          signer_email: string
+          signer_name: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          order_id: string
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_by_ip?: string | null
+          signer_email: string
+          signer_name?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          order_id?: string
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_by_ip?: string | null
+          signer_email?: string
+          signer_name?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_logs: {
         Row: {
           automation_id: string | null
