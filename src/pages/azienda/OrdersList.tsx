@@ -193,6 +193,7 @@ export default function OrdersList() {
     },
     enabled: externalTeamIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Build name maps
