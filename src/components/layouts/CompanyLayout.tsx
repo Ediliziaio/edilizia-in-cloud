@@ -104,7 +104,7 @@ function ImpersonationBanner() {
   );
 }
 
-function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNotifications: () => void; notificationCount: number }) {
+function CompanySidebar({ onOpenNotifications, notificationCount, onOpenSearch }: { onOpenNotifications: () => void; notificationCount: number; onOpenSearch?: () => void }) {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
