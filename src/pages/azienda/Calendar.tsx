@@ -321,8 +321,9 @@ export default function Calendar() {
     if (!showAppuntamento) hidden.add("appuntamento");
     if (!showMerce) hidden.add("merce");
     if (!showGoogleBusy) hidden.add("google_busy");
+    if (!showLeaves) hidden.add("leaves");
     return hidden;
-  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy]);
+  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves]);
 
   // Effective visible sets for layer panel
   const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
