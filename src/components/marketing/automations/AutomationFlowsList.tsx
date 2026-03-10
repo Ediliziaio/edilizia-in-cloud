@@ -34,6 +34,7 @@ interface Props {
 export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId = null, onNavigateFolder }: Props) {
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
