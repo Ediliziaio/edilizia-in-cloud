@@ -278,8 +278,18 @@ export function useCompanyDetail(id: string | undefined) {
     queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
   };
 
+  const assertCanManage = () => {
+    if (!saPermissions.can_manage_companies) {
+      throw new Error("Permesso negato: non puoi gestire le aziende");
+    }
+    if (id && saPermissions.allowed_company_ids && !saPermissions.allowed_company_ids.includes(id)) {
+      throw new Error("Permesso negato: azienda non autorizzata");
+    }
+  };
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ newStatus, notes }: { newStatus: CompanyStatus; notes: string }) => {
+      assertCanManage();
       if (!id || !company) return;
       const { error: updateError } = await supabase.from("companies").update({ status: newStatus }).eq("id", id);
       if (updateError) throw updateError;
@@ -311,6 +321,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const changePlanMutation = useMutation({
     mutationFn: async (planId: string) => {
+      assertCanManage();
       if (!id || !company) return;
       const { error } = await supabase.from("companies").update({ subscription_plan_id: planId }).eq("id", id);
       if (error) throw error;
@@ -348,6 +359,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const extendTrialMutation = useMutation({
     mutationFn: async (days: number) => {
+      assertCanManage();
       if (!id || !company) return;
       const currentEnd = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
       const newEnd = addDays(currentEnd, days);
@@ -386,6 +398,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const handleCreateStaff = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
+    assertCanManage();
     setCreateStaffLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -459,6 +472,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const createEmployeeMutation = useMutation({
     mutationFn: async (data: EmployeeFormData) => {
+      assertCanManage();
       const { error } = await supabase.from("employees").insert({
         company_id: id!, first_name: data.first_name, last_name: data.last_name,
         email: data.email || null, phone: data.phone || null,
@@ -481,6 +495,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const handleCreateAccount = async (type: "salesperson" | "employee", entityId: string, email: string, name: string) => {
+    assertCanManage();
     setCreatingAccountFor(entityId);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -510,6 +525,7 @@ export function useCompanyDetail(id: string | undefined) {
   };
 
   const onSaveDetails = async (data: CompanyFormData) => {
+    assertCanManage();
     if (!id) return;
     setIsSaving(true);
     try {
