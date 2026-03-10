@@ -142,7 +142,7 @@ export function useCashFlowData() {
 
   // Query costi aziendali non pagati
   const { data: companyCosts = [], isLoading: loadingCosts } = useQuery({
-    queryKey: ["forecast-company-costs", companyId],
+    queryKey: queryKeys.cashflow.companyCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
