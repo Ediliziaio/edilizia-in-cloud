@@ -293,14 +293,18 @@ export default function OrderDetail() {
   // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatusId: string) => {
-      const { error: updateError } = await supabase.from("orders").update({ current_status_id: newStatusId }).eq("id", id!);
-      if (updateError) throw updateError;
-      const { error: historyError } = await supabase.from("order_status_history").insert({ order_id: id!, status_id: newStatusId, changed_by: user!.id });
-      if (historyError) throw historyError;
+      const { error } = await supabase.rpc("change_order_status", {
+        p_order_id: id!,
+        p_new_status_id: newStatusId,
+        p_changed_by: user!.id,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
