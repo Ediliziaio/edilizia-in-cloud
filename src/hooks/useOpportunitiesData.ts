@@ -393,7 +393,7 @@ export function useAddOpportunityNote() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_notes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
