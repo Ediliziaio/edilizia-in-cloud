@@ -116,7 +116,7 @@ export default function CompanyDashboard() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
     setLastRefresh(new Date());
     setTimeout(() => setIsRefreshing(false), 600);
   };
