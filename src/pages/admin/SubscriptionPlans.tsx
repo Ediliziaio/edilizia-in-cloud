@@ -100,6 +100,7 @@ export default function SubscriptionPlans() {
 
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
+      if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
       const payload: Record<string, any> = {
         name: plan.name,
         slug: plan.slug,
