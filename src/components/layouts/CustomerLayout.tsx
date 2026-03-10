@@ -7,7 +7,11 @@ import {
   HeadphonesIcon,
   User,
   LogOut,
-  Menu
+  Menu,
+  FileText,
+  CreditCard,
+  CalendarDays,
+  MessageCircle,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -21,9 +25,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NavLink } from "@/components/NavLink";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
-  { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList },
+  { title: "Ordini", url: "/cliente", icon: ClipboardList },
+  { title: "Documenti", url: "/cliente/documenti", icon: FileText },
+  { title: "Rate", url: "/cliente/rate", icon: CreditCard },
+  { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
+  { title: "Messaggi", url: "/cliente/messaggi", icon: MessageCircle, badge: true },
   { title: "Assistenza", url: "/cliente/assistenza", icon: HeadphonesIcon },
   { title: "Profilo", url: "/cliente/profilo", icon: User },
 ];
@@ -31,6 +41,7 @@ const navItems = [
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
   const { effectiveBrand } = useBrandSettings(company?.id);
+  const unreadCount = useCustomerUnreadCount();
 
   // Apply CSS variables for brand colors
   useEffect(() => {
@@ -96,6 +107,11 @@ export function CustomerLayout() {
                   <Link to={item.url} className="flex items-center gap-2">
                     <item.icon className="h-4 w-4" />
                     {item.title}
+                    {item.badge && unreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
+                        {unreadCount}
+                      </Badge>
+                    )}
                   </Link>
                 </DropdownMenuItem>
               ))}
@@ -118,11 +134,16 @@ export function CustomerLayout() {
                 key={item.url}
                 to={item.url}
                 end={item.url === "/cliente"}
-                className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground border-b-2 border-transparent whitespace-nowrap transition-colors hover:text-foreground"
+                className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground border-b-2 border-transparent whitespace-nowrap transition-colors hover:text-foreground"
                 activeClassName="text-foreground border-primary font-medium"
               >
                 <item.icon className="h-4 w-4" />
                 <span className="hidden sm:inline">{item.title}</span>
+                {item.badge && unreadCount > 0 && (
+                  <Badge variant="destructive" className="h-5 min-w-5 text-[10px] px-1">
+                    {unreadCount}
+                  </Badge>
+                )}
               </NavLink>
             ))}
           </div>
