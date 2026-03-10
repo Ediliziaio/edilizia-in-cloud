@@ -21,34 +21,34 @@ export function useGlobalSearch(query: string, companyId: string | undefined) {
 
       const pattern = `%${debouncedQuery}%`;
 
-      const ordersRes = await supabase
+      const ordersRes: { data: any[] | null } = await (supabase
         .from("orders")
         .select("id, order_code, description")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId!) as any)
         .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
-        .limit(5) as { data: any[] | null };
+        .limit(5);
 
-      const customersRes = await (supabase
+      const customersRes: { data: any[] | null } = await (supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId!) as any)
         .eq("role_type", "customer")
-        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`) as any)
-        .limit(5) as { data: any[] | null };
+        .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(5);
 
-      const contactsRes = await supabase
+      const contactsRes: { data: any[] | null } = await (supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, email, phone")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId!) as any)
         .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(5) as { data: any[] | null };
+        .limit(5);
 
-      const ticketsRes = await supabase
+      const ticketsRes: { data: any[] | null } = await (supabase
         .from("tickets")
         .select("id, subject, status")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId!) as any)
         .ilike("subject", pattern)
-        .limit(5) as { data: any[] | null };
+        .limit(5);
 
       const results: SearchResult[] = [];
 
