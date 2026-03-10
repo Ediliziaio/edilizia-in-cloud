@@ -125,4 +125,5 @@ export type ProxyAction =
   | "add_kb_doc"
   | "remove_kb_doc"
   | "list_kb_docs"
-  | "sync_kb";
+  | "sync_kb"
+  | "link_phone_number";

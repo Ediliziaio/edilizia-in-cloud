@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { queryKeys } from "@/lib/queryKeys";
+import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 
 interface KBDoc {
   id: string;
@@ -44,9 +46,10 @@ type AddMode = "url" | "file" | "text" | null;
 interface AgentKBTabProps {
   agentId: string;
   companyId: string;
+  elevenlabsAgentId?: string | null;
 }
 
-export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
+export function AgentKBTab({ agentId, companyId, elevenlabsAgentId }: AgentKBTabProps) {
   const [search, setSearch] = useState("");
   const [addMode, setAddMode] = useState<AddMode>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
   const queryClient = useQueryClient();
 
   const { data: docs, isLoading } = useQuery({
-    queryKey: ["ai-kb-agent", agentId],
+    queryKey: queryKeys.aiAgents.kb(agentId),
     queryFn: async (): Promise<KBDoc[]> => {
       const { data, error } = await supabase
         .from("ai_agent_knowledge_docs" as never)
@@ -68,9 +71,8 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
     },
   });
 
-  // Also fetch global docs count
   const { data: globalDocs } = useQuery({
-    queryKey: ["ai-kb-global-count"],
+    queryKey: queryKeys.aiAgents.kbGlobalCount(),
     queryFn: async () => {
       const { count, error } = await supabase
         .from("ai_agent_knowledge_docs" as never)
@@ -82,22 +84,49 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
   });
 
   const addDoc = useMutation({
-    mutationFn: async (doc: { name: string; type: string; source_url?: string }) => {
+    mutationFn: async (doc: { name: string; type: string; source_url?: string; text_content?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non autenticato");
 
-      const { error } = await supabase.from("ai_agent_knowledge_docs" as never).insert({
+      const { data, error } = await supabase.from("ai_agent_knowledge_docs" as never).insert({
         company_id: companyId,
         agent_id: agentId,
         name: doc.name,
         type: doc.type,
         source_url: doc.source_url || null,
         created_by: user.id,
-      } as never);
+      } as never).select("*").single();
       if (error) throw error;
+
+      // Sync with ElevenLabs if agent is connected
+      if (elevenlabsAgentId) {
+        try {
+          const result = await callElevenLabsProxy<{ elevenlabs_doc_id?: string }>({
+            action: "add_kb_doc",
+            agent_id: elevenlabsAgentId,
+            payload: {
+              name: doc.name,
+              type: doc.type,
+              source_url: doc.source_url || undefined,
+              text_content: doc.text_content || undefined,
+              local_doc_id: (data as any)?.id,
+            },
+          });
+          // Update local record with ElevenLabs doc ID
+          if (result?.elevenlabs_doc_id && (data as any)?.id) {
+            await supabase
+              .from("ai_agent_knowledge_docs" as never)
+              .update({ elevenlabs_doc_id: result.elevenlabs_doc_id } as never)
+              .eq("id", (data as any).id);
+          }
+        } catch (e) {
+          console.warn("ElevenLabs KB sync failed:", e);
+          toast.warning("Documento salvato localmente ma non sincronizzato con il provider AI");
+        }
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-kb-agent", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.kb(agentId) });
       toast.success("Documento aggiunto all'agente");
       setAddMode(null);
       setNewName("");
@@ -109,6 +138,22 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
 
   const deleteDoc = useMutation({
     mutationFn: async (id: string) => {
+      // Find the doc to get elevenlabs_doc_id
+      const doc = docs?.find((d) => d.id === id);
+
+      // Remove from ElevenLabs first if synced
+      if (elevenlabsAgentId && doc?.elevenlabs_doc_id) {
+        try {
+          await callElevenLabsProxy({
+            action: "remove_kb_doc",
+            agent_id: elevenlabsAgentId,
+            payload: { elevenlabs_doc_id: doc.elevenlabs_doc_id },
+          });
+        } catch (e) {
+          console.warn("ElevenLabs KB doc removal failed:", e);
+        }
+      }
+
       const { error } = await supabase
         .from("ai_agent_knowledge_docs" as never)
         .delete()
@@ -116,7 +161,7 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-kb-agent", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.kb(agentId) });
       toast.success("Documento rimosso");
       setDeleteId(null);
     },
@@ -142,6 +187,7 @@ export function AgentKBTab({ agentId, companyId }: AgentKBTabProps) {
       name: newName.trim(),
       type: addMode!,
       source_url: addMode === "url" ? newUrl.trim() : undefined,
+      text_content: addMode === "text" ? newText.trim() : undefined,
     });
   };
 

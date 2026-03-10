@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMarketingContacts(companyId: string | undefined) {
   return useQuery({
@@ -47,7 +48,7 @@ interface ConversationRecord {
 
 export function useConversationsForContact(contactId: string | undefined) {
   return useQuery({
-    queryKey: ["ai-conversations-contact", contactId],
+    queryKey: queryKeys.aiAgents.conversationsContact(contactId),
     enabled: !!contactId,
     queryFn: async (): Promise<ConversationRecord[]> => {
       const { data, error } = await supabase

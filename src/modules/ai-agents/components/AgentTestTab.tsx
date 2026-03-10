@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface TestRun {
   id: string;
@@ -37,7 +38,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
   const queryClient = useQueryClient();
 
   const { data: tests = [], isLoading } = useQuery({
-    queryKey: ["ai-agent-tests", agentId],
+    queryKey: queryKeys.aiAgents.tests(agentId),
     queryFn: async (): Promise<TestRun[]> => {
       const { data, error } = await supabase
         .from("ai_agent_tests" as never)
@@ -65,7 +66,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-tests", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       setShowCreate(false);
       setName("");
       setScenario("");
@@ -98,7 +99,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
         .eq("id" as never, testId as never);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-tests", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       toast.success("Test completato");
     },
   });
@@ -112,7 +113,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-tests", agentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       toast.success("Test eliminato");
     },
   });

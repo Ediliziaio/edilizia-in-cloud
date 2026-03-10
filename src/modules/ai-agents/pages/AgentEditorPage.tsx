@@ -284,7 +284,16 @@ export default function AgentEditorPage() {
   const updateAgent = useUpdateAgent(id);
 
   const handlePublish = () => {
-    if (!id) return;
+    if (!id || !agent) return;
+    // Pre-publish validation
+    if (!agent.elevenlabs_agent_id) {
+      toast.error("Impossibile pubblicare: l'agente non è stato creato sul provider AI. Riprova la creazione.");
+      return;
+    }
+    if (!agent.system_prompt || agent.system_prompt.trim().length === 0) {
+      toast.error("Impossibile pubblicare: il prompt di sistema è vuoto. Configura l'agente prima di pubblicare.");
+      return;
+    }
     updateAgent.mutate({ status: "active" }, {
       onSuccess: () => toast.success("Agente pubblicato"),
     });
@@ -382,7 +391,7 @@ export default function AgentEditorPage() {
           <AgentBranchTab agentId={agent.id} companyId={agent.company_id} />
         </TabsContent>
         <TabsContent value="kb" className="mt-4">
-          <AgentKBTab agentId={agent.id} companyId={agent.company_id} />
+          <AgentKBTab agentId={agent.id} companyId={agent.company_id} elevenlabsAgentId={agent.elevenlabs_agent_id} />
         </TabsContent>
         <TabsContent value="analytics" className="mt-4">
           <AgentAnalyticsTab agentId={agent.id} />

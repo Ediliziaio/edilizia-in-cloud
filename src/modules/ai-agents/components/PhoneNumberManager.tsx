@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface PhoneNumberRow {
   id: string;
@@ -55,7 +56,7 @@ export function PhoneNumberManager() {
   const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const { data: numbers, isLoading } = useQuery({
-    queryKey: ["ai-agent-phone-numbers"],
+    queryKey: queryKeys.aiAgents.phoneNumbers(),
     queryFn: async (): Promise<PhoneNumberRow[]> => {
       const { data, error } = await supabase
         .from("ai_agent_phone_numbers" as never)
@@ -67,7 +68,7 @@ export function PhoneNumberManager() {
   });
 
   const { data: agents } = useQuery({
-    queryKey: ["ai-agents-list-minimal"],
+    queryKey: queryKeys.aiAgents.listMinimal(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_agents" as never)
@@ -126,7 +127,7 @@ export function PhoneNumberManager() {
       setSelectedNumber(null);
       setSearchResults([]);
       setBuyLabel("");
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'acquisto");
     } finally {
@@ -143,7 +144,7 @@ export function PhoneNumberManager() {
     setLinkingId(num.id);
     try {
       const result = await callElevenLabsProxy<{ elevenlabs_phone_number_id?: string }>({
-        action: "link_phone_number" as never,
+        action: "link_phone_number",
         agent_id: agent.elevenlabs_agent_id,
         payload: {
           phone_number: num.phone_number,
@@ -153,7 +154,7 @@ export function PhoneNumberManager() {
       });
       if (result?.elevenlabs_phone_number_id) {
         toast.success("Numero collegato a ElevenLabs");
-        queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nel collegamento");
@@ -175,7 +176,7 @@ export function PhoneNumberManager() {
         .delete()
         .eq("id" as never, num.id as never);
       toast.success("Numero rimosso");
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-phone-numbers"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.phoneNumbers() });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nella rimozione");
     }

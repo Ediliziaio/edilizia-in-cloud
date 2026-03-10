@@ -124,7 +124,7 @@ export default function InternalAgentEditorPage() {
         </TabsContent>
 
         <TabsContent value="kb" className="mt-4">
-          <AgentKBTab agentId={agent.id} companyId={agent.company_id} />
+          <AgentKBTab agentId={agent.id} companyId={agent.company_id} elevenlabsAgentId={agent.elevenlabs_agent_id ?? null} />
         </TabsContent>
 
         <TabsContent value="phone" className="mt-4">
