@@ -4,6 +4,7 @@ import { BarChart3, Clock, MessageSquare, CalendarCheck, TrendingUp } from "luci
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsTable } from "./AnalyticsTable";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Conversation {
   id: string;
