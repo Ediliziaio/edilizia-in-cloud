@@ -67,6 +67,15 @@ const allNavItems = [
   { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies" as const },
 ];
 
+const adminMarketingNavItems = [
+  { title: "Dashboard", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing" as const },
+  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing" as const },
+  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing" as const },
+  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing" as const },
+  { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing" as const },
+  { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing" as const },
+];
+
 const accountItems = [
   { title: "Impostazioni", url: "/admin/impostazioni", icon: Settings },
 ];
