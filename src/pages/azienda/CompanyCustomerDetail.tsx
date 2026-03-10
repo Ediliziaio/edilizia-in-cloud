@@ -430,6 +430,13 @@ export default function CompanyCustomerDetail() {
               )}
             </CardContent>
           </Card>
+          {/* Messages Panel */}
+          {customer && (
+            <ClientMessagesPanel
+              customerId={customer.id}
+              customerName={`${customer.first_name || ""} ${customer.last_name}`.trim()}
+            />
+          )}
         </div>
       </div>
     </div>
