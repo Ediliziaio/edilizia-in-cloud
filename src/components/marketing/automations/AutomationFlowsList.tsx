@@ -189,8 +189,23 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
 
+  // Bug 6 fix: validate trigger exists before publishing from list
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (status === "published") {
+        const { data: nodeRows } = await supabase
+          .from("automation_nodes")
+          .select("node_type")
+          .eq("flow_id", id)
+          .eq("company_id", effectiveCompany!.id);
+        const hasTrigger = nodeRows?.some(n => n.node_type === "trigger");
+        if (!hasTrigger) {
+          throw new Error("Aggiungi almeno un trigger prima di pubblicare.");
+        }
+        if (!nodeRows || nodeRows.length < 2) {
+          throw new Error("Aggiungi almeno un'azione dopo il trigger.");
+        }
+      }
       const { error } = await supabase.from("automation_flows").update({ status }).eq("id", id);
       if (error) throw error;
     },

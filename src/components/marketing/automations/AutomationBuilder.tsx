@@ -22,7 +22,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 
 type RightPanel = "none" | "trigger" | "action" | "config";
@@ -53,9 +54,11 @@ export function AutomationBuilder() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const creationAttemptedRef = useRef(false);
 
+  const queryClient = useQueryClient();
+
   // Fetch node execution counts
   const { data: nodeExecutionCounts = {} } = useQuery({
-    queryKey: ["node-execution-counts", flowId],
+    queryKey: queryKeys.automations.executionCounts(flowId),
     queryFn: async () => {
       if (!flowId) return {};
       const { data, error } = await supabase
@@ -74,13 +77,16 @@ export function AutomationBuilder() {
     refetchInterval: 30000, // refresh every 30s
   });
 
+  // Bug 3+7 fix: add company_id filter + invalidate flows list on delete
   const deleteFlowMutation = useMutation({
     mutationFn: async () => {
       if (!flowId) throw new Error("No flow ID");
-      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId);
+      if (!effectiveCompany?.id) throw new Error("Nessuna azienda selezionata");
+      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId).eq("company_id", effectiveCompany.id);
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
       toast({ title: "Automazione eliminata" });
       navigate(`${prefix}/automazioni`);
     },
