@@ -241,7 +241,7 @@ export function useDeleteOpportunity() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità eliminata");
     },
     onError: (e: any) => toast.error(e.message),
