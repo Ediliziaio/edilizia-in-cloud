@@ -352,7 +352,7 @@ export function useCompanyCallCenterUsers() {
 
 export function useOpportunityNotes(opportunityId: string | null, contactId?: string | null) {
   return useQuery({
-    queryKey: ["marketing_contact_notes", "opportunity", opportunityId, contactId],
+    queryKey: queryKeys.marketingContacts.notes(contactId, opportunityId),
     queryFn: async () => {
       if (!contactId) {
         // Fallback: only notes linked to this opportunity
