@@ -1,14 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  addMonths,
-  startOfMonth,
-  endOfMonth,
-  isWithinInterval,
-  isSameMonth,
-  format,
-} from "date-fns";
-import { it } from "date-fns/locale";
+
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -306,22 +299,30 @@ export function useCashFlowData() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Prima Nota saldo (current cash position)
-  const { data: primaNotaSaldo, isLoading: loadingSaldo } = useQuery({
-    queryKey: queryKeys.cashflow.bankBalance(companyId),
+  // Aggregated cashflow summary via RPC (replaces heavy client-side stats + prima nota)
+  const { data: cashflowSummary, isLoading: loadingSummary } = useQuery({
+    queryKey: queryKeys.cashflow.summary(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
+      const { data, error } = await supabase.rpc("get_cashflow_summary", {
         p_company_id: companyId!,
+        p_months_ahead: 6,
       });
       if (error) throw error;
-      return data as { entrate: number; uscite: number; saldo: number; entry_count: number } | null;
+      return data as {
+        primaNota: { entrate: number; uscite: number; saldo: number; entryCount: number };
+        thisMonth: { income: number; expenses: number; net: number; incomeCount: number; expensesCount: number };
+        nextMonth: { income: number; expenses: number; net: number };
+        next3Months: { income: number; expenses: number; net: number };
+        total: { income: number; expenses: number; net: number; incomeCount: number; expensesCount: number; commissionsTotal: number; costsTotal: number; supplierPaymentsTotal: number };
+        monthlyForecast: Array<{ month: string; monthLabel: string; income: number; expense: number; net: number }>;
+      };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSaldo;
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSummary;
 
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
@@ -478,107 +479,48 @@ export function useCashFlowData() {
     });
   }, [supplierBalances]);
 
-  // Project recurring costs into a future month, optionally filtered by cost_type
-  const projectCostsForMonth = (monthDate: Date, costTypeFilter?: "fixed" | "variable") => {
-    let total = 0;
-    companyCosts.forEach((cost: any) => {
-      if (costTypeFilter && cost.cost_type !== costTypeFilter) return;
-      const dueDate = new Date(cost.due_date);
-      if (cost.recurrence === "monthly") {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) {
-        total += Number(cost.amount);
-      } else if (cost.recurrence === "once" && isSameMonth(dueDate, monthDate)) {
-        total += Number(cost.amount);
-      }
-    });
-    return total;
-  };
 
-  // Statistiche
+  // Stats from RPC (server-side aggregation replaces heavy client-side useMemo)
+  const defaultPeriod = { income: 0, expenses: 0, net: 0 };
   const stats = useMemo<ForecastStats>(() => {
-    const now = new Date();
-    const thisMonth = { start: startOfMonth(now), end: endOfMonth(now) };
-    const nextMonth = { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
-    const next3Months = { start: startOfMonth(now), end: endOfMonth(addMonths(now, 2)) };
-
-    const filterByInterval = <T extends { expectedDate: Date | null; amount: number }>(
-      items: T[],
-      interval: { start: Date; end: Date }
-    ) => items.filter((i) => i.expectedDate && isWithinInterval(i.expectedDate, interval));
-
-    const sumAmount = <T extends { amount: number }>(items: T[]) =>
-      items.reduce((sum, i) => sum + i.amount, 0);
-
-    const thisMonthIncome = sumAmount(filterByInterval(expectedPayments, thisMonth));
-    const nextMonthIncome = sumAmount(filterByInterval(expectedPayments, nextMonth));
-    const next3MonthsIncome = sumAmount(filterByInterval(expectedPayments, next3Months));
-    const totalIncome = sumAmount(expectedPayments);
-
-    const thisMonthExpenses = sumAmount(filterByInterval(expectedExpenses, thisMonth));
-    const nextMonthExpenses = sumAmount(filterByInterval(expectedExpenses, nextMonth));
-    const next3MonthsExpenses = sumAmount(filterByInterval(expectedExpenses, next3Months));
-    const totalExpenses = sumAmount(expectedExpenses);
-
-    const totalCommissions = sumAmount(expectedCommissions);
-    const thisMonthCommissions = sumAmount(filterByInterval(expectedCommissions, thisMonth));
-    const nextMonthCommissions = sumAmount(filterByInterval(expectedCommissions, nextMonth));
-    const next3MonthsCommissions = sumAmount(filterByInterval(expectedCommissions, next3Months));
-
-    const thisMonthCosts = sumAmount(filterByInterval(expectedCompanyCosts, thisMonth));
-    const nextMonthCosts = projectCostsForMonth(addMonths(now, 1));
-    const next3MonthsCosts =
-      projectCostsForMonth(now) + projectCostsForMonth(addMonths(now, 1)) + projectCostsForMonth(addMonths(now, 2));
-    const totalCosts = sumAmount(expectedCompanyCosts);
-
-    // Supplier payments
-    const unpaidSupplierPayments = expectedSupplierPayments.filter(p => !p.isPaid);
-    const totalSupplierPayments = sumAmount(unpaidSupplierPayments);
-    const thisMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, thisMonth));
-    const nextMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, nextMonth));
-    const next3MonthsSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, next3Months));
-
-    const totalAllExpenses = totalExpenses + totalCommissions + totalCosts + totalSupplierPayments;
-    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions + thisMonthCosts + thisMonthSupplier;
-    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions + nextMonthCosts + nextMonthSupplier;
-    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions + next3MonthsCosts + next3MonthsSupplier;
-
+    if (!cashflowSummary) {
+      return {
+        thisMonth: { ...defaultPeriod, incomeCount: 0, expensesCount: 0 },
+        nextMonth: defaultPeriod,
+        next3Months: defaultPeriod,
+        total: { ...defaultPeriod, incomeCount: 0, expensesCount: 0, commissionsTotal: 0, costsTotal: 0, supplierPaymentsTotal: 0 },
+      };
+    }
     return {
       thisMonth: {
-        income: thisMonthIncome,
-        expenses: thisMonthAllExpenses,
-        net: thisMonthIncome - thisMonthAllExpenses,
-        incomeCount: filterByInterval(expectedPayments, thisMonth).length,
-        expensesCount:
-          filterByInterval(expectedExpenses, thisMonth).length +
-          filterByInterval(expectedCommissions, thisMonth).length +
-          filterByInterval(expectedCompanyCosts, thisMonth).length +
-          filterByInterval(unpaidSupplierPayments, thisMonth).length,
+        income: cashflowSummary.thisMonth.income,
+        expenses: cashflowSummary.thisMonth.expenses,
+        net: cashflowSummary.thisMonth.net,
+        incomeCount: cashflowSummary.thisMonth.incomeCount,
+        expensesCount: cashflowSummary.thisMonth.expensesCount,
       },
       nextMonth: {
-        income: nextMonthIncome,
-        expenses: nextMonthAllExpenses,
-        net: nextMonthIncome - nextMonthAllExpenses,
+        income: cashflowSummary.nextMonth.income,
+        expenses: cashflowSummary.nextMonth.expenses,
+        net: cashflowSummary.nextMonth.net,
       },
       next3Months: {
-        income: next3MonthsIncome,
-        expenses: next3MonthsAllExpenses,
-        net: next3MonthsIncome - next3MonthsAllExpenses,
+        income: cashflowSummary.next3Months.income,
+        expenses: cashflowSummary.next3Months.expenses,
+        net: cashflowSummary.next3Months.net,
       },
       total: {
-        income: totalIncome,
-        expenses: totalAllExpenses,
-        net: totalIncome - totalAllExpenses,
-        incomeCount: expectedPayments.length,
-        expensesCount: expectedExpenses.length + expectedCommissions.length + expectedCompanyCosts.length + unpaidSupplierPayments.length,
-        commissionsTotal: totalCommissions,
-        costsTotal: totalCosts,
-        supplierPaymentsTotal: totalSupplierPayments,
+        income: cashflowSummary.total.income,
+        expenses: cashflowSummary.total.expenses,
+        net: cashflowSummary.total.net,
+        incomeCount: cashflowSummary.total.incomeCount,
+        expensesCount: cashflowSummary.total.expensesCount,
+        commissionsTotal: cashflowSummary.total.commissionsTotal,
+        costsTotal: cashflowSummary.total.costsTotal,
+        supplierPaymentsTotal: cashflowSummary.total.supplierPaymentsTotal,
       },
     };
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
+  }, [cashflowSummary]);
 
   // Scadenze as forecast entries (not already covered by order_installments/company_costs)
   const scadenzeForForecast = useMemo(() => {
@@ -598,6 +540,8 @@ export function useCashFlowData() {
     }).filter((s: any) => s.amount > 0);
   }, [openScadenze]);
 
+  const pn = cashflowSummary?.primaNota;
+
   return {
     isLoading,
     orders,
@@ -615,8 +559,12 @@ export function useCashFlowData() {
     activeEmployees,
     treasuryCategories,
     companyId,
-    // New: scadenze + prima nota
+    // New: scadenze + prima nota (from RPC)
     scadenzeForForecast,
-    primaNotaSaldo: primaNotaSaldo || { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
+    primaNotaSaldo: pn
+      ? { entrate: pn.entrate, uscite: pn.uscite, saldo: pn.saldo, entry_count: pn.entryCount }
+      : { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
+    // Monthly forecast from RPC
+    monthlyForecast: cashflowSummary?.monthlyForecast ?? [],
   };
 }

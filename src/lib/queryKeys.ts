@@ -138,6 +138,8 @@ export const queryKeys = {
       ["cashflow", "treasury", companyId] as const,
     primaNotaYear: (companyId: string | undefined) =>
       ["cashflow", "prima-nota-year", companyId] as const,
+    summary: (companyId: string | undefined) =>
+      ["cashflow", "summary", companyId] as const,
   },
 
   // ── Company Costs ──────────────────────────────────────
