@@ -21,6 +21,7 @@ import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees
 import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
 import { WorkLogsAdminTab } from "@/components/employees/WorkLogsAdminTab";
+import { LeaveAdminTab } from "@/components/employees/LeaveAdminTab";
 import { EmployeesTab } from "@/components/employees/EmployeesTab";
 import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
 import type { Employee, ExternalTeam } from "@/types/employees";
