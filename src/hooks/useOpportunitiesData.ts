@@ -231,6 +231,7 @@ export function useUpdateOpportunityStage() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
     },
   });
 }
