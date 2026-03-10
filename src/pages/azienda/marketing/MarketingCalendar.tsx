@@ -48,6 +48,7 @@ type CalendarView = "day" | "week" | "month";
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
+  const isAdminContext = useIsAdminMarketing();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
