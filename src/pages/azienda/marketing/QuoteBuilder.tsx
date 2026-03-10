@@ -429,7 +429,9 @@ export default function QuoteBuilder() {
         );
       }
 
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
       toast.success(isEdit ? "Preventivo aggiornato" : "Preventivo creato");
       navigate(`/azienda/marketing/preventivi/${quoteId}`);
     } catch (err: any) {

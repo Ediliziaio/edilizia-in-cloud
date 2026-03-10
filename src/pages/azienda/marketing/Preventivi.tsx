@@ -60,7 +60,7 @@ const statusConfig: Record<QuoteStatus, { label: string; variant: "default" | "s
 };
 
 export default function Preventivi() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();

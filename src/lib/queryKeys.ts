@@ -209,8 +209,9 @@ export const queryKeys = {
   quotes: {
     all: ["quotes"] as const,
     list: (companyId: string | undefined) => ["quotes", "list", companyId] as const,
-    detail: (quoteId: string | undefined) => ["quote", quoteId] as const,
-    items: (quoteId: string | undefined) => ["quote-items", quoteId] as const,
+    detail: (quoteId: string | undefined) => ["quotes", "detail", quoteId] as const,
+    items: (quoteId: string | undefined) => ["quotes", "items", quoteId] as const,
+    attachments: (quoteId: string | undefined) => ["quotes", "attachments", quoteId] as const,
   },
 
   // ── Quote Templates ────────────────────────────────────
