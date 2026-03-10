@@ -366,7 +366,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.updated_at)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.created_at)}</TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); navigate(`/azienda/marketing/automazioni/${flow.id}`); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={e => { e.stopPropagation(); navigate(`${routePrefix}/automazioni/${flow.id}`); }}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </TableCell>
