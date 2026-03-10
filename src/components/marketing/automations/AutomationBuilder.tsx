@@ -54,9 +54,11 @@ export function AutomationBuilder() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const creationAttemptedRef = useRef(false);
 
+  const queryClient = useQueryClient();
+
   // Fetch node execution counts
   const { data: nodeExecutionCounts = {} } = useQuery({
-    queryKey: ["node-execution-counts", flowId],
+    queryKey: queryKeys.automations.executionCounts(flowId),
     queryFn: async () => {
       if (!flowId) return {};
       const { data, error } = await supabase
