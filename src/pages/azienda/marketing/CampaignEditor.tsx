@@ -195,7 +195,8 @@ export default function CampaignEditor() {
 
   const confirmInsertImage = () => {
     if (!imageUrl) return;
-    execCmd("insertHTML", `<img src="${imageUrl}" alt="${imageAlt}" style="max-width:100%" />`);
+    const safeUrl = sanitizeUrl(imageUrl);
+    execCmd("insertHTML", `<img src="${safeUrl}" alt="${escapeHtml(imageAlt)}" style="max-width:100%" />`);
     setImageDialogOpen(false);
   };
 

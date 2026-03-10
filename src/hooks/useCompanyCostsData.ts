@@ -574,7 +574,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       totalCount: allFiltered.length,
       totalPrevisti,
       previstiCount: previstiList.length,
-      scostamento: totalPaid - totalPrevisti,
+      scostamento: totalPrevisti - totalPaid,
     };
   }, [filteredCosts, filteredOrderItemCosts]);
 
