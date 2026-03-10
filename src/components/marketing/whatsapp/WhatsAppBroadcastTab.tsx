@@ -49,7 +49,10 @@ export function WhatsAppBroadcastTab() {
         body: {
           company_id: companyId,
           segment,
-          segment_config: {},
+          segment_config: {
+            ...(segment === "tag" && segmentTag ? { tag: segmentTag } : {}),
+            ...(segment === "source" && segmentSource ? { source: segmentSource } : {}),
+          },
           template_name: templateName.trim(),
           message_text: messageText.trim(),
         },
