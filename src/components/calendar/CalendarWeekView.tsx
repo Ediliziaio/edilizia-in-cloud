@@ -73,6 +73,7 @@ export function CalendarWeekView({
   orders,
   appointments = [],
   busySlots = [],
+  approvedLeaves = [],
   currentDate,
   onDateChange,
   syncedAppointmentIds,
