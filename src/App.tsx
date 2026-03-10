@@ -393,6 +393,10 @@ const App = () => (
               >
                 <Route index element={<CustomerOrders />} />
                 <Route path="ordini/:id" element={<CustomerOrderDetail />} />
+                <Route path="documenti" element={<CustomerDocuments />} />
+                <Route path="rate" element={<CustomerInstallments />} />
+                <Route path="appuntamenti" element={<CustomerAppointments />} />
+                <Route path="messaggi" element={<CustomerMessages />} />
                 <Route path="assistenza" element={<CustomerSupport />} />
                 <Route path="assistenza/nuovo" element={<CreateTicket />} />
                 <Route path="assistenza/:id" element={<CustomerTicketDetail />} />
