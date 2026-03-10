@@ -119,7 +119,7 @@ export default function MarketingAutomations() {
               <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
                 <FolderPlus className="h-4 w-4 mr-1.5" /> Crea Cartella
               </Button>
-              <Button size="sm" onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+              <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
                 <Plus className="h-4 w-4 mr-1.5" /> Crea Flusso di lavoro
               </Button>
             </div>
