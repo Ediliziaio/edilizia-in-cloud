@@ -685,8 +685,21 @@ export function CompanyLayout() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
   const { unreadCount: notifUnreadCount } = useNotifications();
+
+  // Cmd+K / Ctrl+K global shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
