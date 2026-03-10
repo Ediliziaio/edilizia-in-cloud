@@ -321,7 +321,7 @@ export function useCompanyCallCenterUsers() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["company_call_center_users", companyId],
+    queryKey: queryKeys.staff.callCenter(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
