@@ -13046,6 +13046,14 @@ export type Database = {
         Args: { p_month: number; p_year: number }
         Returns: number
       }
+      change_order_status: {
+        Args: {
+          p_changed_by: string
+          p_new_status_id: string
+          p_order_id: string
+        }
+        Returns: undefined
+      }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
