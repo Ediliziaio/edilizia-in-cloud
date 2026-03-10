@@ -32,7 +32,7 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   skipped: "secondary",
 };
 
-export function AutomationLogsTab({ flowId }: Props) {
+export function AutomationLogsTab({ flowId, companyId }: Props) {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [activityFilter, setActivityFilter] = useState("all_activity");
