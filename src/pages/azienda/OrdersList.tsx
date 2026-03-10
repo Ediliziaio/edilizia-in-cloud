@@ -917,7 +917,7 @@ export default function OrdersList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={safePage <= 1}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
