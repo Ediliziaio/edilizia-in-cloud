@@ -36,6 +36,7 @@ import {
   FileStack,
   FileText,
   RefreshCw,
+  Bell,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { internalNavItems, marketingNavItems, cruscottoNavItem, internalSubcategories, marketingSubcategories, type NavItem } from "@/lib/sidebarConfig";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
@@ -98,7 +101,7 @@ function ImpersonationBanner() {
   );
 }
 
-function CompanySidebar() {
+function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNotifications: () => void; notificationCount: number }) {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
@@ -585,6 +588,26 @@ function CompanySidebar() {
             )}
             
             <div className="mt-auto border-t">
+              <div className="px-2 pt-3">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <button
+                        onClick={onOpenNotifications}
+                        className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
+                      >
+                        <Bell className="h-4 w-4" />
+                        <span>Notifiche</span>
+                        {notificationCount > 0 && (
+                          <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold">
+                            {notificationCount > 99 ? "99+" : notificationCount}
+                          </Badge>
+                        )}
+                      </button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </div>
               {permissions.canViewSettings && (
                 <div className="px-2 pt-3">
                   <SidebarMenu>
@@ -644,7 +667,9 @@ export function CompanyLayout() {
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
+  const { unreadCount: notifUnreadCount } = useNotifications();
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -656,7 +681,10 @@ export function CompanyLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <CompanySidebar />
+        <CompanySidebar
+          onOpenNotifications={() => setNotificationsPanelOpen(true)}
+          notificationCount={notifUnreadCount}
+        />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
@@ -701,6 +729,10 @@ export function CompanyLayout() {
           <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
         </>
       )}
+      <NotificationsPanel
+        open={notificationsPanelOpen}
+        onOpenChange={setNotificationsPanelOpen}
+      />
     </SidebarProvider>
   );
 }
