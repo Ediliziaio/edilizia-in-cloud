@@ -263,6 +263,12 @@ const App = () => (
                 <Route path="customer-success" element={<CustomerSuccess />} />
                 <Route path="cs-tasks" element={<AdminCSTasks />} />
                 <Route path="gdpr" element={<AdminGDPR />} />
+                <Route path="marketing" element={<AdminMarketingDashboard />} />
+                <Route path="marketing/contatti" element={<AdminMarketingContacts />} />
+                <Route path="marketing/opportunita" element={<AdminMarketingOpportunities />} />
+                <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
+                <Route path="marketing/email" element={<AdminEmailMarketing />} />
+                <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
