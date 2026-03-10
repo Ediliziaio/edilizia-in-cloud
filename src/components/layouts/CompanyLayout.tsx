@@ -667,7 +667,9 @@ export function CompanyLayout() {
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
+  const { unreadCount: notifUnreadCount } = useNotifications();
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -679,7 +681,10 @@ export function CompanyLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <CompanySidebar />
+        <CompanySidebar
+          onOpenNotifications={() => setNotificationsPanelOpen(true)}
+          notificationCount={notifUnreadCount}
+        />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
