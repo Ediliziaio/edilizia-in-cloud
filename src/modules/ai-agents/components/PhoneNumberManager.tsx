@@ -68,7 +68,7 @@ export function PhoneNumberManager() {
   });
 
   const { data: agents } = useQuery({
-    queryKey: ["ai-agents-list-minimal"],
+    queryKey: queryKeys.aiAgents.listMinimal(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_agents" as never)
