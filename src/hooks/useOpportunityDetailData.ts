@@ -122,7 +122,7 @@ export function useUpsertContactFieldValues() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_field_values"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
