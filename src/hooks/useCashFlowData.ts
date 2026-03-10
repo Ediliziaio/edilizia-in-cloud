@@ -28,7 +28,7 @@ export function useCashFlowData() {
 
   // Query installments (rate dinamiche da order_installments con join su orders)
   const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ["forecast-installments", companyId],
+    queryKey: queryKeys.cashflow.installments(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_installments" as any)
