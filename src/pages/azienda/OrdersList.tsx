@@ -929,7 +929,7 @@ export default function OrdersList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={safePage >= totalPages}
                 >
                   Successivo
