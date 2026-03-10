@@ -74,7 +74,7 @@ export function useAdminDashboardData() {
           created_at,
           company:companies(name)
         `).order("created_at", { ascending: false }).limit(5),
-        supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)"),
+        supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)").limit(10000),
       ]);
 
       const aggRow = (ordersAggRes.data as any)?.[0];

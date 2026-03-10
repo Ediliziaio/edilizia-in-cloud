@@ -289,6 +289,7 @@ export const queryKeys = {
   admin: {
     all: ["admin"] as const,
     dashboard: () => ["admin", "dashboard"] as const,
+    revenueIntelligence: () => ["admin", "revenue-intelligence"] as const,
     companyDetail: (id: string | undefined) => ["admin", "company-detail", id] as const,
     companyTeam: (id: string | undefined) => ["admin", "company-team", id] as const,
   },
