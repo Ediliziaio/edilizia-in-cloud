@@ -18,6 +18,7 @@ type ListFilterType = "all" | "needs_review" | "deleted";
 
 export default function MarketingAutomations() {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
