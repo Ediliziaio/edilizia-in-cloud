@@ -91,7 +91,7 @@ export default function QuoteDetail() {
   });
 
   const { data: attachments = [] } = useQuery({
-    queryKey: ["quote-attachments-detail", id],
+    queryKey: queryKeys.quotes.attachments(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
