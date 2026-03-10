@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useEmailTemplatesPaginated } from "@/hooks/useEmailCampaignsPaginated";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +25,8 @@ export function EmailTemplatesTab() {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<any>(null);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 350);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: "Home" },
@@ -37,21 +40,17 @@ export function EmailTemplatesTab() {
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
-  const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["email-templates", company?.id],
-    enabled: !!company?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_templates")
-        .select("*")
-        .eq("company_id", company!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
+  // Reset page on filter change
+  useEffect(() => { setPage(0); }, [search, currentFolderId]);
+
+  const { data: templateData, isLoading } = useEmailTemplatesPaginated(
+    company?.id,
+    { search, folderId: currentFolderId },
+    { page, perPage }
+  );
+
+  const templates = templateData?.data ?? [];
+  const totalCount = templateData?.total ?? 0;
 
   const { data: folders = [] } = useQuery({
     queryKey: ["email-folders", company?.id, "template"],
@@ -137,16 +136,9 @@ export function EmailTemplatesTab() {
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
 
-  const filtered = templates.filter((t: any) => {
-    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase());
-    const matchFolder = currentFolderId ? t.folder_id === currentFolderId : !t.folder_id;
-    return matchSearch && matchFolder;
-  });
-
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paged = filtered.slice(page * perPage, (page + 1) * perPage);
-  const showing = filtered.length > 0
-    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
+  const totalPages = Math.ceil(totalCount / perPage);
+  const showing = totalCount > 0
+    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, totalCount)} di ${totalCount}`
     : "";
 
   const navigateToFolder = (folderId: string, folderName: string) => {
@@ -184,7 +176,7 @@ export function EmailTemplatesTab() {
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cerca modelli di email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+          <Input className="pl-9" placeholder="Cerca modelli di email..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
         </div>
       </div>
 
@@ -217,7 +209,7 @@ export function EmailTemplatesTab() {
       {/* Table */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-      ) : paged.length === 0 ? (
+      ) : templates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <FileText className="h-10 w-10 text-muted-foreground" />
@@ -240,7 +232,7 @@ export function EmailTemplatesTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paged.map((t: any) => (
+              {templates.map((t: any) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell className="text-muted-foreground">{t.type}</TableCell>

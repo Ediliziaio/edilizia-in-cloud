@@ -37,6 +37,7 @@ import {
   FileText,
   RefreshCw,
   Bell,
+  Search,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,8 @@ import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 
+import { CommandPalette } from "@/components/CommandPalette";
+
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
   const navigate = useNavigate();
@@ -101,7 +104,7 @@ function ImpersonationBanner() {
   );
 }
 
-function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNotifications: () => void; notificationCount: number }) {
+function CompanySidebar({ onOpenNotifications, notificationCount, onOpenSearch }: { onOpenNotifications: () => void; notificationCount: number; onOpenSearch?: () => void }) {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
@@ -593,6 +596,20 @@ function CompanySidebar({ onOpenNotifications, notificationCount }: { onOpenNoti
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <button
+                        onClick={() => onOpenSearch?.()}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
+                      >
+                        <Search className="h-4 w-4" />
+                        <span>Cerca...</span>
+                        <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-60">
+                          ⌘K
+                        </kbd>
+                      </button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <button
                         onClick={onOpenNotifications}
                         className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
                       >
@@ -668,8 +685,21 @@ export function CompanyLayout() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
   const { unreadCount: notifUnreadCount } = useNotifications();
+
+  // Cmd+K / Ctrl+K global shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -684,6 +714,7 @@ export function CompanyLayout() {
         <CompanySidebar
           onOpenNotifications={() => setNotificationsPanelOpen(true)}
           notificationCount={notifUnreadCount}
+          onOpenSearch={() => setCommandOpen(true)}
         />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
@@ -733,6 +764,7 @@ export function CompanyLayout() {
         open={notificationsPanelOpen}
         onOpenChange={setNotificationsPanelOpen}
       />
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </SidebarProvider>
   );
 }

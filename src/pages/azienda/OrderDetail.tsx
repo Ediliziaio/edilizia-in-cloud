@@ -31,6 +31,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
+import { OrderSignatureCard } from "@/components/orders/OrderSignatureCard";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -721,6 +722,11 @@ export default function OrderDetail() {
               supplier_id: i.supplier_id,
               vat_rate: i.vat_rate,
             }))}
+          />
+          <OrderSignatureCard
+            orderId={id!}
+            customerEmail={order.customer?.email}
+            customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
           />
           <LinkedTasks orderId={id} category="ordini" />
           <LinkedAppointments orderId={id!} />

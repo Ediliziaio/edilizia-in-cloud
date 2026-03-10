@@ -139,6 +139,7 @@ const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder")
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
+const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 
 // Customer
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
@@ -212,6 +213,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
+              <Route path="/firma/:token" element={<SignaturePage />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
