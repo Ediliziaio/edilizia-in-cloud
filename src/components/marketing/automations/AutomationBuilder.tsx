@@ -306,8 +306,8 @@ export function AutomationBuilder() {
           {createFlowMutation.error?.message || "Si è verificato un errore durante la creazione."}
         </p>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
-            ← Torna alla lista
+           <Button variant="outline" onClick={() => navigate(`${prefix}/automazioni`)}>
+             ← Torna alla lista
           </Button>
           <Button onClick={() => {
             creationAttemptedRef.current = false;
