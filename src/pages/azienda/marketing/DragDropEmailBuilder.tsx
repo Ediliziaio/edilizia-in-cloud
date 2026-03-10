@@ -31,6 +31,7 @@ export default function DragDropEmailBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { effectiveCompany: company } = useAuth();
 
   const [blocks, setBlocks] = useState<BuilderBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
