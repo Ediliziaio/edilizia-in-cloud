@@ -1,194 +1,80 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Audit Ordini / Magazzino / Calendario — Piano Correzioni
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## FASE 1: Bug Identificati
 
----
+### Critici (P0)
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+| # | Bug | File | Evidenza |
+|---|-----|------|----------|
+| 1 | **Status change non atomico** | `OrderDetail.tsx:296-299`, `OrdersList.tsx:421-429` | Due query separate: se la prima va a buon fine e la seconda fallisce, lo stato ordine cambia ma lo storico non viene scritto. Stesso pattern in entrambi i punti. |
+| 2 | **Automazione aggiorna stato senza scrivere storico** | `process-internal-automation/index.ts:111-121` | `update_order_status` scrive solo `orders.current_status_id`, non inserisce `order_status_history`. Storico ordine diventa incompleto. |
+| 3 | **Conflict detection ignora appuntamenti** | `useConflictDetection.ts:69-70` | Il commento dice "skip for now". Gli appuntamenti con `assigned_to` (user_id) non vengono confrontati con `order_employees` (employee.id). Occorre il bridge `employees.user_id` → `assigned_to`. |
+| 4 | **Legacy installments: insert senza protezione idempotente** | `OrderDetail.tsx:373-387` | Se l'utente clicca due volte rapidamente, il path legacy fa due `insert` → rate duplicate. Nessun upsert, nessun constraint `(order_id, position)`, nessun check preventivo. |
 
----
+### Medi (P1)
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+| # | Bug | File |
+|---|-----|------|
+| 5 | **OrdersList query ordini senza limit** | `OrdersList.tsx:99-107` | Default Supabase 1000 righe. Aziende con >1000 ordini vedono lista troncata silenziosamente. |
+| 6 | **Calendar query ordini senza limit** | `Calendar.tsx:90-109` | Stesso problema: ordini nel calendario troncati a 1000. |
+| 7 | **Warehouse order selector limit 200** | `useWarehouseData.ts:273` | `.limit(200)` sul dropdown ordini. Ordini piu vecchi invisibili nel filtro. |
+| 8 | **Status change non invalida il calendario** | `OrderDetail.tsx:301-303`, `OrdersList.tsx:431-433` | `updateStatusMutation.onSuccess` invalida solo `["order"]`/`["orders"]`, non `["calendar-orders"]`. Il calendario mostra stato vecchio fino a refresh. |
+| 9 | **Appointments query senza limit** | `Calendar.tsx:123-131` | Default 1000 appuntamenti. |
 
----
+## FASE 2: Piano Correzioni
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+### Fix 1+2: Cambio stato atomico via RPC
+**Creare una RPC** `change_order_status(p_order_id, p_new_status_id, p_changed_by)` che in una singola transazione:
+1. Aggiorna `orders.current_status_id`
+2. Inserisce in `order_status_history`
 
----
+**Files da modificare:**
+- Database migration: creare la RPC
+- `OrderDetail.tsx`: sostituire le 2 query con `supabase.rpc("change_order_status", ...)`
+- `OrdersList.tsx`: stesso
+- `process-internal-automation/index.ts`: stesso (usando `supabase.rpc`)
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+### Fix 3: Conflict detection con bridge employee ↔ profile
+**File:** `Calendar.tsx`, `useConflictDetection.ts`
+- `Calendar.tsx`: aggiungere `user_id` alla select degli employees (`"id, first_name, last_name, user_id"`)
+- Passare la mappa `employeesByUserId` a `useConflictDetection`
+- `useConflictDetection.ts`: accettare `employeeMap: Map<string, {id, name}>` (da user_id a employee). Per ogni appuntamento con `assigned_to`, cercare l'employee corrispondente via `user_id`. Se trovato, aggiungere l'evento nella stessa mappa conflitti usando l'employee.id come chiave.
+- Tipo aggiornato per accettare il mapping
 
----
+### Fix 4: Legacy installments idempotente
+**File:** `OrderDetail.tsx`
+- Prima dell'insert, fare un check: `select count(*) from order_installments where order_id = ?`. Se count > 0, saltare l'insert e fare un update sulla rata specifica.
+- In alternativa, usare `upsert` con `onConflict: "order_id,position"` (richiede unique constraint nel DB).
+- Approccio scelto: check preventivo (no migration necessaria). Se `count > 0`, ricaricare le installments e aggiornare quella corrispondente.
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+### Fix 5-7, 9: Limiti query
+- `OrdersList.tsx`: aggiungere `.limit(10000)` alla query ordini
+- `Calendar.tsx`: aggiungere `.limit(10000)` alla query ordini e `.limit(10000)` alla query appuntamenti
+- `useWarehouseData.ts`: aumentare limit dropdown ordini a `.limit(5000)`
 
----
+### Fix 8: Invalidazione cache cross-modulo
+**Files:** `OrderDetail.tsx`, `OrdersList.tsx`
+- `updateStatusMutation.onSuccess` in entrambi: aggiungere invalidazione di `["calendar-orders"]` e `["warehouse-items"]` e `["warehouse-badge-counts"]`
+- `OrderDetail.tsx` delete: aggiungere invalidazione `["calendar-orders"]`
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## Riepilogo file da modificare
 
----
+| File | Fix | Tipo |
+|------|-----|------|
+| **Database migration (RPC)** | #1, #2 | Atomicita |
+| `src/pages/azienda/OrderDetail.tsx` | #1, #4, #8 | Atomicita + Idempotenza + Cache |
+| `src/pages/azienda/OrdersList.tsx` | #1, #5, #8 | Atomicita + Scalabilita + Cache |
+| `supabase/functions/process-internal-automation/index.ts` | #2 | Atomicita |
+| `src/hooks/useConflictDetection.ts` | #3 | Conflict detection |
+| `src/pages/azienda/Calendar.tsx` | #3, #6, #9 | Conflict + Scalabilita |
+| `src/hooks/useWarehouseData.ts` | #7 | Scalabilita |
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+## Rischi e mitigazioni
 
----
+- **RPC**: singola funzione SQL, testabile isolatamente. Nessun rischio di regressione — le 2 query separate vengono sostituite da una chiamata equivalente.
+- **Conflict detection bridge**: funziona solo se `employees.user_id` e valorizzato. Se un employee non ha user_id, gli appuntamenti di quel profilo non genereranno conflitti — comportamento degradato ma non errato.
+- **Legacy check**: il check preventivo aggiunge una query extra solo nel path legacy (ordini vecchi senza installments DB). Nessun impatto su ordini nuovi.
+- **Limiti aumentati**: 10000 e sufficiente per la quasi totalita delle aziende. Per volumi superiori servira paginazione server-side (raccomandazione futura).
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
