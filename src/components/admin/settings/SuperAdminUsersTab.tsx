@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import CreateSuperAdminDialog from "./CreateSuperAdminDialog";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import SuperAdminPermissionsDialog from "./SuperAdminPermissionsDialog";
