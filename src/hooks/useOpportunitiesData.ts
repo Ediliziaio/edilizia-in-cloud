@@ -433,7 +433,7 @@ export function useBulkDeleteOpportunities() {
       await Promise.all(promises);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità eliminate");
     },
     onError: (e: any) => toast.error(e.message),
