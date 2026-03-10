@@ -83,6 +83,7 @@ export default function OrdersList() {
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Batch queries for cost calculations
@@ -101,6 +102,7 @@ export default function OrdersList() {
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const { data: employeeCosts = [] } = useQuery({
@@ -116,6 +118,7 @@ export default function OrdersList() {
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const { data: externalTeamCosts = [] } = useQuery({
@@ -131,6 +134,7 @@ export default function OrdersList() {
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const { data: salespeopleData = [] } = useQuery({
@@ -146,6 +150,7 @@ export default function OrdersList() {
     },
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Fetch names for salespeople, employees, external teams
@@ -163,6 +168,7 @@ export default function OrdersList() {
     },
     enabled: salespersonIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const { data: employeeProfiles = [] } = useQuery({
@@ -175,6 +181,7 @@ export default function OrdersList() {
     },
     enabled: employeeIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const { data: externalTeamProfiles = [] } = useQuery({
@@ -187,6 +194,7 @@ export default function OrdersList() {
     },
     enabled: externalTeamIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Build name maps
@@ -240,6 +248,7 @@ export default function OrdersList() {
     },
     enabled: supplierIds.length > 0,
     staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const supplierMap = useMemo(() => {
