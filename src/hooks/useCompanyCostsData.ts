@@ -60,7 +60,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query costs with supplier join
   const { data: costs = [], isLoading } = useQuery({
-    queryKey: ["company-costs", companyId],
+    queryKey: queryKeys.costs.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
