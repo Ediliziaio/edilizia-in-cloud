@@ -278,6 +278,15 @@ export function useCompanyDetail(id: string | undefined) {
     queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
   };
 
+  const assertCanManage = () => {
+    if (!saPermissions.can_manage_companies) {
+      throw new Error("Permesso negato: non puoi gestire le aziende");
+    }
+    if (id && saPermissions.allowed_company_ids && !saPermissions.allowed_company_ids.includes(id)) {
+      throw new Error("Permesso negato: azienda non autorizzata");
+    }
+  };
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ newStatus, notes }: { newStatus: CompanyStatus; notes: string }) => {
       if (!id || !company) return;
