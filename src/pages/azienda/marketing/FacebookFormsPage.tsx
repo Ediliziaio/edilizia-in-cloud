@@ -82,7 +82,7 @@ export default function FacebookFormsPage() {
 
   // Get pages for name lookup
   const { data: pages = [] } = useQuery({
-    queryKey: ["meta-pages", companyId, integration?.id],
+    queryKey: queryKeys.metaForms.pages(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data } = await supabase
