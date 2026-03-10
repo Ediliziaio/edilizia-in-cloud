@@ -13133,6 +13133,10 @@ export type Database = {
           net: number
         }[]
       }
+      get_cashflow_summary: {
+        Args: { p_company_id: string; p_months_ahead?: number }
+        Returns: Json
+      }
       get_company_health_data: {
         Args: never
         Returns: {
