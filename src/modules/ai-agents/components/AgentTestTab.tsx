@@ -38,7 +38,7 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
   const queryClient = useQueryClient();
 
   const { data: tests = [], isLoading } = useQuery({
-    queryKey: ["ai-agent-tests", agentId],
+    queryKey: queryKeys.aiAgents.tests(agentId),
     queryFn: async (): Promise<TestRun[]> => {
       const { data, error } = await supabase
         .from("ai_agent_tests" as never)
