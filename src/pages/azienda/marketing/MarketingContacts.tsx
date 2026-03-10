@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,17 +102,31 @@ export default function MarketingContacts() {
     return [...CSV_FIELDS, ...customImportFields];
   }, [contactCustomFields]);
 
-  const [activeTab, setActiveTab] = useState<"all" | "lists">("all");
-  const [searchInput, setSearchInput] = useState("");
+  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
+    activeTab: { key: "tab", defaultValue: "all" },
+    searchInput: { key: "q", defaultValue: "" },
+    page: { key: "pagina", defaultValue: 1, serialize: String, deserialize: Number },
+    pageSize: { key: "per_pagina", defaultValue: 25, serialize: String, deserialize: Number },
+    sortField: { key: "ordina", defaultValue: "created_at" },
+    sortDirection: { key: "dir", defaultValue: "desc" },
+  });
+
+  const activeTab = urlFilters.activeTab as "all" | "lists";
+  const setActiveTab = useCallback((v: "all" | "lists") => setURLParam("activeTab", v), [setURLParam]);
+  const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const page = urlFilters.page;
+  const setPage = useCallback((v: number) => setURLParam("page", v), [setURLParam]);
+  const pageSize = urlFilters.pageSize;
+  const setPageSize = useCallback((v: number) => setURLParam("pageSize", v), [setURLParam]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
-  const [sortField, setSortField] = useState<SortField>("created_at");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const sortField = urlFilters.sortField as SortField;
+  const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);
+  const sortDirection = urlFilters.sortDirection as SortDirection;
+  const setSortDirection = useCallback((v: SortDirection) => setURLParam("sortDirection", v), [setURLParam]);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(loadVisibleColumns);
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
