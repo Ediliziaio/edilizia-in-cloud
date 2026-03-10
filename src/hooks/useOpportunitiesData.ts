@@ -413,7 +413,7 @@ export function useBulkUpdateOpportunities() {
       await Promise.all(promises);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       toast.success("Opportunità aggiornate");
     },
     onError: (e: any) => toast.error(e.message),
