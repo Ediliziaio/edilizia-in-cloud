@@ -85,6 +85,8 @@ export default function MarketingTasks() {
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const now = new Date();

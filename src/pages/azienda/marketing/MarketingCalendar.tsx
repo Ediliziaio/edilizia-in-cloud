@@ -84,6 +84,8 @@ export default function MarketingCalendar() {
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Fetch assignable users
@@ -110,6 +112,8 @@ export default function MarketingCalendar() {
       return result;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Initialize filters once when data loads
@@ -168,6 +172,8 @@ export default function MarketingCalendar() {
       return (data || []) as any[];
     },
     enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Extract unique contact IDs from loaded appointments
@@ -190,6 +196,8 @@ export default function MarketingCalendar() {
       return data || [];
     },
     enabled: contactIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Enrich with names

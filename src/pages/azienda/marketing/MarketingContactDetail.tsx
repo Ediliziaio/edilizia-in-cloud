@@ -75,7 +75,8 @@ function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars
       return data || [];
     },
     enabled: !!contactId && !!companyId,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   const now = useMemo(() => new Date(), []);
@@ -308,7 +309,8 @@ function OpportunitiesPanel({ contactId, companyId }: { contactId: string; compa
       return data;
     },
     enabled: !!contactId && !!companyId,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
@@ -351,7 +353,8 @@ function ContactQuotesPanel({ contactId, companyId }: { contactId: string; compa
       return data;
     },
     enabled: !!contactId && !!companyId,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
@@ -462,7 +465,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Fetch all contact IDs for navigation ──
@@ -479,6 +483,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data.map((c: any) => c.id);
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const currentIdx = contactIds.indexOf(id || "");
@@ -589,7 +595,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Fetch activities ──
@@ -606,7 +613,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Fetch notes ──
@@ -623,7 +631,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Fetch contact messages ──
@@ -640,7 +649,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
   });
 
   // ── Send message mutation ──

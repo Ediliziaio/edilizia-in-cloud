@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,8 @@ export function EmailCampaignsTab() {
   const { effectiveCompany: company, user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 350);
   const [category, setCategory] = useState("all");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([
@@ -71,7 +73,8 @@ export function EmailCampaignsTab() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 120_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const { data: folders = [] } = useQuery({
@@ -86,6 +89,8 @@ export function EmailCampaignsTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const createFolderMut = useMutation({
@@ -250,7 +255,7 @@ export function EmailCampaignsTab() {
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Cerca campagna..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+            <Input className="pl-9" placeholder="Cerca campagna..." value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
           </div>
         </div>
 

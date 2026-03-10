@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
@@ -60,7 +61,8 @@ function MarketingOpportunitiesContent() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const searchQuery = useDebounce(searchInput, 350);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
@@ -506,7 +508,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Cerca Lead..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
+            <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
           </div>
           <Button variant="link" size="sm" className="h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
             <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi

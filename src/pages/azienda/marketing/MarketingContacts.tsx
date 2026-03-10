@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,7 +102,8 @@ export default function MarketingContacts() {
   }, [contactCustomFields]);
 
   const [activeTab, setActiveTab] = useState<"all" | "lists">("all");
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 350);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -926,8 +928,8 @@ export default function MarketingContacts() {
                 <Input
                   placeholder="Cerca contatti..."
                   className="pl-8 h-8 w-[220px] text-xs"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  value={searchInput}
+                  onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
                 />
               </div>
               <Button

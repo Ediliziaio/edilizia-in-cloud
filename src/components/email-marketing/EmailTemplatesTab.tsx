@@ -49,6 +49,8 @@ export function EmailTemplatesTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const { data: folders = [] } = useQuery({
@@ -63,6 +65,8 @@ export function EmailTemplatesTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const createFolderMut = useMutation({
