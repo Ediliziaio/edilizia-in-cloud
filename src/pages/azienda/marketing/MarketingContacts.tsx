@@ -614,7 +614,7 @@ export default function MarketingContacts() {
 
   const handleApplyColumns = (cols: Set<string>) => {
     setVisibleColumns(cols);
-    saveVisibleColumns(cols);
+    saveVisibleColumns(cols, columnsStorageKey);
   };
 
   const handleApplyFilters = (f: ContactFilters) => {
