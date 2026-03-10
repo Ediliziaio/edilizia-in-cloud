@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   flowId: string;
+  companyId: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
