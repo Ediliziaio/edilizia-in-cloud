@@ -127,7 +127,7 @@ function SortIcon({ field, currentField, direction }: { field: string; currentFi
   );
 }
 
-function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>) {
+function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>, routePrefix: string) {
   const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
   switch (col.key) {
     case "name":
@@ -137,7 +137,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
             <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
               {getInitials(c.first_name, c.last_name)}
             </div>
-            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
+            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}>
               {fullName}
             </span>
           </div>
