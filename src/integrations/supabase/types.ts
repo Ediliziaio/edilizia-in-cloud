@@ -13444,6 +13444,10 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      staff_update_own_password_flag: {
+        Args: { _must_change: boolean }
+        Returns: undefined
+      }
       superadmin_can_access_company: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
