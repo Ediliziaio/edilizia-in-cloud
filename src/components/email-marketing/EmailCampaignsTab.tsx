@@ -61,21 +61,17 @@ export function EmailCampaignsTab() {
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
-  const { data: campaigns = [], isLoading } = useQuery({
-    queryKey: ["email-campaigns", company?.id],
-    enabled: !!company?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_campaigns")
-        .select("id, name, status, type, subject, sender_name, sender_email, folder_id, json_content, html_content, preview_text, scheduled_at, created_at, updated_at")
-        .eq("company_id", company!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [search, category, currentFolderId]);
+
+  const { data: campaignData, isLoading } = useEmailCampaignsPaginated(
+    company?.id,
+    { search, category, folderId: currentFolderId },
+    { page, perPage }
+  );
+
+  const campaigns = campaignData?.data ?? [];
+  const totalCount = campaignData?.total ?? 0;
 
   const { data: folders = [] } = useQuery({
     queryKey: ["email-folders", company?.id, "campaign"],
