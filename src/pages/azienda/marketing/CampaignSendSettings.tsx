@@ -147,6 +147,19 @@ export default function CampaignSendSettings() {
       setAbSplitPercent((campaign as any).ab_split_percent ?? 50);
       setAbWinnerCriteria((campaign as any).ab_winner_criteria || "open_rate");
       setAbTestDurationHours((campaign as any).ab_test_duration_hours ?? 4);
+      // Restore segment settings from DB (Bug 1 fix)
+      const seg = campaign.segment_json as any;
+      if (seg && typeof seg === "object") {
+        setRecipientMode("segment");
+        setSegmentTags(Array.isArray(seg.tags) ? seg.tags : []);
+        setSegmentSource(seg.source || "");
+        setSegmentContactType(seg.contact_type || "");
+      } else {
+        setRecipientMode("list");
+        setSegmentTags([]);
+        setSegmentSource("");
+        setSegmentContactType("");
+      }
     }
   }, [campaign]);
 
