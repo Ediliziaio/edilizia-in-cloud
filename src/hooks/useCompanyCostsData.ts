@@ -23,26 +23,7 @@ export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
 export type StatusTabFilter = "all" | "sostenuti" | "previsti" | "in_ritardo" | "in_scadenza";
 
-export interface UnifiedCost {
-  id: string;
-  realOrderItemId?: string;
-  name: string;
-  cost_type: string;
-  amount: number;
-  category: string | null;
-  recurrence: string;
-  due_date: string;
-  is_paid: boolean;
-  paid_date: string | null;
-  notes: string | null;
-  order_id: string | null;
-  order?: { id: string; order_code: string | null } | null;
-  isFromOrder?: boolean;
-  orderItemStatus?: string;
-  supplierName?: string | null;
-  supplier_id?: string | null;
-  vat_rate?: number | null;
-}
+export type { UnifiedCost } from "@/lib/costsUtils";
 
 export interface CostsFilters {
   periodFilter: PeriodFilter;
