@@ -252,7 +252,7 @@ export default function Calendar() {
     staleTime: 5 * 60 * 1000,
   });
 
-
+  const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
       if (!customersMap.has(order.customer_id)) {
