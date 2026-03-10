@@ -23,11 +23,11 @@ interface AgentAnalyticsTabProps {
 
 export function AgentAnalyticsTab({ agentId }: AgentAnalyticsTabProps) {
   const { data: conversations, isLoading } = useQuery({
-    queryKey: ["ai-agent-conversations", agentId],
+    queryKey: queryKeys.aiAgents.conversations(agentId),
     queryFn: async (): Promise<Conversation[]> => {
       const { data, error } = await supabase
         .from("ai_agent_conversations" as never)
-        .select("*")
+        .select("id, status, duration_seconds, messages_count, appointment_created, started_at, elevenlabs_conversation_id, contact_id")
         .eq("agent_id", agentId)
         .order("started_at", { ascending: false });
       if (error) throw error;

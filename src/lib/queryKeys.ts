@@ -387,6 +387,20 @@ export const queryKeys = {
       ["appointments", "list", companyId, ...filters] as const,
   },
 
+  // ── AI Agents (Marketing/Sales) ─────────────────────
+  aiAgents: {
+    all: ["ai-agents"] as const,
+    list: () => ["ai-agents", "list"] as const,
+    detail: (agentId: string | undefined) => ["ai-agents", "detail", agentId] as const,
+    listMinimal: () => ["ai-agents", "list-minimal"] as const,
+    conversations: (agentId: string | undefined) => ["ai-agents", "conversations", agentId] as const,
+    conversationsContact: (contactId: string | undefined) => ["ai-agents", "conversations-contact", contactId] as const,
+    kb: (agentId: string | undefined) => ["ai-agents", "kb", agentId] as const,
+    kbGlobalCount: () => ["ai-agents", "kb-global-count"] as const,
+    tests: (agentId: string | undefined) => ["ai-agents", "tests", agentId] as const,
+    phoneNumbers: () => ["ai-agents", "phone-numbers"] as const,
+  },
+
   // ── Meta Forms (Facebook Lead Ads) ────────────────────
   metaForms: {
     all: ["meta-forms"] as const,
