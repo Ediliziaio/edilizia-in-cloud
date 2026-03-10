@@ -78,7 +78,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query suppliers for the form
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers-for-costs", companyId],
+    queryKey: queryKeys.costs.suppliers(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
