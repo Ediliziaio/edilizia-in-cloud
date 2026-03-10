@@ -40,21 +40,17 @@ export function EmailTemplatesTab() {
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
-  const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["email-templates", company?.id],
-    enabled: !!company?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_templates")
-        .select("*")
-        .eq("company_id", company!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
+  // Reset page on filter change
+  useEffect(() => { setPage(0); }, [search, currentFolderId]);
+
+  const { data: templateData, isLoading } = useEmailTemplatesPaginated(
+    company?.id,
+    { search, folderId: currentFolderId },
+    { page, perPage }
+  );
+
+  const templates = templateData?.data ?? [];
+  const totalCount = templateData?.total ?? 0;
 
   const { data: folders = [] } = useQuery({
     queryKey: ["email-folders", company?.id, "template"],
