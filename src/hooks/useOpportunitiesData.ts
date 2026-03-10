@@ -33,7 +33,7 @@ export function useOpportunities(pipelineId: string | null) {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_opportunities", companyId, pipelineId],
+    queryKey: queryKeys.opportunities.list(companyId, pipelineId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunities")
