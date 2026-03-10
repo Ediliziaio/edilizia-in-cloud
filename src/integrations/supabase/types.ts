@@ -13444,6 +13444,10 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      superadmin_can_access_company: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       trigger_form_automations: {
         Args: { p_submission_id: string }
         Returns: undefined
