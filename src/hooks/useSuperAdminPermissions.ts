@@ -32,6 +32,7 @@ const NO_ACCESS: SuperAdminPermissions = {
   can_manage_referrals: false,
   can_manage_admins: false,
   can_view_platform_stats: false,
+  can_manage_marketing: false,
   allowed_company_ids: [],
 };
 
