@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import CreateSuperAdminDialog from "./CreateSuperAdminDialog";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import SuperAdminPermissionsDialog from "./SuperAdminPermissionsDialog";
@@ -37,6 +38,7 @@ interface AdminUser {
 
 export default function SuperAdminUsersTab() {
   const { user } = useAuth();
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
@@ -58,6 +60,7 @@ export default function SuperAdminUsersTab() {
 
   const createMutation = useMutation({
     mutationFn: async (data: { email: string; password: string; firstName: string; lastName: string }) => {
+      if (!saPermissions.can_manage_admins) throw new Error("Non hai i permessi per gestire gli admin");
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "create", ...data },
@@ -76,6 +79,7 @@ export default function SuperAdminUsersTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
+      if (!saPermissions.can_manage_admins) throw new Error("Non hai i permessi per gestire gli admin");
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "delete", userId },
@@ -94,6 +98,7 @@ export default function SuperAdminUsersTab() {
 
   const resetMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      if (!saPermissions.can_manage_admins) throw new Error("Non hai i permessi per gestire gli admin");
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "reset-password", userId, newPassword },

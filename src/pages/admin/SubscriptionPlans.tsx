@@ -100,6 +100,7 @@ export default function SubscriptionPlans() {
 
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
+      if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
       const payload: Record<string, any> = {
         name: plan.name,
         slug: plan.slug,
@@ -138,6 +139,7 @@ export default function SubscriptionPlans() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
       const { error } = await supabase.from("subscription_plans").update({ is_active }).eq("id", id);
       if (error) throw error;
     },

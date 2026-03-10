@@ -22,6 +22,17 @@ const ALL_TRUE: SuperAdminPermissions = {
   allowed_company_ids: null,
 };
 
+// Deny-by-default: used when no permission record exists yet
+const NO_ACCESS: SuperAdminPermissions = {
+  can_manage_companies: false,
+  can_manage_plans: false,
+  can_manage_tickets: false,
+  can_manage_referrals: false,
+  can_manage_admins: false,
+  can_view_platform_stats: false,
+  allowed_company_ids: [],
+};
+
 export function useSuperAdminPermissions() {
   const { user, role } = useAuth();
   const isSuperAdmin = role === "super_admin";
@@ -42,7 +53,23 @@ export function useSuperAdminPermissions() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // No record = full access (backward compatible)
+  // Check if this is the only super_admin (bootstrap: first admin gets full access)
+  const { data: adminCount } = useQuery({
+    queryKey: ["super-admin-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("user_roles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "super_admin");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: isSuperAdmin && !!user?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // If record exists → use it. If no record AND only 1 super_admin → full access (bootstrap).
+  // Otherwise deny by default for safety.
   const permissions: SuperAdminPermissions = data
     ? {
         can_manage_companies: data.can_manage_companies,
@@ -53,7 +80,9 @@ export function useSuperAdminPermissions() {
         can_view_platform_stats: data.can_view_platform_stats,
         allowed_company_ids: data.allowed_company_ids as string[] | null,
       }
-    : ALL_TRUE;
+    : adminCount === 1
+      ? ALL_TRUE
+      : NO_ACCESS;
 
   return { permissions, isLoading };
 }
