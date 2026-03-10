@@ -112,6 +112,8 @@ export default function MarketingCalendar() {
       return result;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Initialize filters once when data loads
