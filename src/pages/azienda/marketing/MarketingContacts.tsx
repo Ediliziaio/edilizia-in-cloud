@@ -129,7 +129,7 @@ export default function MarketingContacts() {
   const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);
   const sortDirection = urlFilters.sortDirection as SortDirection;
   const setSortDirection = useCallback((v: SortDirection) => setURLParam("sortDirection", v), [setURLParam]);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(loadVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => loadVisibleColumns(columnsStorageKey));
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
