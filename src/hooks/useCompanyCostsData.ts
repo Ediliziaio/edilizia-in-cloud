@@ -163,7 +163,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query orders for linking
   const { data: orders = [] } = useQuery({
-    queryKey: ["orders-for-costs", companyId],
+    queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
