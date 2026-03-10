@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { AutomationCanvas } from "./AutomationCanvas";
 import { AutomationNodeConfig } from "./AutomationNodeConfig";
@@ -30,6 +31,7 @@ type BuilderTab = "builder" | "settings" | "enrollments" | "logs";
 export function AutomationBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const prefix = useMarketingRoutePrefix();
   const isNewFlow = !id || id === "nuova";
   const flowId = isNewFlow ? undefined : id;
 
@@ -80,7 +82,7 @@ export function AutomationBuilder() {
     },
     onSuccess: () => {
       toast({ title: "Automazione eliminata" });
-      navigate("/azienda/marketing/automazioni");
+      navigate(`${prefix}/automazioni`);
     },
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
@@ -117,7 +119,7 @@ export function AutomationBuilder() {
       creationAttemptedRef.current = true;
       createFlowMutation.mutate("Nuova Automazione", {
         onSuccess: (data) => {
-          navigate(`/azienda/marketing/automazioni/${data.id}`, { replace: true });
+          navigate(`${prefix}/automazioni/${data.id}`, { replace: true });
         },
         onError: (err) => {
           toast({ title: "Errore creazione automazione", description: err.message, variant: "destructive" });
@@ -268,7 +270,7 @@ export function AutomationBuilder() {
     try {
       await updateFlowMutation.mutateAsync({ status: "archived" });
       toast({ title: "Automazione archiviata con successo" });
-      navigate("/azienda/marketing/automazioni");
+      navigate(`${prefix}/automazioni`);
     } catch (err: any) {
       toast({ title: "Errore durante l'archiviazione", description: err.message, variant: "destructive" });
     }
@@ -287,8 +289,8 @@ export function AutomationBuilder() {
         <p className="text-sm text-muted-foreground max-w-md">
           Per creare un'automazione, devi prima selezionare un'azienda tramite il pannello di amministrazione.
         </p>
-        <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
-          ← Torna alla lista
+         <Button variant="outline" onClick={() => navigate(`${prefix}/automazioni`)}>
+            ← Torna alla lista
         </Button>
       </div>
     );
@@ -304,8 +306,8 @@ export function AutomationBuilder() {
           {createFlowMutation.error?.message || "Si è verificato un errore durante la creazione."}
         </p>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
-            ← Torna alla lista
+           <Button variant="outline" onClick={() => navigate(`${prefix}/automazioni`)}>
+             ← Torna alla lista
           </Button>
           <Button onClick={() => {
             creationAttemptedRef.current = false;
@@ -342,8 +344,8 @@ export function AutomationBuilder() {
       <div className="h-screen w-screen fixed inset-0 z-50 flex flex-col bg-background">
         {/* Row 1: back link + name center + actions right */}
         <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
-          <button
-            onClick={() => navigate("/azienda/marketing/automazioni")}
+           <button
+            onClick={() => navigate(`${prefix}/automazioni`)}
             className="text-sm text-primary hover:underline whitespace-nowrap"
           >
             ← Indietro a Flussi di lavoro
