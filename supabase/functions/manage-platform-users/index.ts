@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
@@ -153,14 +154,17 @@ Deno.serve(async (req) => {
 
     // === CREATE PLATFORM USER ===
     if (action === "create") {
-      const { email, password, firstName, lastName, platformRole, jobTitle, department, companyAccesses, companyPermissions } = body;
+      const { email, password: providedPassword, firstName, lastName, platformRole, jobTitle, department, companyAccesses, companyPermissions } = body;
       
-      if (!email || !password) {
-        return errorResponse("Email e password obbligatori");
+      if (!email) {
+        return errorResponse("Email obbligatoria");
       }
-      if (password.length < 8) {
-        return errorResponse("La password deve avere almeno 8 caratteri");
-      }
+      
+      // Auto-generate password if not provided
+      const password = providedPassword && providedPassword.length >= 8
+        ? providedPassword
+        : generateSecurePassword(12);
+      
       if (!platformRole || !PLATFORM_ROLES.includes(platformRole)) {
         return errorResponse("Ruolo piattaforma non valido");
       }
@@ -239,6 +243,8 @@ Deno.serve(async (req) => {
       });
 
       // Insert company accesses into multi_company_access
+      const ROLES_NEEDING_PERMS = ["company_staff", "salesperson", "call_center"];
+      
       if (companyAccesses && Array.isArray(companyAccesses) && companyAccesses.length > 0) {
         const accessRows = companyAccesses.map((ca: any) => ({
           user_id: userId,
@@ -254,14 +260,14 @@ Deno.serve(async (req) => {
           console.error("Failed to insert company accesses:", accessError);
         }
 
-        // Insert staff_permissions for staff-role companies
+        // Insert staff_permissions for non-admin companies
         if (companyPermissions) {
-          const staffCompanyIds = companyAccesses
-            .filter((ca: any) => ca.role === "company_staff")
+          const nonAdminCompanyIds = companyAccesses
+            .filter((ca: any) => ROLES_NEEDING_PERMS.includes(ca.role || "company_staff"))
             .map((ca: any) => ca.companyId);
 
-          if (staffCompanyIds.length > 0) {
-            const permRows = staffCompanyIds.map((companyId: string) => ({
+          if (nonAdminCompanyIds.length > 0) {
+            const permRows = nonAdminCompanyIds.map((companyId: string) => ({
               user_id: userId,
               company_id: companyId,
               ...companyPermissions,
@@ -284,7 +290,7 @@ Deno.serve(async (req) => {
         company_count: companyIds.length,
       });
 
-      return jsonResponse({ success: true, userId });
+      return jsonResponse({ success: true, userId, temporaryPassword: password });
     }
 
     // === DELETE PLATFORM USER ===
