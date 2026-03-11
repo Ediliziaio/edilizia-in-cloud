@@ -108,7 +108,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
-        .select("id, name, position, auto_status")
+        .select("id, name, position, auto_status, win_probability, stalled_threshold_days")
         .eq("pipeline_id", pipelineId)
         .order("position");
       if (error) throw error;
