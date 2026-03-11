@@ -39,7 +39,7 @@ export default function SettingsCostCategories() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ["cost-categories", companyId],
+    queryKey: queryKeys.costCategories.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_categories")
