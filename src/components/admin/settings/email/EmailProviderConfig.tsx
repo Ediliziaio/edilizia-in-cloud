@@ -149,7 +149,7 @@ export function EmailProviderConfig({ stream }: Props) {
           );
         if (error) throw error;
       }
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
       toast.success(`Provider ${STREAM_LABELS[stream].title} salvato`);
     } catch {
       toast.error("Errore nel salvataggio");
