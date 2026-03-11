@@ -94,7 +94,7 @@ export function usePurchaseOrders() {
     },
     onSuccess: () => {
       toast.success("Ordine d'acquisto creato");
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
