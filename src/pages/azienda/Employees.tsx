@@ -120,7 +120,7 @@ export default function Employees() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
       toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
     },
     onError: () => {
