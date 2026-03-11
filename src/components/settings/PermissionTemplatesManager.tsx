@@ -65,7 +65,7 @@ export function PermissionTemplatesManager() {
 
   // Fetch company users for "Apply to User" dialog
   const { data: companyUsers = [] } = useQuery({
-    queryKey: ["company-users-list", effectiveCompany?.id],
+    queryKey: queryKeys.users.companyUsersList(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
