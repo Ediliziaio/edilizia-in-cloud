@@ -98,6 +98,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => sessionStorage.getItem(IMP_TOKEN_KEY)
   );
 
+  // Multi-company state
+  const MULTI_COMPANY_KEY = "multi_company_selected";
+  const [multiCompanyAccesses, setMultiCompanyAccesses] = useState<MultiCompanyAccess[]>([]);
+  const [selectedMultiCompanyId, setSelectedMultiCompanyId] = useState<string | null>(
+    () => sessionStorage.getItem(MULTI_COMPANY_KEY)
+  );
+  const [multiCompanyObj, setMultiCompanyObj] = useState<Company | null>(null);
+
   // Sync impersonation state to sessionStorage
   useEffect(() => {
     if (impersonatedCompanyId) sessionStorage.setItem(IMP_COMPANY_KEY, impersonatedCompanyId);
