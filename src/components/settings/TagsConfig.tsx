@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ export function TagsConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: tags = [], isLoading } = useQuery({
-    queryKey: ["marketing_tags", companyId],
+    queryKey: queryKeys.marketingTags.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -43,7 +44,7 @@ export function TagsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       setNewTag("");
       toast.success("Tag aggiunto");
     },
@@ -62,7 +63,7 @@ export function TagsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       toast.success("Tag eliminato");
     },
     onError: () => toast.error("Errore nell'eliminazione"),

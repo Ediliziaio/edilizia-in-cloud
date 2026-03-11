@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface TaskData {
   id?: string;
@@ -127,7 +128,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
-    queryKey: ["assignable-users", companyId],
+    queryKey: queryKeys.taskLookups.assignableUsers(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
@@ -150,7 +151,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: orders = [] } = useQuery({
-    queryKey: ["task-orders", companyId],
+    queryKey: queryKeys.taskLookups.orders(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase
@@ -165,7 +166,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: stockItems = [] } = useQuery({
-    queryKey: ["task-stock", companyId],
+    queryKey: queryKeys.taskLookups.stock(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase
@@ -180,7 +181,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: costs = [] } = useQuery({
-    queryKey: ["task-costs", companyId],
+    queryKey: queryKeys.taskLookups.costs(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase
@@ -195,7 +196,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ["task-contacts", companyId],
+    queryKey: queryKeys.taskLookups.contacts(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase
@@ -210,7 +211,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: opportunities = [] } = useQuery({
-    queryKey: ["task-opportunities", companyId],
+    queryKey: queryKeys.taskLookups.opportunities(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase

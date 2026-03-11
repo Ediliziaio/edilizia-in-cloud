@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
 import { TrendingUp, ShoppingBag, Wallet, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ export default function SalespersonDashboard() {
 
   // Fetch salesperson data
   const { data: salesperson } = useQuery({
-    queryKey: ["my-salesperson-record", user?.id],
+    queryKey: queryKeys.salespersonPortal.record(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
@@ -27,7 +28,7 @@ export default function SalespersonDashboard() {
 
   // Fetch order commissions
   const { data: commissions = [] } = useQuery({
-    queryKey: ["salesperson-commissions", salesperson?.id],
+    queryKey: queryKeys.salespersonPortal.commissions(salesperson?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")

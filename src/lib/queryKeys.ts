@@ -937,4 +937,46 @@ export const queryKeys = {
   staffUsers: {
     all: ["staff-users"] as const,
   },
+
+  // ── CS Tasks (Admin) ──────────────────────────────────
+  csTasks: {
+    all: ["cs-tasks"] as const,
+    list: (status: string) => ["cs-tasks", status] as const,
+    companies: ["cs-companies-list"] as const,
+  },
+
+  // ── Task Dialog (Lookups) ─────────────────────────────
+  taskLookups: {
+    assignableUsers: (companyId: string | undefined) => ["assignable-users", companyId] as const,
+    orders: (companyId: string | undefined) => ["task-orders", companyId] as const,
+    stock: (companyId: string | undefined) => ["task-stock", companyId] as const,
+    costs: (companyId: string | undefined) => ["task-costs", companyId] as const,
+    contacts: (companyId: string | undefined) => ["task-contacts", companyId] as const,
+    opportunities: (companyId: string | undefined) => ["task-opportunities", companyId] as const,
+  },
+
+  // ── User Audit Log ────────────────────────────────────
+  userAuditLog: {
+    all: ["user-audit-log"] as const,
+    byUser: (userId: string | undefined, filter?: string) => ["user-audit-log", userId, filter] as const,
+  },
+
+  // ── Admin Quick Login ─────────────────────────────────
+  adminQuickLogin: {
+    all: ["admin-all-users-for-login"] as const,
+    search: (query: string) => ["admin-all-users-for-login", query] as const,
+  },
+
+  // ── Email Folders ─────────────────────────────────────
+  emailFolders: {
+    all: ["email-folders"] as const,
+    byType: (companyId: string | undefined, type: string) => ["email-folders", companyId, type] as const,
+  },
+
+  // ── Salesperson Portal ────────────────────────────────
+  salespersonPortal: {
+    all: ["salesperson-portal"] as const,
+    record: (userId: string | undefined) => ["my-salesperson-record", userId] as const,
+    commissions: (salespersonId: string | undefined) => ["salesperson-commissions", salespersonId] as const,
+  },
 } as const;

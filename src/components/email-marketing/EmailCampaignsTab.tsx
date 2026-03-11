@@ -76,7 +76,7 @@ export function EmailCampaignsTab() {
   const totalCount = campaignData?.total ?? 0;
 
   const { data: folders = [] } = useQuery({
-    queryKey: ["email-folders", company?.id, "campaign"],
+    queryKey: queryKeys.emailFolders.byType(company?.id, "campaign"),
     enabled: !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -103,7 +103,7 @@ export function EmailCampaignsTab() {
     },
     onSuccess: () => {
       toast.success("Cartella creata");
-      qc.invalidateQueries({ queryKey: ["email-folders"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailFolders.all });
       setFolderDialogOpen(false);
     },
     onError: (e: any) => toast.error(e.message),

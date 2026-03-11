@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Loader2, Download, FileText } from "lucide-react";
@@ -39,7 +40,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
   const [actionFilter, setActionFilter] = useState<string>("all");
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["user-audit-log", userId, actionFilter],
+    queryKey: queryKeys.userAuditLog.byUser(userId, actionFilter),
     queryFn: async () => {
       let query = supabase
         .from("user_audit_log")

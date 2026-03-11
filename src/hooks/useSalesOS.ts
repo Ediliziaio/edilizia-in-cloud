@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
 import { calculateLeadScore, getIcpTier } from '@/lib/leadScoring';
 
@@ -457,7 +458,7 @@ export function useUpdateOpportunityMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: salesOSKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['marketing_opportunities'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
   });
 }
@@ -548,7 +549,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: salesOSKeys.topLeads(companyId ?? '') });
-      queryClient.invalidateQueries({ queryKey: ['marketing_contacts'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
   });
 }
@@ -628,7 +629,7 @@ export function useRecalculateLeadScore(companyId: string | null) {
       queryClient.invalidateQueries({
         queryKey: salesOSKeys.topLeads(companyId ?? ''),
       });
-      queryClient.invalidateQueries({ queryKey: ['marketing_contacts'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
   });
 }

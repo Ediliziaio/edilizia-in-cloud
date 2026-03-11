@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,7 @@ export default function AdminCSTasks() {
   const [newDueDate, setNewDueDate] = useState("");
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["cs-tasks", filterStatus],
+    queryKey: queryKeys.csTasks.list(filterStatus),
     queryFn: async () => {
       let query = supabase
         .from("cs_tasks" as never)
@@ -58,7 +59,7 @@ export default function AdminCSTasks() {
   });
 
   const { data: companies = [] } = useQuery({
-    queryKey: ["cs-companies-list"],
+    queryKey: queryKeys.csTasks.companies,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -85,7 +86,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cs-tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       setNewTitle("");
       setNewDesc("");
       setNewCompanyId("");
@@ -106,7 +107,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cs-tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       toast.success("Task aggiornato");
     },
   });
