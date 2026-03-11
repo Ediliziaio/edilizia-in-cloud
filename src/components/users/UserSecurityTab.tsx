@@ -52,7 +52,7 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       toast({ title: "Account sbloccato" });
     },
     onError: () => {
