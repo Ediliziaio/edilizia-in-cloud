@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { AppRole, Profile, Company, AuthState } from "@/types/auth";
+import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 import { logger } from "@/utils/logger";
 
 interface AuthContextType extends AuthState {
@@ -16,6 +17,10 @@ interface AuthContextType extends AuthState {
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
+  // Multi-company
+  multiCompanyAccesses: MultiCompanyAccess[];
+  selectedMultiCompanyId: string | null;
+  switchMultiCompany: (companyId: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
