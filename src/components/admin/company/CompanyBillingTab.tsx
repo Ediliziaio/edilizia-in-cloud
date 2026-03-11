@@ -85,7 +85,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   });
 
   const { data: aiCredits } = useQuery({
-    queryKey: ["admin-ai-credits", companyId],
+    queryKey: queryKeys.admin.aiCreditsAdmin(companyId),
     queryFn: async () => {
       const { data } = await supabase.from("ai_credits" as never).select("balance_eur").eq("company_id", companyId).maybeSingle();
       return data as { balance_eur: number } | null;
