@@ -86,7 +86,7 @@ const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 
-const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin"] as const;
+const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
 
 export function companyRoutes() {
   return (
