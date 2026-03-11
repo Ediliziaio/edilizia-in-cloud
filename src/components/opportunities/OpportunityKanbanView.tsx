@@ -26,8 +26,8 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
   return (
-    <div className={cn("flex flex-col shrink-0", layout === "mini" ? "min-w-[220px] max-w-[260px]" : "min-w-[280px] max-w-[300px]")}>
-      <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
+    <div className={cn("flex flex-col shrink-0 h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[220px] max-w-[260px]" : "min-w-[280px] max-w-[300px]")}>
+      <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
@@ -35,7 +35,11 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
       </div>
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 min-h-[200px] rounded-b-lg border border-t-0 transition-colors ${isOver ? "bg-primary/5" : "bg-muted/10"}`}
+        className={cn(
+          "flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 transition-colors overflow-y-auto",
+          "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40",
+          isOver ? "bg-primary/5" : "bg-muted/10"
+        )}
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
           {opportunities.map((opp: any) => (
