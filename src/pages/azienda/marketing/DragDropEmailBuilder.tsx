@@ -60,7 +60,7 @@ export default function DragDropEmailBuilder() {
   }, []);
 
   const { data: campaign, isLoading } = useQuery({
-    queryKey: ["campaign-builder", id],
+    queryKey: queryKeys.campaignEditor.builder(id),
     enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -96,8 +96,8 @@ export default function DragDropEmailBuilder() {
     onSuccess: () => {
       setAutoSaveStatus("saved");
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
-      qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
-      qc.invalidateQueries({ queryKey: ["campaign-send-settings", id] });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.detail(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.sendSettings(id) });
     },
     onError: (e: any) => {
       setAutoSaveStatus("unsaved");

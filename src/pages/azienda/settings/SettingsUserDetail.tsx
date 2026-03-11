@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock } from "lucide-react";
@@ -61,7 +62,7 @@ export default function SettingsUserDetail() {
   });
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ["user-detail", userId],
+    queryKey: queryKeys.users.detail(userId),
     queryFn: async () => {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -111,8 +112,8 @@ export default function SettingsUserDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Profilo aggiornato", description: "I dati dell'utente sono stati salvati." });
     },
     onError: () => {
@@ -145,8 +146,8 @@ export default function SettingsUserDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
     onError: () => {
@@ -209,8 +210,8 @@ export default function SettingsUserDetail() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
     onError: () => {

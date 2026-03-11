@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format, differenceInCalendarDays } from "date-fns";
@@ -59,7 +60,7 @@ export default function LeaveRequests() {
 
   // Get employee record
   const { data: employee } = useQuery({
-    queryKey: ["my-employee-profile", user?.id],
+    queryKey: queryKeys.leave.employeeProfile(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
@@ -75,7 +76,7 @@ export default function LeaveRequests() {
 
   // Balance
   const { data: balance } = useQuery({
-    queryKey: ["leave-balance", employee?.id, currentYear],
+    queryKey: queryKeys.leave.balance(employee?.id, currentYear),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_balances")
@@ -92,7 +93,7 @@ export default function LeaveRequests() {
 
   // Requests
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["leave-requests-employee", employee?.id],
+    queryKey: queryKeys.leave.requests(employee?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_requests")
@@ -117,7 +118,7 @@ export default function LeaveRequests() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success("Richiesta annullata");
     },
     onError: () => toast.error("Errore nell'annullamento"),
@@ -350,7 +351,7 @@ function NewLeaveDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success("Richiesta inviata con successo");
       onOpenChange(false);
       resetForm();

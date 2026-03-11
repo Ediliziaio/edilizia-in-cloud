@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -39,7 +40,7 @@ export default function InvoiceDetail() {
   const { effectiveCompany } = useAuth();
 
   const { data: invoice, isLoading } = useQuery({
-    queryKey: ["invoice", id],
+    queryKey: queryKeys.invoices.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
@@ -53,7 +54,7 @@ export default function InvoiceDetail() {
   });
 
   const { data: linkedTransactions } = useQuery({
-    queryKey: ["invoice-reconciliations", id],
+    queryKey: queryKeys.invoices.reconciliations(id),
     queryFn: async () => {
       const { data } = await supabase
         .from("bank_reconciliations")

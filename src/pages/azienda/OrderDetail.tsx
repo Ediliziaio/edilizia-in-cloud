@@ -178,7 +178,7 @@ export default function OrderDetail() {
 
   // Fetch order details
   const { data: order, isLoading: orderLoading } = useQuery({
-    queryKey: ["order", id],
+    queryKey: queryKeys.orders.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -195,7 +195,7 @@ export default function OrderDetail() {
 
   // Fetch order installments from DB
   const { data: dbInstallments = [] } = useQuery({
-    queryKey: ["order-installments", id],
+    queryKey: queryKeys.orders.installments(id),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("order_installments")
@@ -260,7 +260,7 @@ export default function OrderDetail() {
 
   // Fetch order statuses
   const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", effectiveCompany?.id],
+    queryKey: queryKeys.orders.statuses(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
@@ -302,10 +302,10 @@ export default function OrderDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
@@ -319,7 +319,7 @@ export default function OrderDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       toast.success("Note salvate");
       setIsEditingNotes(false);
     },
@@ -330,13 +330,13 @@ export default function OrderDetail() {
   const deleteOrderMutation = useMutation({
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      queryClient.invalidateQueries({ queryKey: ["margin"] });
-      queryClient.invalidateQueries({ queryKey: ["break-even"] });
-      queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.margin.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.breakEven.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
       toast.success("Ordine eliminato");
       navigate("/azienda/ordini");
     },
@@ -355,7 +355,7 @@ export default function OrderDetail() {
     },
     onSuccess: (data) => {
       setDuplicateDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success(`Ordine duplicato con codice ${data.order_code}`);
       navigate(`/azienda/ordini/${data.id}`);
     },
@@ -421,9 +421,9 @@ export default function OrderDetail() {
       }
     },
     onSuccess: (_, { paid, installment }) => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
-      queryClient.invalidateQueries({ queryKey: ["order-installments", id] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`);
     },
     onError: () => { toast.error("Impossibile aggiornare lo stato del pagamento."); },

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FileText, Loader2, Trash2, Shield, Copy, UserPlus } from "lucide-react";
@@ -49,7 +50,7 @@ export function PermissionTemplatesManager() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({ ...DEFAULT_PERMISSIONS });
 
   const { data: templates, isLoading } = useQuery({
-    queryKey: ["permission-templates", effectiveCompany?.id],
+    queryKey: queryKeys.users.permissionTemplates(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permission_templates")
@@ -65,7 +66,7 @@ export function PermissionTemplatesManager() {
 
   // Fetch company users for "Apply to User" dialog
   const { data: companyUsers = [] } = useQuery({
-    queryKey: ["company-users-list", effectiveCompany?.id],
+    queryKey: queryKeys.users.companyUsersList(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
@@ -101,7 +102,7 @@ export function PermissionTemplatesManager() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["permission-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
       toast({ title: editingTemplate ? "Template aggiornato" : "Template creato" });
       closeDialog();
     },
@@ -116,7 +117,7 @@ export function PermissionTemplatesManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["permission-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
       toast({ title: "Template eliminato" });
     },
     onError: () => {
@@ -138,7 +139,7 @@ export function PermissionTemplatesManager() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Template applicato", description: `Permessi aggiornati per l'utente selezionato.` });
       setApplyDialogOpen(false);
       setApplyingTemplate(null);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,7 +23,7 @@ export default function PartnerPayout() {
   const [notes, setNotes] = useState("");
 
   const { data: referrer } = useQuery({
-    queryKey: ["my-referrer", user?.id],
+    queryKey: queryKeys.partnerPayouts.referrer(user?.id),
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await supabase.from("referrers").select("id, total_earned, total_paid, payout_method, payout_details").eq("user_id", user!.id).maybeSingle();
@@ -31,7 +32,7 @@ export default function PartnerPayout() {
   });
 
   const { data: payouts = [], isLoading } = useQuery({
-    queryKey: ["my-payouts", referrer?.id],
+    queryKey: queryKeys.partnerPayouts.payouts(referrer?.id),
     enabled: !!referrer?.id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -66,7 +67,7 @@ export default function PartnerPayout() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-payouts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.payoutsAll });
       toast.success("Richiesta di pagamento inviata!");
       setAmount("");
       setNotes("");
