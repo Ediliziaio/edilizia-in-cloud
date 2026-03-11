@@ -28,7 +28,7 @@ export default function WarehouseKanbanView({
 
   const itemsByStatus = useMemo(() => {
     const grouped: Record<OrderItemStatus, WarehouseItem[]> = {
-      da_ordinare: [], ordinato: [], in_magazzino: [], installato: [],
+      da_ordinare: [], ordinato: [], in_arrivo: [], in_magazzino: [], prenotato: [], installato: [],
     };
     items.forEach((item) => { if (grouped[item.status]) grouped[item.status].push(item); });
     return grouped;
