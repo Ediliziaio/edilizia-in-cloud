@@ -673,7 +673,26 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             <span>0%</span>
                             <span className="font-medium">Pesato: {((parseFloat(value) || 0) * probability / 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })} €</span>
                             <span>100%</span>
-                          </div>
+                      </div>
+
+                      {/* Next Action */}
+                      <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
+                          <Label className="text-xs font-semibold">Prossima azione</Label>
+                        </div>
+                        <Input
+                          value={nextAction}
+                          onChange={(e) => setNextAction(e.target.value)}
+                          placeholder="Es: Chiamare per follow-up, Inviare preventivo..."
+                          className="h-8 text-sm"
+                        />
+                        <Input
+                          type="date"
+                          value={nextActionDate}
+                          onChange={(e) => setNextActionDate(e.target.value)}
+                          className="h-8 text-sm"
+                        />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
