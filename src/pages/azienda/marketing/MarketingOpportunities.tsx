@@ -362,6 +362,7 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3">
+      <OpportunityStatsStrip opportunities={filteredOpportunities} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
