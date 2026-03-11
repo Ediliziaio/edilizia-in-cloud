@@ -548,7 +548,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: salesOSKeys.topLeads(companyId ?? '') });
-      queryClient.invalidateQueries({ queryKey: ['marketing_contacts'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
     },
   });
 }
