@@ -18,6 +18,7 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
+import type { CompanyOrderStats, CompanyUserCount, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineView";
