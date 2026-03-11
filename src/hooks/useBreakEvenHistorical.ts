@@ -51,7 +51,7 @@ export function useBreakEvenHistorical() {
   });
 
   const { data: externalTeams, isLoading: loadingTeams } = useQuery({
-    queryKey: ["be-hist-teams", companyId],
+    queryKey: queryKeys.breakEven.teams(companyId, orderIds.length),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
