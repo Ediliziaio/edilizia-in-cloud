@@ -52,6 +52,7 @@ export type SortDirection = "asc" | "desc";
 
 export const COLUMNS = [
   { key: "name", label: "Nome del Contatto", sortField: "first_name" as SortField, fixed: true, group: "Contatto" },
+  { key: "temperature", label: "Temp.", group: "Contatto" },
   { key: "phone", label: "Telefono", sortField: "phone" as SortField, group: "Contatto" },
   { key: "email", label: "Email", sortField: "email" as SortField, group: "Contatto" },
   { key: "company_name", label: "Azienda", sortField: "company_name" as SortField, group: "Contatto" },
