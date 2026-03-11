@@ -81,8 +81,8 @@ export function ContactListsView() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
-    queryClient.invalidateQueries({ queryKey: ["list-members"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.listMembers.all });
   };
 
   // Save list (create/edit)
