@@ -227,7 +227,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   // Monthly orders for chart (last 6 months)
   const { data: allOrders } = useQuery({
-    queryKey: ["company-all-orders-chart", id],
+    queryKey: queryKeys.companyDetail.allOrdersChart(id),
     queryFn: async () => {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
