@@ -340,8 +340,8 @@ export function useUpdateOrderItemStatusMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
     },
   });
 }
