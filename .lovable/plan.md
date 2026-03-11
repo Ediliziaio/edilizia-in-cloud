@@ -1,24 +1,19 @@
 
 
-# SO5 — leadScoring.ts
+# SO6 — Sostituzione PipelineStagesConfig.tsx
 
-## Analisi
+## Differenze chiave rispetto al file attuale
 
-Il prompt SO5 chiede di creare `src/lib/leadScoring.ts` con il motore di Lead Scoring. Confrontando il contenuto SO5 con il file esistente `src/utils/leadScoring.ts`, la logica è **identica**: stesse interfacce, stessi punteggi, stesse funzioni `calculateLeadScore` e `getIcpTier`.
+Il file attuale (293 righe) ha già i campi `win_probability` e `stalled_threshold_days` nella `Stage` interface, ma il layout del `SortableStage` è su una singola riga (`flex items-center`). La versione SO6 (339 righe di codice) introduce:
 
-Il file `src/lib/leadScoring.ts` esiste già come re-export shim (creato in SO2):
-```ts
-export { calculateLeadScore, getIcpTier } from '@/utils/leadScoring';
-export type { LeadScoringInput } from '@/utils/leadScoring';
-```
+1. **Layout a due righe per ogni stage** — riga principale (nome, auto_status, delete) + riga Sales OS sotto (prob. win %, alert ferma gg)
+2. **Callback rinominato**: `onFieldChange` → `onSalesOSChange` con tipo più stretto (`'win_probability' | 'stalled_threshold_days'`)
+3. **handleSalesOSChange** dedicato nel componente padre (sostituisce il generico `handleFieldChange`)
+4. **Salvataggio** include esplicitamente `win_probability` e `stalled_threshold_days` sia in update che in insert
+5. **Commento `// SO6: Sales OS fields`** nell'interface
 
-**Due opzioni:**
+## Piano
 
-1. **Sovrascrivere `src/lib/leadScoring.ts`** con il contenuto completo SO5, duplicando la logica già presente in `src/utils/leadScoring.ts`. Rischio: due copie divergenti dello stesso codice.
-
-2. **Sovrascrivere `src/utils/leadScoring.ts`** con il contenuto SO5 (formattazione aggiornata, commenti migliorati) e mantenere `src/lib/leadScoring.ts` come re-export. Nessuna duplicazione, tutti gli import funzionano.
-
-**Piano scelto: opzione 2** — Sovrascrivere `src/utils/leadScoring.ts` con il contenuto esatto SO5 (righe 10-129 del prompt). Il re-export in `src/lib/leadScoring.ts` continua a funzionare. Nessun altro file toccato.
-
-In pratica la logica è già identica, si tratta solo di allineare la formattazione/commenti al template SO5.
+1. Sovrascrivere `src/components/settings/PipelineStagesConfig.tsx` con il contenuto esatto delle righe 11–348 del prompt SO6
+2. Nessun altro file toccato
 
