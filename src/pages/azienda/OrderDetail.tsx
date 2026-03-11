@@ -330,13 +330,13 @@ export default function OrderDetail() {
   const deleteOrderMutation = useMutation({
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      queryClient.invalidateQueries({ queryKey: ["margin"] });
-      queryClient.invalidateQueries({ queryKey: ["break-even"] });
-      queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.margin.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.breakEven.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
       toast.success("Ordine eliminato");
       navigate("/azienda/ordini");
     },
