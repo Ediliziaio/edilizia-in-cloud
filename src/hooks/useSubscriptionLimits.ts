@@ -18,7 +18,7 @@ export function useSubscriptionLimits() {
 
   // Fetch plan
   const { data: currentPlan, isLoading: planLoading } = useQuery({
-    queryKey: ["subscription-plan", planId],
+    queryKey: queryKeys.subscriptionLimits.plan(planId),
     queryFn: async () => {
       if (!planId) return null;
       const { data, error } = await supabase
