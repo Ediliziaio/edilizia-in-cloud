@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
+import { OpportunityStatsStrip } from "@/components/opportunities/OpportunityStatsStrip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import {
@@ -362,6 +363,7 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3">
+      <OpportunityStatsStrip opportunities={filteredOpportunities} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />

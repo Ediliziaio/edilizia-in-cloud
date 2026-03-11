@@ -2,7 +2,9 @@ import { memo, useState, useMemo, forwardRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle } from "lucide-react";
+import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle, Clock } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -128,7 +130,11 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
         className={cn(
-          "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2",
+          "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2 border-l-[3px]",
+          opportunity.status === "open" && "border-l-blue-500",
+          opportunity.status === "won" && "border-l-green-500",
+          opportunity.status === "lost" && "border-l-red-500",
+          opportunity.status === "abandoned" && "border-l-gray-400",
           isDragging && "opacity-30 shadow-lg",
           isOverlay && "shadow-xl border-primary/40",
           selected && "ring-2 ring-primary border-primary/50"
@@ -176,6 +182,14 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
+
+        {/* Updated at badge */}
+        {opportunity.updated_at && !isOverlay && (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Clock className="h-2.5 w-2.5" />
+            <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
+          </div>
+        )}
 
         {/* Action bar */}
         {!isOverlay && (
