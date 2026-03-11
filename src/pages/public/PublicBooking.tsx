@@ -21,7 +21,7 @@ export default function PublicBooking() {
 
   // Fetch calendar by slug
   const { data: calendar, isLoading: calLoading } = useQuery({
-    queryKey: ["public-booking-calendar", slug],
+    queryKey: queryKeys.publicBooking.calendar(slug),
     queryFn: async () => {
       if (!slug) return null;
       const { data, error } = await supabase
