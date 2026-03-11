@@ -32,7 +32,19 @@ export function CompanySecuritySettings() {
         .eq("id", effectiveCompany!.id)
         .single();
       if (error) throw error;
-      return data as any;
+      return data as unknown as {
+        enforce_2fa: boolean | null;
+        allowed_ips: string[] | null;
+        password_expiry_days: number | null;
+        max_failed_attempts: number | null;
+        lockout_duration_minutes: number | null;
+        enforce_2fa_roles: string[] | null;
+        security_notifications: Record<string, boolean> | null;
+        password_min_length: number | null;
+        password_require_uppercase: boolean | null;
+        password_require_numbers: boolean | null;
+        password_require_special: boolean | null;
+      };
     },
     enabled: !!effectiveCompany?.id && isAdmin,
   });
