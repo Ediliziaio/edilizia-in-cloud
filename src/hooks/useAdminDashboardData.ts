@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { addDays, subMonths, format } from "date-fns";
 import { it } from "date-fns/locale";
+import type { TotalOrdersValue } from "@/types/adminRpc";
 
 interface RecentActivity {
   id: string;
