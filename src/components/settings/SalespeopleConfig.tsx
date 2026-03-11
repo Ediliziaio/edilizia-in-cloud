@@ -111,7 +111,7 @@ export function SalespeopleConfig() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
       toast.success(editingSalesperson ? "Venditore aggiornato" : "Venditore creato");
       setDialogOpen(false); setEditingSalesperson(null);
     },
