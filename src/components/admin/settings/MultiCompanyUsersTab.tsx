@@ -15,6 +15,7 @@ import { it } from "date-fns/locale";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import CreateMultiCompanyUserDialog from "./CreateMultiCompanyUserDialog";
+import AddCompanyAccessForm from "./AddCompanyAccessForm";
 
 interface MultiCompanyUser {
   id: string;
@@ -229,6 +230,12 @@ export default function MultiCompanyUsersTab() {
                           </div>
                         ))}
                       </div>
+                      {saPermissions.can_manage_admins && (
+                        <AddCompanyAccessForm
+                          userId={activeUser.id}
+                          existingCompanyIds={activeUser.accesses.map((a) => a.company_id)}
+                        />
+                      )}
                     </div>
                   </div>
                 ) : (
