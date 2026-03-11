@@ -83,7 +83,7 @@ export function useCompanyDetail(id: string | undefined) {
   // ========== QUERIES ==========
 
   const { data: companyData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["company-detail", id],
+    queryKey: queryKeys.companyDetail.detail(id),
     queryFn: async () => {
       if (!id) return null;
       const [companyRes, ordersRes, profilesRes, ticketsRes] = await Promise.all([
