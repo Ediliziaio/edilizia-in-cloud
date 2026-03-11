@@ -54,7 +54,7 @@ export function ContactListsView() {
 
   // Fetch lists
   const { data: lists = [], isLoading } = useQuery({
-    queryKey: ["marketing-contact-lists", companyId],
+    queryKey: queryKeys.contactLists.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
