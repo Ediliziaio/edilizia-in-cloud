@@ -77,7 +77,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch credit balances
   const { data: emailCredits } = useQuery({
-    queryKey: ["admin-email-credits", companyId],
+    queryKey: queryKeys.admin.emailCredits(companyId),
     queryFn: async () => {
       const { data } = await supabase.from("email_credits").select("balance_eur").eq("company_id", companyId).maybeSingle();
       return data;
