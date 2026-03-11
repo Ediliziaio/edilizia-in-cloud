@@ -14,6 +14,7 @@ import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculateMarginPercent, formatEur } from "../lib/creditCalculator";
