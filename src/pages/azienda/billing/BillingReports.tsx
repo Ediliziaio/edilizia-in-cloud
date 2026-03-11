@@ -107,7 +107,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
     };
   }, [invoices]);
 
-  const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  const fmtEur = formatCurrency;
 
   const exportCsv = () => {
     const headers = ["Numero", "Data", "Cliente", "Imponibile", "IVA", "Totale", "Pagato", "Stato"];
