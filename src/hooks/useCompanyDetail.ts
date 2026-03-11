@@ -408,7 +408,7 @@ export function useCompanyDetail(id: string | undefined) {
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Staff creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
     } catch (err: any) {
