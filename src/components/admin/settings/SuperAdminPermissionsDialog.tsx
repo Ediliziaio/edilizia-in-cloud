@@ -73,7 +73,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
   });
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
-    queryKey: ["all-companies-list"],
+    queryKey: queryKeys.admin.allCompaniesList,
     queryFn: async () => {
       const { data, error } = await supabase.from("companies").select("id, name").order("name");
       if (error) throw error;
