@@ -112,7 +112,7 @@ export default function TicketDetail() {
 
   // Staff members for assignment dropdown (only staff roles, not customers)
   const { data: staffMembers = [] } = useQuery({
-    queryKey: ["company-staff-members", effectiveCompany?.id],
+    queryKey: queryKeys.companyStaffMembers.list(effectiveCompany?.id),
     queryFn: async () => {
       // Get user IDs with staff roles
       const { data: roleData, error: roleErr } = await supabase
