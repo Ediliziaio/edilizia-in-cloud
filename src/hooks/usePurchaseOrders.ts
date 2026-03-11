@@ -62,7 +62,7 @@ export function usePurchaseOrders() {
   const companyId = effectiveCompany?.id;
 
   const listQuery = useQuery({
-    queryKey: ["purchase-orders", companyId],
+    queryKey: queryKeys.purchaseOrders.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
