@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { queryKeys } from "@/lib/queryKeys";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Shield, Key, Lock, LockOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
