@@ -122,7 +122,7 @@ export function useWarehouseData() {
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: ["warehouse-items", companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page],
+    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page),
     queryFn: async () => {
       if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
 
