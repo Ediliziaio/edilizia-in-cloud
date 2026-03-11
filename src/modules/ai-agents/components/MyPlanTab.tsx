@@ -16,7 +16,7 @@ export default function MyPlanTab() {
   const navigate = useNavigate();
 
   const { data: subscription, isLoading: subLoading } = useQuery({
-    queryKey: ["ai-subscription-plan", companyId],
+    queryKey: queryKeys.aiSubscription.plan(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
