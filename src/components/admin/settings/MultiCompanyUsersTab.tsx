@@ -5,9 +5,10 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, KeyRound, Loader2, Building, Users } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Trash2, KeyRound, Loader2, Building, Users, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -29,12 +30,17 @@ interface MultiCompanyUser {
   }>;
 }
 
+function getInitials(first: string, last: string) {
+  return `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase();
+}
+
 export default function MultiCompanyUsersTab() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MultiCompanyUser | null>(null);
   const [resetTarget, setResetTarget] = useState<MultiCompanyUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<MultiCompanyUser | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: [...queryKeys.admin.superAdmins, "multi-company"],
@@ -49,6 +55,9 @@ export default function MultiCompanyUsersTab() {
     },
   });
 
+  // Keep selectedUser in sync with data
+  const activeUser = selectedUser ? users.find((u) => u.id === selectedUser.id) || null : null;
+
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -62,9 +71,27 @@ export default function MultiCompanyUsersTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setDeleteTarget(null);
+      setSelectedUser(null);
       toast.success("Utente multi-azienda rimosso");
     },
     onError: (e: Error) => { setDeleteTarget(null); toast.error(e.message); },
+  });
+
+  const removeAccessMutation = useMutation({
+    mutationFn: async ({ userId, companyId }: { userId: string; companyId: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-platform-users", {
+        body: { action: "update-company-access", userId, companyId, operation: "remove" },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
+      toast.success("Accesso rimosso");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const resetMutation = useMutation({
@@ -108,50 +135,98 @@ export default function MultiCompanyUsersTab() {
               <p className="text-sm text-muted-foreground mt-1">Crea un utente che può accedere a più aziende contemporaneamente</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Aziende</TableHead>
-                  <TableHead>Creato il</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">{u.first_name} {u.last_name}</TableCell>
-                    <TableCell>{u.email}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {u.accesses.slice(0, 3).map((a) => (
-                          <Badge key={a.id} variant="outline" className="text-xs">
-                            {a.companies?.name || "N/A"}
-                          </Badge>
-                        ))}
-                        {u.accesses.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">+{u.accesses.length - 3}</Badge>
-                        )}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-[400px]">
+              {/* Left: User list */}
+              <div className="lg:col-span-2">
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-1 pr-2">
+                    {users.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => setSelectedUser(u)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors hover:bg-muted/50 ${
+                          activeUser?.id === u.id ? "bg-muted border border-border" : ""
+                        }`}
+                      >
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="text-xs bg-primary/10 text-primary">{getInitials(u.first_name, u.last_name)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{u.first_name} {u.last_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">{u.accesses.length} az.</Badge>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Right: Detail panel */}
+              <div className="lg:col-span-3 border rounded-lg p-4">
+                {activeUser ? (
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-11 w-11">
+                          <AvatarFallback className="bg-primary/10 text-primary">{getInitials(activeUser.first_name, activeUser.last_name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-semibold">{activeUser.first_name} {activeUser.last_name}</h3>
+                          <p className="text-sm text-muted-foreground">{activeUser.email}</p>
+                          <p className="text-xs text-muted-foreground">Creato il {format(new Date(activeUser.created_at), "dd MMM yyyy", { locale: it })}</p>
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>{format(new Date(u.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
-                    <TableCell className="flex gap-1">
                       {saPermissions.can_manage_admins && (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => setResetTarget(u)} title="Reset password">
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => setResetTarget(activeUser)} title="Reset password">
                             <KeyRound className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} className="text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(activeUser)} className="text-destructive hover:text-destructive" title="Elimina">
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </>
+                        </div>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+
+                    {/* Company accesses */}
+                    <div>
+                      <p className="text-sm font-medium mb-2">Aziende accessibili ({activeUser.accesses.length})</p>
+                      <div className="space-y-2">
+                        {activeUser.accesses.map((a) => (
+                          <div key={a.id} className="flex items-center justify-between gap-2 border rounded-lg p-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Building className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{a.companies?.name || "N/A"}</p>
+                                <p className="text-xs text-muted-foreground">{a.access_role}</p>
+                              </div>
+                            </div>
+                            {saPermissions.can_manage_admins && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive shrink-0 h-7 w-7"
+                                onClick={() => removeAccessMutation.mutate({ userId: activeUser.id, companyId: a.company_id })}
+                                disabled={removeAccessMutation.isPending}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <UserPlus className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                    <p className="text-sm text-muted-foreground">Seleziona un utente per vedere i dettagli</p>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

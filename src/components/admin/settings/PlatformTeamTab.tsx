@@ -6,16 +6,22 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, KeyRound, Loader2, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { PLATFORM_ROLE_LABELS, PLATFORM_ROLE_COLORS, PLATFORM_ROLES, type PlatformRole } from "@/types/auth";
+import {
+  PLATFORM_ROLE_LABELS,
+  PLATFORM_ROLE_COLORS,
+  PLATFORM_ROLES,
+  type PlatformRole,
+} from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import ResetPasswordDialog from "./ResetPasswordDialog";
-import SuperAdminPermissionsDialog from "./SuperAdminPermissionsDialog";
+import PlatformPermissionsDialog from "./PlatformPermissionsDialog";
 import CreatePlatformUserDialog from "./CreatePlatformUserDialog";
 
 interface PlatformUser {
@@ -26,6 +32,19 @@ interface PlatformUser {
   created_at: string;
   roles: string[];
   permissions: any;
+}
+
+const ROLE_STAT_CARDS: { role: "super_admin" | PlatformRole; label: string; colorClass: string }[] = [
+  { role: "super_admin", label: "Super Admin", colorClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  { role: "platform_manager", label: "Manager", colorClass: PLATFORM_ROLE_COLORS.platform_manager },
+  { role: "platform_sales", label: "Sales", colorClass: PLATFORM_ROLE_COLORS.platform_sales },
+  { role: "platform_support", label: "Support", colorClass: PLATFORM_ROLE_COLORS.platform_support },
+  { role: "platform_marketing", label: "Marketing", colorClass: PLATFORM_ROLE_COLORS.platform_marketing },
+  { role: "platform_implementation", label: "Implementation", colorClass: PLATFORM_ROLE_COLORS.platform_implementation },
+];
+
+function getInitials(first: string, last: string) {
+  return `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase();
 }
 
 export default function PlatformTeamTab() {
@@ -102,32 +121,46 @@ export default function PlatformTeamTab() {
     return <Badge variant="secondary">Custom</Badge>;
   };
 
-  // Stats
-  const superAdminCount = users.filter(u => u.roles.includes("super_admin")).length;
-  const platformCount = users.filter(u => u.roles.some(r => PLATFORM_ROLES.includes(r as PlatformRole))).length;
+  const getPermissionBadges = (u: PlatformUser) => {
+    if (!u.permissions) return null;
+    const activePerms = Object.entries(u.permissions)
+      .filter(([k, v]) => v === true && k.startsWith("can_"))
+      .map(([k]) => k.replace("can_", "").replace(/_/g, " "));
+    if (activePerms.length === 0) return <span className="text-xs text-muted-foreground">Nessuno</span>;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {activePerms.slice(0, 3).map((p) => (
+          <Badge key={p} variant="outline" className="text-[10px] px-1.5 py-0">{p}</Badge>
+        ))}
+        {activePerms.length > 3 && (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">+{activePerms.length - 3}</Badge>
+        )}
+      </div>
+    );
+  };
+
+  // Counts per role
+  const roleCounts = ROLE_STAT_CARDS.map((rc) => ({
+    ...rc,
+    count: users.filter((u) =>
+      rc.role === "super_admin"
+        ? u.roles.includes("super_admin")
+        : u.roles.includes(rc.role)
+    ).length,
+  }));
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-xs text-muted-foreground">Team totale</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{superAdminCount}</div>
-            <p className="text-xs text-muted-foreground">Super Admin</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{platformCount}</div>
-            <p className="text-xs text-muted-foreground">Staff Piattaforma</p>
-          </CardContent>
-        </Card>
+      {/* Role stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {roleCounts.map((rc) => (
+          <Card key={rc.role}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="text-2xl font-bold">{rc.count}</div>
+              <Badge className={`${rc.colorClass} text-[10px] mt-1`}>{rc.label}</Badge>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Table */}
@@ -155,6 +188,7 @@ export default function PlatformTeamTab() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Ruolo</TableHead>
+                  <TableHead>Permessi</TableHead>
                   <TableHead>Creato il</TableHead>
                   <TableHead className="w-[150px]"></TableHead>
                 </TableRow>
@@ -162,27 +196,37 @@ export default function PlatformTeamTab() {
               <TableBody>
                 {users.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {u.first_name} {u.last_name}
-                      {u.id === user?.id && <Badge variant="secondary" className="ml-2">Tu</Badge>}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs bg-muted">{getInitials(u.first_name, u.last_name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <span className="font-medium">{u.first_name} {u.last_name}</span>
+                          {u.id === user?.id && <Badge variant="secondary" className="ml-2 text-[10px]">Tu</Badge>}
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell>{u.email}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                     <TableCell>{getRoleBadge(u)}</TableCell>
-                    <TableCell>{format(new Date(u.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
-                    <TableCell className="flex gap-1">
-                      {u.id !== user?.id && saPermissions.can_manage_admins && (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => setPermsTarget(u)} title="Permessi">
-                            <Shield className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setResetTarget(u)} title="Reset password">
-                            <KeyRound className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
+                    <TableCell>{getPermissionBadges(u)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{format(new Date(u.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {u.id !== user?.id && saPermissions.can_manage_admins && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => setPermsTarget(u)} title="Permessi">
+                              <Shield className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setResetTarget(u)} title="Reset password">
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -203,7 +247,7 @@ export default function PlatformTeamTab() {
       />
 
       {permsTarget && (
-        <SuperAdminPermissionsDialog
+        <PlatformPermissionsDialog
           open={!!permsTarget}
           onOpenChange={(o) => !o && setPermsTarget(null)}
           adminId={permsTarget.id}
