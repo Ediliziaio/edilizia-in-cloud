@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { useEffect, useMemo } from "react";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -28,103 +29,124 @@ export function usePipelines() {
   });
 }
 
+const PAGE_SIZE = 500;
+
+async function enrichPage(data: any[]) {
+  // Enrich with assigned profile names
+  const assignedIds = [...new Set(data.filter((o) => o.assigned_to).map((o) => o.assigned_to))];
+  let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+  if (assignedIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", assignedIds);
+    if (profiles) {
+      profiles.forEach((p: any) => { profilesMap[p.id] = p; });
+    }
+  }
+
+  const oppIds = data.map((o) => o.id);
+  const contactIds = [...new Set(data.filter((o) => o.contact_id).map((o) => o.contact_id))];
+  let notesCountMap: Record<string, number> = {};
+  let docsCountMap: Record<string, number> = {};
+  let appointmentMap: Record<string, { date: string; time: string | null }> = {};
+  const today = new Date().toISOString().split("T")[0];
+
+  if (oppIds.length > 0) {
+    const [notesRes, docsRes] = await Promise.all([
+      supabase.from("marketing_contact_notes").select("opportunity_id").in("opportunity_id", oppIds).limit(5000),
+      supabase.from("marketing_documents").select("opportunity_id").in("opportunity_id", oppIds).limit(5000),
+    ]);
+
+    let apptRes: any = null;
+    if (contactIds.length > 0) {
+      apptRes = await supabase
+        .from("appointments")
+        .select("contact_id, appointment_date, appointment_time")
+        .in("contact_id", contactIds)
+        .gte("appointment_date", today)
+        .neq("status", "annullato")
+        .order("appointment_date", { ascending: true })
+        .order("appointment_time", { ascending: true, nullsFirst: false })
+        .limit(5000);
+    }
+
+    if (notesRes.data) {
+      notesRes.data.forEach((n: any) => {
+        if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
+      });
+    }
+    if (docsRes.data) {
+      docsRes.data.forEach((d: any) => {
+        if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
+      });
+    }
+    if (apptRes?.data) {
+      apptRes.data.forEach((a: any) => {
+        if (a.contact_id && !appointmentMap[a.contact_id]) {
+          appointmentMap[a.contact_id] = { date: a.appointment_date, time: a.appointment_time };
+        }
+      });
+    }
+  }
+
+  return data.map((o) => ({
+    ...o,
+    assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
+    notes_count: notesCountMap[o.id] || 0,
+    documents_count: docsCountMap[o.id] || 0,
+    next_appointment: o.contact_id ? appointmentMap[o.contact_id] || null : null,
+  }));
+}
+
 export function useOpportunities(pipelineId: string | null) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  return useQuery({
+  const infiniteQuery = useInfiniteQuery({
     queryKey: queryKeys.opportunities.list(companyId, pipelineId),
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("marketing_opportunities")
         .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
         .eq("company_id", companyId!)
         .eq("pipeline_id", pipelineId!)
         .order("created_at", { ascending: false })
-        .limit(10000);
+        .range(from, to);
       if (error) throw error;
-
-      // Enrich with assigned profile names
-      const assignedIds = [...new Set(data.filter((o: any) => o.assigned_to).map((o: any) => o.assigned_to))];
-      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
-      if (assignedIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, first_name, last_name")
-          .in("id", assignedIds);
-        if (profiles) {
-          profiles.forEach((p: any) => { profilesMap[p.id] = p; });
-        }
-      }
-
-      // Fetch notes counts, docs counts, and next appointments
-      const oppIds = data.map((o: any) => o.id);
-      const contactIds = [...new Set(data.filter((o: any) => o.contact_id).map((o: any) => o.contact_id))];
-      let notesCountMap: Record<string, number> = {};
-      let docsCountMap: Record<string, number> = {};
-      let appointmentMap: Record<string, { date: string; time: string | null }> = {};
-
-      const today = new Date().toISOString().split("T")[0];
-
-      if (oppIds.length > 0) {
-        const [notesRes, docsRes] = await Promise.all([
-          supabase
-            .from("marketing_contact_notes")
-            .select("opportunity_id")
-            .in("opportunity_id", oppIds)
-            .limit(5000),
-          supabase
-            .from("marketing_documents")
-            .select("opportunity_id")
-            .in("opportunity_id", oppIds)
-            .limit(5000),
-        ]);
-
-        let apptRes: any = null;
-        if (contactIds.length > 0) {
-          apptRes = await supabase
-            .from("appointments")
-            .select("contact_id, appointment_date, appointment_time")
-            .in("contact_id", contactIds)
-            .gte("appointment_date", today)
-            .neq("status", "annullato")
-            .order("appointment_date", { ascending: true })
-            .order("appointment_time", { ascending: true, nullsFirst: false })
-            .limit(5000);
-        }
-
-        if (notesRes.data) {
-          notesRes.data.forEach((n: any) => {
-            if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
-          });
-        }
-        if (docsRes.data) {
-          docsRes.data.forEach((d: any) => {
-            if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
-          });
-        }
-        if (apptRes?.data) {
-          apptRes.data.forEach((a: any) => {
-            // Keep only the first (nearest) appointment per contact
-            if (a.contact_id && !appointmentMap[a.contact_id]) {
-              appointmentMap[a.contact_id] = { date: a.appointment_date, time: a.appointment_time };
-            }
-          });
-        }
-      }
-
-      return data.map((o: any) => ({
-        ...o,
-        assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
-        notes_count: notesCountMap[o.id] || 0,
-        documents_count: docsCountMap[o.id] || 0,
-        next_appointment: o.contact_id ? appointmentMap[o.contact_id] || null : null,
-      }));
+      const enriched = await enrichPage(data);
+      return enriched;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      return lastPage.length === PAGE_SIZE ? lastPageParam + 1 : undefined;
     },
     enabled: !!companyId && !!pipelineId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Auto-fetch all remaining pages in background
+  useEffect(() => {
+    if (infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
+      infiniteQuery.fetchNextPage();
+    }
+  }, [infiniteQuery.hasNextPage, infiniteQuery.isFetchingNextPage, infiniteQuery.data?.pages.length]);
+
+  const opportunities = useMemo(
+    () => infiniteQuery.data?.pages.flat() ?? [],
+    [infiniteQuery.data?.pages]
+  );
+
+  return {
+    data: opportunities,
+    isLoading: infiniteQuery.isLoading,
+    isFetchingNextPage: infiniteQuery.isFetchingNextPage,
+    hasNextPage: infiniteQuery.hasNextPage,
+    totalLoaded: opportunities.length,
+  };
 }
 
 export function useCreateOpportunity() {
@@ -209,13 +231,30 @@ export function useUpdateOpportunityStage() {
 
       queryClient.setQueriesData(
         { queryKey: queryKeys.opportunities.all },
-        (old: any[] | undefined) => {
+        (old: any) => {
           if (!old) return old;
-          return old.map((o: any) =>
-            o.id === id
-              ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
-              : o
-          );
+          // Handle infinite query data structure { pages, pageParams }
+          if (old.pages && Array.isArray(old.pages)) {
+            return {
+              ...old,
+              pages: old.pages.map((page: any[]) =>
+                page.map((o: any) =>
+                  o.id === id
+                    ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                    : o
+                )
+              ),
+            };
+          }
+          // Fallback for flat array
+          if (Array.isArray(old)) {
+            return old.map((o: any) =>
+              o.id === id
+                ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                : o
+            );
+          }
+          return old;
         }
       );
 

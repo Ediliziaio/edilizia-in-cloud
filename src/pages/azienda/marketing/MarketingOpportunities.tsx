@@ -188,7 +188,7 @@ function MarketingOpportunitiesContent() {
   const selectedPipeline = pipelines.find((p: any) => p.id === selectedPipelineId);
   const stages = selectedPipeline?.marketing_pipeline_stages || [];
 
-  const { data: opportunities = [], isLoading: loadingOpps } = useOpportunities(selectedPipelineId);
+  const { data: opportunities = [], isLoading: loadingOpps, isFetchingNextPage, hasNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -457,6 +457,12 @@ function MarketingOpportunitiesContent() {
         </div>
       </div>
       <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+      {isFetchingNextPage && (
+        <div className="flex items-center gap-2 px-1 shrink-0">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Caricamento opportunità… ({totalLoaded} caricate)</span>
+        </div>
+      )}
 
       <div className="flex items-center gap-1 border-b shrink-0">
         <Button
