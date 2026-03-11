@@ -1,10 +1,11 @@
-import { useMemo, useState, useCallback, memo, forwardRef } from "react";
+import { useMemo, useState, useCallback, memo, forwardRef, useRef } from "react";
 import {
   DndContext, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { OpportunityCard } from "./OpportunityCard";
 import { cn } from "@/lib/utils";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
@@ -25,6 +26,16 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: opportunities.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => (layout === "mini" ? 52 : 180),
+    overscan: 5,
+    gap: 8,
+  });
+
   return (
     <div className={cn("flex flex-col shrink-0 h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[220px] max-w-[260px]" : "min-w-[280px] max-w-[300px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
@@ -34,25 +45,45 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
         </p>
       </div>
       <div
-        ref={setNodeRef}
+        ref={(node) => {
+          setNodeRef(node);
+          (scrollRef as any).current = node;
+        }}
         className={cn(
-          "flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 transition-colors overflow-y-auto",
+          "flex-1 p-2 rounded-b-lg border border-t-0 transition-colors overflow-y-auto",
           "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40",
           isOver ? "bg-primary/5" : "bg-muted/10"
         )}
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
-          {opportunities.map((opp: any) => (
-            <OpportunityCard
-              key={opp.id}
-              opportunity={opp}
-              onClick={() => onCardClick(opp)}
-              onOpenTab={(tab) => onCardClick(opp, tab)}
-              onDelete={onDelete}
-              selected={selectedIds.has(opp.id)}
-              onSelect={onSelect}
-            />
-          ))}
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const opp = opportunities[virtualRow.index];
+              return (
+                <div
+                  key={opp.id}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                >
+                  <OpportunityCard
+                    opportunity={opp}
+                    onClick={() => onCardClick(opp)}
+                    onOpenTab={(tab) => onCardClick(opp, tab)}
+                    onDelete={onDelete}
+                    selected={selectedIds.has(opp.id)}
+                    onSelect={onSelect}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </SortableContext>
         {opportunities.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">Nessuna opportunità</p>
