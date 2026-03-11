@@ -30,7 +30,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "custom", label: "Personalizzato" },
 ];
 
-export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
+export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
