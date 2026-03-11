@@ -159,7 +159,7 @@ export default function PrimaNota() {
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
                 <Tooltip
-                  formatter={(value: number) => fmtEur(value)}
+                  formatter={(value: number) => formatCurrency(value)}
                   labelStyle={{ fontWeight: 600 }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
