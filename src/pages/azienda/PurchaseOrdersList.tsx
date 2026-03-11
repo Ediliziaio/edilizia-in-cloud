@@ -13,8 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Package, Plus, Loader2, Search, Truck } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency } from "@/lib/formatters";
 
 const STATUS_COLORS: Record<string, string> = {
   bozza: "bg-muted text-muted-foreground",
