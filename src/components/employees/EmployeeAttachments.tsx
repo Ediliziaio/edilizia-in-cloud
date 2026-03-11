@@ -109,7 +109,7 @@ export function EmployeeAttachments({
 
   // Fetch attachments
   const { data: attachments = [], isLoading } = useQuery({
-    queryKey: ["employee-attachments", employee.id],
+    queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_attachments")
