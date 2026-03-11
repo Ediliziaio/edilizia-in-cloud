@@ -60,7 +60,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       .eq("object_type", objectType)
       .then(({ data, error }) => {
         if (error) {
-          console.error("Error loading custom fields:", error.message);
+          logger.error("Error loading custom fields:", error.message);
           setCustomFields([]);
           return;
         }

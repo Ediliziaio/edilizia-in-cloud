@@ -117,7 +117,7 @@ export default function WarehouseStockTab() {
       category: costCategory || "Magazzino",
       recurrence: "once",
     });
-    if (error) console.error("Error inserting cost:", error);
+    if (error) logger.error("Error inserting cost:", error);
   };
 
   // Create/update stock item

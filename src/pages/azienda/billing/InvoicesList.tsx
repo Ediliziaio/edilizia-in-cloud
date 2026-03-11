@@ -140,7 +140,7 @@ export default function InvoicesList() {
     return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth };
   }, [invoices]);
 
-  const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  const fmtEur = (n: number) => formatCurrency(n);
 
   return (
     <div className="space-y-6">

@@ -79,7 +79,7 @@ export default function InvoiceDetail() {
     return { subtotal, tax, total: subtotal + tax };
   }, [lines]);
 
-  const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  const fmtEur = (n: number) => formatCurrency(n);
 
   // PDF download
   const downloadPdf = async () => {

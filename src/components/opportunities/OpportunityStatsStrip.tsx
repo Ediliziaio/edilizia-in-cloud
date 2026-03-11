@@ -31,9 +31,7 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
   }, [opportunities]);
 
   const fmt = (v: number, isCurrency: boolean) =>
-    isCurrency
-      ? `€ ${v.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-      : String(v);
+    isCurrency ? formatCurrency(v) : String(v);
 
   return (
     <div className="grid grid-cols-3 md:grid-cols-6 gap-2">

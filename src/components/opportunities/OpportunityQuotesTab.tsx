@@ -573,7 +573,7 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
                 <div className="text-right shrink-0">
                   <p className="text-sm font-medium">
                     {q.total != null
-                      ? `€ ${Number(q.total).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                      ? formatCurrency(Number(q.total))
                       : "—"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">

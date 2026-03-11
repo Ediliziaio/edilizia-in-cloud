@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { TrendingUp } from "lucide-react";
 
 interface MrrChartData {

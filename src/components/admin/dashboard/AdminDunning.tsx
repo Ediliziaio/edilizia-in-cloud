@@ -6,6 +6,7 @@ import { AlertTriangle, CreditCard, DollarSign, Users, ExternalLink, Loader2 } f
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { CompanyHealthScore } from "@/hooks/useAdminRevenueData";
+import { formatCurrency } from "@/lib/formatters";
 
 interface AdminDunningProps {
   healthScores: CompanyHealthScore[];

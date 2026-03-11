@@ -250,7 +250,7 @@ export default function PrimaNota() {
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
-                      {fmtEur(e.runningBalance)}
+                      {formatCurrency(e.runningBalance)}
                     </span>
                   </td>
                   <td className="p-3 text-xs text-muted-foreground capitalize">

@@ -171,7 +171,7 @@ export default function PurchaseOrdersList() {
                       {STATUS_LABELS[o.status] || o.status}
                     </Badge>
                   </td>
-                  <td className="p-3 text-right font-medium">{fmtEur(Number(o.total))}</td>
+                  <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
                   <td className="p-3 text-sm text-muted-foreground">
                     {o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it }) : "—"}
                   </td>

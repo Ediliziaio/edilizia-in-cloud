@@ -370,7 +370,7 @@ export default function GlobalErrors() {
                         </Badge>
                       </TableCell>
                       <TableCell>{CATEGORY_LABELS[e.error_category] || e.error_category}</TableCell>
-                      <TableCell className="text-right font-medium">{fmt(Number(e.amount))}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(e.amount))}</TableCell>
                       <TableCell className="max-w-[250px] truncate">{e.description}</TableCell>
                     </TableRow>
                   ))

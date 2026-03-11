@@ -665,7 +665,7 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} className="fill-muted-foreground" />
                   <Tooltip
-                    formatter={(value: number) => [fmtEur(value), "Spesa"]}
+                    formatter={(value: number) => [formatCurrency(value), "Spesa"]}
                     contentStyle={{ fontSize: 12 }}
                   />
                   <Bar dataKey="totale" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />

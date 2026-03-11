@@ -305,7 +305,7 @@ export function OrdersFilters({
                   <Euro className="mr-2 h-4 w-4" />
                   {amountMin || amountMax ? (
                     <span className="truncate">
-                      {amountMin ? `€${amountMin}` : "..."} - {amountMax ? `€${amountMax}` : "..."}
+                      {amountMin ? formatCurrency(Number(amountMin)) : "..."} - {amountMax ? formatCurrency(Number(amountMax)) : "..."}
                     </span>
                   ) : (
                     <span>Importo</span>

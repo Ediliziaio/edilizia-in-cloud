@@ -294,7 +294,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
       source: () => ({ label: "Fonte", value: opportunity.source || "—" }),
       value: () => ({
         label: "Valore",
-        value: `EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`,
+        value: formatCurrency(Number(opportunity.value || 0)),
         highlight: true,
       }),
       contact_email: () => ({ label: "Email", value: contact?.email || "—" }),
