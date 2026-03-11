@@ -9,6 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
+import { DealHealthBadge } from "./DealHealthBadge";
 import { cn } from "@/lib/utils";
 import { STATUS_MAP, hashColor } from "@/types/opportunities";
 import type { OpportunityStage } from "@/types/opportunities";
