@@ -663,7 +663,7 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} className="fill-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} className="fill-muted-foreground" />
                   <Tooltip
                     formatter={(value: number) => [fmtEur(value), "Spesa"]}
                     contentStyle={{ fontSize: 12 }}
