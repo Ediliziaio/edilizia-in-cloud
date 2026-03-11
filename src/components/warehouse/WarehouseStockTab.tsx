@@ -555,6 +555,11 @@ export default function WarehouseStockTab() {
             {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}
           </DialogContent>
         </Dialog>
+        <InventoryAuditDialog
+          open={!!auditItem}
+          onOpenChange={(v) => { if (!v) setAuditItem(null); }}
+          stockItem={auditItem}
+        />
       </div>
     </DndContext>
   );
