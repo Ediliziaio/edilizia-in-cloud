@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { AppRole, Profile, Company, AuthState } from "@/types/auth";
+import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 import { logger } from "@/utils/logger";
 
 interface AuthContextType extends AuthState {
@@ -16,6 +17,10 @@ interface AuthContextType extends AuthState {
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
+  // Multi-company
+  multiCompanyAccesses: MultiCompanyAccess[];
+  selectedMultiCompanyId: string | null;
+  switchMultiCompany: (companyId: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,6 +97,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [impersonationToken, setImpersonationToken] = useState<string | null>(
     () => sessionStorage.getItem(IMP_TOKEN_KEY)
   );
+
+  // Multi-company state
+  const MULTI_COMPANY_KEY = "multi_company_selected";
+  const [multiCompanyAccesses, setMultiCompanyAccesses] = useState<MultiCompanyAccess[]>([]);
+  const [selectedMultiCompanyId, setSelectedMultiCompanyId] = useState<string | null>(
+    () => sessionStorage.getItem(MULTI_COMPANY_KEY)
+  );
+  const [multiCompanyObj, setMultiCompanyObj] = useState<Company | null>(null);
 
   // Sync impersonation state to sessionStorage
   useEffect(() => {
@@ -348,10 +361,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonatedCompany(null);
   }, []);
 
+  // Fetch multi-company accesses for multi_company_user
+  useEffect(() => {
+    async function fetchMultiCompanyAccesses() {
+      if (state.role !== "multi_company_user" || !state.user) {
+        setMultiCompanyAccesses([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("multi_company_access")
+        .select("*, companies:company_id(*)")
+        .eq("user_id", state.user.id);
+
+      if (error) {
+        logger.error("Error fetching multi-company accesses:", error);
+        return;
+      }
+
+      const accesses = (data || []).map((a: any) => ({
+        ...a,
+        company: a.companies as Company,
+      })) as MultiCompanyAccess[];
+
+      setMultiCompanyAccesses(accesses);
+
+      // Auto-select first company if none selected
+      if (!selectedMultiCompanyId && accesses.length > 0) {
+        const firstId = accesses[0].company_id;
+        setSelectedMultiCompanyId(firstId);
+        sessionStorage.setItem(MULTI_COMPANY_KEY, firstId);
+        setMultiCompanyObj(accesses[0].company || null);
+      } else if (selectedMultiCompanyId) {
+        const found = accesses.find(a => a.company_id === selectedMultiCompanyId);
+        setMultiCompanyObj(found?.company || null);
+      }
+    }
+
+    fetchMultiCompanyAccesses();
+  }, [state.role, state.user?.id]);
+
+  const switchMultiCompany = useCallback((companyId: string) => {
+    setSelectedMultiCompanyId(companyId);
+    sessionStorage.setItem(MULTI_COMPANY_KEY, companyId);
+    const found = multiCompanyAccesses.find(a => a.company_id === companyId);
+    setMultiCompanyObj(found?.company || null);
+  }, [multiCompanyAccesses]);
+
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
-  // Effective company is the impersonated one when impersonating, otherwise the real one
-  const effectiveCompany = isImpersonating ? impersonatedCompany : state.company;
+  // Effective company: impersonation > multi-company > real company
+  const effectiveCompany = isImpersonating
+    ? impersonatedCompany
+    : state.role === "multi_company_user" && multiCompanyObj
+      ? multiCompanyObj
+      : state.company;
 
   const contextValue = useMemo(
     () => ({
@@ -365,8 +429,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       impersonateCompany,
       exitImpersonation,
       effectiveCompany,
+      multiCompanyAccesses,
+      selectedMultiCompanyId,
+      switchMultiCompany,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany]
   );
 
   return (

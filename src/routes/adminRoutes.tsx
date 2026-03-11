@@ -3,6 +3,7 @@ import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 
 // Admin pages
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
@@ -45,7 +46,7 @@ export function adminRoutes() {
       <Route
         path="/admin/marketing/automazioni/nuova"
         element={
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
               <AdminMarketingAutomationBuilder />
             </ErrorBoundary>
@@ -55,7 +56,7 @@ export function adminRoutes() {
       <Route
         path="/admin/marketing/automazioni/:id"
         element={
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
               <AdminMarketingAutomationBuilder />
             </ErrorBoundary>
@@ -67,7 +68,7 @@ export function adminRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel pannello di amministrazione">
               <AdminLayout />
             </ErrorBoundary>

@@ -25,6 +25,12 @@ const ROLE_LABELS: Record<AppRole, string> = {
   salesperson: "Venditore",
   call_center: "Call Center",
   referrer: "Partner",
+  platform_manager: "Platform Manager",
+  platform_sales: "Platform Sales",
+  platform_support: "Platform Support",
+  platform_marketing: "Platform Marketing",
+  platform_implementation: "Platform Implementation",
+  multi_company_user: "Multi-Azienda",
 };
 
 const ROLE_COLORS: Record<AppRole, string> = {
@@ -36,6 +42,12 @@ const ROLE_COLORS: Record<AppRole, string> = {
   salesperson: "bg-cyan-100 text-cyan-800",
   call_center: "bg-indigo-100 text-indigo-800",
   referrer: "bg-orange-100 text-orange-800",
+  platform_manager: "bg-violet-100 text-violet-800",
+  platform_sales: "bg-emerald-100 text-emerald-800",
+  platform_support: "bg-sky-100 text-sky-800",
+  platform_marketing: "bg-amber-100 text-amber-800",
+  platform_implementation: "bg-rose-100 text-rose-800",
+  multi_company_user: "bg-teal-100 text-teal-800",
 };
 
 const ROLE_ORDER: AppRole[] = [
@@ -68,6 +80,12 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   employee: "/dipendente",
   salesperson: "/venditore",
   referrer: "/partner",
+  platform_manager: "/admin",
+  platform_sales: "/admin",
+  platform_support: "/admin",
+  platform_marketing: "/admin",
+  platform_implementation: "/admin",
+  multi_company_user: "/azienda",
 };
 
 interface UserWithRole {

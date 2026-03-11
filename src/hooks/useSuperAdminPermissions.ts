@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 
 export interface SuperAdminPermissions {
   can_manage_companies: boolean;
@@ -39,7 +40,7 @@ const NO_ACCESS: SuperAdminPermissions = {
 
 export function useSuperAdminPermissions() {
   const { user, role } = useAuth();
-  const isSuperAdmin = role === "super_admin";
+  const isAdminPlatformRole = !!role && ADMIN_PLATFORM_ROLES.includes(role);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.admin.superAdminPermissions(user?.id),
@@ -53,7 +54,7 @@ export function useSuperAdminPermissions() {
       if (error) throw error;
       return data;
     },
-    enabled: isSuperAdmin && !!user?.id,
+    enabled: isAdminPlatformRole && !!user?.id,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -69,7 +70,7 @@ export function useSuperAdminPermissions() {
       if (error) throw error;
       return count ?? 0;
     },
-    enabled: isSuperAdmin && !!user?.id,
+    enabled: isAdminPlatformRole && !!user?.id,
     staleTime: 30 * 60 * 1000,
   });
 
