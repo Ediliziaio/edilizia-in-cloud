@@ -244,7 +244,7 @@ export function PhoneNumberManager() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-sm">€{(num.monthly_cost_eur || 0).toFixed(2)}</span>
+                      <span className="font-mono text-sm">{formatCurrency(num.monthly_cost_eur || 0)}</span>
                     </TableCell>
                     <TableCell>
                       {isLinked ? (
