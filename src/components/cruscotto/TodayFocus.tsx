@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
