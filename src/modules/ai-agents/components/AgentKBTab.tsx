@@ -121,7 +121,7 @@ export function AgentKBTab({ agentId, companyId, elevenlabsAgentId }: AgentKBTab
               .eq("id", (data as any).id);
           }
         } catch (e) {
-          console.warn("ElevenLabs KB sync failed:", e);
+          logger.warn("ElevenLabs KB sync failed:", e);
           toast.warning("Documento salvato localmente ma non sincronizzato con il provider AI");
         }
       }
