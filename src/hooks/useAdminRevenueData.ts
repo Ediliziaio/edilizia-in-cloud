@@ -101,8 +101,8 @@ const sectorLabelsMap: Record<string, string> = {
 };
 
 function calculateHealthScore(
-  company: any,
-  healthData: any
+  company: { status: string },
+  healthData: CompanyHealthData | undefined
 ): { score: number; health: HealthStatus } {
   let score = 0;
 
