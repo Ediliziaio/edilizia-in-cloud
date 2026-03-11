@@ -439,7 +439,7 @@ export function useCompanyDetail(id: string | undefined) {
       };
       const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Permessi aggiornati");
     } catch (err: any) {
       toast.error("Errore", { description: err.message });
