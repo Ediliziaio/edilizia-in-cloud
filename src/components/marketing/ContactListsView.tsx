@@ -472,7 +472,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   // Fetch existing member IDs
   const { data: existingIds = [] } = useQuery({
-    queryKey: ["list-member-ids", listId],
+    queryKey: queryKeys.listMembers.ids(listId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
