@@ -377,7 +377,7 @@ export function UsersConfig() {
           .eq("user_id", response.data.user_id);
 
         if (permUpdateError) {
-          console.error("Failed to update permissions:", permUpdateError);
+          logger.error("Failed to update permissions:", permUpdateError);
           toast.warning("Utente creato, ma i permessi non sono stati salvati", {
             description: "Vai nel dettaglio utente per configurare i permessi manualmente.",
           });
