@@ -245,7 +245,7 @@ export default function PrimaNota() {
                         ? <ArrowDownLeft className="h-3.5 w-3.5" />
                         : <ArrowUpRight className="h-3.5 w-3.5" />
                       }
-                      {e.direction === "uscita" ? "-" : "+"}{fmtEur(e.amount)}
+                      {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
                   <td className="p-3 text-right font-mono">
