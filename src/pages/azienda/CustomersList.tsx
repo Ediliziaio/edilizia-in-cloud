@@ -151,7 +151,7 @@ export default function CustomersList() {
   };
 
   const { data: paginatedData, isLoading, isError } = useQuery({
-    queryKey: ["customers-list", effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders, sortField, sortDir, page, pageSize],
+    queryKey: queryKeys.customersList.list(effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders, sortField, sortDir, page, pageSize),
     queryFn: async (): Promise<PaginatedResult> => {
       if (!effectiveCompany?.id) return { rows: [], total_count: 0 };
       
