@@ -50,7 +50,9 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
         isUrgent && !isCritical && "border-l-amber-500",
         !isUrgent && !isCritical && config.color === "text-amber-600" && "border-l-amber-400",
         !isUrgent && !isCritical && config.color === "text-blue-600" && "border-l-blue-400",
+        !isUrgent && !isCritical && config.color === "text-indigo-600" && "border-l-indigo-400",
         !isUrgent && !isCritical && config.color === "text-green-600" && "border-l-green-400",
+        !isUrgent && !isCritical && config.color === "text-purple-600" && "border-l-purple-400",
         !isUrgent && !isCritical && config.color === "text-muted-foreground" && "border-l-muted-foreground/40",
       )}
     >

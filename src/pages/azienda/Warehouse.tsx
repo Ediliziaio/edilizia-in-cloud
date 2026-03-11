@@ -144,7 +144,7 @@ export default function Warehouse() {
     if (item) setDraggingItem(item);
   }, [filteredItems]);
 
-  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
