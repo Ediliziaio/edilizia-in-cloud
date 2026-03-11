@@ -143,7 +143,7 @@ export default function PrimaNota() {
               <p className="text-xs text-muted-foreground">Saldo netto</p>
             </div>
             <p className={`text-xl font-bold ${(saldo?.saldo || 0) >= 0 ? "text-green-600" : "text-destructive"}`}>
-              {isSaldoLoading ? "..." : fmtEur(saldo?.saldo || 0)}
+              {isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)}
             </p>
           </CardContent>
         </Card>
