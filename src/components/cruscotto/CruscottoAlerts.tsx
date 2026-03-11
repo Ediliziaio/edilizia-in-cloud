@@ -2,6 +2,7 @@ import { memo } from "react";
 import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
 import type { OperationsData, FinanceData, CompanyTargets } from "@/hooks/useCruscottoData";
 import { Skeleton } from "@/components/ui/skeleton";
