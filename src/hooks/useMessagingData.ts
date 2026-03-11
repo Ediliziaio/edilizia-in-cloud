@@ -15,7 +15,7 @@ export function useConversations(filter?: string) {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["messaging-conversations", companyId, filter],
+    queryKey: queryKeys.messaging.conversations(companyId, filter),
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase
