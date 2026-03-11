@@ -153,7 +153,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         id: "overdue-invoices",
         level: "critical",
         icon: FileText,
-        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (€${Math.round(invoiceStats.overdue_amount).toLocaleString("it-IT")})`,
+        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (${formatCurrency(invoiceStats.overdue_amount)})`,
         action: "Verificare incassi e sollecitare pagamenti",
         link: "/azienda/scadenzario",
       });
