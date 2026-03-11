@@ -59,7 +59,7 @@ export default function AdminCSTasks() {
   });
 
   const { data: companies = [] } = useQuery({
-    queryKey: ["cs-companies-list"],
+    queryKey: queryKeys.csTasks.companies,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
