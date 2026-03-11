@@ -150,7 +150,7 @@ export function useMetaAdsReport() {
     isLoading: isLoadingInsights,
     error: insightsError,
   } = useQuery({
-    queryKey: ["meta-insights", companyId, selectedAccountId, dateStart, dateEnd, level],
+    queryKey: queryKeys.metaAds.insights(companyId, selectedAccountId, dateStart, dateEnd, level),
     queryFn: async () => {
       const result = await callProxy("get-campaign-insights", {
         ad_account_id: selectedAccountId,
