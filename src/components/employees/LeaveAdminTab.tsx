@@ -67,7 +67,7 @@ export function LeaveAdminTab() {
 
   // Summary via RPC
   const { data: summaries = [], isLoading: loadingSummary } = useQuery({
-    queryKey: ["leave-summary", companyId, selectedYear],
+    queryKey: queryKeys.leaveAdmin.summary(companyId, selectedYear),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_leave_summary", {
         p_company_id: companyId!,
