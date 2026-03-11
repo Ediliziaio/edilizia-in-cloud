@@ -283,7 +283,7 @@ export default function MyEarnings() {
                       <TableCell>
                         <Badge variant="outline">
                           {commission.commission_type === "fixed"
-                            ? `Fisso €${commission.commission_value}`
+                            ? `Fisso ${formatCurrency(commission.commission_value)}`
                             : `${commission.commission_value}%`}
                         </Badge>
                       </TableCell>

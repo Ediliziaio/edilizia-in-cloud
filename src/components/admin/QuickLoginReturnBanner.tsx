@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 const ORIGINAL_EMAIL_KEY = "quick_login_original_email";
 const ORIGINAL_NAME_KEY = "quick_login_original_name";

@@ -28,7 +28,7 @@ export function AdminMrrMovements({ data }: Props) {
               />
               <YAxis
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                tickFormatter={(v) => `€${v}`}
+                tickFormatter={formatCurrencyCompact}
               />
               <Tooltip
                 formatter={(value: number, name: string) => {

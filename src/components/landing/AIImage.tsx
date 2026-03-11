@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { logger } from "@/utils/logger";
 import { ImageIcon } from "lucide-react";
 
 function hashPrompt(prompt: string): string {

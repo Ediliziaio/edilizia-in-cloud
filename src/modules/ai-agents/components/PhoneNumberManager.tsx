@@ -17,6 +17,7 @@ import { Phone, Plus, Bot, Link2, Trash2, Search, Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/formatters";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { queryKeys } from "@/lib/queryKeys";
 

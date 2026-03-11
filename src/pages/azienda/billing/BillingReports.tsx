@@ -224,7 +224,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                    <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={formatCurrencyCompact} />
                     <Tooltip
                       formatter={(value: number) => fmtEur(value)}
                       contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}

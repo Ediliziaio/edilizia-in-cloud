@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
 
 function LoadingSpinner({ text }: { text: string }) {

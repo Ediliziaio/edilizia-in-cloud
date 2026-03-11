@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 // Public Meta App ID — configure this with your own app
 const META_APP_ID = "YOUR_META_APP_ID";

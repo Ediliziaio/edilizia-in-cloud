@@ -290,7 +290,7 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                 <YAxis
                   className="text-xs"
                   tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                  tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={formatCurrencyCompact}
                 />
                 <RechartsTooltip
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}

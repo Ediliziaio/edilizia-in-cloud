@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 interface SupportMessage {
   id: string;

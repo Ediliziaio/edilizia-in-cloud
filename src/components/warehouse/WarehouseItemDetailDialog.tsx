@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";

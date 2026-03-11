@@ -4,6 +4,7 @@ import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizont
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";

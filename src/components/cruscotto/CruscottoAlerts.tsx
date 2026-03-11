@@ -163,7 +163,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         id: "due-this-week-invoices",
         level: "warning",
         icon: FileText,
-        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (€${Math.round(invoiceStats.due_this_week_amount).toLocaleString("it-IT")})`,
+        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (${formatCurrency(invoiceStats.due_this_week_amount)})`,
         action: "Monitorare incassi previsti",
         link: "/azienda/scadenzario",
       });

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, FileText, Settings2, Download, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
