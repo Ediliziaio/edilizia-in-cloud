@@ -128,7 +128,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
-    queryKey: ["assignable-users", companyId],
+    queryKey: queryKeys.taskLookups.assignableUsers(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data: profiles } = await supabase
