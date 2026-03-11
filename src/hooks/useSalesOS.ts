@@ -446,7 +446,7 @@ export function useRecalculateLeadScore(companyId: string | null) {
     mutationFn: async (contactId: string) => {
       const { data: contact, error: contactError } = await supabase
         .from("marketing_contacts")
-        .select("id, full_name, company_name, phone, city, source, address")
+        .select("id, first_name, last_name, company_name, phone, city, source, address")
         .eq("id", contactId)
         .single();
       if (contactError) throw contactError;
