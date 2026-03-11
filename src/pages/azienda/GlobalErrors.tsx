@@ -170,7 +170,7 @@ export default function GlobalErrors() {
     });
   }, [errors]);
 
-  const fmt = (v: number) => `€ ${v.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Caricamento errori...</div>;
