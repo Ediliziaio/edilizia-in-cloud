@@ -192,6 +192,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                   <Switch
                     checked={perms[key]}
                     onCheckedChange={(v) => setPerms({ ...perms, [key]: v })}
+                    disabled={isSelf}
                   />
                 </div>
               ))}
