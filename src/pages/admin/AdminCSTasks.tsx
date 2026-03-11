@@ -86,7 +86,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cs-tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       setNewTitle("");
       setNewDesc("");
       setNewCompanyId("");
