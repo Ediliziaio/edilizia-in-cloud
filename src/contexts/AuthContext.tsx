@@ -85,8 +85,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
+  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(
+    () => sessionStorage.getItem(IMP_COMPANY_KEY)
+  );
   const [impersonatedCompany, setImpersonatedCompany] = useState<Company | null>(null);
+  const [impersonationToken, setImpersonationToken] = useState<string | null>(
+    () => sessionStorage.getItem(IMP_TOKEN_KEY)
+  );
+
+  // Sync impersonation state to sessionStorage
+  useEffect(() => {
+    if (impersonatedCompanyId) sessionStorage.setItem(IMP_COMPANY_KEY, impersonatedCompanyId);
+    else sessionStorage.removeItem(IMP_COMPANY_KEY);
+    if (impersonationToken) sessionStorage.setItem(IMP_TOKEN_KEY, impersonationToken);
+    else sessionStorage.removeItem(IMP_TOKEN_KEY);
+  }, [impersonatedCompanyId, impersonationToken]);
+
+  // Validate persisted impersonation token on mount
+  useEffect(() => {
+    async function validateImpersonation() {
+      const savedToken = sessionStorage.getItem(IMP_TOKEN_KEY);
+      const savedCompanyId = sessionStorage.getItem(IMP_COMPANY_KEY);
+      if (!savedToken || !savedCompanyId || state.role !== "super_admin") return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke("secure-impersonation", {
+          body: { action: "validate", token: savedToken },
+        });
+
+        if (error || !data?.valid) {
+          logger.info("Impersonation token invalid or expired, clearing");
+          setImpersonatedCompanyId(null);
+          setImpersonationToken(null);
+          setImpersonatedCompany(null);
+        }
+        // If valid, impersonatedCompanyId is already set from useState initializer,
+        // and the existing useEffect (fetchImpersonatedCompany) will load the company data
+      } catch {
+        setImpersonatedCompanyId(null);
+        setImpersonationToken(null);
+        setImpersonatedCompany(null);
+      }
+    }
+
+    validateImpersonation();
+  }, [state.role]);
 
   const fetchUserData = useCallback(async (userId: string) => {
     try {
