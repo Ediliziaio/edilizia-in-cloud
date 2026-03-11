@@ -542,7 +542,7 @@ function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoa
                   <td className="p-3 truncate max-w-[200px]">{s.description}</td>
                   <td className="p-3 text-right">{formatCurrency(Number(s.amount))}</td>
                   <td className="p-3 text-right font-medium">
-                    {s.status === "pagata" ? <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Saldato</Badge> : fmtEur(remaining)}
+                    {s.status === "pagata" ? <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Saldato</Badge> : formatCurrency(remaining)}
                   </td>
                   <td className="p-3">
                     <Badge variant={isOverdue ? "destructive" : s.status === "pagata" ? "default" : "outline"} className="text-xs">
