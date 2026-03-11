@@ -258,7 +258,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><CreditCard className="h-3 w-3" /> Totale pagato</p>
-          <p className="text-xl font-bold">{fmtEur(totalPagato)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Scadenze aperte</p>
