@@ -70,7 +70,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {/* Fatturato */}
       <Card className="border-none shadow-md bg-gradient-to-br from-card to-muted/30">
-        <CardContent className="p-5 space-y-3">
+        <CardContent className="p-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fatturato</p>
           <div className="flex items-end gap-2">
             <span className="text-2xl font-bold text-foreground">{fmtEur(monthRevenue)}</span>
@@ -102,7 +102,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
 
       {/* Cash Flow Mese */}
       <Card className="border-none shadow-md">
-        <CardContent className="p-5 space-y-3">
+        <CardContent className="p-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cash Flow Mese</p>
           <div className="flex items-end gap-2">
             <span className={cn("text-2xl font-bold", finance.cashFlowNet >= 0 ? "text-green-600" : "text-destructive")}>
@@ -127,7 +127,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
 
       {/* Posizione Netta */}
       <Card className="border-none shadow-md">
-        <CardContent className="p-5 space-y-3">
+        <CardContent className="p-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Posizione Netta</p>
           <span className={cn("text-2xl font-bold", posNet >= 0 ? "text-green-600" : "text-destructive")}>
             {posNet >= 0 ? "+" : ""}{fmtEur(posNet)}
@@ -148,7 +148,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
 
       {/* Salute Aziendale */}
       <Card className="border-none shadow-md">
-        <CardContent className="p-5 flex items-center gap-4">
+        <CardContent className="p-4 flex items-center gap-4">
           <div className="w-20 h-20 relative shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />

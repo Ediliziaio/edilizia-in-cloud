@@ -1,26 +1,66 @@
 import { useNavigate } from "react-router-dom";
 import { Users, Calendar, AlertCircle, CreditCard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { format, subDays } from "date-fns";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
+type FocusPreset = "today" | "yesterday" | "last7" | "last30";
+
+const FOCUS_PRESETS: { value: FocusPreset; label: string; dynamicLabel: string }[] = [
+  { value: "today", label: "Oggi", dynamicLabel: "oggi" },
+  { value: "yesterday", label: "Ieri", dynamicLabel: "ieri" },
+  { value: "last7", label: "7gg", dynamicLabel: "ultimi 7gg" },
+  { value: "last30", label: "30gg", dynamicLabel: "ultimi 30gg" },
+];
+
+function presetToRange(preset: FocusPreset): { from: string; to: string } {
+  const now = new Date();
+  const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+  switch (preset) {
+    case "today": return { from: fmt(now), to: fmt(now) };
+    case "yesterday": { const y = subDays(now, 1); return { from: fmt(y), to: fmt(y) }; }
+    case "last7": return { from: fmt(subDays(now, 7)), to: fmt(now) };
+    case "last30": return { from: fmt(subDays(now, 30)), to: fmt(now) };
+  }
+}
+
+function detectPreset(dateFrom: string, dateTo: string): FocusPreset {
+  const now = format(new Date(), "yyyy-MM-dd");
+  const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+  const last7 = format(subDays(new Date(), 7), "yyyy-MM-dd");
+  const last30 = format(subDays(new Date(), 30), "yyyy-MM-dd");
+  if (dateFrom === now && dateTo === now) return "today";
+  if (dateFrom === yesterday && dateTo === yesterday) return "yesterday";
+  if (dateFrom === last7 && dateTo === now) return "last7";
+  if (dateFrom === last30 && dateTo === now) return "last30";
+  return "today";
+}
+
 interface Props {
   todayData: TodayData | null;
   isLoading?: boolean;
+  dateFrom: string;
+  dateTo: string;
+  onDateRangeChange: (from: string, to: string) => void;
 }
 
-export function TodayFocus({ todayData, isLoading }: Props) {
+export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
+  const activePreset = detectPreset(dateFrom, dateTo);
+  const dynamicLabel = FOCUS_PRESETS.find(p => p.value === activePreset)?.dynamicLabel ?? "oggi";
+
   const today = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
 
   if (isLoading) return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Skeleton className="h-5 w-48" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
@@ -34,7 +74,7 @@ export function TodayFocus({ todayData, isLoading }: Props) {
     {
       icon: <Users className="w-4 h-4 text-blue-600" />,
       iconBg: "bg-blue-100 dark:bg-blue-900/30",
-      label: "Lead oggi",
+      label: `Lead ${dynamicLabel}`,
       value: String(data.leadsToday),
       sub: "nuovi contatti",
       link: "/azienda/marketing/contatti",
@@ -44,7 +84,7 @@ export function TodayFocus({ todayData, isLoading }: Props) {
     {
       icon: <Calendar className="w-4 h-4 text-purple-600" />,
       iconBg: "bg-purple-100 dark:bg-purple-900/30",
-      label: "Appuntamenti oggi",
+      label: `Appuntamenti ${dynamicLabel}`,
       value: String(data.appointmentsToday),
       sub: "in agenda",
       link: "/azienda/marketing/calendario",
@@ -74,10 +114,28 @@ export function TodayFocus({ todayData, isLoading }: Props) {
   ];
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Focus · {todayCap}
-      </p>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Focus · {todayCap}
+        </p>
+        <div className="flex items-center gap-1 rounded-lg border bg-background p-0.5">
+          {FOCUS_PRESETS.map(p => (
+            <Button
+              key={p.value}
+              variant={activePreset === p.value ? "default" : "ghost"}
+              size="sm"
+              className="h-6 text-[11px] px-2"
+              onClick={() => {
+                const range = presetToRange(p.value);
+                onDateRangeChange(range.from, range.to);
+              }}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((t) => (
@@ -85,18 +143,18 @@ export function TodayFocus({ todayData, isLoading }: Props) {
             key={t.label}
             onClick={() => navigate(t.link)}
             className={cn(
-              "border rounded-xl p-4 text-left hover:shadow-sm transition-all bg-card border-border",
+              "border rounded-xl p-3 text-left hover:shadow-sm transition-all bg-card border-border",
               t.alert && t.alertBg
             )}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", t.iconBg)}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center", t.iconBg)}>
                 {t.icon}
               </div>
-              <span className="text-xs font-medium text-muted-foreground">{t.label}</span>
+              <span className="text-[11px] font-medium text-muted-foreground">{t.label}</span>
             </div>
-            <p className={cn("text-xl font-bold", t.alert ? "text-destructive" : "text-foreground")}>{t.value}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{t.sub}</p>
+            <p className={cn("text-lg font-bold", t.alert ? "text-destructive" : "text-foreground")}>{t.value}</p>
+            <p className="text-[11px] text-muted-foreground">{t.sub}</p>
           </button>
         ))}
       </div>
@@ -104,13 +162,13 @@ export function TodayFocus({ todayData, isLoading }: Props) {
       {/* Suppliers list */}
       {data.suppliersDue.length > 0 && (
         <Card className="border-dashed">
-          <CardHeader className="py-3 px-4">
+          <CardHeader className="py-2 px-4">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Prossimi pagamenti fornitori</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
+          <CardContent className="px-4 pb-2 pt-0">
             <div className="divide-y divide-border">
               {data.suppliersDue.slice(0, 5).map((s) => (
-                <div key={s.id} className="flex items-center justify-between py-2">
+                <div key={s.id} className="flex items-center justify-between py-1.5">
                   <span className="text-sm font-medium text-foreground truncate">{s.name || "Fornitore"}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                     {fmtEur(s.amount)} · {new Date(s.due_date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}

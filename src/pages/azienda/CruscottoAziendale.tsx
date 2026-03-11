@@ -25,6 +25,7 @@ export default function CruscottoAziendale() {
   const {
     marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets,
     todayData, cashFlowForecast,
+    todayDateFrom, todayDateTo, updateTodayDateRange,
     isLoading, error, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
@@ -38,7 +39,7 @@ export default function CruscottoAziendale() {
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between print:mb-4">
         <div>
@@ -111,23 +112,23 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 3: FOCUS OGGI */}
       <SectionErrorBoundary sectionName="Focus Oggi">
-        <TodayFocus todayData={todayData} isLoading={isLoading} />
+        <TodayFocus todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />
       </SectionErrorBoundary>
 
       {/* SEZIONE 4: FINANZA & CASH FLOW */}
       <SectionErrorBoundary sectionName="Finanza">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
           <FinanzaCashFlow finance={finance} isLoading={isLoading} />
         </div>
-        <div className="mt-6">
+        <div className="mt-4">
           <PrimaNotaScadenzarioWidget />
         </div>
       </SectionErrorBoundary>
 
       {/* SEZIONE 5: PERFORMANCE COMMERCIALE */}
       <SectionErrorBoundary sectionName="Vendite">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
           <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
         </div>
@@ -140,7 +141,7 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 7: PERFORMANCE TEAM & TREND */}
       <SectionErrorBoundary sectionName="HR & Trend">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
           <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
         </div>
