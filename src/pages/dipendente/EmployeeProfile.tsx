@@ -24,7 +24,7 @@ export default function EmployeeProfile() {
 
   // Fetch employee profile
   const { data: employee, isLoading } = useQuery({
-    queryKey: ["my-employee-profile", user?.id],
+    queryKey: queryKeys.employeeProfile.byUser(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
