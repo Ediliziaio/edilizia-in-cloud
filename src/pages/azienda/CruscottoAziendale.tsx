@@ -15,6 +15,7 @@ import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundary";
 import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/DrilldownDrawer";
+import { PuntoDiPareggio } from "@/components/cruscotto/PuntoDiPareggio";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
 import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
 import { AlertCircle, Download } from "lucide-react";
