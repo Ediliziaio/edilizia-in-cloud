@@ -498,6 +498,7 @@ export default function WarehouseStockTab() {
                       onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
                       onHistory={() => setHistoryItem(item)}
                       onTask={() => setTaskItem(item)}
+                      onAudit={() => setAuditItem(item)}
                     />
                   ))}
                 </TableBody>
