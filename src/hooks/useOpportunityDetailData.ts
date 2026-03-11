@@ -46,7 +46,7 @@ export function useOpportunityCustomFields() {
 
 export function useContactFieldValues(contactId: string | null) {
   return useQuery({
-    queryKey: ["marketing_contact_field_values", contactId],
+    queryKey: queryKeys.customFields.contactValues(contactId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_field_values")
