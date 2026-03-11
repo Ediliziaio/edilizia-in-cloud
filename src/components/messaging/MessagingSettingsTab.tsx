@@ -126,7 +126,7 @@ export function MessagingSettingsTab() {
         queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
       }
     } catch (err) {
-      console.error("Status poll error:", err);
+      logger.error("Status poll error:", err);
     }
   }, [companyId, isConnected, queryClient]);
 
