@@ -414,7 +414,7 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       const count = variables.itemIds.length;
       toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} spostat${count === 1 ? "o" : "i"} nella zona.` });
     },
