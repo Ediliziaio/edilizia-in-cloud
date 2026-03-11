@@ -432,7 +432,7 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
                 {s.min_order_amount > 0 && (
                   <div>
                     <p className="text-muted-foreground text-xs">Ordine minimo</p>
-                    <p className="font-medium">{fmtEur(s.min_order_amount)}</p>
+                    <p className="font-medium">{formatCurrency(s.min_order_amount)}</p>
                   </div>
                 )}
                 {s.credit_limit && (
