@@ -16,6 +16,10 @@ interface Props {
 }
 
 export const TabTeam = memo(function TabTeam({ data, isLoading }: Props) {
+  const { profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
+  const recalcAll = useRecalculateAllLeadScores(companyId);
+
   const sales = data?.sales_performance || [];
   const totalRevenue = sales.reduce((s, r) => s + r.revenue, 0);
   const totalWon = sales.reduce((s, r) => s + r.contracts_won, 0);
@@ -25,9 +29,32 @@ export const TabTeam = memo(function TabTeam({ data, isLoading }: Props) {
 
   const cc = data?.call_center || [];
 
+  const handleRecalculate = () => {
+    recalcAll.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(`Lead Score ricalcolato per ${result.updated} contatti`);
+      },
+      onError: () => {
+        toast.error("Errore durante il ricalcolo dei Lead Score");
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
+      {/* Recalculate button + Summary cards */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-muted-foreground">Riepilogo Team</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRecalculate}
+          disabled={recalcAll.isPending}
+        >
+          <RefreshCw className={`h-4 w-4 ${recalcAll.isPending ? "animate-spin" : ""}`} />
+          {recalcAll.isPending ? "Ricalcolo..." : "Ricalcola Lead Score"}
+        </Button>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-1">
