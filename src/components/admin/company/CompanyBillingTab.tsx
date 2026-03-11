@@ -102,7 +102,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch adjustments history
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: ["admin-credit-adjustments", companyId],
+    queryKey: queryKeys.admin.creditAdjustments(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_credit_adjustments" as never)
