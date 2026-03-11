@@ -188,7 +188,7 @@ function MarketingOpportunitiesContent() {
   const selectedPipeline = pipelines.find((p: any) => p.id === selectedPipelineId);
   const stages = selectedPipeline?.marketing_pipeline_stages || [];
 
-  const { data: opportunities = [], isLoading: loadingOpps } = useOpportunities(selectedPipelineId);
+  const { data: opportunities = [], isLoading: loadingOpps, isFetchingNextPage, hasNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
