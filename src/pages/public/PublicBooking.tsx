@@ -38,7 +38,7 @@ export default function PublicBooking() {
 
   // Fetch availability rules
   const { data: availability = [] } = useQuery({
-    queryKey: ["public-booking-availability", calendar?.id],
+    queryKey: queryKeys.publicBooking.availability(calendar?.id),
     queryFn: async () => {
       if (!calendar?.id) return [];
       const { data } = await supabase
