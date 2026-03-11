@@ -721,8 +721,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         />
                       </div>
 
-                      {/* Loss reason (shown only when status is lost) */}
-                      {status === "lost" && (
+                      {/* Loss reason (shown only when status is lost/abandoned) */}
+                      {(status === "lost" || status === "abandoned") && (
                         <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
                           <div className="flex items-center gap-2 text-destructive">
                             <AlertTriangle className="h-3.5 w-3.5" />
