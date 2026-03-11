@@ -26,6 +26,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
+  const avgValue = opportunities.length > 0 ? totalValue / opportunities.length : 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
