@@ -408,7 +408,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               const daysSinceActivity = opportunity.updated_at
                 ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
                 : 0;
-              const stalledThreshold = 14;
+              const currentPipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
+              const currentStage = currentPipeline?.marketing_pipeline_stages?.find((s: any) => s.id === (stageId || opportunity.stage_id));
+              const stalledThreshold = currentStage?.stalled_threshold_days || 14;
               return daysSinceActivity >= stalledThreshold && status === "open" ? (
                 <Badge variant="destructive" className="text-xs">⚠ Ferma da {daysSinceActivity}gg</Badge>
               ) : null;
