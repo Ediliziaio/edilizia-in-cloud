@@ -123,7 +123,7 @@ export default function CompaniesList() {
   }, [allCompanies, permissions.allowed_company_ids]);
 
   const { data: orderStats = {} } = useQuery({
-    queryKey: ["admin-companies-order-stats"],
+    queryKey: queryKeys.admin.companiesOrderStats,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_order_stats");
       if (error) throw error;
