@@ -378,13 +378,16 @@ export const queryKeys = {
   // ── Prima Nota ─────────────────────────────────────────
   primaNota: {
     all: ["prima-nota"] as const,
-    list: (companyId: string | undefined) => ["prima-nota", "list", companyId] as const,
+    list: (companyId: string | undefined, filters?: any) => ["prima-nota", "list", companyId, filters] as const,
+    saldo: (companyId: string | undefined, fromDate?: string, toDate?: string) =>
+      ["prima-nota", "saldo", companyId, fromDate, toDate] as const,
   },
 
   // ── Scadenzario ────────────────────────────────────────
   scadenzario: {
     all: ["scadenzario"] as const,
     list: (companyId: string | undefined) => ["scadenzario", "list", companyId] as const,
+    summary: (companyId: string | undefined) => ["scadenzario", "summary", companyId] as const,
   },
 
   // ── Attribution ────────────────────────────────────────
