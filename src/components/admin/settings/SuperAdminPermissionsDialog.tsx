@@ -208,7 +208,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                     <p className="text-xs text-muted-foreground">Accesso a tutte le aziende registrate</p>
                   </div>
                 </div>
-                <Switch checked={allCompanies} onCheckedChange={setAllCompanies} />
+                <Switch checked={allCompanies} onCheckedChange={setAllCompanies} disabled={isSelf} />
               </div>
 
               {!allCompanies && (
