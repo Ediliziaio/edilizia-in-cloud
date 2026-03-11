@@ -23,7 +23,15 @@ import {
   AreaChart, Area,
 } from "recharts";
 
-function WarehouseAlerts({ urgentItems }: { urgentItems: any[] }) {
+interface UrgentWarehouseItem {
+  id: string;
+  name: string;
+  orderCode?: string;
+  customerName?: string;
+  daysLeft: number;
+}
+
+function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }) {
   const [open, setOpen] = useState(urgentItems.length > 0);
 
   return (
