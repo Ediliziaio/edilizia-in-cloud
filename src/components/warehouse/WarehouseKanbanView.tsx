@@ -13,7 +13,7 @@ interface WarehouseKanbanViewProps {
   onToggleSelection?: (itemId: string) => void;
 }
 
-const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
 
 export default function WarehouseKanbanView({ 
   items, 
