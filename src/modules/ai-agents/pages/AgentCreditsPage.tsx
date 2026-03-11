@@ -141,7 +141,7 @@ export default function AgentCreditsPage() {
       toast.success("Impostazioni ricarica automatica salvate");
     } catch (err) {
       toast.error("Errore nel salvataggio");
-      console.error(err);
+      logger.error("Auto-recharge save error", err);
     } finally {
       setIsSavingAutoRecharge(false);
     }
