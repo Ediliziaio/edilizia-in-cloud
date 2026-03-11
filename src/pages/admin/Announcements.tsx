@@ -158,7 +158,7 @@ export default function Announcements() {
     onSuccess: () => {
       toast.success("Annuncio aggiornato");
       setEditingAnnouncement(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-announcements"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
   });
