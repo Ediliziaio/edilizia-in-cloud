@@ -70,7 +70,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {/* Fatturato */}
       <Card className="border-none shadow-md bg-gradient-to-br from-card to-muted/30">
-        <CardContent className="p-5 space-y-3">
+        <CardContent className="p-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fatturato</p>
           <div className="flex items-end gap-2">
             <span className="text-2xl font-bold text-foreground">{fmtEur(monthRevenue)}</span>
