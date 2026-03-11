@@ -272,6 +272,25 @@ export function useMarginData(): MarginData {
 
   const breakEvenDelta = currentMonthlyRevenue - breakEvenRevenue;
 
+  // Annual break-even
+  const breakEvenAnnual = breakEvenRevenue * 12;
+  const yearlyRevenue = currentMonthlyRevenue * 12;
+
+  // Month of year where cumulative revenue covers cumulative fixed costs
+  let breakEvenMonthOfYear = 0;
+  if (currentMonthlyRevenue > 0 && totalFixedCostsMonthly > 0) {
+    let cumRevenue = 0;
+    let cumCosts = 0;
+    for (let m = 1; m <= 12; m++) {
+      cumRevenue += currentMonthlyRevenue * (avgMarginPercent / 100);
+      cumCosts += totalFixedCostsMonthly;
+      if (cumRevenue >= cumCosts) {
+        breakEvenMonthOfYear = m;
+        break;
+      }
+    }
+  }
+
   return {
     isLoading,
     orders,
@@ -286,6 +305,9 @@ export function useMarginData(): MarginData {
     breakEvenRevenue,
     currentMonthlyRevenue,
     breakEvenDelta,
+    breakEvenAnnual,
+    yearlyRevenue,
+    breakEvenMonthOfYear,
     companyId,
   };
 }
