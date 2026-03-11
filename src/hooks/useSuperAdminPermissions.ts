@@ -43,7 +43,7 @@ export function useSuperAdminPermissions() {
   const isSuperAdmin = role === "super_admin";
 
   const { data, isLoading } = useQuery({
-    queryKey: ["super-admin-permissions", user?.id],
+    queryKey: queryKeys.admin.superAdminPermissions(user?.id),
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
