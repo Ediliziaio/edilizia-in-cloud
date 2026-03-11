@@ -264,9 +264,9 @@ export function useMessagingRealtime(conversationId: string | null) {
         "postgres_changes",
         { event: "*", schema: "public", table: "messaging_messages", filter: `conversation_id=eq.${conversationId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messaging-messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messages(conversationId) });
           // Also refresh conversations list (last_message_at, status changes)
-          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
         }
       )
       .subscribe();
