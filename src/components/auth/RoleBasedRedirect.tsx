@@ -79,6 +79,11 @@ export function RoleBasedRedirect() {
   // Redirect based on role
   switch (role) {
     case "super_admin":
+    case "platform_manager":
+    case "platform_sales":
+    case "platform_support":
+    case "platform_marketing":
+    case "platform_implementation":
       return <Navigate to="/admin" replace />;
     case "company_admin":
     case "company_staff":
@@ -93,6 +98,8 @@ export function RoleBasedRedirect() {
       return <Navigate to="/azienda" replace />;
     case "referrer":
       return <Navigate to="/partner" replace />;
+    case "multi_company_user":
+      return <Navigate to="/azienda" replace />;
     default:
       return <Navigate to="/login" replace />;
   }

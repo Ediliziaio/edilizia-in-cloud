@@ -37,6 +37,12 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       customer: "/cliente",
       employee: "/dipendente",
       salesperson: "/venditore",
+      platform_manager: "/admin",
+      platform_sales: "/admin",
+      platform_support: "/admin",
+      platform_marketing: "/admin",
+      platform_implementation: "/admin",
+      multi_company_user: "/azienda",
     };
     const redirectPath = roleRedirects[role] || "/login";
     return <Navigate to={redirectPath} replace />;
