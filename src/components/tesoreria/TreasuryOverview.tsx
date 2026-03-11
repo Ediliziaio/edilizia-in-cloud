@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
+import { formatCurrencyCompact } from "@/lib/formatters";
 
 const formatEur = (val: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
