@@ -145,6 +145,7 @@ export function useSimulateMessage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
       queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messagesAll });
+    },
   });
 }
 
