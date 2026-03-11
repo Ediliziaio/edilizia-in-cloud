@@ -137,7 +137,7 @@ export function ChangePasswordForm() {
       setConfirmPassword("");
       setErrors({});
     } catch (error) {
-      console.error("Error changing password:", error);
+      logger.error("Error changing password:", error);
       toast.error("Errore durante il cambio password");
     } finally {
       setIsLoading(false);
