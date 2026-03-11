@@ -686,6 +686,17 @@ export function CompanyLayout() {
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <div className="flex-1" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
+              <Search className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche">
+              <Bell className="h-4 w-4" />
+              {notifUnreadCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] font-bold">
+                  {notifUnreadCount > 99 ? "99+" : notifUnreadCount}
+                </Badge>
+              )}
+            </Button>
             {showSupport && (
               <Button variant="outline" size="sm" className="relative" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 mr-2" />
