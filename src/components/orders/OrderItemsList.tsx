@@ -106,15 +106,25 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
     badgeColor: "bg-blue-500 text-white hover:bg-blue-500",
     borderColor: "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20"
   },
+  in_arrivo: {
+    label: "In Arrivo",
+    badgeColor: "bg-indigo-500 text-white hover:bg-indigo-500",
+    borderColor: "border-l-4 border-l-indigo-500 bg-indigo-50 dark:bg-indigo-950/20"
+  },
   in_magazzino: { 
     label: "In Magazzino", 
     badgeColor: "bg-emerald-500 text-white hover:bg-emerald-500",
     borderColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
   },
-  installato: { 
-    label: "Installato", 
+  prenotato: {
+    label: "Prenotato",
     badgeColor: "bg-purple-500 text-white hover:bg-purple-500",
     borderColor: "border-l-4 border-l-purple-500 bg-purple-50 dark:bg-purple-950/20"
+  },
+  installato: { 
+    label: "Installato", 
+    badgeColor: "bg-gray-500 text-white hover:bg-gray-500",
+    borderColor: "border-l-4 border-l-gray-400 bg-gray-50 dark:bg-gray-950/20"
   },
 };
 
