@@ -39,7 +39,7 @@ export default function CustomerTicketDetail() {
   });
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: ["ticket-messages", id],
+    queryKey: queryKeys.customerTickets.messages(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")

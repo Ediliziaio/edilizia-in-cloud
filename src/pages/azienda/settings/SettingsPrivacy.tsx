@@ -104,7 +104,7 @@ export default function SettingsPrivacy() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.requests });
       setDeletionReason("");
       toast.success("Richiesta di cancellazione inviata. Un amministratore la esaminerà.");
     },
