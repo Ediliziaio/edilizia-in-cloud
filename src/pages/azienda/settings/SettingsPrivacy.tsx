@@ -40,7 +40,7 @@ export default function SettingsPrivacy() {
 
   // Consents
   const { data: consents = [] } = useQuery({
-    queryKey: ["gdpr-consents"],
+    queryKey: queryKeys.gdpr.consents,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_consents" },
