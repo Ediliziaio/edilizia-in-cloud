@@ -33,7 +33,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
 
   // Fetch plans for plan change dialog
   const { data: plans = [] } = useQuery({
-    queryKey: ["subscription-plans-bulk"],
+    queryKey: queryKeys.admin.subscriptionPlans,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_plans")
