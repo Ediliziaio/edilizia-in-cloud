@@ -45,6 +45,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
+import BlockedOrdersPanel from "@/components/warehouse/BlockedOrdersPanel";
+import LowStockAlertsPanel from "@/components/warehouse/LowStockAlertsPanel";
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
