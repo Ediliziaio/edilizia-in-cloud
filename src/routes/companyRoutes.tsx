@@ -80,6 +80,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
+const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
@@ -174,6 +175,7 @@ export function companyRoutes() {
         <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
         <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
+        <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
         <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
         <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />

@@ -7421,9 +7421,13 @@ export type Database = {
           first_name: string
           fiscal_code: string | null
           follower_id: string | null
+          icp_score: number | null
+          icp_tier: string | null
           id: string
           last_activity_at: string | null
           last_name: string | null
+          last_score_update: string | null
+          lead_score: number | null
           notes: string | null
           optout_call: boolean | null
           optout_email: boolean | null
@@ -7464,9 +7468,13 @@ export type Database = {
           first_name: string
           fiscal_code?: string | null
           follower_id?: string | null
+          icp_score?: number | null
+          icp_tier?: string | null
           id?: string
           last_activity_at?: string | null
           last_name?: string | null
+          last_score_update?: string | null
+          lead_score?: number | null
           notes?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
@@ -7507,9 +7515,13 @@ export type Database = {
           first_name?: string
           fiscal_code?: string | null
           follower_id?: string | null
+          icp_score?: number | null
+          icp_tier?: string | null
           id?: string
           last_activity_at?: string | null
           last_name?: string | null
+          last_score_update?: string | null
+          lead_score?: number | null
           notes?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
@@ -7644,6 +7656,7 @@ export type Database = {
           call_center_id: string | null
           company_id: string
           company_name: string | null
+          competitor_won: string | null
           contact_id: string
           created_at: string
           expected_close_date: string | null
@@ -7651,12 +7664,17 @@ export type Database = {
           id: string
           loss_notes: string | null
           loss_reason: string | null
+          lost_reason_category: string | null
           name: string
+          next_action: string | null
+          next_action_date: string | null
           notes: string | null
           pipeline_id: string
           probability: number | null
+          sales_velocity_snapshot: Json | null
           source: string | null
           stage_id: string
+          stalled_notified_at: string | null
           status: string
           tags: string[]
           updated_at: string
@@ -7667,6 +7685,7 @@ export type Database = {
           call_center_id?: string | null
           company_id: string
           company_name?: string | null
+          competitor_won?: string | null
           contact_id: string
           created_at?: string
           expected_close_date?: string | null
@@ -7674,12 +7693,17 @@ export type Database = {
           id?: string
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_reason_category?: string | null
           name: string
+          next_action?: string | null
+          next_action_date?: string | null
           notes?: string | null
           pipeline_id: string
           probability?: number | null
+          sales_velocity_snapshot?: Json | null
           source?: string | null
           stage_id: string
+          stalled_notified_at?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
@@ -7690,6 +7714,7 @@ export type Database = {
           call_center_id?: string | null
           company_id?: string
           company_name?: string | null
+          competitor_won?: string | null
           contact_id?: string
           created_at?: string
           expected_close_date?: string | null
@@ -7697,12 +7722,17 @@ export type Database = {
           id?: string
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_reason_category?: string | null
           name?: string
+          next_action?: string | null
+          next_action_date?: string | null
           notes?: string | null
           pipeline_id?: string
           probability?: number | null
+          sales_velocity_snapshot?: Json | null
           source?: string | null
           stage_id?: string
+          stalled_notified_at?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
@@ -7873,31 +7903,43 @@ export type Database = {
           auto_status: string | null
           company_id: string
           created_at: string
+          expected_duration_days: number | null
           id: string
           name: string
           pipeline_id: string
+          playbook: Json | null
           position: number
           show_in_reports: boolean
+          stalled_threshold_days: number | null
+          win_probability: number | null
         }
         Insert: {
           auto_status?: string | null
           company_id: string
           created_at?: string
+          expected_duration_days?: number | null
           id?: string
           name: string
           pipeline_id: string
+          playbook?: Json | null
           position?: number
           show_in_reports?: boolean
+          stalled_threshold_days?: number | null
+          win_probability?: number | null
         }
         Update: {
           auto_status?: string | null
           company_id?: string
           created_at?: string
+          expected_duration_days?: number | null
           id?: string
           name?: string
           pipeline_id?: string
+          playbook?: Json | null
           position?: number
           show_in_reports?: boolean
+          stalled_threshold_days?: number | null
+          win_probability?: number | null
         }
         Relationships: [
           {
@@ -10878,6 +10920,61 @@ export type Database = {
           },
         ]
       }
+      sales_playbook_completions: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          completed_by: string | null
+          id: string
+          opportunity_id: string
+          stage_id: string
+          step_description: string
+          step_order: number
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          id?: string
+          opportunity_id: string
+          stage_id: string
+          step_description: string
+          step_order: number
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          id?: string
+          opportunity_id?: string
+          stage_id?: string
+          step_description?: string
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_playbook_completions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_playbook_completions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_playbook_completions_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_targets: {
         Row: {
           company_id: string
@@ -13364,6 +13461,25 @@ export type Database = {
         Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
         Returns: Json
       }
+      get_sales_forecast: {
+        Args: { p_company_id: string; p_months_ahead?: number }
+        Returns: {
+          expected_revenue: number
+          forecast_month: string
+          opportunity_count: number
+          weighted_revenue: number
+        }[]
+      }
+      get_sales_velocity: {
+        Args: { p_company_id: string; p_days_back?: number }
+        Returns: {
+          avg_cycle_days: number
+          avg_deal_size: number
+          open_opportunities: number
+          sales_velocity: number
+          win_rate: number
+        }[]
+      }
       get_scadenzario: {
         Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
         Returns: {
@@ -13380,6 +13496,20 @@ export type Database = {
         }[]
       }
       get_scadenzario_summary: { Args: { p_company_id: string }; Returns: Json }
+      get_stalled_opportunities: {
+        Args: { p_company_id: string }
+        Returns: {
+          assigned_to: string
+          contact_name: string
+          days_stalled: number
+          last_activity_at: string
+          opportunity_id: string
+          opportunity_name: string
+          stage_name: string
+          stalled_threshold: number
+          value: number
+        }[]
+      }
       get_top_companies_by_email: {
         Args: { p_limit?: number }
         Returns: {
@@ -13412,6 +13542,20 @@ export type Database = {
         }[]
       }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
+      get_weighted_pipeline: {
+        Args: { p_company_id: string }
+        Returns: {
+          avg_probability: number
+          opportunity_count: number
+          pipeline_id: string
+          pipeline_name: string
+          stage_id: string
+          stage_name: string
+          stage_position: number
+          total_value: number
+          weighted_value: number
+        }[]
+      }
       has_permission: {
         Args: { _permission: string; _user_id: string }
         Returns: boolean

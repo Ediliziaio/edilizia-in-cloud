@@ -101,6 +101,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lossNotes, setLossNotes] = useState("");
   const [showLossDialog, setShowLossDialog] = useState(false);
   const [pendingLostStatus, setPendingLostStatus] = useState(false);
+  const [nextAction, setNextAction] = useState("");
+  const [nextActionDate, setNextActionDate] = useState("");
+  const [lostReasonCategory, setLostReasonCategory] = useState("");
+  const [competitorWon, setCompetitorWon] = useState("");
 
   // Loss reasons for the company
   const { data: lossReasons = [] } = useQuery({
@@ -171,6 +175,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setExpectedCloseDate(opportunity.expected_close_date || "");
       setLossReason(opportunity.loss_reason || "");
       setLossNotes(opportunity.loss_notes || "");
+      setNextAction(opportunity.next_action || "");
+      setNextActionDate(opportunity.next_action_date || "");
+      setLostReasonCategory(opportunity.lost_reason_category || "");
+      setCompetitorWon(opportunity.competitor_won || "");
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
@@ -300,6 +308,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       expected_close_date: expectedCloseDate || null,
       loss_reason: lossReason || null,
       loss_notes: lossNotes || null,
+      next_action: nextAction || null,
+      next_action_date: nextActionDate || null,
+      lost_reason_category: lostReasonCategory || null,
+      competitor_won: competitorWon || null,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
@@ -390,7 +402,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-5 pb-3">
-          <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+            {(() => {
+              const daysSinceActivity = opportunity.updated_at
+                ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
+                : 0;
+              const stalledThreshold = 14;
+              return daysSinceActivity >= stalledThreshold && status === "open" ? (
+                <Badge variant="destructive" className="text-xs">⚠ Ferma da {daysSinceActivity}gg</Badge>
+              ) : null;
+            })()}
+          </div>
           <DialogDescription className="text-xs text-muted-foreground mt-0.5">
             Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
           </DialogDescription>
@@ -674,6 +697,26 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
+                      {/* Next Action */}
+                      <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
+                          <Label className="text-xs font-semibold">Prossima azione</Label>
+                        </div>
+                        <Input
+                          value={nextAction}
+                          onChange={(e) => setNextAction(e.target.value)}
+                          placeholder="Es: Chiamare per follow-up, Inviare preventivo..."
+                          className="h-8 text-sm"
+                        />
+                        <Input
+                          type="date"
+                          value={nextActionDate}
+                          onChange={(e) => setNextActionDate(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+
                       {/* Loss reason (shown only when status is lost) */}
                       {status === "lost" && (
                         <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
@@ -913,35 +956,49 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3 py-2">
-          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Nessuno —</SelectItem>
-              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
-              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
-              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
-              <SelectItem value="non_risponde">Non risponde</SelectItem>
-              <SelectItem value="non_interessato">Non più interessato</SelectItem>
-              <SelectItem value="budget">Budget insufficiente</SelectItem>
-              <SelectItem value="altro">Altro</SelectItem>
-              {lossReasons.map((r: any) => (
-                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Textarea
-            value={lossNotes}
-            onChange={(e) => setLossNotes(e.target.value)}
-            placeholder="Note opzionali..."
-            rows={2}
-            className="text-sm"
-          />
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Categoria motivo *</Label>
+            <Select value={lostReasonCategory || "none"} onValueChange={(v) => setLostReasonCategory(v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona categoria..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Seleziona —</SelectItem>
+                <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+                <SelectItem value="concorrente">Scelta concorrente</SelectItem>
+                <SelectItem value="budget_non_disponibile">Budget non disponibile</SelectItem>
+                <SelectItem value="timing">Timing non giusto</SelectItem>
+                <SelectItem value="prodotto_non_adatto">Prodotto non adatto</SelectItem>
+                <SelectItem value="nessuna_risposta">Nessuna risposta del cliente</SelectItem>
+                <SelectItem value="altro">Altro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Dettaglio (opzionale)</Label>
+            <Textarea
+              value={lossNotes}
+              onChange={(e) => setLossNotes(e.target.value)}
+              placeholder="Note opzionali..."
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Concorrente che ha vinto (opzionale)</Label>
+            <Input
+              value={competitorWon}
+              onChange={(e) => setCompetitorWon(e.target.value)}
+              placeholder="Es: Competitor SpA, nessuno..."
+              className="h-8 text-sm"
+            />
+          </div>
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setPendingLostStatus(false)}>Annulla</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={!lostReasonCategory}
             onClick={() => {
+              if (!lostReasonCategory) return;
               setStatus("lost");
               setPendingLostStatus(false);
               setShowLossDialog(false);

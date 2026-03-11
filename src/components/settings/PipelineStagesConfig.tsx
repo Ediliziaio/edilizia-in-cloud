@@ -29,14 +29,17 @@ interface Stage {
   name: string;
   position: number;
   auto_status: string | null;
+  win_probability: number | null;
+  stalled_threshold_days: number | null;
 }
 
-function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange }: {
+function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange, onFieldChange }: {
   stage: Stage;
   onUpdate: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
   onAutoStatusChange: (id: string, status: string | null) => void;
+  onFieldChange: (id: string, field: string, value: any) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: stage.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -65,6 +68,23 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
           ))}
         </SelectContent>
       </Select>
+      <Input
+        type="number"
+        value={stage.win_probability ?? ""}
+        onChange={(e) => onFieldChange(stage.id, "win_probability", e.target.value ? parseInt(e.target.value) : null)}
+        placeholder="Win %"
+        className="h-8 text-xs w-[70px]"
+        min={0}
+        max={100}
+      />
+      <Input
+        type="number"
+        value={stage.stalled_threshold_days ?? ""}
+        onChange={(e) => onFieldChange(stage.id, "stalled_threshold_days", e.target.value ? parseInt(e.target.value) : null)}
+        placeholder="Ferma gg"
+        className="h-8 text-xs w-[80px]"
+        min={1}
+      />
       {canDelete && (
         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
           <Trash2 className="h-3.5 w-3.5" />
@@ -88,7 +108,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
-        .select("id, name, position, auto_status")
+        .select("id, name, position, auto_status, win_probability, stalled_threshold_days")
         .eq("pipeline_id", pipelineId)
         .order("position");
       if (error) throw error;
@@ -131,6 +151,11 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     setHasChanges(true);
   }, []);
 
+  const handleFieldChange = useCallback((id: string, field: string, value: any) => {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    setHasChanges(true);
+  }, []);
+
   const handleDelete = useCallback(async (id: string) => {
     if (!id.startsWith("temp-")) {
       const { count, error } = await supabase
@@ -149,7 +174,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleAdd = useCallback(() => {
-    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null }]);
+    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null, win_probability: null, stalled_threshold_days: 14 }]);
     setHasChanges(true);
   }, []);
 
@@ -185,7 +210,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         if (originalIds.has(stage.id)) {
           const { error } = await supabase
             .from("marketing_pipeline_stages")
-            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status })
+            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status, win_probability: stage.win_probability, stalled_threshold_days: stage.stalled_threshold_days } as any)
             .eq("id", stage.id)
             .eq("company_id", companyId!);
           if (error) throw error;
@@ -200,6 +225,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           name: s.name,
           position: s.position,
           auto_status: s.auto_status,
+          win_probability: s.win_probability,
+          stalled_threshold_days: s.stalled_threshold_days,
         }));
 
       if (toInsert.length > 0) {
@@ -253,6 +280,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                     onDelete={handleDelete}
                     canDelete={stages.length > 1}
                     onAutoStatusChange={handleAutoStatusChange}
+                    onFieldChange={handleFieldChange}
                   />
                 ))}
               </div>
