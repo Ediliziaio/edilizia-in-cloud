@@ -295,8 +295,7 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
     );
   }
 
-  const fmt = (n: number) =>
-    `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n: number) => formatCurrency(n);
 
   return (
     <div className="space-y-4">
