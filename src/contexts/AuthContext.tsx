@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("user_id", userId);
 
       if (roleError) {
-        console.error("Error fetching roles:", roleError);
+        logger.error("Error fetching roles:", roleError);
       }
 
       // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
