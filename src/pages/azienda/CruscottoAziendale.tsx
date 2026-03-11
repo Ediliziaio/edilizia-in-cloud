@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
-import { CompanyHealthScore } from "@/components/cruscotto/CompanyHealthScore";
-import { CruscottoAlerts } from "@/components/cruscotto/CruscottoAlerts";
-import { ExecutiveOverview } from "@/components/cruscotto/ExecutiveOverview";
+import { CruscottoHero } from "@/components/cruscotto/CruscottoHero";
+import { AlertPanel } from "@/components/cruscotto/AlertPanel";
+import { TodayFocus } from "@/components/cruscotto/TodayFocus";
+import { CashFlowForecast } from "@/components/cruscotto/CashFlowForecast";
+import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { MarketingControl } from "@/components/cruscotto/MarketingControl";
 import { SalesControl } from "@/components/cruscotto/SalesControl";
 import { PipelineForecast } from "@/components/cruscotto/PipelineForecast";
 import { OperationsDelivery } from "@/components/cruscotto/OperationsDelivery";
-import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
@@ -16,13 +17,16 @@ import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundar
 import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/DrilldownDrawer";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
 import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Landmark, Megaphone, Handshake, Settings2, Download } from "lucide-react";
+import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export default function CruscottoAziendale() {
-  const { marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets, isLoading, error, filters, updateFilters } = useCruscottoData();
+  const {
+    marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets,
+    todayData, cashFlowForecast,
+    isLoading, error, filters, updateFilters,
+  } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
@@ -30,30 +34,38 @@ export default function CruscottoAziendale() {
   const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
   const isDataEmpty = !hasOrders && !hasLeads && !hasCosts;
 
+  const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between print:mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
-          <p className="text-sm text-muted-foreground">Centro di controllo unificato</p>
+          <p className="text-sm text-muted-foreground">Centro di comando — {todayCap}</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 print:hidden"
-          onClick={() => window.print()}
-        >
-          <Download className="h-4 w-4" />
-          Stampa / PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="print:hidden">
+            <CruscottoFilters filters={filters} onUpdate={updateFilters} />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 print:hidden"
+            onClick={() => window.print()}
+          >
+            <Download className="h-4 w-4" />
+            Stampa / PDF
+          </Button>
+        </div>
       </div>
 
       {/* Error banner */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Errore nel caricamento dei dati: {error.message}</AlertDescription>
+          <AlertDescription>Errore nel caricamento dei dati. Riprova tra qualche secondo.</AlertDescription>
         </Alert>
       )}
 
@@ -61,11 +73,6 @@ export default function CruscottoAziendale() {
       {!isLoading && isDataEmpty && (
         <EmptyStateGuide hasOrders={hasOrders} hasLeads={hasLeads} hasCosts={hasCosts} />
       )}
-
-      {/* Global Filters */}
-      <div className="print:hidden">
-        <CruscottoFilters filters={filters} onUpdate={updateFilters} />
-      </div>
 
       {/* Target progress bar */}
       {companyTargets?.monthly_revenue_target && (
@@ -78,98 +85,70 @@ export default function CruscottoAziendale() {
         </SectionErrorBoundary>
       )}
 
-      {/* Health Score — full width */}
-      <SectionErrorBoundary sectionName="Health Score">
-        <CompanyHealthScore
-          kpi={marketing?.kpi}
+      {/* SEZIONE 1: HERO — 4 KPI grandi */}
+      <SectionErrorBoundary sectionName="Hero KPI">
+        <CruscottoHero
           finance={finance}
           operations={operations}
+          kpi={marketing?.kpi}
+          monthRevenue={cashFlowForecast?.monthRevenue ?? finance.revenueThisMonth}
+          quarterRevenue={cashFlowForecast?.quarterRevenue ?? 0}
+          ytdRevenue={cashFlowForecast?.ytdRevenue ?? 0}
           isLoading={isLoading}
         />
       </SectionErrorBoundary>
 
-      {/* Executive Overview KPIs */}
-      <SectionErrorBoundary sectionName="KPI Executive">
-        <ExecutiveOverview
-          kpi={marketing?.kpi}
-          kpiPrev={marketing?.kpi_prev}
-          finance={finance}
-          operations={operations}
-          isLoading={isLoading}
-          onDrilldown={(type: string) => setDrilldown(type as DrilldownType)}
-        />
-      </SectionErrorBoundary>
-
-      {/* Alerts */}
-      <SectionErrorBoundary sectionName="Alerts">
-        <CruscottoAlerts
+      {/* SEZIONE 2: ALERT PANEL */}
+      <SectionErrorBoundary sectionName="Alert Panel">
+        <AlertPanel
           marketingAlerts={marketing?.alerts}
           operations={operations}
           finance={finance}
+          todayData={todayData}
           isLoading={isLoading}
-          companyTargets={companyTargets}
-          invoiceStats={invoiceStats}
         />
       </SectionErrorBoundary>
 
-      {/* Tabbed detail sections */}
-      <Tabs defaultValue="finanza" className="w-full print:hidden">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="finanza" className="gap-1.5">
-            <Landmark className="h-4 w-4" />
-            Finanza
-          </TabsTrigger>
-          <TabsTrigger value="marketing" className="gap-1.5">
-            <Megaphone className="h-4 w-4" />
-            Marketing
-          </TabsTrigger>
-          <TabsTrigger value="vendite" className="gap-1.5">
-            <Handshake className="h-4 w-4" />
-            Vendite
-          </TabsTrigger>
-          <TabsTrigger value="operazioni" className="gap-1.5">
-            <Settings2 className="h-4 w-4" />
-            Operazioni
-          </TabsTrigger>
-        </TabsList>
+      {/* SEZIONE 3: FOCUS OGGI */}
+      <SectionErrorBoundary sectionName="Focus Oggi">
+        <TodayFocus todayData={todayData} isLoading={isLoading} />
+      </SectionErrorBoundary>
 
-        <TabsContent value="finanza">
-          <SectionErrorBoundary sectionName="Finanza">
-            <div className="space-y-6">
-              <FinanzaCashFlow finance={finance} isLoading={isLoading} />
-              <PrimaNotaScadenzarioWidget />
-            </div>
-          </SectionErrorBoundary>
-        </TabsContent>
+      {/* SEZIONE 4: FINANZA & CASH FLOW */}
+      <SectionErrorBoundary sectionName="Finanza">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
+          <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+        </div>
+        <div className="mt-6">
+          <PrimaNotaScadenzarioWidget />
+        </div>
+      </SectionErrorBoundary>
 
-        <TabsContent value="marketing">
-          <SectionErrorBoundary sectionName="Marketing">
-            <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />
-          </SectionErrorBoundary>
-        </TabsContent>
+      {/* SEZIONE 5: PERFORMANCE COMMERCIALE */}
+      <SectionErrorBoundary sectionName="Vendite">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
+          <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
+        </div>
+      </SectionErrorBoundary>
 
-        <TabsContent value="vendite">
-          <SectionErrorBoundary sectionName="Vendite">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
-              <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
-            </div>
-            <div className="mt-6">
-              <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
-            </div>
-          </SectionErrorBoundary>
-        </TabsContent>
+      {/* SEZIONE 6: OPERAZIONI */}
+      <SectionErrorBoundary sectionName="Operazioni">
+        <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
+      </SectionErrorBoundary>
 
-        <TabsContent value="operazioni">
-          <SectionErrorBoundary sectionName="Operazioni">
-            <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
-          </SectionErrorBoundary>
-        </TabsContent>
-      </Tabs>
+      {/* SEZIONE 7: PERFORMANCE TEAM & TREND */}
+      <SectionErrorBoundary sectionName="HR & Trend">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
+          <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
+        </div>
+      </SectionErrorBoundary>
 
-      {/* Trend */}
-      <SectionErrorBoundary sectionName="Trend">
-        <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
+      {/* SEZIONE 8: ANALISI FONTI & MARKETING */}
+      <SectionErrorBoundary sectionName="Marketing">
+        <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />
       </SectionErrorBoundary>
 
       {/* Drill-down Drawer */}
