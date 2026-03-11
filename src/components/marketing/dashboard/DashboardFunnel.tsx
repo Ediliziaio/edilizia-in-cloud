@@ -84,7 +84,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                             <span className="font-semibold text-foreground">{stage.count}</span>
                           </div>
                         </div>
-                        <div className="h-7 bg-muted rounded-md overflow-hidden">
+                        <div className={cn("bg-muted rounded-md overflow-hidden", compact ? "h-5" : "h-7")}>
                           <div
                             className={cn(
                               "h-full rounded-md transition-all duration-500 flex items-center px-2",
