@@ -66,7 +66,7 @@ export function useWarehouseData() {
 
   // Fetch stock items for matching
   const { data: stockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock-names", companyId],
+    queryKey: queryKeys.warehouse.stockNames(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
