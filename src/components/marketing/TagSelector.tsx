@@ -47,7 +47,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
       if (error) throw error;
     },
     onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       const normalized = name.trim().toLowerCase();
       if (!selectedTags.includes(normalized)) {
         onTagsChange([...selectedTags, normalized]);

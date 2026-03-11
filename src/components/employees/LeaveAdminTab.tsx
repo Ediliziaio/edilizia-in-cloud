@@ -122,7 +122,7 @@ export function LeaveAdminTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-summary"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.summaryAll });
       toast.success("Saldi aggiornati");
       setEditingBalance(null);
     },

@@ -506,7 +506,7 @@ export function useCompanyDetail(id: string | undefined) {
         body, headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione account");
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
       toast.success("Account creato");
     } catch (err: any) {

@@ -136,7 +136,7 @@ export default function AgentCreditsPage() {
         .eq("company_id" as never, companyId as never);
 
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["ai-credits"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
       toast.success("Impostazioni ricarica automatica salvate");
     } catch (err) {
       toast.error("Errore nel salvataggio");

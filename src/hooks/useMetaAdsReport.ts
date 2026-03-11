@@ -183,7 +183,7 @@ export function useMetaAdsReport() {
 
   // Fetch campaign statuses
   const { data: campaignStatuses = {} } = useQuery({
-    queryKey: ["meta-campaign-status", companyId, selectedAccountId],
+    queryKey: queryKeys.metaAds.campaignStatus(companyId, selectedAccountId),
     queryFn: async () => {
       const result = await callProxy("get-campaign-status", {
         ad_account_id: selectedAccountId,

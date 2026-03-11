@@ -31,7 +31,7 @@ export function useBranding() {
   const companyId = effectiveCompany?.id;
 
   const query = useQuery({
-    queryKey: ["company-branding", companyId],
+    queryKey: queryKeys.companyBranding.byCompany(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<CompanyBranding | null> => {
       const { data, error } = await supabase

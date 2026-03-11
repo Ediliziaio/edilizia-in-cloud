@@ -13,7 +13,7 @@ export function EmailCreditsWidget() {
   const companyId = effectiveCompany?.id;
 
   const { data: credits, isLoading } = useQuery({
-    queryKey: ["email-credits", companyId],
+    queryKey: queryKeys.emailCredits.byCompany(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase

@@ -203,7 +203,7 @@ export default function PlatformSettingsPage() {
     }
 
     toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-    queryClient.invalidateQueries({ queryKey: ["platform-pricing"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
   };
 
   const previewReal = 0.02;

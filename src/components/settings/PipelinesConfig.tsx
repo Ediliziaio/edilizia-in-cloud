@@ -138,7 +138,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setDeleteOpen(false);
       setDeleteId(null);
       toast.success("Sequenza eliminata");

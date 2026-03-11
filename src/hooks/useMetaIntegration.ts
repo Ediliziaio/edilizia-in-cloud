@@ -210,9 +210,9 @@ export function useMetaIntegration(integration: Integration | null) {
       await callProxy("disconnect");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      queryClient.invalidateQueries({ queryKey: ["meta-assets"] });
-      queryClient.invalidateQueries({ queryKey: ["meta-forms"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metaAds.formsAll });
       toast.success("Integrazione disconnessa");
     },
     onError: (err: Error) => {
