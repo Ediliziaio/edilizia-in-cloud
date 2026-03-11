@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
