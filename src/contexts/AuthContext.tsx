@@ -308,21 +308,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Effective company is the impersonated one when impersonating, otherwise the real one
   const effectiveCompany = isImpersonating ? impersonatedCompany : state.company;
 
+  const contextValue = useMemo(
+    () => ({
+      ...state,
+      signIn,
+      signOut,
+      refreshAuth,
+      impersonatedCompanyId,
+      impersonatedCompany,
+      isImpersonating,
+      impersonateCompany,
+      exitImpersonation,
+      effectiveCompany,
+    }),
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        ...state,
-        signIn,
-        signOut,
-        refreshAuth,
-        impersonatedCompanyId,
-        impersonatedCompany,
-        isImpersonating,
-        impersonateCompany,
-        exitImpersonation,
-        effectiveCompany,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
