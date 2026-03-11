@@ -224,8 +224,22 @@ export default function CustomersList() {
 
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: string) => {
-      const { error } = await supabase.from("profiles").delete().eq("id", customerId);
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke("delete-company-user", {
+        body: { userId: customerId },
+      });
+      if (error) {
+        let errorMessage = "Errore durante l'eliminazione";
+        try {
+          const errorBody = await (error as any).context?.json?.();
+          if (errorBody?.error) errorMessage = errorBody.error;
+        } catch {
+          if (error.message && !error.message.includes("non-2xx")) {
+            errorMessage = error.message;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
