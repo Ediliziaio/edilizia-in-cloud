@@ -506,12 +506,14 @@ export const queryKeys = {
   // ── Brand Settings ─────────────────────────────────────
   branding: {
     all: ["branding"] as const,
-    settings: (companyId: string | undefined) => ["branding", "settings", companyId] as const,
+    settings: (companyId: string | undefined) => ["brand-settings", companyId] as const,
   },
 
   // ── Feature Flags ──────────────────────────────────────
   featureFlags: {
     all: ["feature-flags"] as const,
+    platform: ["platform-feature-flags"] as const,
+    companyOverrides: (companyId: string | undefined) => ["company-feature-overrides", companyId] as const,
     list: (companyId: string | undefined) => ["feature-flags", "list", companyId] as const,
   },
 
@@ -519,6 +521,52 @@ export const queryKeys = {
   calendars: {
     all: ["calendars"] as const,
     list: (companyId: string | undefined) => ["calendars", "list", companyId] as const,
+  },
+
+  // ── Subscription Limits ────────────────────────────────
+  subscriptionLimits: {
+    plan: (planId: string | undefined) => ["subscription-plan", planId] as const,
+    orderCount: (companyId: string | undefined) => ["order-count", companyId] as const,
+    userCount: (companyId: string | undefined) => ["user-count", companyId] as const,
+  },
+
+  // ── Purchase Orders ────────────────────────────────────
+  purchaseOrders: {
+    all: ["purchase-orders"] as const,
+    list: (companyId: string | undefined) => ["purchase-orders", companyId] as const,
+    detail: (poId: string | null) => ["purchase-order-detail", poId] as const,
+    items: (poId: string | null) => ["purchase-order-items", poId] as const,
+  },
+
+  // ── Google Calendar ────────────────────────────────────
+  googleCalendar: {
+    connection: (companyId: string | undefined, userId: string | undefined) =>
+      ["gcal-connection", companyId, userId] as const,
+    settings: (companyId: string | undefined, userId: string | undefined) =>
+      ["gcal-settings", companyId, userId] as const,
+  },
+
+  // ── Customer Portal Unread ─────────────────────────────
+  customerUnread: {
+    messages: (userId: string | undefined) => ["customer-messages-unread", userId] as const,
+  },
+
+  // ── GDPR (Company-side) ────────────────────────────────
+  gdpr: {
+    consents: ["gdpr-consents"] as const,
+    requests: ["gdpr-requests"] as const,
+  },
+
+  // ── Lifecycle Notifications ────────────────────────────
+  lifecycleNotifications: {
+    all: ["lifecycle-notifications"] as const,
+    byCompany: (companyId: string | undefined) => ["lifecycle-notifications", companyId] as const,
+  },
+
+  // ── Customer Tickets (portal) ──────────────────────────
+  customerTickets: {
+    detail: (id: string | undefined) => ["ticket", id] as const,
+    messages: (id: string | undefined) => ["ticket-messages", id] as const,
   },
 
   // ── Appointments ───────────────────────────────────────
