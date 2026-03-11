@@ -31,6 +31,7 @@ const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCred
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
+const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
 const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
@@ -204,6 +205,7 @@ export function companyRoutes() {
           <Route path="integrazioni" element={<SettingsIntegrations />} />
           <Route path="crediti" element={<SettingsCredits />} />
           <Route path="api" element={<SettingsApiKeys />} />
+          <Route path="webhook" element={<SettingsWebhooks />} />
           <Route path="privacy" element={<SettingsPrivacy />} />
           <Route path="branding" element={<SettingsBranding />} />
           <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
