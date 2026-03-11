@@ -90,7 +90,10 @@ export default function MultiCompanyUsersTab() {
         body: { action: "update-company-access", userId, companyId, operation: "remove" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        const body = await res.error.context?.json?.();
+        throw new Error(body?.error || res.error.message);
+      }
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
