@@ -79,7 +79,7 @@ export function SalespeopleConfig() {
   });
 
   const { data: salespeople = [], isLoading } = useQuery({
-    queryKey: ["salespeople", companyId],
+    queryKey: queryKeys.salespeople.active(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople").select("*").eq("company_id", companyId!)
