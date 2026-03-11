@@ -87,7 +87,7 @@ export function useMarginData(): MarginData {
 
   // 3. External teams
   const { data: externalTeams, isLoading: loadingTeams } = useQuery({
-    queryKey: ["margin-external-teams", companyId],
+    queryKey: queryKeys.margin.teams(companyId, ordersRaw?.length ?? 0),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
