@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface BreakEvenYear {
   year: number;
