@@ -207,6 +207,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
             )}
           </div>
+          <div className="flex items-center gap-1.5">
+          {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {isFieldActive("owner") && (
             <Tooltip>
               <TooltipTrigger asChild>
