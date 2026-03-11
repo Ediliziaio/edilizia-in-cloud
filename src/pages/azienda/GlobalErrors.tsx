@@ -201,7 +201,7 @@ export default function GlobalErrors() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.merceTotal)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.merceTotal)}</div>
           </CardContent>
         </Card>
         <Card>
