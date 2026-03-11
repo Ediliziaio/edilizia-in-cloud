@@ -59,7 +59,7 @@ export default function Employees() {
   const [activeRoleType, setActiveRoleType] = useState<'operaio' | 'staff_interno'>('operaio');
 
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
-    queryKey: ["employees", effectiveCompanyId],
+    queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("employees").select("*")
         .eq("company_id", effectiveCompanyId!).order("last_name");
