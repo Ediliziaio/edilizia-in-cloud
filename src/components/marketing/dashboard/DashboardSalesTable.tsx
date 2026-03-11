@@ -42,7 +42,7 @@ function TargetProgress({ value, target }: { value: number; target: number }) {
   );
 }
 
-export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading }: Props) {
+export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading, compact }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 

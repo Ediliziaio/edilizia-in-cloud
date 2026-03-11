@@ -118,7 +118,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
             </div>
           )}
         </CardContent>
-      </Card>
+      </Wrapper>
     </TooltipProvider>
   );
 });
