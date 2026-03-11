@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
@@ -55,73 +51,12 @@ interface Props {
   onDateRangeChange: (from: string, to: string) => void;
 }
 
-function useDailyTrend(companyId: string | undefined) {
-  return useQuery({
-    queryKey: ["cruscotto-daily-trend", companyId],
-    enabled: !!companyId,
-    staleTime: 120_000,
-    queryFn: async () => {
-      const days: { date: string; revenue: number; collected: number }[] = [];
-      const now = new Date();
-      const from = format(subDays(now, 6), "yyyy-MM-dd");
-      const to = format(now, "yyyy-MM-dd");
 
-      const [ordersRes, installmentsRes] = await Promise.all([
-        supabase.from("orders")
-          .select("total_amount, created_at")
-          .eq("company_id", companyId!)
-          .gte("created_at", `${from}T00:00:00`)
-          .lte("created_at", `${to}T23:59:59`),
-        (supabase as any).from("order_installments")
-          .select("amount, paid_date, order:orders!inner(company_id)")
-          .eq("order.company_id", companyId!)
-          .eq("is_paid", true)
-          .gte("paid_date", from)
-          .lte("paid_date", to),
-      ]);
-
-      // Build a map for each day
-      for (let i = 6; i >= 0; i--) {
-        const d = format(subDays(now, i), "yyyy-MM-dd");
-        days.push({ date: d, revenue: 0, collected: 0 });
-      }
-      const dayMap = new Map(days.map(d => [d.date, d]));
-
-      (ordersRes.data ?? []).forEach((o: any) => {
-        const d = format(new Date(o.created_at), "yyyy-MM-dd");
-        const entry = dayMap.get(d);
-        if (entry) entry.revenue += Number(o.total_amount) || 0;
-      });
-      (installmentsRes.data ?? []).forEach((i: any) => {
-        const d = i.paid_date;
-        const entry = dayMap.get(d);
-        if (entry) entry.collected += Number(i.amount) || 0;
-      });
-
-      return days;
-    },
-  });
-}
-
-const sparkTooltipStyle = {
-  contentStyle: {
-    fontSize: 11,
-    padding: "4px 8px",
-    borderRadius: 8,
-    border: "1px solid hsl(var(--border))",
-    background: "hsl(var(--popover))",
-    color: "hsl(var(--popover-foreground))",
-  },
-  labelStyle: { display: "none" as const },
-};
 
 export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
   const activePreset = detectPreset(dateFrom, dateTo);
   const dynamicLabel = FOCUS_PRESETS.find(p => p.value === activePreset)?.dynamicLabel ?? "oggi";
-  const { data: dailyTrend } = useDailyTrend(companyId);
 
   const today = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
@@ -249,67 +184,6 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
           </div>
         ))}
       </div>
-
-      {/* Sparkline chart */}
-      {dailyTrend && dailyTrend.length > 0 && (
-        <div className="rounded-xl border bg-card p-3">
-          <p className="text-[11px] font-medium text-muted-foreground mb-1">Trend ultimi 7 giorni</p>
-          <div className="h-[72px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyTrend} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
-                <defs>
-                  <linearGradient id="sparkRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="sparkCollected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Tooltip
-                  {...sparkTooltipStyle}
-                  formatter={(value: number, name: string) => [
-                    fmtEur(value),
-                    name === "revenue" ? "Fatturato" : "Incassato",
-                  ]}
-                  labelFormatter={(label: string) => {
-                    try {
-                      return new Date(label).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
-                    } catch { return label; }
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  fill="url(#sparkRevenue)"
-                  dot={false}
-                  animationDuration={600}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="collected"
-                  stroke="hsl(142 71% 45%)"
-                  strokeWidth={2}
-                  fill="url(#sparkCollected)"
-                  dot={false}
-                  animationDuration={600}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex items-center gap-4 mt-1">
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-primary" /> Fatturato
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(142 71% 45%)" }} /> Incassato
-            </span>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((t) => (
