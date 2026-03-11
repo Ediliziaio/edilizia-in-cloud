@@ -24,7 +24,7 @@ export default function CustomerTicketDetail() {
   const navigate = useNavigate();
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
-    queryKey: ["ticket", id],
+    queryKey: queryKeys.customerTickets.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
