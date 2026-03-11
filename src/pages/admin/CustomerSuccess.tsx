@@ -121,7 +121,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       toast.success("Template predefinito aggiornato");
     },
   });
