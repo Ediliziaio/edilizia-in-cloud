@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { logger } from "@/utils/logger";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -120,7 +121,7 @@ export function AgentKBTab({ agentId, companyId, elevenlabsAgentId }: AgentKBTab
               .eq("id", (data as any).id);
           }
         } catch (e) {
-          console.warn("ElevenLabs KB sync failed:", e);
+          logger.warn("ElevenLabs KB sync failed:", e);
           toast.warning("Documento salvato localmente ma non sincronizzato con il provider AI");
         }
       }
@@ -150,7 +151,7 @@ export function AgentKBTab({ agentId, companyId, elevenlabsAgentId }: AgentKBTab
             payload: { elevenlabs_doc_id: doc.elevenlabs_doc_id },
           });
         } catch (e) {
-          console.warn("ElevenLabs KB doc removal failed:", e);
+          logger.warn("ElevenLabs KB doc removal failed:", e);
         }
       }
 

@@ -3,6 +3,7 @@ import { Loader2, Save, Building2, FileText, Phone, MapPin, StickyNote } from "l
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,7 +118,7 @@ export function CompanyProfileForm() {
       await refreshAuth();
       toast.success("Profilo aggiornato", { description: "I dati aziendali sono stati salvati." });
     } catch (error) {
-      console.error("Error updating company:", error);
+      logger.error("Error updating company:", error);
       toast.error("Errore", { description: "Impossibile aggiornare i dati aziendali." });
     } finally {
       setIsSaving(false);

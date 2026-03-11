@@ -1,8 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, CalendarClock, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
+import { formatCurrency } from "@/lib/formatters";
 
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+const fmtEur = (n: number) => formatCurrency(n);
 
 interface Props {
   summary: ScadenzarioSummary | undefined;

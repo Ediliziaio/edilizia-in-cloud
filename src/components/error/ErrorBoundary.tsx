@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 
 interface Props {
   children: React.ReactNode;
@@ -32,7 +33,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[ErrorBoundary] Errore catturato:", error.message);
+    logger.error("[ErrorBoundary] Errore catturato:", error.message);
 
     // Report to system_health_metrics for centralized observability
     this.reportError(error, errorInfo).catch(() => {

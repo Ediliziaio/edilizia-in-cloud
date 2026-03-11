@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { logger } from "@/utils/logger";
 import {
   FileText,
   Image,
@@ -163,7 +164,7 @@ export function ExternalTeamAttachments({
       resetUploadForm();
     },
     onError: (error) => {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast.error("Errore", { description: "Si è verificato un errore durante il caricamento." });
     },
   });

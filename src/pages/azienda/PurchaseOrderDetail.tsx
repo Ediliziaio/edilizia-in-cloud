@@ -18,8 +18,9 @@ import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/A
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/formatters";
 
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+const fmtEur = (n: number) => formatCurrency(n);
 
 const STATUS_FLOW: Record<string, string[]> = {
   bozza: ["inviato", "annullato"],

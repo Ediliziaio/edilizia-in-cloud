@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import type { Company } from "@/types/auth";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
@@ -80,7 +81,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       await onLogoUpdated();
     } catch (error) {
-      console.error('Error uploading logo:', error);
+      logger.error("Error uploading logo:", error);
       toast.error("Errore", { description: "Impossibile caricare il logo. Riprova." });
     } finally {
       setIsUploading(false);
@@ -118,7 +119,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       await onLogoUpdated();
     } catch (error) {
-      console.error('Error removing logo:', error);
+      logger.error("Error removing logo:", error);
       toast.error("Errore", { description: "Impossibile rimuovere il logo. Riprova." });
     } finally {
       setIsRemoving(false);

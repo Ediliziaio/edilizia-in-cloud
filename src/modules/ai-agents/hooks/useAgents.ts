@@ -5,6 +5,7 @@ import type { AIAgent, AIAgentInsert, AIAgentUpdate } from "../types/agent.types
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { queryKeys } from "@/lib/queryKeys";
+import { logger } from "@/utils/logger";
 
 export function useAgents() {
   return useQuery({
@@ -138,7 +139,7 @@ export function useDeleteAgent() {
             agent_id: elAgentId,
           });
         } catch (e) {
-          console.warn("ElevenLabs delete failed (orphan may remain on provider):", e);
+          logger.warn("ElevenLabs delete failed (orphan may remain on provider):", e);
         }
       }
     },

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserCheck } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -73,7 +74,7 @@ export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSel
                 {sp.first_name} {sp.last_name}
                 <span className="text-muted-foreground ml-2 text-xs">
                   ({sp.commission_type === "fixed" 
-                    ? `€${sp.commission_value}` 
+                    ? formatCurrency(sp.commission_value) 
                     : `${sp.commission_value}%`})
                 </span>
               </SelectItem>

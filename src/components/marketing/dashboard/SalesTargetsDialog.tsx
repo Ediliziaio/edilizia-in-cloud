@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { logger } from "@/utils/logger";
 
 interface TargetRow {
   user_id: string;
@@ -58,7 +59,7 @@ export function SalesTargetsDialog() {
 
       setRows(result);
     } catch (e) {
-      console.error(e);
+      logger.error("Errore nel caricamento target", e);
       toast.error("Errore nel caricamento target");
     } finally {
       setLoading(false);
@@ -101,7 +102,7 @@ export function SalesTargetsDialog() {
       queryClient.invalidateQueries({ queryKey: ["sales-targets"] });
       setOpen(false);
     } catch (e: any) {
-      console.error(e);
+      logger.error("Errore nel salvataggio target", e);
       toast.error("Errore nel salvataggio: " + (e.message || ""));
     } finally {
       setSaving(false);

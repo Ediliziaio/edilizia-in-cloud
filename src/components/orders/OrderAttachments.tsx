@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { logger } from "@/utils/logger";
 import {
   Dialog,
   DialogContent,
@@ -92,7 +93,7 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
     .from("order-attachments")
     .createSignedUrl(filePath, 3600);
   if (error) {
-    console.error("Signed URL error:", error);
+    logger.error("Signed URL error:", error);
     return null;
   }
   return data.signedUrl;
@@ -255,7 +256,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       });
       setUploadDialogOpen(false);
     } catch (error) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({
         title: "Errore durante il caricamento",
         description: "Si è verificato un errore. Riprova.",
@@ -313,7 +314,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
       toast({ title: "Documenti caricati", description: `${validFiles.length} file caricati con successo.` });
     } catch (error) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({ title: "Errore durante il caricamento", description: "Si è verificato un errore. Riprova.", variant: "destructive" });
     } finally {
       setUploading(false);

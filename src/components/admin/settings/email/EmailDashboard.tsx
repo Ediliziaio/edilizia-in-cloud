@@ -136,7 +136,7 @@ export function EmailDashboard() {
 
   const financialKpis = [
     { label: "Ricavi Lordi", value: formatEur(totalRevenue), icon: DollarSign, color: "text-green-600", description: "Crediti spesi dai clienti" },
-    { label: "Costo Provider", value: formatEur(totalProviderCost), icon: BarChart3, color: "text-red-600", description: `€${costPerEmail}/email × ${s.total_sent.toLocaleString()}` },
+    { label: "Costo Provider", value: formatEur(totalProviderCost), icon: BarChart3, color: "text-red-600", description: `${formatEur(costPerEmail)}/email × ${s.total_sent.toLocaleString()}` },
     { label: "Margine Netto", value: formatEur(margin), icon: TrendingUp, color: margin >= 0 ? "text-green-700" : "text-red-600", description: `${marginPercent}% del ricavo` },
     { label: "Margine %", value: `${marginPercent}%`, icon: Percent, color: margin >= 0 ? "text-green-700" : "text-red-600", description: "Ricavi - Costi Provider" },
   ];

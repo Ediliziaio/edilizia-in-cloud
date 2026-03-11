@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { formatCurrency } from "@/lib/formatters";
 
 export default function SalespersonProfile() {
   const { user, profile } = useAuth();
@@ -140,7 +141,7 @@ export default function SalespersonProfile() {
               </div>
               <p className="text-2xl font-bold">
                 {salesperson.commission_type === "fixed"
-                  ? `€${salesperson.commission_value}`
+                  ? formatCurrency(salesperson.commission_value)
                   : `${salesperson.commission_value}%`}
               </p>
               <p className="text-xs text-muted-foreground mt-1">

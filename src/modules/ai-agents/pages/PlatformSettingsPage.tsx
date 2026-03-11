@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { logger } from "@/utils/logger";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -136,7 +137,7 @@ export default function PlatformSettingsPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
-      console.error(err);
+      logger.error("Errore salvataggio configurazione", err);
       toast.error("Errore nel salvataggio della configurazione");
     } finally {
       setIsSaving(false);

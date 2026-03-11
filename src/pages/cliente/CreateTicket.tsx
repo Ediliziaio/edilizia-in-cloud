@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { logger } from "@/utils/logger";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Send, Loader2, Paperclip, X } from "lucide-react";
@@ -133,7 +134,7 @@ export default function CreateTicket() {
       navigate(`/cliente/assistenza/${ticket.id}`);
     },
     onError: (error) => {
-      console.error("Error creating ticket:", error);
+      logger.error("Error creating ticket:", error);
       toast({
         title: "Errore",
         description: "Impossibile creare il ticket. Riprova.",

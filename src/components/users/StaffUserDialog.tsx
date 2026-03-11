@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/utils/logger";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +126,7 @@ export function StaffUserDialog({
         setTemporaryPassword(result.temporaryPassword);
       }
     } catch (error) {
-      console.error("Error creating user:", error);
+      logger.error("Error creating user:", error);
     }
   };
 

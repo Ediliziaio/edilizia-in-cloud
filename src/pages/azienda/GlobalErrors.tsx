@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { formatCurrencyCompact } from "@/lib/formatters";
 import {
   BarChart,
   Bar,
@@ -241,7 +242,7 @@ export default function GlobalErrors() {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={categoryChart} layout="vertical" margin={{ left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v) => `€${v}`} />
+                  <XAxis type="number" tickFormatter={formatCurrencyCompact} />
                   <YAxis type="category" dataKey="category" width={100} />
                   <Tooltip formatter={(v: number) => fmt(v)} />
                   <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>

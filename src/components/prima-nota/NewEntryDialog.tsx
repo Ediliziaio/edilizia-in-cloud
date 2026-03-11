@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronsUpDown, Check, Paperclip, X } from "lucide-react";
+import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -121,7 +122,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           .upload(path, attachmentFile);
         if (uploadErr) {
           // Bucket might not exist, just warn
-          console.warn("Upload failed:", uploadErr.message);
+          logger.warn("Upload failed:", uploadErr.message);
           toast.warning("Allegato non caricato", { description: uploadErr.message });
         } else {
           const { data: urlData } = supabase.storage
@@ -131,7 +132,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           attachmentName = attachmentFile.name;
         }
       } catch (e) {
-        console.warn("Upload error:", e);
+        logger.warn("Upload error:", e);
       }
       setIsUploading(false);
     }

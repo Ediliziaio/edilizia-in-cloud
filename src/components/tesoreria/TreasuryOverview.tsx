@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
+import { formatCurrencyCompact } from "@/lib/formatters";
 
 const formatEur = (val: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
@@ -123,7 +124,7 @@ export default function TreasuryOverview({ companyId }: Props) {
             <ResponsiveContainer width="100%" height={320}>
               <ComposedChart data={cashFlow}>
                 <XAxis dataKey="label" />
-                <YAxis tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                <YAxis tickFormatter={formatCurrencyCompact} />
                 <Tooltip formatter={(v: number) => formatEur(v)} />
                 <Legend />
                 <Bar dataKey="income" name="Entrate" fill="#10b981" radius={[4, 4, 0, 0]} />

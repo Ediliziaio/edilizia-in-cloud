@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { Scadenza } from "@/hooks/useScadenzario";
+import { formatCurrency } from "@/lib/formatters";
 
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+const fmtEur = (n: number) => formatCurrency(n);
 
 const TIPO_LABELS: Record<string, { label: string; color: string }> = {
   incasso_cliente: { label: "Incasso", color: "bg-green-100 text-green-800" },
