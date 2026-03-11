@@ -22,6 +22,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   onSelect: (id: string, selected: boolean) => void;
 }>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
   return (
