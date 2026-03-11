@@ -129,7 +129,7 @@ export default function WarehouseItemDetailDialog({
             {item.purchase_price != null && (
               <div>
                 <span className="text-xs text-muted-foreground">Prezzo acquisto</span>
-                <p className="font-medium">€ {item.purchase_price.toFixed(2)}</p>
+                <p className="font-medium">{formatCurrency(item.purchase_price)}</p>
               </div>
             )}
           </div>
