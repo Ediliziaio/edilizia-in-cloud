@@ -282,7 +282,7 @@ export function useCashFlowData() {
 
   // Open scadenze (da_pagare, parziale) for forecast integration
   const { data: openScadenze = [], isLoading: loadingScadenze } = useQuery({
-    queryKey: ["cashflow", "scadenze", companyId] as const,
+    queryKey: queryKeys.cashflow.scadenze(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")

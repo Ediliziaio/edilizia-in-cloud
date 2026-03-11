@@ -172,7 +172,7 @@ export function CostFormDialog({
                                     { company_id: effectiveCompany.id, name: catName },
                                     { onConflict: "company_id,name" }
                                   );
-                                  queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+                                  queryClient.invalidateQueries({ queryKey: queryKeys.costs.categories(effectiveCompany?.id) });
                                 }
                               }}
                             >

@@ -103,7 +103,7 @@ export function TreasuryTab({
         defaults.map((d) => ({ ...d, company_id: companyId }))
       );
       if (!error) {
-        queryClient.invalidateQueries({ queryKey: ["treasury-categories", companyId] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.treasuryCategories(companyId) });
       }
     } finally {
       setIsInitializing(false);
