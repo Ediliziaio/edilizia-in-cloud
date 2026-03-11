@@ -10,6 +10,7 @@ import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor } from "@/types/opportunities";
+import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
 
 const StageColumn = memo(forwardRef<HTMLDivElement, {
   stage: OpportunityStage;
