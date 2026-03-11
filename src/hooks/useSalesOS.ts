@@ -457,7 +457,7 @@ export function useUpdateOpportunityMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: salesOSKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['marketing_opportunities'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
   });
 }
