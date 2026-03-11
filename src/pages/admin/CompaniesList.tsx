@@ -157,7 +157,7 @@ export default function CompaniesList() {
   });
 
   const { data: healthData = {} } = useQuery({
-    queryKey: ["admin-companies-health"],
+    queryKey: queryKeys.admin.companiesHealth,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_health_data");
       if (error) throw error;
