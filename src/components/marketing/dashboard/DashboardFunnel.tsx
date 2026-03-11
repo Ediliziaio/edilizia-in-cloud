@@ -10,9 +10,10 @@ import { fmtCur } from "./utils";
 interface Props {
   funnel: FunnelStage[] | undefined;
   isLoading: boolean;
+  compact?: boolean;
 }
 
-export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading }: Props) {
+export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading, compact }: Props) {
   if (isLoading) {
     return (
       <Card>
