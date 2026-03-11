@@ -225,13 +225,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchUserData, refreshAuth]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     return { error: error as Error | null };
-  };
+  }, []);
 
   const signOut = async () => {
     // End session tracking before sign out
