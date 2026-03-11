@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -14,15 +13,19 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Check, Search, Building, Building2, LayoutDashboard, Megaphone, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Loader2, Check, Search, Building, Building2, LayoutDashboard, Megaphone,
+  ChevronDown, ChevronRight, ChevronLeft, Copy, CheckCircle2, AlertTriangle,
+  ShieldCheck, User, TrendingUp, Phone,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PLATFORM_ROLES, PLATFORM_ROLE_LABELS, PLATFORM_ROLE_DESCRIPTIONS, PLATFORM_ROLE_COLORS, type PlatformRole } from "@/types/auth";
 import { cn } from "@/lib/utils";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
   DEFAULT_PERMISSIONS, STANDALONE_SECTIONS, INTERNAL_SECTIONS, MARKETING_SECTIONS,
-  ALL_PERMISSION_SECTIONS, syncLegacyMarketingFlags,
-  type PermissionSectionDef,
+  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
+  type PermissionSectionDef, type StaffRoleType,
 } from "@/components/users/permissionsDefaults";
 
 interface Props {
@@ -33,10 +36,26 @@ interface Props {
 interface CompanyAccess {
   companyId: string;
   companyName: string;
-  role: string; // "company_admin" | "company_staff"
+  role: string; // "company_admin" | "company_staff" | "salesperson" | "call_center"
 }
 
-// --- Permission Group Component (reused from CreateUserWizard pattern) ---
+const COMPANY_ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType }[] = [
+  { value: "company_admin", label: "Amministratore", icon: ShieldCheck },
+  { value: "company_staff", label: "Operatore", icon: User },
+  { value: "salesperson", label: "Venditore", icon: TrendingUp },
+  { value: "call_center", label: "Call Center", icon: Phone },
+];
+
+const ROLES_WITH_PERMISSIONS = ["company_staff", "salesperson", "call_center"];
+
+const COMPANY_ROLE_LABELS: Record<string, string> = {
+  company_admin: "Admin",
+  company_staff: "Operatore",
+  salesperson: "Venditore",
+  call_center: "Call Center",
+};
+
+// --- Permission Group Component ---
 function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: {
   label: string; icon: React.ElementType; iconColor: string;
   sections: PermissionSectionDef[]; permissions: StaffPermissions;
@@ -106,7 +125,6 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
   const [step, setStep] = useState(0);
   const [selectedRole, setSelectedRole] = useState<PlatformRole | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
@@ -114,19 +132,25 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
   const [selectedCompanies, setSelectedCompanies] = useState<CompanyAccess[]>([]);
   const [companySearch, setCompanySearch] = useState("");
 
-  // Step 3: Granular permissions for staff companies
+  // Step 3: Granular permissions for non-admin companies
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
+
+  // Success state
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const isSuccessStep = step === 99;
 
   const resetForm = () => {
     setStep(0);
     setSelectedRole(null);
     setEmail("");
-    setPassword("");
     setFirstName("");
     setLastName("");
     setSelectedCompanies([]);
     setCompanySearch("");
     setPermissions({ ...DEFAULT_PERMISSIONS });
+    setTemporaryPassword(null);
+    setCopied(false);
   };
 
   // Fetch companies for step 2
@@ -149,15 +173,21 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
     enabled: open && step === 2,
   });
 
-  const hasStaffCompanies = selectedCompanies.some(c => c.role === "company_staff");
+  const hasNonAdminCompanies = selectedCompanies.some(c => ROLES_WITH_PERMISSIONS.includes(c.role));
 
-  // Determine total steps: skip permissions step if no staff companies
-  const totalSteps = hasStaffCompanies ? 5 : 4;
+  // Determine first non-admin role for preset
+  const firstNonAdminRole = useMemo(() => {
+    const found = selectedCompanies.find(c => ROLES_WITH_PERMISSIONS.includes(c.role));
+    return found?.role as StaffRoleType | undefined;
+  }, [selectedCompanies]);
+
+  // Determine total steps: skip permissions step if no non-admin companies
+  const totalSteps = hasNonAdminCompanies ? 5 : 4;
   const getStepLabel = (s: number) => {
-    const labels = ["Ruolo", "Dati Personali", "Aziende", ...(hasStaffCompanies ? ["Permessi"] : []), "Conferma"];
+    const labels = ["Ruolo Piattaforma", "Dati Personali", "Aziende", ...(hasNonAdminCompanies ? ["Permessi"] : []), "Conferma"];
     return labels[s] || "";
   };
-  const confirmStep = hasStaffCompanies ? 4 : 3;
+  const confirmStep = hasNonAdminCompanies ? 4 : 3;
 
   const toggleCompany = (companyId: string, companyName: string) => {
     setSelectedCompanies(prev => {
@@ -195,6 +225,16 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
     setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
   };
 
+  const handleResetPreset = () => {
+    if (firstNonAdminRole) {
+      setPermissions(prev => ({
+        ...DEFAULT_PERMISSIONS,
+        only_assigned: prev.only_assigned,
+        ...ROLE_PRESETS[firstNonAdminRole],
+      }));
+    }
+  };
+
   const totalActive = useMemo(() => {
     const excluded = new Set(["only_assigned", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
@@ -203,12 +243,11 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const finalPerms = hasStaffCompanies ? syncLegacyMarketingFlags(permissions) : undefined;
+      const finalPerms = hasNonAdminCompanies ? syncLegacyMarketingFlags(permissions) : undefined;
       const res = await supabase.functions.invoke("manage-platform-users", {
         body: {
           action: "create",
           email,
-          password,
           firstName,
           lastName,
           platformRole: selectedRole,
@@ -222,59 +261,92 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
         throw new Error(body?.error || res.error.message);
       }
       if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
-      onOpenChange(false);
-      resetForm();
-      toast.success("Membro del team creato con successo");
+      if (data?.temporaryPassword) {
+        setTemporaryPassword(data.temporaryPassword);
+        setStep(99); // success step
+      } else {
+        onOpenChange(false);
+        resetForm();
+        toast.success("Membro del team creato con successo");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const canProceedStep0 = !!selectedRole;
-  const canProceedStep1 = email.trim() !== "" && password.length >= 8 && firstName.trim() !== "" && lastName.trim() !== "";
-  // Step 2: companies are optional (platform user might not need company access)
-  const canProceedStep2 = true;
+  const canProceedStep1 = email.trim() !== "" && firstName.trim() !== "" && lastName.trim() !== "";
 
   const handleNext = () => {
-    if (step === 2 && !hasStaffCompanies) {
-      // Skip permissions step, go directly to confirm
+    if (step === 1) {
+      if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast.error("Inserisci un indirizzo email valido");
+        return;
+      }
+    }
+    if (step === 2 && !hasNonAdminCompanies) {
       setStep(confirmStep);
+    } else if (step === 2 && hasNonAdminCompanies) {
+      // Apply preset for first non-admin role when entering permissions step
+      if (firstNonAdminRole) {
+        setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, ...ROLE_PRESETS[firstNonAdminRole] }));
+      }
+      setStep(3);
     } else {
       setStep(step + 1);
     }
   };
 
   const handleBack = () => {
-    if (step === confirmStep && !hasStaffCompanies) {
-      // Go back to companies step (skip permissions)
+    if (step === confirmStep && !hasNonAdminCompanies) {
       setStep(2);
     } else {
       setStep(step - 1);
     }
   };
 
-  const staffCompanyNames = selectedCompanies.filter(c => c.role === "company_staff").map(c => c.companyName);
-  const adminCompanyNames = selectedCompanies.filter(c => c.role === "company_admin").map(c => c.companyName);
+  const handleClose = () => {
+    resetForm();
+    onOpenChange(false);
+  };
+
+  const copyPassword = async () => {
+    if (temporaryPassword) {
+      await navigator.clipboard.writeText(temporaryPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const nonAdminCompanyNames = selectedCompanies.filter(c => ROLES_WITH_PERMISSIONS.includes(c.role)).map(c => c.companyName);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); else onOpenChange(o); }}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] !flex !flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Nuovo Membro del Team</DialogTitle>
-          <DialogDescription>{getStepLabel(step)}</DialogDescription>
+          <DialogTitle>
+            {isSuccessStep ? "Membro Creato" : "Nuovo Membro del Team"}
+          </DialogTitle>
+          {!isSuccessStep && (
+            <DialogDescription>{getStepLabel(step)}</DialogDescription>
+          )}
         </DialogHeader>
 
         {/* Progress bar */}
-        <div className="flex gap-1.5 px-1 flex-shrink-0">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`}
-            />
-          ))}
-        </div>
+        {!isSuccessStep && (
+          <div className="flex gap-1.5 px-1 flex-shrink-0">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Scrollable body */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-2">
@@ -282,47 +354,52 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
           {step === 0 && (
             <div className="grid gap-3">
               {PLATFORM_ROLES.map((role) => (
-                <Card
+                <button
                   key={role}
-                  className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
-                    selectedRole === role && "ring-2 ring-primary"
-                  )}
+                  type="button"
                   onClick={() => setSelectedRole(role)}
+                  className={cn(
+                    "flex items-center gap-4 p-4 rounded-lg border-2 text-left transition-all",
+                    selectedRole === role
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  )}
                 >
-                  <CardContent className="flex items-center gap-4 p-4">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0", PLATFORM_ROLE_COLORS[role].split(" ")[0])} />
-                    <div className="flex-1">
-                      <div className="font-medium">{PLATFORM_ROLE_LABELS[role]}</div>
-                      <div className="text-sm text-muted-foreground">{PLATFORM_ROLE_DESCRIPTIONS[role]}</div>
-                    </div>
-                    {selectedRole === role && <Check className="h-5 w-5 text-primary" />}
-                  </CardContent>
-                </Card>
+                  <div className={cn("w-3 h-3 rounded-full shrink-0", PLATFORM_ROLE_COLORS[role].split(" ")[0])} />
+                  <div className="flex-1">
+                    <div className="font-medium">{PLATFORM_ROLE_LABELS[role]}</div>
+                    <div className="text-sm text-muted-foreground">{PLATFORM_ROLE_DESCRIPTIONS[role]}</div>
+                  </div>
+                  {selectedRole === role && <Check className="h-5 w-5 text-primary" />}
+                </button>
               ))}
             </div>
           )}
 
-          {/* STEP 1: Personal Data */}
+          {/* STEP 1: Personal Data (no password) */}
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-4 py-2">
+              {selectedRole && (
+                <Badge className={PLATFORM_ROLE_COLORS[selectedRole]}>
+                  {PLATFORM_ROLE_LABELS[selectedRole]}
+                </Badge>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome</Label>
+                  <Label>Nome *</Label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Cognome</Label>
+                  <Label>Cognome *</Label>
                   <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>Email *</Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mario@esempio.it" />
-              </div>
-              <div className="space-y-2">
-                <Label>Password (min 8 caratteri)</Label>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                <p className="text-xs text-muted-foreground">
+                  Verrà usata per il login. La password temporanea sarà generata automaticamente.
+                </p>
               </div>
             </div>
           )}
@@ -362,12 +439,18 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                             value={selectedEntry?.role || "company_staff"}
                             onValueChange={(v) => updateCompanyRole(company.id, v)}
                           >
-                            <SelectTrigger className="w-[130px] h-8">
+                            <SelectTrigger className="w-[140px] h-8">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="company_admin">Admin</SelectItem>
-                              <SelectItem value="company_staff">Staff</SelectItem>
+                              {COMPANY_ROLE_OPTIONS.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  <div className="flex items-center gap-2">
+                                    <opt.icon className="h-3.5 w-3.5" />
+                                    {opt.label}
+                                  </div>
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )}
@@ -388,13 +471,13 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
             </div>
           )}
 
-          {/* STEP 3: Granular Permissions (only if staff companies exist) */}
-          {step === 3 && hasStaffCompanies && (
+          {/* STEP 3: Granular Permissions (only if non-admin companies exist) */}
+          {step === 3 && hasNonAdminCompanies && (
             <div className="space-y-3">
               <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Questi permessi si applicano a tutte le aziende dove il ruolo è <strong>Staff</strong>:
-                  {" "}{staffCompanyNames.join(", ")}
+                  Questi permessi si applicano alle aziende con ruolo non-admin:
+                  {" "}{nonAdminCompanyNames.join(", ")}
                 </p>
               </div>
 
@@ -402,6 +485,11 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                 <div className="flex gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={handleSelectAll}>Seleziona tutto</Button>
                   <Button variant="outline" size="sm" onClick={handleDeselectAll}>Deseleziona tutto</Button>
+                  {firstNonAdminRole && (
+                    <Button variant="outline" size="sm" onClick={handleResetPreset}>
+                      Ripristina preset {COMPANY_ROLE_LABELS[firstNonAdminRole]}
+                    </Button>
+                  )}
                 </div>
                 <Badge variant="outline">{totalActive} attivi</Badge>
               </div>
@@ -433,23 +521,23 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
 
           {/* CONFIRM STEP */}
           {step === confirmStep && selectedRole && (
-            <div className="space-y-3 text-sm">
+            <div className="space-y-4 py-2">
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Ruolo</span>
-                  <span className="font-medium">{PLATFORM_ROLE_LABELS[selectedRole]}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Ruolo Piattaforma</span>
+                  <Badge className={PLATFORM_ROLE_COLORS[selectedRole]}>{PLATFORM_ROLE_LABELS[selectedRole]}</Badge>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Nome</span>
-                  <span className="font-medium">{firstName} {lastName}</span>
+                  <span className="text-sm text-muted-foreground">Nome</span>
+                  <span className="text-sm font-medium">{firstName} {lastName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Email</span>
-                  <span className="font-medium">{email}</span>
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <span className="text-sm font-medium">{email}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Aziende</span>
-                  <span className="font-medium">{selectedCompanies.length || "Nessuna"}</span>
+                  <span className="text-sm text-muted-foreground">Aziende</span>
+                  <span className="text-sm font-medium">{selectedCompanies.length || "Nessuna"}</span>
                 </div>
               </div>
 
@@ -463,39 +551,88 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                         <span className="text-sm">{c.companyName}</span>
                       </div>
                       <Badge variant={c.role === "company_admin" ? "default" : "secondary"} className="text-[10px]">
-                        {c.role === "company_admin" ? "Admin" : "Staff"}
+                        {COMPANY_ROLE_LABELS[c.role] || c.role}
                       </Badge>
                     </div>
                   ))}
                 </div>
               )}
 
-              {hasStaffCompanies && (
+              {hasNonAdminCompanies && (
                 <div className="flex justify-between items-center px-3 py-2 bg-muted/30 rounded-md">
-                  <span className="text-muted-foreground">Permessi attivi (Staff)</span>
+                  <span className="text-sm text-muted-foreground">Permessi attivi</span>
                   <Badge variant="secondary">{totalActive}</Badge>
                 </div>
               )}
+
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-700">
+                  Verrà generata una password temporanea. L'utente dovrà cambiarla al primo accesso.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* SUCCESS STEP */}
+          {isSuccessStep && (
+            <div className="space-y-4 py-4 text-center">
+              <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+              </div>
+              <p className="font-medium text-lg">Membro creato con successo!</p>
+              {temporaryPassword && (
+                <div className="bg-muted rounded-lg p-4 space-y-3 text-left">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span className="text-sm font-mono">{email}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Password</span>
+                    <div className="flex items-center gap-2">
+                      <code className="text-sm font-mono bg-background px-2 py-1 rounded border">{temporaryPassword}</code>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={copyPassword}>
+                        {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+                <p className="text-xs text-destructive font-medium">
+                  ⚠️ Questa password viene mostrata solo una volta. Comunica questa password all'utente in modo sicuro prima di chiudere.
+                </p>
+              </div>
             </div>
           )}
         </div>
 
         <DialogFooter className="gap-2 flex-shrink-0">
-          {step > 0 && (
-            <Button variant="outline" onClick={handleBack}>Indietro</Button>
-          )}
-          {step < confirmStep ? (
-            <Button
-              onClick={handleNext}
-              disabled={step === 0 ? !canProceedStep0 : step === 1 ? !canProceedStep1 : false}
-            >
-              Avanti
-            </Button>
+          {isSuccessStep ? (
+            <Button onClick={handleClose}>Chiudi</Button>
           ) : (
-            <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Crea Membro
-            </Button>
+            <>
+              {step > 0 && (
+                <Button variant="outline" onClick={handleBack}>
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Indietro
+                </Button>
+              )}
+              {step < confirmStep ? (
+                <Button
+                  onClick={handleNext}
+                  disabled={step === 0 ? !canProceedStep0 : step === 1 ? !canProceedStep1 : false}
+                >
+                  Avanti
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
+                <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Crea Membro
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>
