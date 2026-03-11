@@ -172,8 +172,8 @@ export default function WarehouseStockTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(companyId) });
       setDialogOpen(false);
       setEditingItem(null);
       toast.success("Salvato", { description: "Articolo di magazzino salvato." });
