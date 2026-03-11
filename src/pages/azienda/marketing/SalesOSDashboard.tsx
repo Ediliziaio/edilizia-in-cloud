@@ -150,7 +150,7 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
           <Tooltip
             formatter={(value: number, name: string) =>
               name === "Prob %" ? [`${value}%`, name] : [fmt(value), name]
