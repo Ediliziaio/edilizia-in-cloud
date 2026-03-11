@@ -40,7 +40,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       if (error) throw error;
     },
     onSuccess: (_, newStatus) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Stato aggiornato a "${statusLabels[newStatus] || newStatus}"`);
       setConfirmDialog(null);
     },
