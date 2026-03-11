@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { formatCurrency } from "@/lib/formatters";
 
 export default function SalespersonProfile() {
   const { user, profile } = useAuth();
