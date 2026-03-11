@@ -18,6 +18,7 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
+import type { CompanyOrderStats, CompanyUserCount, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineView";
@@ -117,7 +118,7 @@ export default function CompaniesList() {
   // Enforce allowed_company_ids for restricted super admins
   const companies = useMemo(() => {
     if (permissions.allowed_company_ids?.length) {
-      return allCompanies.filter((c: any) => permissions.allowed_company_ids!.includes(c.id));
+      return allCompanies.filter((c) => permissions.allowed_company_ids!.includes(c.id));
     }
     return allCompanies;
   }, [allCompanies, permissions.allowed_company_ids]);
@@ -128,7 +129,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_order_stats");
       if (error) throw error;
       const stats: Record<string, { count: number; totalValue: number; lastOrderDate: string | null }> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyOrderStats[]).forEach((row) => {
         stats[row.company_id] = {
           count: Number(row.order_count) || 0,
           totalValue: Number(row.total_value) || 0,
@@ -146,7 +147,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_user_counts");
       if (error) throw error;
       const counts: Record<string, number> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyUserCount[]).forEach((row) => {
         if (row.company_id) {
           counts[row.company_id] = Number(row.user_count) || 0;
         }
@@ -162,7 +163,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_health_data");
       if (error) throw error;
       const map: Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }> = {};
-      (data || []).forEach((h: any) => {
+      ((data || []) as CompanyHealthData[]).forEach((h) => {
         const input = {
           order_count: Number(h.order_count) || 0,
           user_count: Number(h.user_count) || 0,
@@ -186,7 +187,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_last_access");
       if (error) throw error;
       const map: Record<string, string | null> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyLastAccess[]).forEach((row) => {
         map[row.company_id] = row.last_access || null;
       });
       return map;
@@ -201,7 +202,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
       if (error) throw error;
       const map: Record<string, Array<{ id: string; tag: string; color: string }>> = {};
-      (data || []).forEach((row: any) => {
+      (data || []).forEach((row) => {
         if (!map[row.company_id]) map[row.company_id] = [];
         map[row.company_id].push({ id: row.id, tag: row.tag, color: row.color });
       });

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { subMonths, format, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
+import type { CompanyHealthData } from "@/types/adminRpc";
 
 export type HealthStatus = "healthy" | "at_risk" | "critical";
 
@@ -100,8 +101,8 @@ const sectorLabelsMap: Record<string, string> = {
 };
 
 function calculateHealthScore(
-  company: any,
-  healthData: any
+  company: { status: string },
+  healthData: CompanyHealthData | undefined
 ): { score: number; health: HealthStatus } {
   let score = 0;
 
@@ -164,8 +165,8 @@ export function useAdminRevenueData() {
           : c.status,
       }));
       const allPlans = plansRes.data || [];
-      const healthDataMap = new Map<string, any>();
-      (healthRes.data || []).forEach((h: any) => {
+      const healthDataMap = new Map<string, CompanyHealthData>();
+      ((healthRes.data || []) as CompanyHealthData[]).forEach((h) => {
         healthDataMap.set(h.company_id, h);
       });
 
@@ -199,7 +200,7 @@ export function useAdminRevenueData() {
         critical: healthScores.filter((h) => h.health === "critical").length,
       };
 
-      const priceOf = (c: any) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
+      const priceOf = (c: typeof companies[number]) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
 
       // ---- REVENUE BY SECTOR ----
       const sectorMap = new Map<string, { mrr: number; count: number }>();

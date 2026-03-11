@@ -13,6 +13,9 @@ import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, L
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ShieldAlert } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -55,6 +58,8 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
 
 export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminId, adminName }: Props) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isSelf = adminId === user?.id;
   const [perms, setPerms] = useState<Permissions>(defaults);
   const [allCompanies, setAllCompanies] = useState(true);
 
@@ -166,6 +171,14 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         ) : (
           <div className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
             <div className="space-y-4 pb-6">
+              {isSelf && (
+                <Alert variant="default" className="border-amber-300 bg-amber-50 dark:bg-amber-950">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-300">
+                    Non puoi modificare i tuoi stessi permessi. Chiedi a un altro Super Admin.
+                  </AlertDescription>
+                </Alert>
+              )}
               <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
               {permItems.map(({ key, icon: Icon, label, desc }) => (
                 <div key={key} className="flex items-center justify-between gap-3 rounded-lg border p-3">
@@ -179,6 +192,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                   <Switch
                     checked={perms[key]}
                     onCheckedChange={(v) => setPerms({ ...perms, [key]: v })}
+                    disabled={isSelf}
                   />
                 </div>
               ))}
@@ -194,7 +208,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                     <p className="text-xs text-muted-foreground">Accesso a tutte le aziende registrate</p>
                   </div>
                 </div>
-                <Switch checked={allCompanies} onCheckedChange={setAllCompanies} />
+                <Switch checked={allCompanies} onCheckedChange={setAllCompanies} disabled={isSelf} />
               </div>
 
               {!allCompanies && (
@@ -233,7 +247,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Annulla</Button>
-          <Button onClick={handleSave} disabled={mutation.isPending || isLoading}>
+          <Button onClick={handleSave} disabled={mutation.isPending || isLoading || isSelf}>
             {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salva permessi
           </Button>

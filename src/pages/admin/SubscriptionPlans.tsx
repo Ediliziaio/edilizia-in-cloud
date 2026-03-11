@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
@@ -183,13 +184,25 @@ export default function SubscriptionPlans() {
     setDialogOpen(true);
   };
 
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [pendingSave, setPendingSave] = useState<(PlanForm & { id?: string }) | null>(null);
+
   const handleSave = () => {
     if (!form.name || !form.slug) {
       toast({ title: "Compila nome e slug", variant: "destructive" });
       return;
     }
     const features = featuresText.split("\n").map((f) => f.trim()).filter(Boolean);
-    saveMutation.mutate({ ...form, features, id: editingId || undefined });
+    const payload = { ...form, features, id: editingId || undefined };
+
+    // If editing an existing plan with active companies, show confirmation
+    const usageCount = editingId ? (companyCounts?.[editingId] ?? 0) : 0;
+    if (editingId && usageCount > 0) {
+      setPendingSave(payload);
+      setConfirmSaveOpen(true);
+    } else {
+      saveMutation.mutate(payload);
+    }
   };
 
   const formatLimit = (value: number) => (value === -1 ? "Illimitati" : value.toString());
@@ -483,6 +496,26 @@ export default function SubscriptionPlans() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm save for plan with active companies */}
+      <AlertDialog open={confirmSaveOpen} onOpenChange={setConfirmSaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma modifica piano</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questo piano è attualmente usato da{" "}
+              <strong>{editingId ? (companyCounts?.[editingId] ?? 0) : 0} aziende</strong>.
+              Le modifiche ai limiti e ai prezzi avranno effetto immediato su tutte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingSave(null)}>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (pendingSave) saveMutation.mutate(pendingSave); setPendingSave(null); setConfirmSaveOpen(false); }}>
+              Conferma modifica
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

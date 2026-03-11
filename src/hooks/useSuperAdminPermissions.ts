@@ -54,7 +54,8 @@ export function useSuperAdminPermissions() {
       return data;
     },
     enabled: isSuperAdmin && !!user?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
 
   // Check if this is the only super_admin (bootstrap: first admin gets full access)
@@ -69,7 +70,7 @@ export function useSuperAdminPermissions() {
       return count ?? 0;
     },
     enabled: isSuperAdmin && !!user?.id,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
 
   // If record exists → use it. If no record AND only 1 super_admin → full access (bootstrap).

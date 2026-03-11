@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { addDays, subMonths, format } from "date-fns";
 import { it } from "date-fns/locale";
+import type { TotalOrdersValue } from "@/types/adminRpc";
 
 interface RecentActivity {
   id: string;
@@ -77,7 +78,7 @@ export function useAdminDashboardData() {
         supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)").limit(10000),
       ]);
 
-      const aggRow = (ordersAggRes.data as any)?.[0];
+      const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
       const totalOrders = Number(aggRow?.total_count) || 0;
       const totalValue = Number(aggRow?.total_value) || 0;
 
@@ -137,23 +138,25 @@ export function useAdminDashboardData() {
 
       const activities: RecentActivity[] = [];
 
-      recentOrdersRes.data?.forEach((order: any) => {
+      recentOrdersRes.data?.forEach((order) => {
+        const o = order as { id: string; description: string | null; created_at: string; company: { name: string } | null };
         activities.push({
-          id: order.id,
+          id: o.id,
           type: "order",
-          title: order.description?.substring(0, 50) || "Nuovo ordine",
-          subtitle: order.company?.name || "Azienda",
-          created_at: order.created_at,
+          title: o.description?.substring(0, 50) || "Nuovo ordine",
+          subtitle: o.company?.name || "Azienda",
+          created_at: o.created_at,
         });
       });
 
-      recentTicketsRes.data?.forEach((ticket: any) => {
+      recentTicketsRes.data?.forEach((ticket) => {
+        const t = ticket as { id: string; subject: string; created_at: string; company: { name: string } | null };
         activities.push({
-          id: ticket.id,
+          id: t.id,
           type: "ticket",
-          title: ticket.subject,
-          subtitle: ticket.company?.name || "Azienda",
-          created_at: ticket.created_at,
+          title: t.subject,
+          subtitle: t.company?.name || "Azienda",
+          created_at: t.created_at,
         });
       });
 
