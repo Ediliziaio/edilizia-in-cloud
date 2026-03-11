@@ -23,7 +23,15 @@ import {
   AreaChart, Area,
 } from "recharts";
 
-function WarehouseAlerts({ urgentItems }: { urgentItems: any[] }) {
+interface UrgentWarehouseItem {
+  id: string;
+  name: string;
+  orderCode?: string;
+  customerName?: string;
+  daysLeft: number;
+}
+
+function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }) {
   const [open, setOpen] = useState(urgentItems.length > 0);
 
   return (
@@ -64,7 +72,7 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: any[] }) {
               </div>
             ) : (
               <div className="space-y-3">
-                {urgentItems.map((item: any) => (
+                {urgentItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
                     <div className="space-y-1">
                       <p className="font-medium text-sm">{item.name}</p>
