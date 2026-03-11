@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 // ── Types ──
 
@@ -340,8 +341,8 @@ export function useUpdateOrderItemStatusMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
     },
   });
 }
@@ -371,7 +372,7 @@ export function useAddLotBatchMutation() {
       queryClient.invalidateQueries({
         queryKey: magazzinoKeys.lotBatches(variables.company_id, variables.stock_item_id),
       });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       toast.success("Lotto aggiunto");
     },
     onError: () => toast.error("Errore nell'aggiunta del lotto"),
@@ -463,7 +464,7 @@ export function useApplyAuditAdjustmentMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       toast.success("Rettifica applicata");
     },
     onError: () => toast.error("Errore nella rettifica"),

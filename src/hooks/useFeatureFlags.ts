@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface FeatureFlag {
   key: string;
@@ -38,7 +39,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
 
   // Fetch all feature flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
-    queryKey: ["platform-feature-flags"],
+    queryKey: queryKeys.featureFlags.platform,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
@@ -52,7 +53,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
 
   // Fetch company overrides
   const { data: overrides = [], isLoading: overridesLoading } = useQuery({
-    queryKey: ["company-feature-overrides", companyId],
+    queryKey: queryKeys.featureFlags.companyOverrides(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")

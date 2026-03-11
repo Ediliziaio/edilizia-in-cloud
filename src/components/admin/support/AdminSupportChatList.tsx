@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,12 +102,12 @@ export function AdminSupportChatList() {
       toast.error(error.message);
     } else {
       toast.success("Aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
     }
   };
 
   const { data: messages = [], isLoading: loadingMessages, isError: isErrorMessages, refetch: refetchMessages } = useQuery({
-    queryKey: ["admin-support-messages"],
+    queryKey: queryKeys.admin.supportMessages,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_messages")
@@ -120,7 +121,7 @@ export function AdminSupportChatList() {
   });
 
   const { data: companies = [], isError: isErrorCompanies } = useQuery({
-    queryKey: ["admin-companies-for-support"],
+    queryKey: queryKeys.admin.companiesForSupport,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -133,7 +134,7 @@ export function AdminSupportChatList() {
   });
 
   const { data: conversationsData = [], isError: isErrorConversations } = useQuery({
-    queryKey: ["admin-support-conversations"],
+    queryKey: queryKeys.admin.supportConversations,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_conversations")
@@ -369,8 +370,8 @@ export function AdminSupportChatList() {
           onOpenChange={(open) => {
             if (!open) {
               setSelectedCompany(null);
-              queryClient.invalidateQueries({ queryKey: ["admin-support-messages"] });
-              queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportMessages });
+              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
             }
           }}
           companyId={selectedCompany.id}

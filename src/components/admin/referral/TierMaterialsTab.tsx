@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ export function TierMaterialsTab() {
   const [form, setForm] = useState({ name: "", description: "", type: "banner", file_url: "", thumbnail_url: "", min_tier: "bronze", sort_order: 0 });
 
   const { data: tiers = [] } = useQuery({
-    queryKey: ["admin-referral-tiers"],
+    queryKey: queryKeys.admin.referralTiers,
     queryFn: async () => {
       const { data } = await supabase.from("referral_tiers").select("*").order("position");
       return data || [];
@@ -27,7 +28,7 @@ export function TierMaterialsTab() {
   });
 
   const { data: materials = [], isLoading } = useQuery({
-    queryKey: ["admin-partner-materials"],
+    queryKey: queryKeys.admin.partnerMaterials,
     queryFn: async () => {
       const { data } = await supabase.from("partner_materials").select("*").order("sort_order");
       return data || [];
@@ -45,7 +46,7 @@ export function TierMaterialsTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-partner-materials"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.partnerMaterials });
       setMaterialDialog(false);
       setEditingMaterial(null);
       toast.success(editingMaterial ? "Materiale aggiornato" : "Materiale creato");
@@ -59,7 +60,7 @@ export function TierMaterialsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-partner-materials"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.partnerMaterials });
       toast.success("Materiale eliminato");
     },
   });

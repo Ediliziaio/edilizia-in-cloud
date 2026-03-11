@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -58,7 +59,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
   const [allCompanies, setAllCompanies] = useState(true);
 
   const { data: currentPerms, isLoading: loadingPerms } = useQuery({
-    queryKey: ["super-admin-permissions", adminId],
+    queryKey: queryKeys.admin.superAdminPermissions(adminId),
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
@@ -72,7 +73,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
   });
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
-    queryKey: ["all-companies-list"],
+    queryKey: queryKeys.admin.allCompaniesList,
     queryFn: async () => {
       const { data, error } = await supabase.from("companies").select("id, name").order("name");
       if (error) throw error;
@@ -115,8 +116,8 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["super-admins"] });
-      queryClient.invalidateQueries({ queryKey: ["super-admin-permissions", adminId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdminPermissions(adminId) });
       onOpenChange(false);
       toast.success("Permessi aggiornati");
     },

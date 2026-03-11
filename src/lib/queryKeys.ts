@@ -427,12 +427,14 @@ export const queryKeys = {
     revenueIntelligence: () => ["admin", "revenue-intelligence"] as const,
     companyDetail: (id: string | undefined) => ["admin", "company-detail", id] as const,
     companyTeam: (id: string | undefined) => ["admin", "company-team", id] as const,
+    companyNotes: (id: string | undefined) => ["admin", "company-notes", id] as const,
     companiesFull: ["admin-companies-full"] as const,
     companiesOrderStats: ["admin-companies-order-stats"] as const,
     companiesUserCounts: ["admin-companies-user-counts"] as const,
     companiesHealth: ["admin-companies-health"] as const,
     companiesLastAccess: ["admin-companies-last-access"] as const,
     companiesLatestNotes: ["admin-companies-latest-notes"] as const,
+    companiesForSupport: ["admin-companies-for-support"] as const,
     companyTags: ["company-tags"] as const,
     announcements: ["admin-announcements"] as const,
     planUsage: ["admin-plan-usage"] as const,
@@ -441,6 +443,29 @@ export const queryKeys = {
     aiCreditsAdmin: (companyId: string) => ["admin-ai-credits", companyId] as const,
     waCredits: (companyId: string) => ["admin-wa-credits", companyId] as const,
     creditAdjustments: (companyId: string) => ["admin-credit-adjustments", companyId] as const,
+    supportMessages: ["admin-support-messages"] as const,
+    supportConversations: ["admin-support-conversations"] as const,
+    featureFlags: ["admin-feature-flags"] as const,
+    featureOverrides: ["admin-all-overrides"] as const,
+    ffCompanies: ["admin-ff-companies"] as const,
+    gdprRequests: ["admin-gdpr-requests"] as const,
+    gdprAuditLog: ["gdpr-audit-log"] as const,
+    ipAllowlist: ["admin-ip-allowlist"] as const,
+    onboardingTemplates: ["onboarding-templates"] as const,
+    onboardingSteps: (templateId: string | null) => ["onboarding-steps", templateId] as const,
+    referralTiers: ["admin-referral-tiers"] as const,
+    partnerMaterials: ["admin-partner-materials"] as const,
+    referrers: ["referrers"] as const,
+    referralPayouts: ["referral_payouts"] as const,
+    referrersActive: ["referrers-active"] as const,
+    platformStats: ["platform-stats"] as const,
+    platformSettings: ["platform-settings"] as const,
+    platformSettingsEmail: (stream?: string) =>
+      stream ? ["platform-settings-email", stream] as const : ["platform-settings-email"] as const,
+    superAdmins: ["super-admins"] as const,
+    superAdminPermissions: (userId: string | undefined) => ["super-admin-permissions", userId] as const,
+    superAdminCount: ["super-admin-count"] as const,
+    allCompaniesList: ["all-companies-list"] as const,
   },
 
   // ── AI Subscription ────────────────────────────────────
@@ -481,12 +506,14 @@ export const queryKeys = {
   // ── Brand Settings ─────────────────────────────────────
   branding: {
     all: ["branding"] as const,
-    settings: (companyId: string | undefined) => ["branding", "settings", companyId] as const,
+    settings: (companyId: string | undefined) => ["brand-settings", companyId] as const,
   },
 
   // ── Feature Flags ──────────────────────────────────────
   featureFlags: {
     all: ["feature-flags"] as const,
+    platform: ["platform-feature-flags"] as const,
+    companyOverrides: (companyId: string | undefined) => ["company-feature-overrides", companyId] as const,
     list: (companyId: string | undefined) => ["feature-flags", "list", companyId] as const,
   },
 
@@ -494,6 +521,52 @@ export const queryKeys = {
   calendars: {
     all: ["calendars"] as const,
     list: (companyId: string | undefined) => ["calendars", "list", companyId] as const,
+  },
+
+  // ── Subscription Limits ────────────────────────────────
+  subscriptionLimits: {
+    plan: (planId: string | undefined) => ["subscription-plan", planId] as const,
+    orderCount: (companyId: string | undefined) => ["order-count", companyId] as const,
+    userCount: (companyId: string | undefined) => ["user-count", companyId] as const,
+  },
+
+  // ── Purchase Orders ────────────────────────────────────
+  purchaseOrders: {
+    all: ["purchase-orders"] as const,
+    list: (companyId: string | undefined) => ["purchase-orders", companyId] as const,
+    detail: (poId: string | null) => ["purchase-order-detail", poId] as const,
+    items: (poId: string | null) => ["purchase-order-items", poId] as const,
+  },
+
+  // ── Google Calendar ────────────────────────────────────
+  googleCalendar: {
+    connection: (companyId: string | undefined, userId: string | undefined) =>
+      ["gcal-connection", companyId, userId] as const,
+    settings: (companyId: string | undefined, userId: string | undefined) =>
+      ["gcal-settings", companyId, userId] as const,
+  },
+
+  // ── Customer Portal Unread ─────────────────────────────
+  customerUnread: {
+    messages: (userId: string | undefined) => ["customer-messages-unread", userId] as const,
+  },
+
+  // ── GDPR (Company-side) ────────────────────────────────
+  gdpr: {
+    consents: ["gdpr-consents"] as const,
+    requests: ["gdpr-requests"] as const,
+  },
+
+  // ── Lifecycle Notifications ────────────────────────────
+  lifecycleNotifications: {
+    all: ["lifecycle-notifications"] as const,
+    byCompany: (companyId: string | undefined) => ["lifecycle-notifications", companyId] as const,
+  },
+
+  // ── Customer Tickets (portal) ──────────────────────────
+  customerTickets: {
+    detail: (id: string | undefined) => ["ticket", id] as const,
+    messages: (id: string | undefined) => ["ticket-messages", id] as const,
   },
 
   // ── Appointments ───────────────────────────────────────

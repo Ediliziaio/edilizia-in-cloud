@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +21,7 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
   const [newNote, setNewNote] = useState("");
 
   const { data: notes = [], isLoading } = useQuery({
-    queryKey: ["company-notes", companyId],
+    queryKey: queryKeys.admin.companyNotes(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_notes")
@@ -61,7 +62,7 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-notes", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyNotes(companyId) });
       setNewNote("");
       toast.success("Nota aggiunta");
     },

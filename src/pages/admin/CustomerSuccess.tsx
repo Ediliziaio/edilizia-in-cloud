@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export default function AdminOnboardingConfig() {
   const [newStepAutoKey, setNewStepAutoKey] = useState("");
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["onboarding-templates"],
+    queryKey: queryKeys.admin.onboardingTemplates,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("onboarding_templates" as never)
@@ -56,7 +57,7 @@ export default function AdminOnboardingConfig() {
   });
 
   const { data: steps = [] } = useQuery({
-    queryKey: ["onboarding-steps", selectedTemplate],
+    queryKey: queryKeys.admin.onboardingSteps(selectedTemplate),
     enabled: !!selectedTemplate,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -82,7 +83,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       setNewName("");
       setNewDesc("");
       setShowNewTemplate(false);
@@ -99,7 +100,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       if (selectedTemplate) setSelectedTemplate(null);
       toast.success("Template eliminato");
     },
@@ -120,7 +121,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       toast.success("Template predefinito aggiornato");
     },
   });
@@ -139,7 +140,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-steps", selectedTemplate] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingSteps(selectedTemplate) });
       setNewStepTitle("");
       setNewStepDesc("");
       setNewStepAutoKey("");
@@ -156,7 +157,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-steps", selectedTemplate] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingSteps(selectedTemplate) });
       toast.success("Step eliminato");
     },
   });

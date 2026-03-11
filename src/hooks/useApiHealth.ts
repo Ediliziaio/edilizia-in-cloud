@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type ApiServices = {
   whatsapp: boolean;
@@ -23,7 +24,7 @@ const defaultServices: ApiServices = {
 
 export function useApiHealth() {
   const { data: services = defaultServices, isLoading } = useQuery({
-    queryKey: ["api-health"],
+    queryKey: queryKeys.apiHealth.all,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("check-api-health");
       if (error) {

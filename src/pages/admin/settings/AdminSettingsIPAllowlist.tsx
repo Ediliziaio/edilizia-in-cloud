@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ export default function AdminSettingsIPAllowlist() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: allowlist = [], isLoading } = useQuery({
-    queryKey: ["admin-ip-allowlist"],
+    queryKey: queryKeys.admin.ipAllowlist,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_ip_allowlist")
@@ -48,7 +49,7 @@ export default function AdminSettingsIPAllowlist() {
       toast.success("IP aggiunto alla whitelist");
       setNewIp("");
       setNewLabel("");
-      queryClient.invalidateQueries({ queryKey: ["admin-ip-allowlist"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.ipAllowlist });
     },
     onError: (e: any) => {
       if (e.message?.includes("duplicate")) {
@@ -70,7 +71,7 @@ export default function AdminSettingsIPAllowlist() {
     onSuccess: () => {
       toast.success("IP rimosso dalla whitelist");
       setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-ip-allowlist"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.ipAllowlist });
     },
     onError: () => toast.error("Errore nella rimozione"),
   });

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface AttributionRow {
   dimension: string;
@@ -19,7 +20,7 @@ export function useAttributionReport(
   filterSource?: string | null
 ) {
   return useQuery<AttributionRow[]>({
-    queryKey: ["attribution-report", companyId, dateFrom.toISOString(), dateTo.toISOString(), groupBy, filterSource],
+    queryKey: queryKeys.attribution.report(companyId, dateFrom.toISOString(), dateTo.toISOString(), groupBy, filterSource),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase.rpc("get_attribution_report", {

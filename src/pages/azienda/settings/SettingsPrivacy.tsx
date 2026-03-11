@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export default function SettingsPrivacy() {
 
   // Consents
   const { data: consents = [] } = useQuery({
-    queryKey: ["gdpr-consents"],
+    queryKey: queryKeys.gdpr.consents,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_consents" },
@@ -51,7 +52,7 @@ export default function SettingsPrivacy() {
 
   // Requests
   const { data: requests = [] } = useQuery({
-    queryKey: ["gdpr-requests"],
+    queryKey: queryKeys.gdpr.requests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_requests" },
@@ -69,7 +70,7 @@ export default function SettingsPrivacy() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-consents"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.consents });
       toast.success("Consenso aggiornato");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -84,7 +85,7 @@ export default function SettingsPrivacy() {
       return data;
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.requests });
       if (data?.download_url) {
         window.open(data.download_url, "_blank");
         toast.success("Export completato — download avviato");
@@ -103,7 +104,7 @@ export default function SettingsPrivacy() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.requests });
       setDeletionReason("");
       toast.success("Richiesta di cancellazione inviata. Un amministratore la esaminerà.");
     },

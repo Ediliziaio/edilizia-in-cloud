@@ -12,6 +12,7 @@ import { Eye, EyeOff, Send, CheckCircle2, XCircle, Loader2, Info, Circle, Copy }
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Props {
   stream: "marketing" | "transactional";
@@ -65,7 +66,7 @@ export function EmailProviderConfig({ stream }: Props) {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const { data: settings } = useQuery({
-    queryKey: ["platform-settings-email", stream],
+    queryKey: queryKeys.admin.platformSettingsEmail(stream),
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
@@ -149,7 +150,7 @@ export function EmailProviderConfig({ stream }: Props) {
           );
         if (error) throw error;
       }
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
       toast.success(`Provider ${STREAM_LABELS[stream].title} salvato`);
     } catch {
       toast.error("Errore nel salvataggio");
@@ -190,7 +191,7 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: lastTestStatusKey, value: "ok", updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Errore sconosciuto";
       setTestResult({ ok: false, message });
@@ -201,7 +202,7 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: lastTestStatusKey, value: "fail", updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } finally {
       setIsTesting(false);
     }

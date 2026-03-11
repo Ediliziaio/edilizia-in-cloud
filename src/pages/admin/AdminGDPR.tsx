@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ export default function AdminGDPR() {
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["admin-gdpr-requests"],
+    queryKey: queryKeys.admin.gdprRequests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "admin_get_requests" },
@@ -27,7 +28,7 @@ export default function AdminGDPR() {
   });
 
   const { data: auditLog = [] } = useQuery({
-    queryKey: ["gdpr-audit-log"],
+    queryKey: queryKeys.admin.gdprAuditLog,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_audit_log" },
@@ -45,8 +46,8 @@ export default function AdminGDPR() {
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-gdpr-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["gdpr-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.gdprRequests });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.gdprAuditLog });
       toast.success(vars.approve ? "Richiesta approvata — account cancellato" : "Richiesta rifiutata");
     },
     onError: (e: Error) => toast.error(e.message),

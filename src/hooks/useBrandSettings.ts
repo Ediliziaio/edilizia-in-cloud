@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface BrandSettings {
   white_label_enabled: boolean;
@@ -41,7 +42,7 @@ export function useBrandSettings(companyId?: string) {
   const queryClient = useQueryClient();
 
   const { data: brand, isLoading } = useQuery({
-    queryKey: ["brand-settings", id],
+    queryKey: queryKeys.branding.settings(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -66,8 +67,8 @@ export function useBrandSettings(companyId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["brand-settings", id] });
-      queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branding.settings(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyDetail(id) });
     },
   });
 

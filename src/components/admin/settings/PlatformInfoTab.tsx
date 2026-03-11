@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -263,7 +264,7 @@ export default function PlatformInfoTab() {
   const queryClient = useQueryClient();
 
   const { data: stats, isLoading } = useQuery({
-    queryKey: ["platform-stats"],
+    queryKey: queryKeys.admin.platformStats,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
@@ -277,7 +278,7 @@ export default function PlatformInfoTab() {
   });
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["platform-settings"],
+    queryKey: queryKeys.admin.platformSettings,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
@@ -302,7 +303,7 @@ export default function PlatformInfoTab() {
     },
     onSuccess: () => {
       toast.success("Configurazione salvata");
-      queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettings });
     },
     onError: (err: Error) => toast.error(err.message),
   });

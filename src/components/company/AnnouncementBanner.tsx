@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { AlertTriangle, Info, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
@@ -18,7 +19,7 @@ export function AnnouncementBanner() {
   const companyStatus = effectiveCompany?.status || "trial";
 
   const { data: announcements = [] } = useQuery({
-    queryKey: ["active-announcements"],
+    queryKey: queryKeys.admin.announcements,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_announcements")

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ export default function FeatureFlags() {
 
   // Fetch flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
-    queryKey: ["admin-feature-flags"],
+    queryKey: queryKeys.admin.featureFlags,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
@@ -46,7 +47,7 @@ export default function FeatureFlags() {
 
   // Fetch companies
   const { data: companies = [], isLoading: companiesLoading } = useQuery({
-    queryKey: ["admin-ff-companies"],
+    queryKey: queryKeys.admin.ffCompanies,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -59,7 +60,7 @@ export default function FeatureFlags() {
 
   // Fetch all overrides
   const { data: allOverrides = [] } = useQuery({
-    queryKey: ["admin-all-overrides"],
+    queryKey: queryKeys.admin.featureOverrides,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")
@@ -79,8 +80,8 @@ export default function FeatureFlags() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] });
-      queryClient.invalidateQueries({ queryKey: ["platform-feature-flags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureFlags });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.platform });
       toast.success("Default aggiornato");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
@@ -98,8 +99,8 @@ export default function FeatureFlags() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
-      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
       toast.success("Override aggiornato");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
@@ -131,8 +132,8 @@ export default function FeatureFlags() {
       }
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
-      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
       toast.success(vars.enabled ? "Attivato per tutte le aziende" : "Override rimossi per tutte le aziende");
     },
     onError: () => toast.error("Errore nell'operazione bulk"),

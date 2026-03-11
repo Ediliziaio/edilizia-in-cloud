@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface PurchaseOrder {
   id: string;
@@ -61,7 +62,7 @@ export function usePurchaseOrders() {
   const companyId = effectiveCompany?.id;
 
   const listQuery = useQuery({
-    queryKey: ["purchase-orders", companyId],
+    queryKey: queryKeys.purchaseOrders.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -93,7 +94,7 @@ export function usePurchaseOrders() {
     },
     onSuccess: () => {
       toast.success("Ordine d'acquisto creato");
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -107,8 +108,8 @@ export function usePurchaseOrders() {
     },
     onSuccess: () => {
       toast.success("Stato aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -119,8 +120,8 @@ export function usePurchaseOrders() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -140,7 +141,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
   const companyId = effectiveCompany?.id;
 
   const detailQuery = useQuery({
-    queryKey: ["purchase-order-detail", poId],
+    queryKey: queryKeys.purchaseOrders.detail(poId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -154,7 +155,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
   });
 
   const itemsQuery = useQuery({
-    queryKey: ["purchase-order-items", poId],
+    queryKey: queryKeys.purchaseOrders.items(poId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_order_items")
@@ -185,8 +186,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-items", poId] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail", poId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -197,8 +198,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-items", poId] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail", poId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -209,8 +210,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-items", poId] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail", poId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

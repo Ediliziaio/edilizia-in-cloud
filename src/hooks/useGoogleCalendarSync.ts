@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useGoogleCalendarSync() {
   const { user, effectiveCompany } = useAuth();
@@ -9,7 +10,7 @@ export function useGoogleCalendarSync() {
   const userId = user?.id;
 
   const { data: connection } = useQuery({
-    queryKey: ["gcal-connection", companyId, userId],
+    queryKey: queryKeys.googleCalendar.connection(companyId, userId),
     queryFn: async () => {
       if (!companyId || !userId) return null;
       const { data } = await supabase
@@ -26,7 +27,7 @@ export function useGoogleCalendarSync() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ["gcal-settings", companyId, userId],
+    queryKey: queryKeys.googleCalendar.settings(companyId, userId),
     queryFn: async () => {
       if (!companyId || !userId) return null;
       const { data } = await supabase

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
+import { queryKeys } from "@/lib/queryKeys";
 
 const ALL_MODULES = ["orders", "warehouse", "calendar", "customers", "employees", "tickets", "forecast"] as const;
 export type ModuleKey = (typeof ALL_MODULES)[number];
@@ -16,7 +17,7 @@ export function useSubscriptionLimits() {
 
   // Fetch plan
   const { data: currentPlan, isLoading: planLoading } = useQuery({
-    queryKey: ["subscription-plan", planId],
+    queryKey: queryKeys.subscriptionLimits.plan(planId),
     queryFn: async () => {
       if (!planId) return null;
       const { data, error } = await supabase
@@ -33,7 +34,7 @@ export function useSubscriptionLimits() {
 
   // Count orders
   const { data: orderCount = 0, isLoading: ordersLoading } = useQuery({
-    queryKey: ["order-count", companyId],
+    queryKey: queryKeys.subscriptionLimits.orderCount(companyId),
     queryFn: async () => {
       const { count, error } = await supabase
         .from("orders")
@@ -48,7 +49,7 @@ export function useSubscriptionLimits() {
 
   // Count users
   const { data: userCount = 0, isLoading: usersLoading } = useQuery({
-    queryKey: ["user-count", companyId],
+    queryKey: queryKeys.subscriptionLimits.userCount(companyId),
     queryFn: async () => {
       const { count, error } = await supabase
         .from("profiles")

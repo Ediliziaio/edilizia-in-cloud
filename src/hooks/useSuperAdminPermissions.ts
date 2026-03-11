@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface SuperAdminPermissions {
   can_manage_companies: boolean;
@@ -41,7 +42,7 @@ export function useSuperAdminPermissions() {
   const isSuperAdmin = role === "super_admin";
 
   const { data, isLoading } = useQuery({
-    queryKey: ["super-admin-permissions", user?.id],
+    queryKey: queryKeys.admin.superAdminPermissions(user?.id),
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
@@ -58,7 +59,7 @@ export function useSuperAdminPermissions() {
 
   // Check if this is the only super_admin (bootstrap: first admin gets full access)
   const { data: adminCount } = useQuery({
-    queryKey: ["super-admin-count"],
+    queryKey: queryKeys.admin.superAdminCount,
     queryFn: async () => {
       const { count, error } = await supabase
         .from("user_roles")
