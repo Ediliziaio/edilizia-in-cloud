@@ -263,7 +263,7 @@ export function useWarehouseData() {
 
   // Unique orders for filter dropdown (lightweight query)
   const { data: uniqueOrders = [] } = useQuery({
-    queryKey: ["warehouse-unique-orders", companyId],
+    queryKey: queryKeys.warehouse.uniqueOrders(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
