@@ -432,7 +432,11 @@ export function PuntoDiPareggio() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CalendarioAnno breakEvenMonth={breakEvenMonthOfYear} />
+              <CalendarioAnno
+                breakEvenMonth={breakEvenMonthOfYear}
+                monthlyContribution={currentMonthlyRevenue * (avgMarginPercent / 100)}
+                fixedCostsAnnual={totalFixedCostsMonthly * 12}
+              />
             </CardContent>
           </Card>
 
