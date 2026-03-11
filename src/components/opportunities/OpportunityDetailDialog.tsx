@@ -673,6 +673,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             <span>0%</span>
                             <span className="font-medium">Pesato: {((parseFloat(value) || 0) * probability / 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })} €</span>
                             <span>100%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
+                          <Input
+                            type="date"
+                            value={expectedCloseDate}
+                            onChange={(e) => setExpectedCloseDate(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
                       </div>
 
                       {/* Next Action */}
@@ -693,16 +704,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           onChange={(e) => setNextActionDate(e.target.value)}
                           className="h-8 text-sm"
                         />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
-                          <Input
-                            type="date"
-                            value={expectedCloseDate}
-                            onChange={(e) => setExpectedCloseDate(e.target.value)}
-                            className="h-8 text-sm"
-                          />
-                        </div>
                       </div>
 
                       {/* Loss reason (shown only when status is lost) */}
