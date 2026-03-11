@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Loader2 } from "lucide-react";
+import { logger } from "@/utils/logger";
 
 const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   const { user, role, isLoading } = useAuth();
