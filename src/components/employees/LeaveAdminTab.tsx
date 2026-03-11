@@ -50,7 +50,7 @@ export function LeaveAdminTab() {
 
   // Pending requests
   const { data: pendingRequests = [], isLoading: loadingPending } = useQuery({
-    queryKey: ["leave-requests-pending", companyId],
+    queryKey: queryKeys.leaveAdmin.pending(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_requests")
