@@ -34,7 +34,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
   const [showAll, setShowAll] = useState(false);
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ["user-sessions", userId],
+    queryKey: queryKeys.userSessions.byUser(userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_sessions")
