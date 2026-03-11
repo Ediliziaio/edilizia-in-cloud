@@ -300,7 +300,7 @@ function ListDetailView({
   const queryClient = useQueryClient();
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ["list-members", listId],
+    queryKey: queryKeys.listMembers.byList(listId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
