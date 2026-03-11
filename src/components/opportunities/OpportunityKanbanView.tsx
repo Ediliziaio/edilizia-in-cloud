@@ -6,6 +6,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { OpportunityCard } from "./OpportunityCard";
+import { cn } from "@/lib/utils";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
