@@ -62,7 +62,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       if (error) throw error;
     },
     onSuccess: (_, days) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Trial esteso di ${days} giorni`);
       setConfirmExtend(null);
     },

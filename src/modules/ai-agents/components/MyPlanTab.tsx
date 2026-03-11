@@ -30,7 +30,7 @@ export default function MyPlanTab() {
   });
 
   const { data: credits, isLoading: creditsLoading } = useQuery({
-    queryKey: ["ai-credits-myplan", companyId],
+    queryKey: queryKeys.aiSubscription.creditsMyPlan(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase

@@ -122,7 +122,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction("bulk_extend_trial", { days, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Trial esteso di ${trialDays} giorni per ${count} aziende`);
       onClearSelection();
       setTrialDialog(false);

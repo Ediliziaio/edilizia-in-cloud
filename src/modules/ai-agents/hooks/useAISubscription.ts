@@ -18,7 +18,7 @@ export function useAISubscription() {
   const companyId = effectiveCompany?.id;
 
   const query = useQuery({
-    queryKey: ["ai-subscription", companyId],
+    queryKey: queryKeys.aiSubscription.byCompany(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<AISubscription | null> => {
       const { data, error } = await supabase
