@@ -101,7 +101,7 @@ export default function CampaignEditor() {
   const [imageAlt, setImageAlt] = useState("");
 
   const { data: campaign, isLoading } = useQuery({
-    queryKey: ["campaign-editor", id],
+    queryKey: queryKeys.campaignEditor.detail(id),
     enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
