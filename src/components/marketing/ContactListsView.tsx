@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,7 +54,7 @@ export function ContactListsView() {
 
   // Fetch lists
   const { data: lists = [], isLoading } = useQuery({
-    queryKey: ["marketing-contact-lists", companyId],
+    queryKey: queryKeys.contactLists.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -80,8 +81,8 @@ export function ContactListsView() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
-    queryClient.invalidateQueries({ queryKey: ["list-members"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.listMembers.all });
   };
 
   // Save list (create/edit)
@@ -299,7 +300,7 @@ function ListDetailView({
   const queryClient = useQueryClient();
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ["list-members", listId],
+    queryKey: queryKeys.listMembers.byList(listId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
@@ -447,8 +448,8 @@ function ListDetailView({
         listId={listId}
         companyId={companyId}
         onDone={() => {
-          queryClient.invalidateQueries({ queryKey: ["list-members", listId] });
-          queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.listMembers.byList(listId) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
         }}
       />
     </div>
@@ -471,7 +472,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   // Fetch existing member IDs
   const { data: existingIds = [] } = useQuery({
-    queryKey: ["list-member-ids", listId],
+    queryKey: queryKeys.listMembers.ids(listId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
@@ -485,7 +486,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   // Search contacts
   const { data: contacts = [] } = useQuery({
-    queryKey: ["add-to-list-contacts", companyId, search],
+    queryKey: queryKeys.listMembers.searchContacts(companyId, search),
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase

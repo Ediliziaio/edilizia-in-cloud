@@ -863,4 +863,49 @@ export const queryKeys = {
   automationFolders: {
     all: ["automation-folders"] as const,
   },
+
+  // ── Billing Overrides (Admin) ─────────────────────────
+  billingOverrides: {
+    all: ["billing-overrides"] as const,
+    byCompany: (companyId: string | undefined) => ["billing-overrides", companyId] as const,
+  },
+
+  // ── Labor Stats ───────────────────────────────────────
+  laborStats: {
+    all: ["labor-stats"] as const,
+    list: (companyId: string | undefined, ...filters: any[]) =>
+      ["labor-stats", companyId, ...filters] as const,
+  },
+
+  // ── Employee Profile (Portal) ─────────────────────────
+  employeeProfile: {
+    all: ["my-employee-profile"] as const,
+    byUser: (userId: string | undefined) => ["my-employee-profile", userId] as const,
+  },
+
+  // ── Telnyx Settings ───────────────────────────────────
+  telnyxSettings: {
+    all: ["telnyx-settings"] as const,
+  },
+
+  // ── Admin Ticket ──────────────────────────────────────
+  adminTicket: {
+    all: ["admin-ticket"] as const,
+    detail: (id: string | undefined) => ["admin-ticket", id] as const,
+  },
+
+  // ── Company Staff Members ─────────────────────────────
+  companyStaffMembers: {
+    all: ["company-staff-members"] as const,
+    list: (companyId: string | undefined) => ["company-staff-members", companyId] as const,
+  },
+
+  // ── Contact List Members ──────────────────────────────
+  listMembers: {
+    all: ["list-members"] as const,
+    byList: (listId: string | undefined) => ["list-members", listId] as const,
+    ids: (listId: string | undefined) => ["list-member-ids", listId] as const,
+    searchContacts: (companyId: string | undefined, search: string) =>
+      ["add-to-list-contacts", companyId, search] as const,
+  },
 } as const;

@@ -75,7 +75,7 @@ export default function WarehouseStockTab() {
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", companyId],
+    queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase

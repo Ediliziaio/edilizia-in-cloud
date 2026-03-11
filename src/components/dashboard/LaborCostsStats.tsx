@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { HardHat, Users, Building2, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +27,7 @@ export function LaborCostsStats({ dateRange }: LaborCostsStatsProps) {
   const companyId = effectiveCompany?.id;
 
   const { data: stats, isLoading, isError } = useQuery({
-    queryKey: ["labor-stats", companyId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: queryKeys.laborStats.list(companyId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()),
     queryFn: async () => {
       // Use dateRange if provided, otherwise default to current month
       const monthStart = dateRange ? dateRange.from.toISOString() : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();

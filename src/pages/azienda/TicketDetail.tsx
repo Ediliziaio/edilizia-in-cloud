@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,7 +53,7 @@ export default function TicketDetail() {
   }, [id, markTicketAsRead]);
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
-    queryKey: ["admin-ticket", id],
+    queryKey: queryKeys.adminTicket.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
@@ -78,7 +79,7 @@ export default function TicketDetail() {
   });
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: ["admin-ticket-messages", id],
+    queryKey: queryKeys.adminTicketMessages.byTicket(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
@@ -111,7 +112,7 @@ export default function TicketDetail() {
 
   // Staff members for assignment dropdown (only staff roles, not customers)
   const { data: staffMembers = [] } = useQuery({
-    queryKey: ["company-staff-members", effectiveCompany?.id],
+    queryKey: queryKeys.companyStaffMembers.list(effectiveCompany?.id),
     queryFn: async () => {
       // Get user IDs with staff roles
       const { data: roleData, error: roleErr } = await supabase
@@ -145,8 +146,8 @@ export default function TicketDetail() {
     },
     onSuccess: () => {
       toast.success("Ticket aggiornato con successo.");
-      queryClient.invalidateQueries({ queryKey: ["admin-ticket", id] });
-      queryClient.invalidateQueries({ queryKey: ["company-tickets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: () => {
       toast.error("Impossibile aggiornare il ticket.");

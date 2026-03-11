@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, Mail, Phone, Building2, Save } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +24,7 @@ export default function EmployeeProfile() {
 
   // Fetch employee profile
   const { data: employee, isLoading } = useQuery({
-    queryKey: ["my-employee-profile", user?.id],
+    queryKey: queryKeys.employeeProfile.byUser(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
@@ -61,7 +62,7 @@ export default function EmployeeProfile() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-employee-profile"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employeeProfile.all });
       toast({
         title: "Profilo aggiornato",
         description: "I tuoi dati sono stati salvati.",

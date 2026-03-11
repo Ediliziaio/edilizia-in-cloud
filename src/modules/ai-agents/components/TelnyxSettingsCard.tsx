@@ -8,6 +8,7 @@ import { Eye, EyeOff, CheckCircle2, XCircle, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function TelnyxSettingsCard() {
   const queryClient = useQueryClient();
@@ -22,7 +23,7 @@ export function TelnyxSettingsCard() {
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const { data: settings } = useQuery({
-    queryKey: ["telnyx-settings"],
+    queryKey: queryKeys.telnyxSettings.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("telnyx_settings" as never)
@@ -94,7 +95,7 @@ export function TelnyxSettingsCard() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      queryClient.invalidateQueries({ queryKey: ["telnyx-settings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.telnyxSettings.all });
       toast.success("Configurazione Telnyx salvata");
     } catch (err: unknown) {
       console.error(err);
