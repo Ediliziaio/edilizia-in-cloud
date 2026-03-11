@@ -330,7 +330,7 @@ export default function OrderDetail() {
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
