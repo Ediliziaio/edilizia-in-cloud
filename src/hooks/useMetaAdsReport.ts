@@ -166,7 +166,7 @@ export function useMetaAdsReport() {
 
   // Fetch daily series for trend charts
   const { data: rawDailyInsights = [] } = useQuery({
-    queryKey: ["meta-insights-daily", companyId, selectedAccountId, dateStart, dateEnd],
+    queryKey: queryKeys.metaAds.insightsDaily(companyId, selectedAccountId, dateStart, dateEnd),
     queryFn: async () => {
       const result = await callProxy("get-campaign-insights", {
         ad_account_id: selectedAccountId,
