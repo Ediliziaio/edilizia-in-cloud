@@ -56,7 +56,7 @@ export default function AIImage({ prompt, alt, className = "" }: AIImageProps) {
         setLoading(false);
       } catch (e) {
         if (!cancelled) {
-          console.error("AI image fetch error:", e);
+          logger.error("AI image fetch error:", e);
           setError(true);
           setLoading(false);
         }
