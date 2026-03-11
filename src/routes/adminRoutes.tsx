@@ -69,7 +69,7 @@ export function adminRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel pannello di amministrazione">
               <AdminLayout />
             </ErrorBoundary>
