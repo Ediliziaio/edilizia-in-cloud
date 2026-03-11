@@ -43,7 +43,7 @@ export default function AdminCSTasks() {
   const [newDueDate, setNewDueDate] = useState("");
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["cs-tasks", filterStatus],
+    queryKey: queryKeys.csTasks.list(filterStatus),
     queryFn: async () => {
       let query = supabase
         .from("cs_tasks" as never)
