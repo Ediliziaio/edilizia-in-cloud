@@ -492,7 +492,7 @@ function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; 
               <td className="p-3 font-mono text-xs">{o.oda_number}</td>
               <td className="p-3">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
               <td className="p-3"><Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{o.status}</Badge></td>
-              <td className="p-3 text-right font-medium">{fmtEur(Number(o.total))}</td>
+              <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
               <td className="p-3 text-sm text-muted-foreground">
                 {o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it }) : "—"}
               </td>
