@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 
 export interface SuperAdminPermissions {
   can_manage_companies: boolean;
