@@ -23,7 +23,7 @@ export function TelnyxSettingsCard() {
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const { data: settings } = useQuery({
-    queryKey: ["telnyx-settings"],
+    queryKey: queryKeys.telnyxSettings.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("telnyx_settings" as never)
