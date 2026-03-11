@@ -563,8 +563,8 @@ function MarketingOpportunitiesContent() {
         </div>
       ) : (
         <>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg">
+           {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
               <Badge variant="secondary" className="text-xs font-semibold">
                 {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
               </Badge>
