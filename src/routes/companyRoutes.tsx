@@ -205,6 +205,7 @@ export function companyRoutes() {
           <Route path="integrazioni" element={<SettingsIntegrations />} />
           <Route path="crediti" element={<SettingsCredits />} />
           <Route path="api" element={<SettingsApiKeys />} />
+          <Route path="webhook" element={<SettingsWebhooks />} />
           <Route path="privacy" element={<SettingsPrivacy />} />
           <Route path="branding" element={<SettingsBranding />} />
           <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
