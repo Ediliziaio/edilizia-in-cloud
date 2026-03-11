@@ -244,7 +244,7 @@ export default function GlobalErrors() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={formatCurrencyCompact} />
                   <YAxis type="category" dataKey="category" width={100} />
-                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>
                     {categoryChart.map((entry) => (
                       <Cell key={entry.key} fill={CATEGORY_COLORS[entry.key] || "hsl(var(--primary))"} />
