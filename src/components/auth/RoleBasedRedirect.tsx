@@ -38,7 +38,7 @@ export function RoleBasedRedirect() {
             setMustChangePassword(data?.must_change_password ?? false);
           }
         } catch (err) {
-          console.error("Error in checkPasswordChange:", err);
+          logger.error("Error in checkPasswordChange:", err);
           setMustChangePassword(false);
         } finally {
           setCheckingPassword(false);
