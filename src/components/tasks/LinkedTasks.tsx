@@ -40,7 +40,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ["tasks", "linked", filterKey],
+    queryKey: queryKeys.tasks.linked(filterKey),
     queryFn: async () => {
       if (!companyId) return [];
 
