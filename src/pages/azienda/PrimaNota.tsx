@@ -177,10 +177,10 @@ export default function PrimaNota() {
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <span className="text-muted-foreground text-sm">→</span>
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
-        <Select value={direction} onValueChange={(v) => setDirection(v as any)}>
+        <Select value={direction || "all"} onValueChange={(v) => setDirection(v === "all" ? "" : v as any)}>
           <SelectTrigger className="w-32"><SelectValue placeholder="Direzione" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tutte</SelectItem>
+            <SelectItem value="all">Tutte</SelectItem>
             <SelectItem value="entrata">Entrate</SelectItem>
             <SelectItem value="uscita">Uscite</SelectItem>
           </SelectContent>
