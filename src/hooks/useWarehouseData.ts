@@ -300,7 +300,7 @@ export function useWarehouseData() {
         return dateA.localeCompare(dateB);
       });
     } else if (groupBy === "status") {
-      const statusOrder: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+      const statusOrder: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
       sortedItems.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
     } else if (groupBy === "supplier") {
       sortedItems.sort((a, b) => (a.supplier_id || "").localeCompare(b.supplier_id || ""));

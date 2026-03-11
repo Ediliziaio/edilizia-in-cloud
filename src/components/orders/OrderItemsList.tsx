@@ -42,7 +42,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_arrivo' | 'in_magazzino' | 'prenotato' | 'installato';
 
 export const PAYMENT_METHODS = [
   { value: "bonifico_unico", label: "Bonifico unico" },
