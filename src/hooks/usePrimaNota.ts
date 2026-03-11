@@ -88,7 +88,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
   });
 
   const saldoQuery = useQuery({
-    queryKey: ["prima-nota-saldo", companyId, filters.fromDate, filters.toDate],
+    queryKey: queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
         p_company_id: companyId!,
