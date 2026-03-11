@@ -386,7 +386,7 @@ export function useTopLeads(companyId: string | null, limit = 20) {
 
       return (data ?? []).map((c: any) => ({
         id: c.id,
-        full_name: c.full_name,
+        full_name: `${c.first_name || ""} ${c.last_name || ""}`.trim(),
         company_name: c.company_name,
         lead_score: c.lead_score ?? 0,
         icp_score: c.icp_score ?? 0,
