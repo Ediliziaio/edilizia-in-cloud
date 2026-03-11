@@ -381,7 +381,7 @@ export function useCompanyDetail(id: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
       refreshCompany();
       toast.success("Trial esteso");
     },
