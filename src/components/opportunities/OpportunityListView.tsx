@@ -105,7 +105,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               {opportunities.length > 0 && (
                 <>
                   <tr style={{ height: virtualizer.getTotalSize() }} aria-hidden>
-                    <td colSpan={11} style={{ padding: 0, border: 0, height: 0 }} />
+                    <td colSpan={12} style={{ padding: 0, border: 0, height: 0 }} />
                   </tr>
                   {virtualizer.getVirtualItems().map((virtualRow) => {
                     const opp = opportunities[virtualRow.index];
