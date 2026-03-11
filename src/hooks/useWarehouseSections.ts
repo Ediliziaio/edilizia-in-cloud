@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface WarehouseSection {
   id: string;
@@ -19,7 +20,7 @@ export function useWarehouseSections() {
   const queryClient = useQueryClient();
 
   const { data: sections = [], isLoading } = useQuery({
-    queryKey: ["warehouse-sections", companyId],
+    queryKey: queryKeys.warehouse.sections(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -47,7 +48,7 @@ export function useWarehouseSections() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-sections"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sectionsAll });
       toast.success("Sezione creata");
     },
     onError: (e: any) => {
@@ -70,7 +71,7 @@ export function useWarehouseSections() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-sections"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sectionsAll });
       toast.success("Sezione aggiornata");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
@@ -83,8 +84,8 @@ export function useWarehouseSections() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-sections"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sectionsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       toast.success("Sezione eliminata");
     },
     onError: () => toast.error("Errore nell'eliminazione"),

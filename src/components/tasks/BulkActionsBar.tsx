@@ -6,6 +6,7 @@ import { CheckCircle2, Trash2, X, ArrowUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
@@ -26,7 +27,7 @@ export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
       toast.error("Errore", { description: error.message });
     } else {
       toast.success(`${ids.length} attività completate`);
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       onClear();
     }
   };
@@ -38,7 +39,7 @@ export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
       toast.error("Errore", { description: error.message });
     } else {
       toast.success(`${ids.length} attività eliminate`);
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       onClear();
     }
   };
@@ -50,7 +51,7 @@ export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
       toast.error("Errore", { description: error.message });
     } else {
       toast.success(`Priorità aggiornata per ${ids.length} attività`);
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       onClear();
     }
   };
