@@ -101,7 +101,7 @@ export function PermissionTemplatesManager() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["permission-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
       toast({ title: editingTemplate ? "Template aggiornato" : "Template creato" });
       closeDialog();
     },
