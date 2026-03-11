@@ -23,7 +23,7 @@ export default function AdminSettingsIPAllowlist() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: allowlist = [], isLoading } = useQuery({
-    queryKey: ["admin-ip-allowlist"],
+    queryKey: queryKeys.admin.ipAllowlist,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_ip_allowlist")
