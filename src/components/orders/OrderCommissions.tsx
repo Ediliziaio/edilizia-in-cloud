@@ -79,7 +79,7 @@ export function OrderCommissions({
   const [selectedPaidDate, setSelectedPaidDate] = useState<Date>(new Date());
 
   const { data: orderSalespeople = [], isLoading } = useQuery({
-    queryKey: ["order-salespeople", orderId],
+    queryKey: queryKeys.orderSalespeople.byOrder(orderId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
