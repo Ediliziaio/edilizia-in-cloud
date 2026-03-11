@@ -122,7 +122,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           .upload(path, attachmentFile);
         if (uploadErr) {
           // Bucket might not exist, just warn
-          console.warn("Upload failed:", uploadErr.message);
+          logger.warn("Upload failed:", uploadErr.message);
           toast.warning("Allegato non caricato", { description: uploadErr.message });
         } else {
           const { data: urlData } = supabase.storage
