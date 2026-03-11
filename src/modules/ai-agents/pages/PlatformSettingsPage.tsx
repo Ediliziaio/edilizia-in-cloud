@@ -132,7 +132,7 @@ export default function PlatformSettingsPage() {
         if (error) throw error;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-elevenlabs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
       console.error(err);
