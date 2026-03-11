@@ -52,6 +52,7 @@ import { ContactAttributionTab } from "@/components/contacts/ContactAttributionT
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 import { RefreshCw, CalendarDays } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 // ── Extracted sub-components ──
 import { InlineField } from "@/components/marketing/contacts/InlineField";
