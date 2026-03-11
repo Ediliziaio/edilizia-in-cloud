@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { logger } from "@/utils/logger";
 
 export type ApiServices = {
   whatsapp: boolean;

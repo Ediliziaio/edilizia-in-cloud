@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QuoteTemplate } from '@/types/quoteTemplate';
 import { queryKeys } from '@/lib/queryKeys';
+import { logger } from '@/utils/logger';
 
 export function useQuoteTemplates() {
   const { effectiveCompany } = useAuth();
