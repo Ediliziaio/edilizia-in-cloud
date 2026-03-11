@@ -141,7 +141,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
   const companyId = effectiveCompany?.id;
 
   const detailQuery = useQuery({
-    queryKey: ["purchase-order-detail", poId],
+    queryKey: queryKeys.purchaseOrders.detail(poId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
