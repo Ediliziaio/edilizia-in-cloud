@@ -178,7 +178,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: subscriptionLogs } = useQuery({
-    queryKey: ["subscription-logs", id],
+    queryKey: queryKeys.companyDetail.subscriptionLogs(id),
     queryFn: async () => {
       const { data } = await supabase.from("subscription_logs").select("*, subscription_plans:plan_id(name)").eq("company_id", id!).order("created_at", { ascending: false }).limit(10);
       return data || [];
