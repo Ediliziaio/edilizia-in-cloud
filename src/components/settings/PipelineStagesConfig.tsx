@@ -210,7 +210,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         if (originalIds.has(stage.id)) {
           const { error } = await supabase
             .from("marketing_pipeline_stages")
-            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status })
+            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status, win_probability: stage.win_probability, stalled_threshold_days: stage.stalled_threshold_days } as any)
             .eq("id", stage.id)
             .eq("company_id", companyId!);
           if (error) throw error;
