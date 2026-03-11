@@ -59,7 +59,7 @@ export default function WarehouseStockTab() {
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
-    queryKey: ["warehouse-stock", companyId],
+    queryKey: queryKeys.warehouse.stock(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
