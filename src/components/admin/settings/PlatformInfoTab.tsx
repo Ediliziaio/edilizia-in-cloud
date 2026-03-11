@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -12,6 +12,7 @@ import { Eye, EyeOff, Send, CheckCircle2, XCircle, Loader2, Info, Circle, Copy }
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Props {
   stream: "marketing" | "transactional";
