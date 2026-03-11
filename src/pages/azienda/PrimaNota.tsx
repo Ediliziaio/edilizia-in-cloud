@@ -157,7 +157,7 @@ export default function PrimaNota() {
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData}>
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
                 <Tooltip
                   formatter={(value: number) => fmtEur(value)}
                   labelStyle={{ fontWeight: 600 }}
