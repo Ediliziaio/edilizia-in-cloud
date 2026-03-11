@@ -78,7 +78,7 @@ export default function PlatformSettingsPage() {
 
   // Fetch pricing
   const { data: pricing, isLoading: pricingLoading } = useQuery({
-    queryKey: ["platform-pricing"],
+    queryKey: queryKeys.platformSettingsAI.pricing,
     queryFn: async (): Promise<PricingRow[]> => {
       const { data, error } = await supabase
         .from("platform_pricing" as never)
