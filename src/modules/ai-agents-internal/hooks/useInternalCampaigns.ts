@@ -19,7 +19,7 @@ async function getCompanyId(): Promise<{ companyId: string; userId: string }> {
 
 export function useInternalCampaigns() {
   const qc = useQueryClient();
-  const key = ["internal-campaigns"];
+  const key = queryKeys.internalCampaigns.all;
 
   const campaignsQuery = useQuery({
     queryKey: key,
