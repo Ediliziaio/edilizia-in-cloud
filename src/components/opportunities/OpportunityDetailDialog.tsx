@@ -646,7 +646,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={(newStatus) => {
                             if ((newStatus === "lost" || newStatus === "abandoned") && status !== newStatus) {
-                              setPendingLostStatus(true);
+                              setPendingLostStatus(newStatus);
                               setShowLossDialog(true);
                             } else {
                               setStatus(newStatus);
