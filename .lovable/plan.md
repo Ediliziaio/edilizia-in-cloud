@@ -1,31 +1,34 @@
 
 
-## Verifica: Punto di Pareggio — Confronto prompt vs implementazione
+## Calendario Punto di Pareggio — Numeri al posto delle icone
 
-### Risultato: Implementazione completa, con un adattamento architetturale corretto
+### Cosa cambia
 
-| Step | Prompt | Implementazione | Stato |
-|------|--------|-----------------|-------|
-| 1 — `useMarginData.ts` | Sostituzione completa con `breakEvenAnnual`, `breakEvenMonthOfYear`, logica cumulative | Identico al prompt: interfaccia, query, calcoli, return values | ✅ Conforme |
-| 2 — `useBreakEvenHistorical.ts` | File nuovo, raggruppa per anno, calcola margine e break-even storico | Identico al prompt: interfaccia `BreakEvenYear`, 5 query, aggregazione per anno, costi fissi come proxy | ✅ Conforme |
-| 3 — `PuntoDiPareggio.tsx` | File nuovo con KPI cards, calendario 12 mesi, breakdown costi, formula, grafico storico | Tutti i componenti presenti: `CalendarioAnno`, `BreakdownCostiFissi`, `StoricoAnniChart`, KPI cards con badge e colori condizionali | ✅ Conforme |
-| 4 — `CruscottoAziendale.tsx` | Il prompt dice di aggiungere un **Tab** (`TabsTrigger`, `TabsContent`) | Aggiunto come **sezione scroll** con `SectionErrorBoundary` | ⚠️ Adattato |
+Nel componente `CalendarioAnno` dentro `PuntoDiPareggio.tsx`, rimuovere le emoji (💸, 💰, 🎯) e mostrare al loro posto il **contributo cumulato al margine** per ogni mese, cioè quanto il fatturato ha coperto dei costi fissi fino a quel punto.
 
-### Nota su Step 4
+Per ogni mese (1-12):
+- **Contributo cumulato** = `currentMonthlyRevenue × (avgMarginPercent / 100) × monthNum`
+- Mostrare il valore in formato compatto (es. "€12k", "€45k")
+- Il mese di break-even mostra il valore con il target "🎯" → sostituito dal numero stesso, evidenziato dal ring già presente
 
-Il prompt presuppone che il Cruscotto usi un layout a **Tab** (`TabsList`, `TabsTrigger`, `TabsContent`), ma il Cruscotto Aziendale usa un layout a **scroll verticale continuo** con sezioni. Non esistono Tab nel file. L'implementazione ha correttamente adattato il componente all'architettura esistente, inserendolo come sezione 4b tra Finanza e Vendite, wrappato in un `SectionErrorBoundary`.
+### Modifiche al componente
 
-Questo è l'approccio corretto: forzare un Tab singolo avrebbe rotto il layout esistente.
+1. **`CalendarioAnno`** — aggiungere props `monthlyContribution` e `totalFixedCostsAnnual` (o direttamente `currentMonthlyRevenue`, `avgMarginPercent`, `totalFixedCostsMonthly`)
 
-### Logica economica — Verificata
+2. **Dentro ogni cella del mese**: sostituire la riga emoji con il contributo cumulato in formato compatto (es. `€8k`). Sotto, mostrare la % di copertura dei costi fissi annuali raggiunta a quel mese.
 
-- Margine Lordo = Fatturato - (Acquisto merce + Squadre esterne) ✅
-- Dipendenti interni = costo fisso (non sottraggono dal margine lordo) ✅
-- Break-even mensile = Costi Fissi Mensili / Margine% ✅
-- Break-even annuale = Break-even mensile × 12 ✅
-- Mese di pareggio = contributo cumulato vs costi fissi annuali (13 = non raggiunto) ✅
+3. **Passaggio props**: dove `CalendarioAnno` viene usato (~riga 400), passare `currentMonthlyRevenue`, `avgMarginPercent`, `totalFixedCostsMonthly` dal hook.
 
-### Conclusione
+### Layout cella (per ogni mese)
 
-Tutti e 4 gli step sono implementati. L'unica deviazione dal prompt è architetturale (sezione scroll anziché tab) ed è la scelta corretta per il layout esistente. Nessuna modifica necessaria.
+```text
+┌──────────┐
+│   Gen    │  ← nome mese (già presente)
+│   €8k   │  ← contributo cumulato (NUOVO, sostituisce emoji)
+│   8%    │  ← % copertura costi fissi annuali (NUOVO)
+└──────────┘
+```
+
+### File modificato
+- `src/components/cruscotto/PuntoDiPareggio.tsx` — solo il componente `CalendarioAnno` e il punto dove viene chiamato
 
