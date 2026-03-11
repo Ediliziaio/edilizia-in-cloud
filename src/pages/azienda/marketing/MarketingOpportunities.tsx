@@ -249,6 +249,11 @@ function MarketingOpportunitiesContent() {
       result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
     }
 
+    // "Solo i miei" filter
+    if (onlyMine && currentUserId) {
+      result = result.filter((o: any) => o.assigned_to === currentUserId);
+    }
+
     // Sort
     result = [...result].sort((a: any, b: any) => {
       let cmp = 0;
