@@ -100,7 +100,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       if (selectedTemplate) setSelectedTemplate(null);
       toast.success("Template eliminato");
     },
