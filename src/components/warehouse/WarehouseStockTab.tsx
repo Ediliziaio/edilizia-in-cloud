@@ -49,6 +49,7 @@ export default function WarehouseStockTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
   const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
+  const [auditItem, setAuditItem] = useState<StockItem | null>(null);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
