@@ -371,7 +371,7 @@ export function useAddLotBatchMutation() {
       queryClient.invalidateQueries({
         queryKey: magazzinoKeys.lotBatches(variables.company_id, variables.stock_item_id),
       });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       toast.success("Lotto aggiunto");
     },
     onError: () => toast.error("Errore nell'aggiunta del lotto"),
