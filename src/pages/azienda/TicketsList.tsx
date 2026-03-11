@@ -53,7 +53,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
   const { data: tickets = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["company-tickets", effectiveCompany?.id],
+    queryKey: queryKeys.companyTickets.list(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")

@@ -54,7 +54,7 @@ export default function CompanyActivityLogTab() {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["company-activity-log", companyId, page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
+    queryKey: queryKeys.activityLog.list(companyId, page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()),
     queryFn: async () => {
       if (!companyId) throw new Error("No company");
       const from = page * PAGE_SIZE;

@@ -90,7 +90,7 @@ export function FinanceAutomationSettings() {
     },
     onSuccess: () => {
       toast.success("Impostazioni salvate");
-      queryClient.invalidateQueries({ queryKey: ["scadenza-alert-prefs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.all });
       setForm({});
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),

@@ -338,7 +338,7 @@ export default function CustomersList() {
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
     return { success, errors };
   }, [effectiveCompany?.id, queryClient]);
 

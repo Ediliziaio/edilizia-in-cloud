@@ -198,7 +198,7 @@ export function EmployeeAttachments({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-attachments", employee.id],
+        queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
       });
       toast.success("Documento eliminato", { description: "Il documento è stato eliminato." });
     },

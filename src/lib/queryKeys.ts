@@ -773,4 +773,94 @@ export const queryKeys = {
     all: ["api-usage"] as const,
     chart: (keyId: string | undefined, days: number) => ["api-usage", keyId, days] as const,
   },
+
+  // ── Salespeople ───────────────────────────────────────
+  salespeople: {
+    all: ["salespeople"] as const,
+    active: (companyId: string | undefined) => ["salespeople-active", companyId] as const,
+  },
+
+  // ── Customers List ────────────────────────────────────
+  customersList: {
+    all: ["customers-list"] as const,
+    list: (companyId: string | undefined, ...filters: any[]) =>
+      ["customers-list", companyId, ...filters] as const,
+  },
+
+  // ── Order Salespeople (Commissions) ───────────────────
+  orderSalespeople: {
+    all: ["order-salespeople"] as const,
+    byOrder: (orderId: string | undefined) => ["order-salespeople", orderId] as const,
+  },
+
+  // ── Ticket Attachments ────────────────────────────────
+  ticketAttachments: {
+    all: ["ticket-attachments"] as const,
+    byTicket: (ticketId: string | undefined) => ["ticket-attachments", ticketId] as const,
+  },
+
+  // ── Admin Ticket Messages ─────────────────────────────
+  adminTicketMessages: {
+    all: ["admin-ticket-messages"] as const,
+    byTicket: (ticketId: string | undefined) => ["admin-ticket-messages", ticketId] as const,
+  },
+
+  // ── Health Scores ─────────────────────────────────────
+  healthScores: {
+    all: ["health-scores-server"] as const,
+    byCompany: (companyId: string | undefined) => ["health-score", companyId] as const,
+  },
+
+  // ── Finance Automation / Scadenza Prefs ───────────────
+  scadenzaPrefs: {
+    all: ["scadenza-alert-prefs"] as const,
+    byCompany: (companyId: string | undefined) => ["scadenza-alert-prefs", companyId] as const,
+  },
+
+  // ── Company Activity Log ──────────────────────────────
+  activityLog: {
+    all: ["company-activity-log"] as const,
+    list: (companyId: string | undefined, ...filters: any[]) =>
+      ["company-activity-log", companyId, ...filters] as const,
+  },
+
+  // ── Contact Appointments ──────────────────────────────
+  contactAppointments: {
+    all: ["contact_appointments"] as const,
+    byContact: (contactId: string | undefined) => ["contact_appointments", contactId] as const,
+    futureAppointment: ["contact_future_appointment"] as const,
+    forSlot: ["appointments_for_slot"] as const,
+  },
+
+  // ── Company Tickets ───────────────────────────────────
+  companyTickets: {
+    all: ["company-tickets"] as const,
+    list: (companyId: string | undefined) => ["company-tickets", companyId] as const,
+  },
+
+  // ── Customer Documents (Portal) ───────────────────────
+  customerDocuments: {
+    all: ["customer-documents"] as const,
+    attachments: (userId: string | undefined) => ["customer-documents", "attachments", userId] as const,
+    invoices: (userId: string | undefined) => ["customer-documents", "invoices", userId] as const,
+  },
+
+  // ── Customer Messages (Portal) ────────────────────────
+  customerMessages: {
+    all: ["customer-messages"] as const,
+    list: (userId: string | undefined) => ["customer-messages", userId] as const,
+  },
+
+  // ── Public Booking ────────────────────────────────────
+  publicBooking: {
+    calendar: (slug: string | undefined) => ["public-booking-calendar", slug] as const,
+    availability: (calendarId: string | undefined) => ["public-booking-availability", calendarId] as const,
+    appointments: (calendarId: string | undefined, dateStr: string | null) =>
+      ["public-booking-appointments", calendarId, dateStr] as const,
+  },
+
+  // ── Automation Folders ────────────────────────────────
+  automationFolders: {
+    all: ["automation-folders"] as const,
+  },
 } as const;

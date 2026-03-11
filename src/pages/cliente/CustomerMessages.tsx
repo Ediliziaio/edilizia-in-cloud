@@ -57,7 +57,7 @@ export default function CustomerMessages() {
       .update({ read_at: new Date().toISOString() })
       .in("id", unreadIds)
       .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["customer-messages-unread", user.id] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.customerUnread.messages(user.id) });
       });
   }, [messages, user?.id, queryClient]);
 

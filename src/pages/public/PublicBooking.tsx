@@ -54,7 +54,7 @@ export default function PublicBooking() {
   // Fetch existing appointments for the selected date
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
   const { data: existingAppointments = [] } = useQuery({
-    queryKey: ["public-booking-appointments", calendar?.id, dateStr],
+    queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
     queryFn: async () => {
       if (!calendar?.id || !dateStr) return [];
       const { data } = await supabase

@@ -113,8 +113,8 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
     },
     onSuccess: () => {
       toast({ title: "Caricato", description: "Allegato caricato con successo." });
-      queryClient.invalidateQueries({ queryKey: ["ticket-attachments", ticketId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-ticket-messages", ticketId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
     },
     onError: (err: Error) => {
       toast({ title: "Errore", description: err.message, variant: "destructive" });

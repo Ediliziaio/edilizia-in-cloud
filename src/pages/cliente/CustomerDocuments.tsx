@@ -37,7 +37,7 @@ export default function CustomerDocuments() {
 
   // Invoices linked to customer
   const { data: invoices = [], isLoading: loadingInv } = useQuery({
-    queryKey: ["customer-documents", "invoices", user?.id],
+    queryKey: queryKeys.customerDocuments.invoices(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")

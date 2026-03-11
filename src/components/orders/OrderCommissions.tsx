@@ -127,7 +127,7 @@ export function OrderCommissions({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-salespeople", orderId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
       toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
     onError: () => {
