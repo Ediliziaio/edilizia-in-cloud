@@ -20,6 +20,7 @@ export function getLeadTemperature(
   lastContactedDate: Date | null,
   hasOpenOpportunity: boolean,
   recentAppointment: boolean, // appointment in last 48h
+  createdAt: Date | null = null,
 ): LeadTemperatureResult {
   const now = new Date();
 
@@ -34,8 +35,8 @@ export function getLeadTemperature(
     };
   }
 
-  // Use the most recent date between activity and contacted
-  const lastDate = [lastActivityDate, lastContactedDate]
+  // Use the most recent date between activity, contacted, and created_at as fallback
+  const lastDate = [lastActivityDate, lastContactedDate, createdAt]
     .filter((d): d is Date => d !== null)
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
