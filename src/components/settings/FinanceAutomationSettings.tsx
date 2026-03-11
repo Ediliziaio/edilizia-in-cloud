@@ -30,7 +30,7 @@ export function FinanceAutomationSettings() {
   const queryClient = useQueryClient();
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ["scadenza-alert-prefs", companyId],
+    queryKey: queryKeys.scadenzaPrefs.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenza_alert_prefs" as any)
