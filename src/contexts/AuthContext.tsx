@@ -245,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     if (state.role !== "super_admin") {
-      console.error("Only super_admin can impersonate companies");
+      logger.error("Only super_admin can impersonate companies");
       return;
     }
 
