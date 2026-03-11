@@ -468,7 +468,7 @@ export function useUpsertSalesTargetMutation() {
     mutationFn: async (target: Omit<SalesTarget, 'id'>) => {
       const { error } = await supabase
         .from('sales_targets')
-        .upsert(target, { onConflict: 'company_id,assigned_to,year,month' });
+        .upsert(target as any, { onConflict: 'company_id,assigned_to,year,month' });
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
