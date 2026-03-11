@@ -13,6 +13,9 @@ import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, L
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ShieldAlert } from "lucide-react";
 
 interface Props {
   open: boolean;
