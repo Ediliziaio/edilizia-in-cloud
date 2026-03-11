@@ -13,6 +13,7 @@ import { fmt, fmtCur } from "./utils";
 interface Props {
   sales: SalesPerformance[] | undefined;
   isLoading: boolean;
+  compact?: boolean;
 }
 
 interface SalesTarget {
