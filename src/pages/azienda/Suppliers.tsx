@@ -128,7 +128,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <p className="text-muted-foreground">OdA</p>
-                    <p className="font-medium">{s.oda_count || 0} · {fmtEur(s.oda_total || 0)}</p>
+                    <p className="font-medium">{s.oda_count || 0} · {formatCurrency(s.oda_total || 0)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Da pagare</p>
