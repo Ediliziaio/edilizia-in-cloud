@@ -13872,6 +13872,12 @@ export type Database = {
         | "salesperson"
         | "call_center"
         | "referrer"
+        | "platform_manager"
+        | "platform_sales"
+        | "platform_support"
+        | "platform_marketing"
+        | "platform_implementation"
+        | "multi_company_user"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -14019,6 +14025,12 @@ export const Constants = {
         "salesperson",
         "call_center",
         "referrer",
+        "platform_manager",
+        "platform_sales",
+        "platform_support",
+        "platform_marketing",
+        "platform_implementation",
+        "multi_company_user",
       ],
       company_sector: [
         "serramenti",
