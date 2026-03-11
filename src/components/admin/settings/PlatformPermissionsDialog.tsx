@@ -92,7 +92,10 @@ export default function PlatformPermissionsDialog({ open, onOpenChange, adminId,
         body: { action: "get-permissions", userId: adminId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        const body = await res.error.context?.json?.();
+        throw new Error(body?.error || res.error.message);
+      }
       return res.data?.permissions as Permissions | null;
     },
     enabled: open && !!adminId,
