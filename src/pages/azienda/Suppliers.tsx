@@ -21,8 +21,7 @@ import { useOperationalSuppliers, useSupplierDetail } from "@/hooks/useOperation
 import type { SupplierWithStats } from "@/hooks/useOperationalSuppliers";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 
 function RatingStars({ rating }: { rating: number | null }) {
   if (!rating) return <span className="text-xs text-muted-foreground">N/A</span>;
