@@ -220,7 +220,7 @@ function SalesForecastChart({ companyId }: { companyId: string }) {
         <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
         <YAxis
           tick={{ fontSize: 11 }}
-          tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+          tickFormatter={formatCurrencyCompact}
         />
         <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} />
         <Legend />
