@@ -135,7 +135,7 @@ export default function MarketingTasks() {
     if (error) {
       toast.error("Errore", { description: error.message });
     } else {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     }
   };
 
