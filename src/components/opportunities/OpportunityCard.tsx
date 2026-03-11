@@ -238,11 +238,20 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
 
-        {/* Updated at badge */}
-        {opportunity.updated_at && !isOverlay && (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Clock className="h-2.5 w-2.5" />
-            <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
+        {/* Updated at + days in stage */}
+        {!isOverlay && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            {opportunity.updated_at && (
+              <div className="flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" />
+                <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
+              </div>
+            )}
+            {opportunity.updated_at && opportunity.status === 'open' && (
+              <span className="text-[9px] bg-muted rounded px-1 py-0.5">
+                {differenceInDays(new Date(), new Date(opportunity.updated_at))}gg in stage
+              </span>
+            )}
           </div>
         )}
 
