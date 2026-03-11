@@ -211,7 +211,7 @@ export function OrderItemAttachments({
 
       onAttachmentsChange();
     } catch (error: any) {
-      console.error("Delete error:", error);
+      logger.error("Delete error:", error);
       toast({
         title: "Errore eliminazione",
         description: error.message || "Impossibile eliminare il file",
