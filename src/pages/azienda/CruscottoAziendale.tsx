@@ -127,6 +127,11 @@ export default function CruscottoAziendale() {
         </div>
       </SectionErrorBoundary>
 
+      {/* SEZIONE 4b: PUNTO DI PAREGGIO */}
+      <SectionErrorBoundary sectionName="Punto di Pareggio">
+        <PuntoDiPareggio />
+      </SectionErrorBoundary>
+
       {/* SEZIONE 5: PERFORMANCE COMMERCIALE */}
       <SectionErrorBoundary sectionName="Vendite">
         <div className="space-y-4">

@@ -290,11 +290,10 @@ export function useMarginData(): MarginData {
     totalFixedCostsMonthly,
     salariesMonthly,
     breakEvenRevenue,
+    breakEvenAnnual,
+    breakEvenMonthOfYear,
     currentMonthlyRevenue,
     breakEvenDelta,
-    breakEvenAnnual,
-    yearlyRevenue,
-    breakEvenMonthOfYear,
     companyId,
   };
 }
