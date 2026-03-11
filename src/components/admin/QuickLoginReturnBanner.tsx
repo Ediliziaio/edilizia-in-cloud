@@ -57,7 +57,7 @@ export function QuickLoginReturnBanner() {
       toast.success(`Bentornato, ${originalName}`);
       navigate("/admin", { replace: true });
     } catch (err: any) {
-      console.error("Return to admin error:", err);
+      logger.error("Return to admin error:", err);
       clearQuickLoginSession();
       toast.error("Sessione scaduta. Effettua il login manualmente.");
       navigate("/login");
