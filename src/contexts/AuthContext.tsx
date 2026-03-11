@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (companyError) {
-          console.error("Error fetching company:", companyError);
+          logger.error("Error fetching company:", companyError);
         } else {
           company = companyData as Company;
         }
