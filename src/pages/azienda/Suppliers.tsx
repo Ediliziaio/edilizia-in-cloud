@@ -80,7 +80,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Debito residuo</p>
-          <p className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}>{fmtEur(totalDebt)}</p>
+          <p className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}>{formatCurrency(totalDebt)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Con scadenze aperte</p>
