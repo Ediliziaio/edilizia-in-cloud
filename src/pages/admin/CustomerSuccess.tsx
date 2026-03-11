@@ -83,7 +83,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       setNewName("");
       setNewDesc("");
       setShowNewTemplate(false);
