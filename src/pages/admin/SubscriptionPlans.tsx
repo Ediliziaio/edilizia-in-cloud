@@ -496,7 +496,6 @@ export default function SubscriptionPlans() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
 
       {/* Confirm save for plan with active companies */}
       <AlertDialog open={confirmSaveOpen} onOpenChange={setConfirmSaveOpen}>
