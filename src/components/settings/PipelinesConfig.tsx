@@ -110,7 +110,7 @@ export function PipelinesConfig() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setCreateOpen(false);
       setNewName("");
       setCreateStages([]);
