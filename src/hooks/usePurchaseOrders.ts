@@ -120,8 +120,8 @@ export function usePurchaseOrders() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
