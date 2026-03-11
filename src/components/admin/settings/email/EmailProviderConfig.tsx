@@ -190,7 +190,7 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: lastTestStatusKey, value: "ok", updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Errore sconosciuto";
       setTestResult({ ok: false, message });
