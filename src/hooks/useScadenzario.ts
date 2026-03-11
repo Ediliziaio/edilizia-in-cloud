@@ -113,11 +113,9 @@ export function useScadenzario() {
     },
     onSuccess: () => {
       toast.success("Pagamento registrato");
-      queryClient.invalidateQueries({ queryKey: ["scadenze"] });
-      queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
