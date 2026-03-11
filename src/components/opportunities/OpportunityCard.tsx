@@ -141,6 +141,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             </div>
           )}
           <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
+          {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {updatedAgo && (
             <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap">Agg. {updatedAgo}</span>
           )}
