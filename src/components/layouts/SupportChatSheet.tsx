@@ -111,7 +111,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
       }
       setNewMessage("");
     } catch (err) {
-      console.error("Error sending message:", err);
+      logger.error("Error sending message:", err);
       toast.error("Errore nell'invio del messaggio");
     } finally {
       setSending(false);
