@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet } from "lucide-react";
+import { logger } from "@/utils/logger";
 import {
   DropdownMenu,
   DropdownMenuContent,
