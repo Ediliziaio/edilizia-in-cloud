@@ -33,7 +33,7 @@ export default function CustomerSupport() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: tickets = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["customer-tickets", user?.id],
+    queryKey: queryKeys.customerSupport.list(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")

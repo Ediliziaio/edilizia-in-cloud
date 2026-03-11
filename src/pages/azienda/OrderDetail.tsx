@@ -421,9 +421,9 @@ export default function OrderDetail() {
       }
     },
     onSuccess: (_, { paid, installment }) => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
-      queryClient.invalidateQueries({ queryKey: ["order-installments", id] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`);
     },
     onError: () => { toast.error("Impossibile aggiornare lo stato del pagamento."); },

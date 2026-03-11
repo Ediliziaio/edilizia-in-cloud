@@ -210,8 +210,8 @@ export default function SettingsUserDetail() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
     onError: () => {

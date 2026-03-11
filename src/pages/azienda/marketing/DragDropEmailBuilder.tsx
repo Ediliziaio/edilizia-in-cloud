@@ -96,8 +96,8 @@ export default function DragDropEmailBuilder() {
     onSuccess: () => {
       setAutoSaveStatus("saved");
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
-      qc.invalidateQueries({ queryKey: ["campaign-editor", id] });
-      qc.invalidateQueries({ queryKey: ["campaign-send-settings", id] });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.detail(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.sendSettings(id) });
     },
     onError: (e: any) => {
       setAutoSaveStatus("unsaved");

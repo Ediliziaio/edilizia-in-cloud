@@ -135,8 +135,8 @@ export default function CampaignEditor() {
     onSuccess: () => {
       setAutoSaveStatus("saved");
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
-      qc.invalidateQueries({ queryKey: ["campaign-builder", id] });
-      qc.invalidateQueries({ queryKey: ["campaign-send-settings", id] });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.builder(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.campaignEditor.sendSettings(id) });
     },
     onError: (e: any) => {
       setAutoSaveStatus("unsaved");

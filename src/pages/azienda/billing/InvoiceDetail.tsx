@@ -54,7 +54,7 @@ export default function InvoiceDetail() {
   });
 
   const { data: linkedTransactions } = useQuery({
-    queryKey: ["invoice-reconciliations", id],
+    queryKey: queryKeys.invoices.reconciliations(id),
     queryFn: async () => {
       const { data } = await supabase
         .from("bank_reconciliations")

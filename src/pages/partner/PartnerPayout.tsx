@@ -67,7 +67,7 @@ export default function PartnerPayout() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-payouts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.payoutsAll });
       toast.success("Richiesta di pagamento inviata!");
       setAmount("");
       setNotes("");

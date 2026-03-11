@@ -351,7 +351,7 @@ function NewLeaveDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success("Richiesta inviata con successo");
       onOpenChange(false);
       resetForm();

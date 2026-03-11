@@ -138,7 +138,7 @@ export function PermissionTemplatesManager() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Template applicato", description: `Permessi aggiornati per l'utente selezionato.` });
       setApplyDialogOpen(false);
       setApplyingTemplate(null);
