@@ -47,7 +47,7 @@ export function adminRoutes() {
       <Route
         path="/admin/marketing/automazioni/nuova"
         element={
-          <ProtectedRoute allowedRoles={["super_admin"]}>
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
               <AdminMarketingAutomationBuilder />
             </ErrorBoundary>
