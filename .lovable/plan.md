@@ -1,31 +1,29 @@
 
 
-# Scalabilità Opportunità — Approccio Semplificato
+# Scalabilità Opportunità — `.limit(10000)` + Virtualizzazione
 
-## Analisi
+## Modifiche
 
-Hai ragione a dubitare. `useInfiniteQuery` con paginazione server-side è **overengineering** per questo caso, perché:
-- Il filtro e l'ordinamento sono tutti **client-side** — servono tutti i dati in memoria comunque
-- L'enrichment (profili, note, documenti, appuntamenti) funziona meglio in batch unico
-- La complessità di gestire pagine + optimistic updates sulla Kanban board sarebbe enorme
+### 1. `src/hooks/useOpportunitiesData.ts`
+Aggiungere `.limit(10000)` alla query principale (riga 43, dopo `.order()`). Una riga.
 
-Il vero problema sono **due cose concrete**:
-1. **La query non ha limit** → Supabase tronca silenziosamente a 1000 righe
-2. **Migliaia di DOM nodes** nelle colonne Kanban rallentano il browser
+### 2. `src/components/opportunities/OpportunityKanbanView.tsx`
+Virtualizzare le card in ogni `StageColumn` con `useVirtualizer`:
+- Importare `useVirtualizer` da `@tanstack/react-virtual`
+- Aggiungere un `ref` per il container scrollabile (il div droppable)
+- Creare un virtualizer con `count: opportunities.length`, `estimateSize` basato sul layout (mini: 52px, default: 180px), `overscan: 5`
+- Sostituire il `.map()` diretto con il rendering virtualizzato: div wrapper con `height: totalSize`, poi solo i virtual items visibili posizionati con `position: absolute` + `translateY`
+- Mantenere `SortableContext` wrappato attorno al container virtualizzato (serve la lista completa di ID per il drag-and-drop)
+- Il messaggio "Nessuna opportunità" resta invariato
 
-## Soluzione (molto più semplice)
+### 3. `src/components/opportunities/OpportunityListView.tsx`
+Virtualizzare le righe della tabella:
+- Importare `useVirtualizer` da `@tanstack/react-virtual`
+- Aggiungere un `ref` al container scrollabile (div `overflow-x-auto`)
+- Creare virtualizer con `count: opportunities.length`, `estimateSize: 56` (altezza riga), `overscan: 10`
+- Il `<TableHeader>` resta fisso (sticky top)
+- Il `<TableBody>` diventa un container con altezza = `totalSize`, le righe visibili posizionate con `translateY`
+- La riga "Nessuna opportunità" si mostra solo se `opportunities.length === 0`
 
-### 1. `useOpportunitiesData.ts` — Aggiungere `.limit(10000)`
-Come già fatto nel progetto per Prima Nota, Scadenzario, etc. Una riga.
-
-### 2. `OpportunityKanbanView.tsx` — Virtualizzazione colonne con `@tanstack/react-virtual`
-- Ogni colonna usa `useVirtualizer` per renderizzare solo le ~15-20 card visibili
-- `estimateSize`: 60px per mini, 180px per default
-- `@tanstack/react-virtual` è già installato nel progetto
-- L'utente scrolla nella colonna e le card appaiono/scompaiono come in GHL
-
-### 3. `OpportunityListView.tsx` — Virtualizzazione righe tabella
-- Stessa logica: `useVirtualizer` per le righe, header fisso
-
-**3 file, nessuna modifica all'architettura query, nessun useInfiniteQuery.**
+3 file, nessuna modifica architetturale.
 
