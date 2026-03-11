@@ -64,7 +64,7 @@ export function useCashFlowData() {
 
   // Query provvigioni non pagate
   const { data: unpaidCommissions = [], isLoading: loadingCommissions } = useQuery({
-    queryKey: ["forecast-unpaid-commissions", companyId],
+    queryKey: queryKeys.cashflow.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
