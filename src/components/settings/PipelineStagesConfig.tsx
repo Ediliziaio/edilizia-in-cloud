@@ -151,6 +151,11 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     setHasChanges(true);
   }, []);
 
+  const handleFieldChange = useCallback((id: string, field: string, value: any) => {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    setHasChanges(true);
+  }, []);
+
   const handleDelete = useCallback(async (id: string) => {
     if (!id.startsWith("temp-")) {
       const { count, error } = await supabase
