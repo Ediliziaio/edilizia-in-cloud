@@ -57,7 +57,7 @@ export function PipelinesConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: pipelines = [], isLoading } = useQuery({
-    queryKey: ["marketing_pipelines", companyId],
+    queryKey: queryKeys.pipelinesConfig.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
