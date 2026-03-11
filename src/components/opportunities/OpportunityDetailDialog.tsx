@@ -100,7 +100,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lossReason, setLossReason] = useState("");
   const [lossNotes, setLossNotes] = useState("");
   const [showLossDialog, setShowLossDialog] = useState(false);
-  const [pendingLostStatus, setPendingLostStatus] = useState(false);
+  const [pendingLostStatus, setPendingLostStatus] = useState<string | false>(false);
   const [nextAction, setNextAction] = useState("");
   const [nextActionDate, setNextActionDate] = useState("");
   const [lostReasonCategory, setLostReasonCategory] = useState("");
