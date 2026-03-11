@@ -47,7 +47,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
   }, []);
 
   const { data: budgets = [], isLoading } = useQuery({
-    queryKey: ["cost-budgets", companyId],
+    queryKey: queryKeys.costs.budgets(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_budgets")
