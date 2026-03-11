@@ -463,7 +463,7 @@ export function useApplyAuditAdjustmentMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       toast.success("Rettifica applicata");
     },
     onError: () => toast.error("Errore nella rettifica"),

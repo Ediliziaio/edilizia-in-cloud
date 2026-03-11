@@ -67,8 +67,8 @@ export function useBrandSettings(companyId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["brand-settings", id] });
-      queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branding.settings(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyDetail(id) });
     },
   });
 

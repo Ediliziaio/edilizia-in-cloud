@@ -60,7 +60,7 @@ export function useSuperAdminPermissions() {
 
   // Check if this is the only super_admin (bootstrap: first admin gets full access)
   const { data: adminCount } = useQuery({
-    queryKey: ["super-admin-count"],
+    queryKey: queryKeys.admin.superAdminCount,
     queryFn: async () => {
       const { count, error } = await supabase
         .from("user_roles")

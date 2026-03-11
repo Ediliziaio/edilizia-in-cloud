@@ -38,7 +38,7 @@ export function useCustomerUnreadCount() {
           filter: `customer_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["customer-messages-unread", user.id] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.customerUnread.messages(user.id) });
         }
       )
       .subscribe();

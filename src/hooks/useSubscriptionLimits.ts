@@ -50,7 +50,7 @@ export function useSubscriptionLimits() {
 
   // Count users
   const { data: userCount = 0, isLoading: usersLoading } = useQuery({
-    queryKey: ["user-count", companyId],
+    queryKey: queryKeys.subscriptionLimits.userCount(companyId),
     queryFn: async () => {
       const { count, error } = await supabase
         .from("profiles")

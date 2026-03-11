@@ -53,7 +53,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
 
   // Fetch company overrides
   const { data: overrides = [], isLoading: overridesLoading } = useQuery({
-    queryKey: ["company-feature-overrides", companyId],
+    queryKey: queryKeys.featureFlags.companyOverrides(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")

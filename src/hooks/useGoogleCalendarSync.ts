@@ -27,7 +27,7 @@ export function useGoogleCalendarSync() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ["gcal-settings", companyId, userId],
+    queryKey: queryKeys.googleCalendar.settings(companyId, userId),
     queryFn: async () => {
       if (!companyId || !userId) return null;
       const { data } = await supabase

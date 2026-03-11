@@ -83,7 +83,7 @@ export function useWarehouseData() {
 
   // Fetch order statuses to determine the last phase
   const { data: orderStatuses = [] } = useQuery({
-    queryKey: ["order-statuses", companyId],
+    queryKey: queryKeys.orders.statuses(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
