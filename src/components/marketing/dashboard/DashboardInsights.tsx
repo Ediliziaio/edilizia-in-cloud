@@ -136,7 +136,7 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
   const cpl = Number(kpi.cpl ?? 0);
   if (rpl > 0 && cpl > 0 && rpl < cpl) {
     insights.push({
-      text: `Il Revenue per Lead (€${rpl}) è inferiore al Costo per Lead (€${cpl}) — le campagne non sono sostenibili.`,
+      text: `Il Revenue per Lead (${formatCurrency(rpl)}) è inferiore al Costo per Lead (${formatCurrency(cpl)}) — le campagne non sono sostenibili.`,
       type: "negative",
       icon: TrendingDown,
     });

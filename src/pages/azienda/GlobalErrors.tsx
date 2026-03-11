@@ -241,7 +241,7 @@ export default function GlobalErrors() {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={categoryChart} layout="vertical" margin={{ left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v) => `€${v}`} />
+                  <XAxis type="number" tickFormatter={formatCurrencyCompact} />
                   <YAxis type="category" dataKey="category" width={100} />
                   <Tooltip formatter={(v: number) => fmt(v)} />
                   <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>

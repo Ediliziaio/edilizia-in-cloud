@@ -141,7 +141,7 @@ export default function SalespersonProfile() {
               </div>
               <p className="text-2xl font-bold">
                 {salesperson.commission_type === "fixed"
-                  ? `€${salesperson.commission_value}`
+                  ? formatCurrency(salesperson.commission_value)
                   : `${salesperson.commission_value}%`}
               </p>
               <p className="text-xs text-muted-foreground mt-1">

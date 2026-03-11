@@ -74,7 +74,7 @@ export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSel
                 {sp.first_name} {sp.last_name}
                 <span className="text-muted-foreground ml-2 text-xs">
                   ({sp.commission_type === "fixed" 
-                    ? `€${sp.commission_value}` 
+                    ? formatCurrency(sp.commission_value) 
                     : `${sp.commission_value}%`})
                 </span>
               </SelectItem>
