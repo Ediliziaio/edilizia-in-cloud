@@ -148,7 +148,7 @@ export default function Employees() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["external-teams"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
       toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati con successo." });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
