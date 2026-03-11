@@ -59,6 +59,9 @@ export interface TodayData {
   overdueCount: number;
   suppliersDueAmount: number;
   suppliersDue: Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+  revenueInRange: number;
+  collectedInRange: number;
+  costsPaidInRange: number;
 }
 
 export interface CashFlowForecastData {
