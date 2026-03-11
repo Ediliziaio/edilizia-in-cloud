@@ -181,7 +181,7 @@ export default function CompaniesList() {
 
   // Last access per company
   const { data: lastAccessData = {} } = useQuery({
-    queryKey: ["admin-companies-last-access"],
+    queryKey: queryKeys.admin.companiesLastAccess,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_last_access");
       if (error) throw error;
