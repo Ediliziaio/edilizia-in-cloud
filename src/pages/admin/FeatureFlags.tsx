@@ -47,7 +47,7 @@ export default function FeatureFlags() {
 
   // Fetch companies
   const { data: companies = [], isLoading: companiesLoading } = useQuery({
-    queryKey: ["admin-ff-companies"],
+    queryKey: queryKeys.admin.ffCompanies,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
