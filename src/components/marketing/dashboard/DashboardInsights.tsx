@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Lightbulb, TrendingDown, TrendingUp, AlertTriangle, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import type { KpiData, SalesPerformance, SourceAnalysis, AlertsData } from "@/hooks/useMarketingDashboard";
 
 interface Props {
