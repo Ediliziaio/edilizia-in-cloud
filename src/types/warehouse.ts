@@ -1,7 +1,7 @@
 import { differenceInDays } from "date-fns";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 
-export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
+export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino" | "prenotato" | "installato";
 
 export interface WarehouseItem {
   id: string;
@@ -55,10 +55,22 @@ export const STATUS_CONFIG: Record<OrderItemStatus, {
     bgColor: "bg-blue-50/50 dark:bg-blue-950/20",
     icon: Truck,
   },
+  in_arrivo: {
+    label: "In Arrivo",
+    color: "text-indigo-600",
+    bgColor: "bg-indigo-50/50 dark:bg-indigo-950/20",
+    icon: Truck,
+  },
   in_magazzino: {
     label: "In Magazzino",
     color: "text-green-600",
     bgColor: "bg-green-50/50 dark:bg-green-950/20",
+    icon: Package,
+  },
+  prenotato: {
+    label: "Prenotato",
+    color: "text-purple-600",
+    bgColor: "bg-purple-50/50 dark:bg-purple-950/20",
     icon: Package,
   },
   installato: {

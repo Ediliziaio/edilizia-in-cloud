@@ -45,6 +45,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
+import BlockedOrdersPanel from "@/components/warehouse/BlockedOrdersPanel";
+import LowStockAlertsPanel from "@/components/warehouse/LowStockAlertsPanel";
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
@@ -144,7 +146,7 @@ export default function Warehouse() {
     if (item) setDraggingItem(item);
   }, [filteredItems]);
 
-  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
@@ -248,6 +250,12 @@ export default function Warehouse() {
       {/* Alerts */}
       <div className="print:hidden">
         <WarehouseAlerts items={items} />
+      </div>
+
+      {/* Live panels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
+        <BlockedOrdersPanel />
+        <LowStockAlertsPanel />
       </div>
 
       {/* Stats */}

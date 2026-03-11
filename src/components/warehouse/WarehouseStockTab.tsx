@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import { WarehouseMapView } from "./WarehouseMapView";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
+import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
@@ -48,6 +49,7 @@ export default function WarehouseStockTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
   const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
+  const [auditItem, setAuditItem] = useState<StockItem | null>(null);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -496,6 +498,7 @@ export default function WarehouseStockTab() {
                       onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
                       onHistory={() => setHistoryItem(item)}
                       onTask={() => setTaskItem(item)}
+                      onAudit={() => setAuditItem(item)}
                     />
                   ))}
                 </TableBody>
@@ -553,6 +556,11 @@ export default function WarehouseStockTab() {
             {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}
           </DialogContent>
         </Dialog>
+        <InventoryAuditDialog
+          open={!!auditItem}
+          onOpenChange={(v) => { if (!v) setAuditItem(null); }}
+          stockItem={auditItem}
+        />
       </div>
     </DndContext>
   );
@@ -573,11 +581,12 @@ interface DraggableStockRowProps {
   onScarico: () => void;
   onHistory: () => void;
   onTask: () => void;
+  onAudit: () => void;
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `stock-${item.id}`,
@@ -635,6 +644,9 @@ const DraggableStockRow = memo(function DraggableStockRow({
           </Button>
           <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
             <History className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
+            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
           </Button>
           <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
             <ArrowUpCircle className="h-4 w-4 text-emerald-600" />

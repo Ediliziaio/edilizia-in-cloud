@@ -6409,6 +6409,60 @@ export type Database = {
           },
         ]
       }
+      inventory_audits: {
+        Row: {
+          adjustment_applied: boolean
+          company_id: string
+          counted_quantity: number
+          created_at: string
+          difference: number
+          expected_quantity: number
+          id: string
+          notes: string | null
+          performed_by: string
+          stock_item_id: string
+        }
+        Insert: {
+          adjustment_applied?: boolean
+          company_id: string
+          counted_quantity: number
+          created_at?: string
+          difference?: number
+          expected_quantity: number
+          id?: string
+          notes?: string | null
+          performed_by: string
+          stock_item_id: string
+        }
+        Update: {
+          adjustment_applied?: boolean
+          company_id?: string
+          counted_quantity?: number
+          created_at?: string
+          difference?: number
+          expected_quantity?: number
+          id?: string
+          notes?: string | null
+          performed_by?: string
+          stock_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_audits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_audits_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_lines: {
         Row: {
           created_at: string | null
@@ -8968,11 +9022,13 @@ export type Database = {
       }
       order_items: {
         Row: {
+          auto_deducted: boolean | null
           balance_amount: number | null
           balance_expected_date: string | null
           balance_paid: boolean | null
           balance_paid_date: string | null
           created_at: string | null
+          delivery_date: string | null
           deposit_amount: number | null
           deposit_expected_date: string | null
           deposit_paid: boolean | null
@@ -8981,6 +9037,7 @@ export type Database = {
           discount_percent: number | null
           id: string
           is_paid: boolean | null
+          lot_number: string | null
           name: string
           notes: string | null
           order_id: string
@@ -8989,6 +9046,7 @@ export type Database = {
           position: number | null
           purchase_price: number | null
           quantity: number | null
+          quantity_reserved: number | null
           section_id: string | null
           standard_cost: number | null
           status: string | null
@@ -8999,11 +9057,13 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          auto_deducted?: boolean | null
           balance_amount?: number | null
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
           created_at?: string | null
+          delivery_date?: string | null
           deposit_amount?: number | null
           deposit_expected_date?: string | null
           deposit_paid?: boolean | null
@@ -9012,6 +9072,7 @@ export type Database = {
           discount_percent?: number | null
           id?: string
           is_paid?: boolean | null
+          lot_number?: string | null
           name: string
           notes?: string | null
           order_id: string
@@ -9020,6 +9081,7 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          quantity_reserved?: number | null
           section_id?: string | null
           standard_cost?: number | null
           status?: string | null
@@ -9030,11 +9092,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          auto_deducted?: boolean | null
           balance_amount?: number | null
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
           created_at?: string | null
+          delivery_date?: string | null
           deposit_amount?: number | null
           deposit_expected_date?: string | null
           deposit_paid?: boolean | null
@@ -9043,6 +9107,7 @@ export type Database = {
           discount_percent?: number | null
           id?: string
           is_paid?: boolean | null
+          lot_number?: string | null
           name?: string
           notes?: string | null
           order_id?: string
@@ -9051,6 +9116,7 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          quantity_reserved?: number | null
           section_id?: string | null
           standard_cost?: number | null
           status?: string | null
@@ -12643,38 +12709,128 @@ export type Database = {
           },
         ]
       }
+      warehouse_lot_batches: {
+        Row: {
+          company_id: string
+          created_at: string
+          expiry_date: string | null
+          id: string
+          lot_number: string
+          notes: string | null
+          quantity: number
+          received_date: string
+          stock_item_id: string
+          supplier_id: string | null
+          unit_cost: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          lot_number: string
+          notes?: string | null
+          quantity?: number
+          received_date?: string
+          stock_item_id: string
+          supplier_id?: string | null
+          unit_cost?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          lot_number?: string
+          notes?: string | null
+          quantity?: number
+          received_date?: string
+          stock_item_id?: string
+          supplier_id?: string | null
+          unit_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_lot_batches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_lot_batches_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_lot_batches_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warehouse_movements: {
         Row: {
+          company_id: string | null
           created_at: string
           id: string
+          lot_number: string | null
           movement_type: string
           notes: string | null
+          order_id: string | null
           order_item_id: string | null
           performed_by: string
           quantity: number
           stock_item_id: string
+          unit_cost: number | null
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           id?: string
+          lot_number?: string | null
           movement_type: string
           notes?: string | null
+          order_id?: string | null
           order_item_id?: string | null
           performed_by: string
           quantity: number
           stock_item_id: string
+          unit_cost?: number | null
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           id?: string
+          lot_number?: string | null
           movement_type?: string
           notes?: string | null
+          order_id?: string | null
           order_item_id?: string | null
           performed_by?: string
           quantity?: number
           stock_item_id?: string
+          unit_cost?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "warehouse_movements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_movements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "warehouse_movements_order_item_id_fkey"
             columns: ["order_item_id"]
@@ -12738,6 +12894,8 @@ export type Database = {
           min_stock_level: number
           name: string
           quantity: number
+          quantity_reserved: number
+          reorder_quantity: number
           section_id: string | null
           supplier_id: string | null
           unit_cost: number
@@ -12752,6 +12910,8 @@ export type Database = {
           min_stock_level?: number
           name: string
           quantity?: number
+          quantity_reserved?: number
+          reorder_quantity?: number
           section_id?: string | null
           supplier_id?: string | null
           unit_cost?: number
@@ -12766,6 +12926,8 @@ export type Database = {
           min_stock_level?: number
           name?: string
           quantity?: number
+          quantity_reserved?: number
+          reorder_quantity?: number
           section_id?: string | null
           supplier_id?: string | null
           unit_cost?: number
@@ -13276,6 +13438,17 @@ export type Database = {
               unique_visitors: number
             }[]
           }
+      get_blocked_orders: {
+        Args: { p_company_id: string }
+        Returns: {
+          customer_name: string
+          expected_date: string
+          missing_items: number
+          order_code: string
+          order_id: string
+          total_items: number
+        }[]
+      }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
@@ -13423,6 +13596,19 @@ export type Database = {
           rol_hours_used: number
         }[]
       }
+      get_low_stock_alerts: {
+        Args: { p_company_id: string }
+        Returns: {
+          available: number
+          current_quantity: number
+          item_name: string
+          min_level: number
+          reorder_qty: number
+          reserved: number
+          stock_item_id: string
+          supplier_id: string
+        }[]
+      }
       get_marketing_dashboard_stats: {
         Args: {
           p_assigned_user_ids?: string[]
@@ -13435,6 +13621,19 @@ export type Database = {
         Returns: Json
       }
       get_my_company_id: { Args: never; Returns: string }
+      get_order_materials_history: {
+        Args: { p_order_id: string }
+        Returns: {
+          created_at: string
+          lot_number: string
+          movement_id: string
+          movement_type: string
+          notes: string
+          performed_by: string
+          quantity: number
+          stock_item_name: string
+        }[]
+      }
       get_plan_company_counts: {
         Args: never
         Returns: {
