@@ -115,7 +115,7 @@ export default function PurchaseOrdersList() {
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Valore totale</p>
-          <p className="text-xl font-bold">{fmtEur(kpis.totalAll)}</p>
+          <p className="text-xl font-bold">{formatCurrency(kpis.totalAll)}</p>
         </CardContent></Card>
       </div>
 
