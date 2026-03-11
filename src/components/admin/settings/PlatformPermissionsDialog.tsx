@@ -151,7 +151,7 @@ export default function PlatformPermissionsDialog({ open, onOpenChange, adminId,
         body: {
           action: "update-permissions",
           userId: adminId,
-          role: payload.role,
+          platformRole: payload.role !== "custom" ? payload.role : undefined,
           permissions: payload.permissions,
         },
         headers: { Authorization: `Bearer ${session?.access_token}` },
