@@ -76,7 +76,7 @@ export default function LeaveRequests() {
 
   // Balance
   const { data: balance } = useQuery({
-    queryKey: ["leave-balance", employee?.id, currentYear],
+    queryKey: queryKeys.leave.balance(employee?.id, currentYear),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_balances")
