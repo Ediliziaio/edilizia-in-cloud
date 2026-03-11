@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
     // === CREATE PLATFORM USER ===
     if (action === "create") {
-      const { email, password, firstName, lastName, platformRole, jobTitle, department } = body;
+      const { email, password, firstName, lastName, platformRole, jobTitle, department, companyAccesses, companyPermissions } = body;
       
       if (!email || !password) {
         return errorResponse("Email e password obbligatori");
@@ -227,18 +227,61 @@ Deno.serve(async (req) => {
       };
 
       const preset = presets[platformRole] || {};
+      const companyIds = (companyAccesses || []).map((ca: any) => ca.companyId);
+      
       await supabaseAdmin.from("super_admin_permissions").insert({
         user_id: userId,
         platform_role: platformRole,
         job_title: jobTitle || null,
         department: department || null,
+        allowed_company_ids: companyIds.length > 0 ? companyIds : null,
         ...preset,
       });
+
+      // Insert company accesses into multi_company_access
+      if (companyAccesses && Array.isArray(companyAccesses) && companyAccesses.length > 0) {
+        const accessRows = companyAccesses.map((ca: any) => ({
+          user_id: userId,
+          company_id: ca.companyId,
+          access_role: ca.role || "company_staff",
+          granted_by: callerId,
+        }));
+
+        const { error: accessError } = await supabaseAdmin
+          .from("multi_company_access")
+          .insert(accessRows);
+        if (accessError) {
+          console.error("Failed to insert company accesses:", accessError);
+        }
+
+        // Insert staff_permissions for staff-role companies
+        if (companyPermissions) {
+          const staffCompanyIds = companyAccesses
+            .filter((ca: any) => ca.role === "company_staff")
+            .map((ca: any) => ca.companyId);
+
+          if (staffCompanyIds.length > 0) {
+            const permRows = staffCompanyIds.map((companyId: string) => ({
+              user_id: userId,
+              company_id: companyId,
+              ...companyPermissions,
+            }));
+
+            const { error: permError } = await supabaseAdmin
+              .from("staff_permissions")
+              .insert(permRows);
+            if (permError) {
+              console.error("Failed to insert staff permissions:", permError);
+            }
+          }
+        }
+      }
 
       await logAudit(supabaseAdmin, callerId, "create_platform_user", "user", userId, {
         target_name: `${firstName || "Platform"} ${lastName || "User"}`,
         email,
         platform_role: platformRole,
+        company_count: companyIds.length,
       });
 
       return jsonResponse({ success: true, userId });
