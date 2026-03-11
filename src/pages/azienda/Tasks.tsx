@@ -129,7 +129,7 @@ export default function Tasks() {
 
   const isOverdue = (task: any) => task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
 
-  const handleRefresh = () => queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
   return (
     <div className="space-y-6">

@@ -269,7 +269,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         onOpenChange={setDialogOpen}
         task={editingTask || (dialogOpen ? getDefaultTask() : null)}
         onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: ["tasks"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
         }}
         defaultCategory={category}
         defaultOrderId={orderId}

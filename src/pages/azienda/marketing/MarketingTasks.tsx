@@ -312,7 +312,7 @@ export default function MarketingTasks() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         task={editingTask}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all })}
         defaultCategory="marketing"
       />
     </div>
