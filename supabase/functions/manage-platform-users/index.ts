@@ -302,7 +302,9 @@ Deno.serve(async (req) => {
       const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
 
       // Clean up everything
+      await supabaseAdmin.from("staff_permissions").delete().eq("user_id", userId);
       await supabaseAdmin.from("super_admin_permissions").delete().eq("user_id", userId);
+      await supabaseAdmin.from("multi_company_access").delete().eq("user_id", userId);
       await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
       await supabaseAdmin.from("profiles").delete().eq("id", userId);
       await supabaseAdmin.auth.admin.deleteUser(userId);
