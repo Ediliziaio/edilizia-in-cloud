@@ -8,6 +8,8 @@ interface LeadTemperatureBadgeProps {
   lastContactedAt?: string | null;
   hasOpenOpportunity?: boolean;
   recentAppointment?: boolean;
+  /** Fallback date for new contacts with no activity */
+  createdAt?: string | null;
   /** Show only emoji without text */
   compact?: boolean;
   className?: string;
@@ -18,14 +20,16 @@ export const LeadTemperatureBadge = memo(function LeadTemperatureBadge({
   lastContactedAt,
   hasOpenOpportunity = false,
   recentAppointment = false,
+  createdAt,
   compact = false,
   className,
 }: LeadTemperatureBadgeProps) {
   const temp = useMemo((): LeadTemperatureResult => {
     const activityDate = lastActivityAt ? new Date(lastActivityAt) : null;
     const contactedDate = lastContactedAt ? new Date(lastContactedAt) : null;
-    return getLeadTemperature(activityDate, contactedDate, hasOpenOpportunity, recentAppointment);
-  }, [lastActivityAt, lastContactedAt, hasOpenOpportunity, recentAppointment]);
+    const created = createdAt ? new Date(createdAt) : null;
+    return getLeadTemperature(activityDate, contactedDate, hasOpenOpportunity, recentAppointment, created);
+  }, [lastActivityAt, lastContactedAt, hasOpenOpportunity, recentAppointment, createdAt]);
 
   const emoji =
     temp.temperature === 'hot' ? '🔥'

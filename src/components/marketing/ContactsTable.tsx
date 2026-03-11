@@ -226,6 +226,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
           <LeadTemperatureBadge
             lastActivityAt={c.last_activity_at}
             hasOpenOpportunity={!!c.opp_status && c.opp_status === 'open'}
+            createdAt={c.created_at}
             compact
           />
         </TableCell>
