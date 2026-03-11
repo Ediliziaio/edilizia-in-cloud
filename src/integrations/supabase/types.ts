@@ -7718,6 +7718,7 @@ export type Database = {
           id: string
           loss_notes: string | null
           loss_reason: string | null
+          lost_reason: string | null
           lost_reason_category: string | null
           name: string
           next_action: string | null
@@ -7747,6 +7748,7 @@ export type Database = {
           id?: string
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_reason?: string | null
           lost_reason_category?: string | null
           name: string
           next_action?: string | null
@@ -7776,6 +7778,7 @@ export type Database = {
           id?: string
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_reason?: string | null
           lost_reason_category?: string | null
           name?: string
           next_action?: string | null
@@ -11043,40 +11046,58 @@ export type Database = {
       }
       sales_targets: {
         Row: {
+          assigned_to: string | null
           company_id: string
           created_at: string
           id: string
+          month: number | null
+          notes: string | null
           period_type: string
+          target_amount: number | null
           target_appointments: number
           target_calls: number
           target_contracts: number
+          target_deals: number | null
           target_revenue: number
           updated_at: string
           user_id: string
+          year: number | null
         }
         Insert: {
+          assigned_to?: string | null
           company_id: string
           created_at?: string
           id?: string
+          month?: number | null
+          notes?: string | null
           period_type?: string
+          target_amount?: number | null
           target_appointments?: number
           target_calls?: number
           target_contracts?: number
+          target_deals?: number | null
           target_revenue?: number
           updated_at?: string
           user_id: string
+          year?: number | null
         }
         Update: {
+          assigned_to?: string | null
           company_id?: string
           created_at?: string
           id?: string
+          month?: number | null
+          notes?: string | null
           period_type?: string
+          target_amount?: number | null
           target_appointments?: number
           target_calls?: number
           target_contracts?: number
+          target_deals?: number | null
           target_revenue?: number
           updated_at?: string
           user_id?: string
+          year?: number | null
         }
         Relationships: [
           {
