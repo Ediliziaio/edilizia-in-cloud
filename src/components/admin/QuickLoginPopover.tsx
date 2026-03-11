@@ -80,6 +80,12 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   employee: "/dipendente",
   salesperson: "/venditore",
   referrer: "/partner",
+  platform_manager: "/admin",
+  platform_sales: "/admin",
+  platform_support: "/admin",
+  platform_marketing: "/admin",
+  platform_implementation: "/admin",
+  multi_company_user: "/azienda",
 };
 
 interface UserWithRole {
