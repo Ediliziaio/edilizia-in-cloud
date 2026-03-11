@@ -105,7 +105,7 @@ export default function Employees() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
       toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati con successo." });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
