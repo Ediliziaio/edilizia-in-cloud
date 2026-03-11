@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { CircleDot, Trophy, XCircle, Ban, Euro, TrendingUp } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 
 interface Props {
   opportunities: any[];
