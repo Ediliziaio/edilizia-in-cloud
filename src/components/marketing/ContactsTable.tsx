@@ -220,6 +220,16 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_source || "—"}</TableCell>;
     case "attr_campaign":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_campaign || "—"}</TableCell>;
+    case "temperature":
+      return (
+        <TableCell key={col.key} className={cls}>
+          <LeadTemperatureBadge
+            lastActivityAt={c.last_activity_at}
+            hasOpenOpportunity={!!c.opp_status && c.opp_status === 'open'}
+            compact
+          />
+        </TableCell>
+      );
     default:
       return null;
   }
