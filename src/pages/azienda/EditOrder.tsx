@@ -599,6 +599,11 @@ export default function EditOrder() {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
       queryClient.invalidateQueries({ queryKey: ["order-salesperson", id] });
       queryClient.invalidateQueries({ queryKey: ["order-installments", id] });
+      queryClient.invalidateQueries({ queryKey: ["margin"] });
+      queryClient.invalidateQueries({ queryKey: ["break-even"] });
+      queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       toast.success("Ordine aggiornato", { description: "L'ordine è stato aggiornato con successo." });
       navigate(`/azienda/ordini/${id}`);
     },
