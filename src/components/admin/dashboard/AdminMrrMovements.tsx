@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { ArrowUpDown } from "lucide-react";
 import type { MrrMovement } from "@/hooks/useAdminRevenueData";
 
@@ -28,7 +28,7 @@ export function AdminMrrMovements({ data }: Props) {
               />
               <YAxis
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                tickFormatter={(v) => `€${v}`}
+                tickFormatter={formatCurrencyCompact}
               />
               <Tooltip
                 formatter={(value: number, name: string) => {

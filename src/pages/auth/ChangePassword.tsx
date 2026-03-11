@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,7 +98,7 @@ export default function ChangePassword() {
       toast.success("Password cambiata con successo!");
       navigate("/azienda");
     } catch (error) {
-      console.error("Error changing password:", error);
+      logger.error("Error changing password:", error);
       toast.error("Errore durante il cambio password");
     } finally {
       setIsLoading(false);

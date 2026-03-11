@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { logger } from "@/utils/logger";
 import { ImageIcon } from "lucide-react";
 
 function hashPrompt(prompt: string): string {
@@ -45,7 +46,7 @@ export default function AIImage({ prompt, alt, className = "" }: AIImageProps) {
         if (cancelled) return;
 
         if (fnError || !data?.imageUrl) {
-          console.error("AI image error:", fnError);
+          logger.error("AI image error:", fnError);
           setError(true);
           setLoading(false);
           return;
@@ -56,7 +57,7 @@ export default function AIImage({ prompt, alt, className = "" }: AIImageProps) {
         setLoading(false);
       } catch (e) {
         if (!cancelled) {
-          console.error("AI image fetch error:", e);
+          logger.error("AI image fetch error:", e);
           setError(true);
           setLoading(false);
         }

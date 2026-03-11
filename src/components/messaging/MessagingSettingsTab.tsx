@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 // Public Meta App ID — configure this with your own app
 const META_APP_ID = "YOUR_META_APP_ID";
@@ -126,7 +127,7 @@ export function MessagingSettingsTab() {
         queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
       }
     } catch (err) {
-      console.error("Status poll error:", err);
+      logger.error("Status poll error:", err);
     }
   }, [companyId, isConnected, queryClient]);
 
@@ -176,7 +177,7 @@ export function MessagingSettingsTab() {
 
             queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
           } catch (err: any) {
-            console.error("Connect error:", err);
+            logger.error("Connect error:", err);
             toast.error("Errore collegamento", {
               description: err?.message || "Impossibile completare il collegamento. Riprova.",
             });

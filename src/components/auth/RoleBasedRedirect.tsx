@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
 
 function LoadingSpinner({ text }: { text: string }) {
@@ -32,13 +33,13 @@ export function RoleBasedRedirect() {
             .maybeSingle();
           
           if (error) {
-            console.error("Error checking password flag:", error);
+            logger.error("Error checking password flag:", error);
             setMustChangePassword(false);
           } else {
             setMustChangePassword(data?.must_change_password ?? false);
           }
         } catch (err) {
-          console.error("Error in checkPasswordChange:", err);
+          logger.error("Error in checkPasswordChange:", err);
           setMustChangePassword(false);
         } finally {
           setCheckingPassword(false);

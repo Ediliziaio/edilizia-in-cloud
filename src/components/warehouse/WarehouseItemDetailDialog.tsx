@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -129,7 +130,7 @@ export default function WarehouseItemDetailDialog({
             {item.purchase_price != null && (
               <div>
                 <span className="text-xs text-muted-foreground">Prezzo acquisto</span>
-                <p className="font-medium">€ {item.purchase_price.toFixed(2)}</p>
+                <p className="font-medium">{formatCurrency(item.purchase_price)}</p>
               </div>
             )}
           </div>

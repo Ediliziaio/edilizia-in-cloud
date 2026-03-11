@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 
 export default function MyEarnings() {
   const { user } = useAuth();
@@ -220,7 +220,7 @@ export default function MyEarnings() {
                 />
                 <YAxis 
                   tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value) => `€${value}`}
+                  tickFormatter={formatCurrencyCompact}
                 />
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
@@ -283,7 +283,7 @@ export default function MyEarnings() {
                       <TableCell>
                         <Badge variant="outline">
                           {commission.commission_type === "fixed"
-                            ? `Fisso €${commission.commission_value}`
+                            ? `Fisso ${formatCurrency(commission.commission_value)}`
                             : `${commission.commission_value}%`}
                         </Badge>
                       </TableCell>

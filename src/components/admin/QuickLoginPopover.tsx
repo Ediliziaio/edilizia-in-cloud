@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import type { AppRole } from "@/types/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveQuickLoginSession } from "@/components/admin/QuickLoginReturnBanner";
@@ -190,7 +191,7 @@ export function QuickLoginPopover() {
       const target = REDIRECT_MAP[user.role] || "/";
       navigate(target, { replace: true });
     } catch (err: any) {
-      console.error("Sign in as user error:", err);
+      logger.error("Sign in as user error:", err);
       toast.error(`Errore: ${err.message || "Impossibile accedere come utente"}`);
     } finally {
       setLoading(false);

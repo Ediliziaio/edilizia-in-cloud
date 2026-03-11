@@ -2,6 +2,7 @@ import { memo } from "react";
 import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
 import type { OperationsData, FinanceData, CompanyTargets } from "@/hooks/useCruscottoData";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,7 +118,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       id: "overdue-payments",
       level: "critical",
       icon: CreditCard,
-      message: `${operations.overduePayments} pagamenti scaduti (€${Math.round(operations.overdueAmount).toLocaleString("it-IT")})`,
+      message: `${operations.overduePayments} pagamenti scaduti (${formatCurrency(operations.overdueAmount)})`,
       action: "Sollecitare incassi urgenti",
       link: "/azienda/ordini",
     });
@@ -152,7 +153,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         id: "overdue-invoices",
         level: "critical",
         icon: FileText,
-        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (€${Math.round(invoiceStats.overdue_amount).toLocaleString("it-IT")})`,
+        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (${formatCurrency(invoiceStats.overdue_amount)})`,
         action: "Verificare incassi e sollecitare pagamenti",
         link: "/azienda/scadenzario",
       });
@@ -162,7 +163,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         id: "due-this-week-invoices",
         level: "warning",
         icon: FileText,
-        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (€${Math.round(invoiceStats.due_this_week_amount).toLocaleString("it-IT")})`,
+        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (${formatCurrency(invoiceStats.due_this_week_amount)})`,
         action: "Monitorare incassi previsti",
         link: "/azienda/scadenzario",
       });

@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import {
   EMPLOYEE_DOCUMENT_TYPES,
   getDocumentTypeLabel,
@@ -165,7 +166,7 @@ export function EmployeeAttachments({
       resetUploadForm();
     },
     onError: (error) => {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast.error("Errore", { description: "Si è verificato un errore durante il caricamento." });
     },
   });

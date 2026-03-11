@@ -4,6 +4,7 @@ import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizont
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -377,7 +378,7 @@ export function UsersConfig() {
           .eq("user_id", response.data.user_id);
 
         if (permUpdateError) {
-          console.error("Failed to update permissions:", permUpdateError);
+          logger.error("Failed to update permissions:", permUpdateError);
           toast.warning("Utente creato, ma i permessi non sono stati salvati", {
             description: "Vai nel dettaglio utente per configurare i permessi manualmente.",
           });

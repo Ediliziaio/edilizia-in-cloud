@@ -43,6 +43,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrencyCompact } from "@/lib/formatters";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -150,7 +151,7 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
           <Tooltip
             formatter={(value: number, name: string) =>
               name === "Prob %" ? [`${value}%`, name] : [fmt(value), name]
@@ -220,7 +221,7 @@ function SalesForecastChart({ companyId }: { companyId: string }) {
         <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
         <YAxis
           tick={{ fontSize: 11 }}
-          tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+          tickFormatter={formatCurrencyCompact}
         />
         <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} />
         <Legend />

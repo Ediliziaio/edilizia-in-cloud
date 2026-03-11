@@ -1,4 +1,5 @@
 import { Progress } from "@/components/ui/progress";
+import { formatCurrency } from "@/lib/formatters";
 
 interface CreditUsageBarProps {
   spentEur: number;
@@ -19,7 +20,7 @@ export function CreditUsageBar({ spentEur, rechargedEur, label }: CreditUsageBar
       {label && <p className="text-sm font-medium">{label}</p>}
       <Progress value={pct} className={`h-3 ${barColor}`} />
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>€{spentEur.toFixed(2)} usati — €{rechargedEur.toFixed(2)} totale ricaricato</span>
+        <span>{formatCurrency(spentEur)} usati — {formatCurrency(rechargedEur)} totale ricaricato</span>
         <span>{pct}%</span>
       </div>
     </div>

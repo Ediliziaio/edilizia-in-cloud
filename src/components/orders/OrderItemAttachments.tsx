@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { logger } from "@/utils/logger";
 
 export interface OrderItemAttachment {
   id: string;
@@ -174,7 +175,7 @@ export function OrderItemAttachments({
 
       onAttachmentsChange();
     } catch (error: any) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({
         title: "Errore caricamento",
         description: error.message || "Impossibile caricare il file",
@@ -211,7 +212,7 @@ export function OrderItemAttachments({
 
       onAttachmentsChange();
     } catch (error: any) {
-      console.error("Delete error:", error);
+      logger.error("Delete error:", error);
       toast({
         title: "Errore eliminazione",
         description: error.message || "Impossibile eliminare il file",

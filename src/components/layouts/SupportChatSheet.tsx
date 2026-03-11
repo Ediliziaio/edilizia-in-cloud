@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 
 interface SupportMessage {
   id: string;
@@ -105,13 +106,13 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
         message: newMessage.trim(),
       });
       if (error) {
-        console.error("Error sending message:", error);
+        logger.error("Error sending message:", error);
         toast.error("Errore nell'invio del messaggio");
         return;
       }
       setNewMessage("");
     } catch (err) {
-      console.error("Error sending message:", err);
+      logger.error("Error sending message:", err);
       toast.error("Errore nell'invio del messaggio");
     } finally {
       setSending(false);

@@ -5,6 +5,7 @@ import { CalendarIcon, Calendar as CalendarLucide } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -94,7 +95,7 @@ export function InlineEditableDatesCard({
         .eq("id", orderId);
       if (error) {
         toast.error("Errore nel salvataggio della data");
-        console.error(error);
+        logger.error("Error saving date:", error);
       } else {
         toast.success("Data aggiornata");
         queryClient.invalidateQueries({ queryKey: ["order", orderId] });
