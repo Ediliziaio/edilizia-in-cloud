@@ -217,8 +217,10 @@ export function useMarginData(): MarginData {
 
   // KPIs
   const ordersWithRevenue = orders.filter(o => o.totalAmount > 0);
-  const avgMarginPercent = ordersWithRevenue.length > 0
-    ? ordersWithRevenue.reduce((s, o) => s + o.marginPercent, 0) / ordersWithRevenue.length
+  const totalRevenueAll = ordersWithRevenue.reduce((s, o) => s + o.totalAmount, 0);
+  const totalMarginAll = ordersWithRevenue.reduce((s, o) => s + o.grossMargin, 0);
+  const avgMarginPercent = totalRevenueAll > 0
+    ? (totalMarginAll / totalRevenueAll) * 100
     : 0;
   const avgMarginEur = ordersWithRevenue.length > 0
     ? ordersWithRevenue.reduce((s, o) => s + o.grossMargin, 0) / ordersWithRevenue.length
