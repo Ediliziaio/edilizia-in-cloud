@@ -131,7 +131,7 @@ export default function MarketingDashboard() {
           <TabPanoramica data={data} isLoading={isLoading} />
         </TabsContent>
         <TabsContent value="pipeline">
-          <TabPipeline data={data} isLoading={isLoading} />
+          <TabPipeline data={data} isLoading={isLoading} filters={filters} onUpdateFilters={updateFilters} />
         </TabsContent>
         <TabsContent value="attivita">
           <TabAttivita data={data} isLoading={isLoading} />

@@ -106,7 +106,7 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading }: Pr
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Funnel</CardTitle>
+            <CardTitle className="text-sm">Pipeline</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <DashboardFunnel funnel={data?.funnel} isLoading={isLoading} compact />
