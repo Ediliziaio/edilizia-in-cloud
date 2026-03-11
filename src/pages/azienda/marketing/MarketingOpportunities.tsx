@@ -502,7 +502,7 @@ function MarketingOpportunitiesContent() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
             <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
