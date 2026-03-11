@@ -26,7 +26,7 @@ export default function CustomerMessages() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
-  const queryKey = ["customer-messages", user?.id];
+  const queryKey = queryKeys.customerMessages.list(user?.id);
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey,
