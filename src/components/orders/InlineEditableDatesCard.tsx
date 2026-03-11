@@ -94,7 +94,7 @@ export function InlineEditableDatesCard({
         .eq("id", orderId);
       if (error) {
         toast.error("Errore nel salvataggio della data");
-        console.error(error);
+        logger.error("Error saving date:", error);
       } else {
         toast.success("Data aggiornata");
         queryClient.invalidateQueries({ queryKey: ["order", orderId] });
