@@ -37,7 +37,7 @@ export function WaterfallChart({ data }: WaterfallChartProps) {
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+                tickFormatter={formatCurrencyCompact}
               />
               <RechartsTooltip
                 content={({ active, payload, label }) => {
