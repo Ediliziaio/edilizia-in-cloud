@@ -459,7 +459,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateSalespersonOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Venditore creato");
     },
     onError: (err: any) => {
