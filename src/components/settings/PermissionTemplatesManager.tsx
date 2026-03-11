@@ -49,7 +49,7 @@ export function PermissionTemplatesManager() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({ ...DEFAULT_PERMISSIONS });
 
   const { data: templates, isLoading } = useQuery({
-    queryKey: ["permission-templates", effectiveCompany?.id],
+    queryKey: queryKeys.users.permissionTemplates(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permission_templates")
