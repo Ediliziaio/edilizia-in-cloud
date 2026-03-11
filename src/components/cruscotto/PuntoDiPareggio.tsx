@@ -85,7 +85,7 @@ function CalendarioAnno({
                   ? "text-red-800 dark:text-red-300"
                   : "text-emerald-800 dark:text-emerald-300"
               }`}>
-                {formatCompact(cumulative)}
+                {formatCurrencyCompact(cumulative)}
               </span>
               <span className={`text-[9px] ${
                 isPaying && !isBreakEvenMonth
