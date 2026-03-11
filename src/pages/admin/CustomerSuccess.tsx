@@ -57,7 +57,7 @@ export default function AdminOnboardingConfig() {
   });
 
   const { data: steps = [] } = useQuery({
-    queryKey: ["onboarding-steps", selectedTemplate],
+    queryKey: queryKeys.admin.onboardingSteps(selectedTemplate),
     enabled: !!selectedTemplate,
     queryFn: async () => {
       const { data, error } = await supabase
