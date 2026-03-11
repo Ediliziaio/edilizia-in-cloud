@@ -140,7 +140,7 @@ export default function AdminOnboardingConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["onboarding-steps", selectedTemplate] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingSteps(selectedTemplate) });
       setNewStepTitle("");
       setNewStepDesc("");
       setNewStepAutoKey("");
