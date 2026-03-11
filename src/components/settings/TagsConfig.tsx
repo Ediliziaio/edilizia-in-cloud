@@ -44,7 +44,7 @@ export function TagsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       setNewTag("");
       toast.success("Tag aggiunto");
     },
