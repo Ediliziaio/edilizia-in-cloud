@@ -302,10 +302,10 @@ export default function OrderDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
