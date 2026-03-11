@@ -113,11 +113,8 @@ const sparkTooltipStyle = {
 
 export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
   const activePreset = detectPreset(dateFrom, dateTo);
   const dynamicLabel = FOCUS_PRESETS.find(p => p.value === activePreset)?.dynamicLabel ?? "oggi";
-  const { data: dailyTrend } = useDailyTrend(companyId);
 
   const today = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
