@@ -54,7 +54,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
   const companyId = effectiveCompany?.id;
 
   const entriesQuery = useQuery({
-    queryKey: ["prima-nota", companyId, filters],
+    queryKey: queryKeys.primaNota.list(companyId, filters),
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
