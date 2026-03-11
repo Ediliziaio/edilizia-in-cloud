@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
