@@ -68,7 +68,7 @@ export default function MarketingTasks() {
   };
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", "marketing", companyId],
+    queryKey: queryKeys.tasks.marketing(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
