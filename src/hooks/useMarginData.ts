@@ -195,7 +195,7 @@ export function useMarginData(): MarginData {
     const grossMargin = totalAmount - totalVariableCosts;
     const marginPercent = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
 
-    const customer = order.customer as { first_name: string; last_name: string } | null;
+    const customer = isCustomerProfile(order.customer) ? order.customer : null;
 
     return {
       orderId: order.id,

@@ -712,6 +712,7 @@ export function CompanyLayout() {
               {effectiveCompany?.name}
             </span>
           </header>
+          <OfflineBanner />
           <LifecycleNotificationsBanner />
           <main className="flex-1 p-6 bg-muted/30">
             <Outlet />
