@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
-  const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
+  
 
   const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     if (state.role !== "super_admin") {
