@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { DealHealthBadge } from "./DealHealthBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -140,6 +141,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             </div>
           )}
           <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
+          {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {updatedAgo && (
             <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap">Agg. {updatedAgo}</span>
           )}
@@ -205,6 +207,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
             )}
           </div>
+          <div className="flex items-center gap-1.5">
+          {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {isFieldActive("owner") && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -223,6 +227,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               </TooltipContent>
             </Tooltip>
           )}
+          </div>
         </div>
 
         {/* Detail rows - driven by field preferences */}

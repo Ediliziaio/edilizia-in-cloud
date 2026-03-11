@@ -9,6 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
+import { DealHealthBadge } from "./DealHealthBadge";
 import { cn } from "@/lib/utils";
 import { STATUS_MAP, hashColor } from "@/types/opportunities";
 import type { OpportunityStage } from "@/types/opportunities";
@@ -85,6 +86,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                 <TableHead className="min-w-[120px]">Fase</TableHead>
                 <TableHead className="min-w-[100px] text-right">Valore</TableHead>
                 <TableHead className="min-w-[100px]">Stato</TableHead>
+                <TableHead className="min-w-[80px]">Salute</TableHead>
                 <TableHead className="min-w-[130px]">Titolare</TableHead>
                 <TableHead className="min-w-[120px]">Etichette</TableHead>
                 <TableHead className="min-w-[100px]">Fonte</TableHead>
@@ -95,7 +97,7 @@ export const OpportunityListView = memo(function OpportunityListView({
             <TableBody>
               {opportunities.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
                     Nessuna opportunità trovata
                   </TableCell>
                 </TableRow>
@@ -103,7 +105,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               {opportunities.length > 0 && (
                 <>
                   <tr style={{ height: virtualizer.getTotalSize() }} aria-hidden>
-                    <td colSpan={11} style={{ padding: 0, border: 0, height: 0 }} />
+                    <td colSpan={12} style={{ padding: 0, border: 0, height: 0 }} />
                   </tr>
                   {virtualizer.getVirtualItems().map((virtualRow) => {
                     const opp = opportunities[virtualRow.index];
@@ -182,6 +184,13 @@ export const OpportunityListView = memo(function OpportunityListView({
                           <Badge className={cn("text-[10px] font-medium border-0", statusInfo.className)}>
                             {statusInfo.label}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {opp.status === 'open' ? (
+                            <DealHealthBadge opportunity={opp} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {ownerName ? (

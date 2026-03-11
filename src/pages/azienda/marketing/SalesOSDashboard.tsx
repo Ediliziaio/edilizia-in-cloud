@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
+import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -591,6 +592,9 @@ export default function SalesOSDashboard() {
 
         {/* TAB: Pipeline & Forecast */}
         <TabsContent value="pipeline" className="space-y-4 mt-4">
+          {/* Deal Health Overview */}
+          <DealHealthOverview companyId={companyId} />
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
