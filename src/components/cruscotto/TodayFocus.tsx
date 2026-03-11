@@ -51,65 +51,7 @@ interface Props {
   onDateRangeChange: (from: string, to: string) => void;
 }
 
-function useDailyTrend(companyId: string | undefined) {
-  return useQuery({
-    queryKey: ["cruscotto-daily-trend", companyId],
-    enabled: !!companyId,
-    staleTime: 120_000,
-    queryFn: async () => {
-      const days: { date: string; revenue: number; collected: number }[] = [];
-      const now = new Date();
-      const from = format(subDays(now, 6), "yyyy-MM-dd");
-      const to = format(now, "yyyy-MM-dd");
 
-      const [ordersRes, installmentsRes] = await Promise.all([
-        supabase.from("orders")
-          .select("total_amount, created_at")
-          .eq("company_id", companyId!)
-          .gte("created_at", `${from}T00:00:00`)
-          .lte("created_at", `${to}T23:59:59`),
-        (supabase as any).from("order_installments")
-          .select("amount, paid_date, order:orders!inner(company_id)")
-          .eq("order.company_id", companyId!)
-          .eq("is_paid", true)
-          .gte("paid_date", from)
-          .lte("paid_date", to),
-      ]);
-
-      // Build a map for each day
-      for (let i = 6; i >= 0; i--) {
-        const d = format(subDays(now, i), "yyyy-MM-dd");
-        days.push({ date: d, revenue: 0, collected: 0 });
-      }
-      const dayMap = new Map(days.map(d => [d.date, d]));
-
-      (ordersRes.data ?? []).forEach((o: any) => {
-        const d = format(new Date(o.created_at), "yyyy-MM-dd");
-        const entry = dayMap.get(d);
-        if (entry) entry.revenue += Number(o.total_amount) || 0;
-      });
-      (installmentsRes.data ?? []).forEach((i: any) => {
-        const d = i.paid_date;
-        const entry = dayMap.get(d);
-        if (entry) entry.collected += Number(i.amount) || 0;
-      });
-
-      return days;
-    },
-  });
-}
-
-const sparkTooltipStyle = {
-  contentStyle: {
-    fontSize: 11,
-    padding: "4px 8px",
-    borderRadius: 8,
-    border: "1px solid hsl(var(--border))",
-    background: "hsl(var(--popover))",
-    color: "hsl(var(--popover-foreground))",
-  },
-  labelStyle: { display: "none" as const },
-};
 
 export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
