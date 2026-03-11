@@ -233,14 +233,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error as Error | null };
   }, []);
 
-  const signOut = async () => {
-    // End session tracking before sign out
+  const signOut = useCallback(async () => {
     await endSession();
-    // Clear quick login session data
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
     await supabase.auth.signOut();
-  };
+  }, []);
 
   const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
 
