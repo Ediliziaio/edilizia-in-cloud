@@ -47,7 +47,7 @@ export default function SuperAdminUsersTab() {
   const [permsTarget, setPermsTarget] = useState<AdminUser | null>(null);
 
   const { data: admins = [], isLoading } = useQuery({
-    queryKey: ["super-admins"],
+    queryKey: queryKeys.admin.superAdmins,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
