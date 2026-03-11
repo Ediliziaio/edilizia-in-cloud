@@ -143,7 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAuth = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // getSession reads from localStorage – fast & offline-safe
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
     
     if (user) {
       const userData = await fetchUserData(user.id);
