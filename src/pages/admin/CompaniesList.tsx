@@ -214,7 +214,7 @@ export default function CompaniesList() {
 
   // Latest CRM notes per company
   const { data: latestNotes = {} } = useQuery({
-    queryKey: ["admin-companies-latest-notes"],
+    queryKey: queryKeys.admin.companiesLatestNotes,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_notes")
