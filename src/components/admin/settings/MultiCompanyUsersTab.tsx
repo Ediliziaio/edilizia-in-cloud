@@ -15,6 +15,7 @@ import { it } from "date-fns/locale";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import CreateMultiCompanyUserDialog from "./CreateMultiCompanyUserDialog";
+import AddCompanyAccessForm from "./AddCompanyAccessForm";
 
 interface MultiCompanyUser {
   id: string;
