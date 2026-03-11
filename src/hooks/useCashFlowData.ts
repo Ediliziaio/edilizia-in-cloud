@@ -64,7 +64,7 @@ export function useCashFlowData() {
 
   // Query provvigioni non pagate
   const { data: unpaidCommissions = [], isLoading: loadingCommissions } = useQuery({
-    queryKey: ["forecast-unpaid-commissions", companyId],
+    queryKey: queryKeys.cashflow.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
@@ -86,7 +86,7 @@ export function useCashFlowData() {
 
   // Query articoli da ordinare/ordinati
   const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
-    queryKey: ["cashflow", "pending-items", companyId] as const,
+    queryKey: ["cashflow", "pending-items", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -109,7 +109,7 @@ export function useCashFlowData() {
 
   // Query supplier payment tracking (installments from order_items)
   const { data: supplierBalances = [], isLoading: loadingSupplierBalances } = useQuery({
-    queryKey: ["forecast-supplier-balances", companyId],
+    queryKey: ["cashflow", "supplier-balances", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")

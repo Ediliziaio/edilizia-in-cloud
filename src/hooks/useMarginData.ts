@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface OrderMargin {
   orderId: string;
@@ -54,7 +55,7 @@ export function useMarginData(): MarginData {
 
   // 1. Orders with customer name
   const { data: ordersRaw, isLoading: loadingOrders } = useQuery({
-    queryKey: ["margin-orders", companyId],
+    queryKey: queryKeys.margin.orders(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -71,7 +72,7 @@ export function useMarginData(): MarginData {
 
   // 2. Order items (purchase costs)
   const { data: orderItems, isLoading: loadingItems } = useQuery({
-    queryKey: ["margin-order-items", companyId],
+    queryKey: queryKeys.margin.items(companyId, ordersRaw?.length ?? 0),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -86,7 +87,7 @@ export function useMarginData(): MarginData {
 
   // 3. External teams
   const { data: externalTeams, isLoading: loadingTeams } = useQuery({
-    queryKey: ["margin-external-teams", companyId],
+    queryKey: queryKeys.margin.teams(companyId, ordersRaw?.length ?? 0),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
@@ -101,7 +102,7 @@ export function useMarginData(): MarginData {
 
   // 4. Salespeople commissions
   const { data: salespeople, isLoading: loadingSales } = useQuery({
-    queryKey: ["margin-salespeople", companyId],
+    queryKey: queryKeys.margin.salespeople(companyId, ordersRaw?.length ?? 0),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
@@ -116,7 +117,7 @@ export function useMarginData(): MarginData {
 
   // 5. Fixed company costs
   const { data: fixedCostsRaw, isLoading: loadingFixedCosts } = useQuery({
-    queryKey: ["margin-fixed-costs", companyId],
+    queryKey: queryKeys.margin.fixedCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -132,7 +133,7 @@ export function useMarginData(): MarginData {
 
   // 6. Active employees (salaries)
   const { data: employees, isLoading: loadingEmployees } = useQuery({
-    queryKey: ["margin-employees", companyId],
+    queryKey: queryKeys.margin.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

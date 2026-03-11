@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface BreakEvenYear {
   year: number;
@@ -19,7 +20,7 @@ export function useBreakEvenHistorical() {
   const companyId = effectiveCompany?.id || null;
 
   const { data: ordersRaw, isLoading: loadingOrders } = useQuery({
-    queryKey: ["be-hist-orders", companyId],
+    queryKey: queryKeys.breakEven.orders(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -36,7 +37,7 @@ export function useBreakEvenHistorical() {
   const orderIds = (ordersRaw || []).map(o => o.id);
 
   const { data: orderItems, isLoading: loadingItems } = useQuery({
-    queryKey: ["be-hist-items", companyId],
+    queryKey: queryKeys.breakEven.items(companyId, orderIds.length),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
@@ -50,7 +51,7 @@ export function useBreakEvenHistorical() {
   });
 
   const { data: externalTeams, isLoading: loadingTeams } = useQuery({
-    queryKey: ["be-hist-teams", companyId],
+    queryKey: queryKeys.breakEven.teams(companyId, orderIds.length),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
@@ -64,7 +65,7 @@ export function useBreakEvenHistorical() {
   });
 
   const { data: fixedCostsRaw, isLoading: loadingFC } = useQuery({
-    queryKey: ["be-hist-fixed-costs", companyId],
+    queryKey: queryKeys.breakEven.fixedCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -79,7 +80,7 @@ export function useBreakEvenHistorical() {
   });
 
   const { data: employees, isLoading: loadingEmp } = useQuery({
-    queryKey: ["be-hist-employees", companyId],
+    queryKey: queryKeys.breakEven.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
