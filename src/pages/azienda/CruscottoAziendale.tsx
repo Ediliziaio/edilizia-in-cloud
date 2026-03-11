@@ -128,7 +128,7 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 5: PERFORMANCE COMMERCIALE */}
       <SectionErrorBoundary sectionName="Vendite">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
           <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
         </div>
