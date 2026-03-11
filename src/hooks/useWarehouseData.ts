@@ -211,7 +211,7 @@ export function useWarehouseData() {
 
   // Badge counts - lightweight COUNT queries
   const { data: badgeCounts } = useQuery({
-    queryKey: ["warehouse-badge-counts", companyId, lastStatusId],
+    queryKey: queryKeys.warehouse.badgeCounts(companyId, lastStatusId),
     queryFn: async () => {
       if (!companyId) return { active: 0, urgent: 0, overdue: 0 };
 
