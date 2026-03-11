@@ -277,7 +277,7 @@ export default function PlatformInfoTab() {
   });
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["platform-settings"],
+    queryKey: queryKeys.admin.platformSettings,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
