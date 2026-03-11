@@ -114,7 +114,7 @@ export default function AgentCreditsPage() {
       setShowConfirmDialog(false);
     } catch (err) {
       toast.error("Errore durante la ricarica");
-      console.error(err);
+      logger.error("Topup error", err);
     } finally {
       setIsTopupLoading(false);
     }
