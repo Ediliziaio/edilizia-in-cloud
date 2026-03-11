@@ -132,7 +132,7 @@ export default function PrimaNota() {
               <p className="text-xs text-muted-foreground">Uscite</p>
             </div>
             <p className="text-xl font-bold text-destructive">
-              {isSaldoLoading ? "..." : fmtEur(saldo?.uscite || 0)}
+              {isSaldoLoading ? "..." : formatCurrency(saldo?.uscite || 0)}
             </p>
           </CardContent>
         </Card>
