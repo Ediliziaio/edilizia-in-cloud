@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, X, RefreshCw, Pause, Play, CalendarPlus, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
