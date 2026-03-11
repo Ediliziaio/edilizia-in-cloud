@@ -40,7 +40,7 @@ export interface InternalAgentAction {
 
 export function useInternalCallLogs(companyId?: string) {
   return useQuery({
-    queryKey: ["internal-call-logs", companyId],
+    queryKey: queryKeys.internalCallLogs.list(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
