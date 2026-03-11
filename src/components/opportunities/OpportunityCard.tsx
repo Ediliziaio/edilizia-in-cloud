@@ -197,13 +197,16 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               </div>
             )}
             {contact ? (
-              <p
-                className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
-                onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                {displayName}
-              </p>
+              <div className="flex items-center gap-1 min-w-0">
+                <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity compact />
+                <p
+                  className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {displayName}
+                </p>
+              </div>
             ) : (
               <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
             )}
