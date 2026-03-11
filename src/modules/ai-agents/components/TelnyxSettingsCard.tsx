@@ -95,7 +95,7 @@ export function TelnyxSettingsCard() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      queryClient.invalidateQueries({ queryKey: ["telnyx-settings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.telnyxSettings.all });
       toast.success("Configurazione Telnyx salvata");
     } catch (err: unknown) {
       console.error(err);

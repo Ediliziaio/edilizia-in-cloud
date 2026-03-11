@@ -146,8 +146,8 @@ export default function TicketDetail() {
     },
     onSuccess: () => {
       toast.success("Ticket aggiornato con successo.");
-      queryClient.invalidateQueries({ queryKey: ["admin-ticket", id] });
-      queryClient.invalidateQueries({ queryKey: ["company-tickets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: () => {
       toast.error("Impossibile aggiornare il ticket.");

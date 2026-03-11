@@ -486,7 +486,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   // Search contacts
   const { data: contacts = [] } = useQuery({
-    queryKey: ["add-to-list-contacts", companyId, search],
+    queryKey: queryKeys.listMembers.searchContacts(companyId, search),
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase

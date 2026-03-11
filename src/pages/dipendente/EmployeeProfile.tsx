@@ -62,7 +62,7 @@ export default function EmployeeProfile() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-employee-profile"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employeeProfile.all });
       toast({
         title: "Profilo aggiornato",
         description: "I tuoi dati sono stati salvati.",

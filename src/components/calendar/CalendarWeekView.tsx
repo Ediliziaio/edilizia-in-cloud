@@ -404,7 +404,7 @@ export function CalendarWeekView({
         hideMarketingFields
         showOrderSelect
         onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: ["appointments"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
           setEditingAppointment(null);
         }}
       />

@@ -129,7 +129,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing-overrides", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billingOverrides.byCompany(companyId) });
       toast.success("Override salvato");
     },
     onError: (e) => toast.error("Errore: " + e.message),
