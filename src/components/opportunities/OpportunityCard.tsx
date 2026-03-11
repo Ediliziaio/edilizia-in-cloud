@@ -110,7 +110,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   // Mini layout — ultra-compact card
   if (layout === "mini") {
     const phoneVal = contact?.phone || "";
-    const valueStr = `€ ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+    const valueStr = formatCurrency(Number(opportunity.value || 0));
     const updatedAgo = opportunity.updated_at
       ? formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })
       : null;
