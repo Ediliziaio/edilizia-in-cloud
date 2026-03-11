@@ -291,7 +291,7 @@ export function SuppliersConfig() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Impossibile aggiornare il fornitore." });
-      console.error(error);
+      logger.error("Errore aggiornamento fornitore", error);
     },
   });
 
