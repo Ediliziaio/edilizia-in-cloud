@@ -50,7 +50,7 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
   const metrics = [
     { label: "Trial scaduti", value: expired.length, icon: AlertTriangle, color: "text-destructive" },
     { label: "Aziende at-risk", value: atRiskOrCritical.length, icon: Users, color: "text-amber-500" },
-    { label: "Revenue at risk", value: `€${revenueAtRisk.toLocaleString("it-IT")}`, icon: DollarSign, color: "text-destructive" },
+    { label: "Revenue at risk", value: formatCurrency(revenueAtRisk), icon: DollarSign, color: "text-destructive" },
     { label: "In dunning", value: dunningCompanies?.length || 0, icon: CreditCard, color: "text-orange-500" },
   ];
 
