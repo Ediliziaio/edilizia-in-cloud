@@ -32,7 +32,7 @@ export function RoleBasedRedirect() {
             .maybeSingle();
           
           if (error) {
-            console.error("Error checking password flag:", error);
+            logger.error("Error checking password flag:", error);
             setMustChangePassword(false);
           } else {
             setMustChangePassword(data?.must_change_password ?? false);
