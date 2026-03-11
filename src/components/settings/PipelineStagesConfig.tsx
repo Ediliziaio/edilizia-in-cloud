@@ -278,6 +278,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                     onDelete={handleDelete}
                     canDelete={stages.length > 1}
                     onAutoStatusChange={handleAutoStatusChange}
+                    onFieldChange={handleFieldChange}
                   />
                 ))}
               </div>
