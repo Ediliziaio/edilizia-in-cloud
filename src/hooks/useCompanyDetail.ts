@@ -347,8 +347,8 @@ export function useCompanyDetail(id: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-plan"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.planAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
       setChangePlanDialog(false);
       refreshCompany();
       toast.success("Piano aggiornato");
