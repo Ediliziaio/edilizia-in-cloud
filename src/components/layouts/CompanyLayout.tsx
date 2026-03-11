@@ -104,7 +104,7 @@ function ImpersonationBanner() {
   );
 }
 
-function CompanySidebar({ onOpenNotifications, notificationCount, onOpenSearch }: { onOpenNotifications: () => void; notificationCount: number; onOpenSearch?: () => void }) {
+function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
@@ -591,40 +591,6 @@ function CompanySidebar({ onOpenNotifications, notificationCount, onOpenSearch }
             )}
             
             <div className="mt-auto border-t">
-              <div className="px-2 pt-3">
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <button
-                        onClick={() => onOpenSearch?.()}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
-                      >
-                        <Search className="h-4 w-4" />
-                        <span>Cerca...</span>
-                        <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-60">
-                          ⌘K
-                        </kbd>
-                      </button>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <button
-                        onClick={onOpenNotifications}
-                        className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground w-full"
-                      >
-                        <Bell className="h-4 w-4" />
-                        <span>Notifiche</span>
-                        {notificationCount > 0 && (
-                          <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold">
-                            {notificationCount > 99 ? "99+" : notificationCount}
-                          </Badge>
-                        )}
-                      </button>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </div>
               {permissions.canViewSettings && (
                 <div className="px-2 pt-3">
                   <SidebarMenu>
@@ -711,11 +677,7 @@ export function CompanyLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <CompanySidebar
-          onOpenNotifications={() => setNotificationsPanelOpen(true)}
-          notificationCount={notifUnreadCount}
-          onOpenSearch={() => setCommandOpen(true)}
-        />
+        <CompanySidebar />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
@@ -724,6 +686,17 @@ export function CompanyLayout() {
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <div className="flex-1" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
+              <Search className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche">
+              <Bell className="h-4 w-4" />
+              {notifUnreadCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] font-bold">
+                  {notifUnreadCount > 99 ? "99+" : notifUnreadCount}
+                </Badge>
+              )}
+            </Button>
             {showSupport && (
               <Button variant="outline" size="sm" className="relative" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 mr-2" />
