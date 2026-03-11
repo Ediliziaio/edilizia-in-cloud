@@ -44,7 +44,7 @@ export function CashFlowForecast({ finance, cashFlowForecast, isLoading }: Props
           Dettaglio →
         </button>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-3">
         {/* Cash Flow Net */}
         <div className="flex items-center gap-6">
           <div>

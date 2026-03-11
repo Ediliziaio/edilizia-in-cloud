@@ -119,8 +119,8 @@ export const queryKeys = {
       ["cruscotto", "targets", companyId] as const,
     weekly: (companyId: string | undefined) =>
       ["cruscotto", "weekly", companyId] as const,
-    today: (companyId: string | undefined) =>
-      ["cruscotto", "today", companyId] as const,
+    today: (companyId: string | undefined, dateFrom?: string, dateTo?: string) =>
+      ["cruscotto", "today", companyId, dateFrom, dateTo] as const,
     cashFlowForecast: (companyId: string | undefined) =>
       ["cruscotto", "cashflow-forecast", companyId] as const,
   },

@@ -141,7 +141,7 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 7: PERFORMANCE TEAM & TREND */}
       <SectionErrorBoundary sectionName="HR & Trend">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
           <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
         </div>

@@ -148,7 +148,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
 
       {/* Salute Aziendale */}
       <Card className="border-none shadow-md">
-        <CardContent className="p-5 flex items-center gap-4">
+        <CardContent className="p-4 flex items-center gap-4">
           <div className="w-20 h-20 relative shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
               <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
