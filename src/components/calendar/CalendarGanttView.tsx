@@ -218,7 +218,7 @@ export function CalendarGanttView({
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast.success("Date lavoro aggiornate");
     } catch (error) {
-      console.error("Error updating order dates:", error);
+      logger.error("Error updating order dates:", error);
       toast.error("Errore nell'aggiornamento delle date");
     }
   };
