@@ -70,7 +70,7 @@ export default function SettingsPrivacy() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-consents"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.consents });
       toast.success("Consenso aggiornato");
     },
     onError: (e: Error) => toast.error(e.message),
