@@ -58,7 +58,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
           {stages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
           ) : (
-            <div className="space-y-2">
+            <div className={cn("space-y-2", compact && "space-y-1")}>
               {stages.map((stage, idx) => {
                 const widthPct = Math.max((stage.count / maxCount) * 100, 8);
                 const prevCount = idx > 0 ? stages[idx - 1].count : null;
