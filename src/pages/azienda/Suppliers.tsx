@@ -76,7 +76,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(suppliers.reduce((s, f) => s + (f.oda_total || 0), 0))}</p>
+          <p className="text-xl font-bold">{formatCurrency(suppliers.reduce((s, f) => s + (f.oda_total || 0), 0))}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Debito residuo</p>
