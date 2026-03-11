@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,7 +65,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
   };
 
   const { data: attachments = [], isLoading } = useQuery({
-    queryKey: ["ticket-attachments", ticketId],
+    queryKey: queryKeys.ticketAttachments.byTicket(ticketId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
@@ -113,8 +114,8 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
     },
     onSuccess: () => {
       toast({ title: "Caricato", description: "Allegato caricato con successo." });
-      queryClient.invalidateQueries({ queryKey: ["ticket-attachments", ticketId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-ticket-messages", ticketId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
     },
     onError: (err: Error) => {
       toast({ title: "Errore", description: err.message, variant: "destructive" });

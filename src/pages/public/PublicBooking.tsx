@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { format, addDays, isBefore, startOfDay, parse, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -21,7 +22,7 @@ export default function PublicBooking() {
 
   // Fetch calendar by slug
   const { data: calendar, isLoading: calLoading } = useQuery({
-    queryKey: ["public-booking-calendar", slug],
+    queryKey: queryKeys.publicBooking.calendar(slug),
     queryFn: async () => {
       if (!slug) return null;
       const { data, error } = await supabase
@@ -38,7 +39,7 @@ export default function PublicBooking() {
 
   // Fetch availability rules
   const { data: availability = [] } = useQuery({
-    queryKey: ["public-booking-availability", calendar?.id],
+    queryKey: queryKeys.publicBooking.availability(calendar?.id),
     queryFn: async () => {
       if (!calendar?.id) return [];
       const { data } = await supabase
@@ -54,7 +55,7 @@ export default function PublicBooking() {
   // Fetch existing appointments for the selected date
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
   const { data: existingAppointments = [] } = useQuery({
-    queryKey: ["public-booking-appointments", calendar?.id, dateStr],
+    queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
     queryFn: async () => {
       if (!calendar?.id || !dateStr) return [];
       const { data } = await supabase

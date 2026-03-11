@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface ServerHealthScore {
   id: string;
@@ -18,7 +19,7 @@ export interface ServerHealthScore {
 
 export function useHealthScores() {
   return useQuery({
-    queryKey: ["health-scores-server"],
+    queryKey: queryKeys.healthScores.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_health_scores" as never)
@@ -33,7 +34,7 @@ export function useHealthScores() {
 
 export function useCompanyHealthScore(companyId: string | undefined) {
   return useQuery({
-    queryKey: ["health-score", companyId],
+    queryKey: queryKeys.healthScores.byCompany(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase

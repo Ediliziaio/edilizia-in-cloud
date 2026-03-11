@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { FileText, Download, Loader2, Receipt, FileCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,7 @@ export default function CustomerDocuments() {
 
   // Order attachments visible to customer
   const { data: attachments = [], isLoading: loadingAtt } = useQuery({
-    queryKey: ["customer-documents", "attachments", user?.id],
+    queryKey: queryKeys.customerDocuments.attachments(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_attachments")
@@ -37,7 +38,7 @@ export default function CustomerDocuments() {
 
   // Invoices linked to customer
   const { data: invoices = [], isLoading: loadingInv } = useQuery({
-    queryKey: ["customer-documents", "invoices", user?.id],
+    queryKey: queryKeys.customerDocuments.invoices(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -79,7 +80,7 @@ export function OrderCommissions({
   const [selectedPaidDate, setSelectedPaidDate] = useState<Date>(new Date());
 
   const { data: orderSalespeople = [], isLoading } = useQuery({
-    queryKey: ["order-salespeople", orderId],
+    queryKey: queryKeys.orderSalespeople.byOrder(orderId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
@@ -127,7 +128,7 @@ export function OrderCommissions({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-salespeople", orderId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
       toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
     onError: () => {

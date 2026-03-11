@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { MessageCircle, Loader2, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +27,7 @@ export default function CustomerMessages() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
-  const queryKey = ["customer-messages", user?.id];
+  const queryKey = queryKeys.customerMessages.list(user?.id);
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey,
@@ -57,7 +58,7 @@ export default function CustomerMessages() {
       .update({ read_at: new Date().toISOString() })
       .in("id", unreadIds)
       .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["customer-messages-unread", user.id] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.customerUnread.messages(user.id) });
       });
   }, [messages, user?.id, queryClient]);
 

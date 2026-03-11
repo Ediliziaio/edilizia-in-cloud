@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export function FinanceAutomationSettings() {
   const queryClient = useQueryClient();
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ["scadenza-alert-prefs", companyId],
+    queryKey: queryKeys.scadenzaPrefs.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenza_alert_prefs" as any)
@@ -90,7 +91,7 @@ export function FinanceAutomationSettings() {
     },
     onSuccess: () => {
       toast.success("Impostazioni salvate");
-      queryClient.invalidateQueries({ queryKey: ["scadenza-alert-prefs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.all });
       setForm({});
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),

@@ -5,6 +5,7 @@ import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check,
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -103,7 +104,7 @@ export default function CustomersList() {
 
   // Fetch salespeople for filter and inline select
   const { data: salespeople = [] } = useQuery({
-    queryKey: ["salespeople-active", effectiveCompany?.id],
+    queryKey: queryKeys.salespeople.active(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
@@ -151,7 +152,7 @@ export default function CustomersList() {
   };
 
   const { data: paginatedData, isLoading, isError } = useQuery({
-    queryKey: ["customers-list", effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders, sortField, sortDir, page, pageSize],
+    queryKey: queryKeys.customersList.list(effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders, sortField, sortDir, page, pageSize),
     queryFn: async (): Promise<PaginatedResult> => {
       if (!effectiveCompany?.id) return { rows: [], total_count: 0 };
       
@@ -178,7 +179,7 @@ export default function CustomersList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile assegnare il venditore", variant: "destructive" });
@@ -227,7 +228,7 @@ export default function CustomersList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo" });
     },
     onError: (error) => {
@@ -338,7 +339,7 @@ export default function CustomersList() {
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
     return { success, errors };
   }, [effectiveCompany?.id, queryClient]);
 

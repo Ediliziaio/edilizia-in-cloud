@@ -12,6 +12,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -109,7 +110,7 @@ export function EmployeeAttachments({
 
   // Fetch attachments
   const { data: attachments = [], isLoading } = useQuery({
-    queryKey: ["employee-attachments", employee.id],
+    queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_attachments")
@@ -158,7 +159,7 @@ export function EmployeeAttachments({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-attachments", employee.id],
+        queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
       });
       toast.success("Documento caricato", { description: "Il documento è stato caricato con successo." });
       resetUploadForm();
@@ -198,7 +199,7 @@ export function EmployeeAttachments({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-attachments", employee.id],
+        queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
       });
       toast.success("Documento eliminato", { description: "Il documento è stato eliminato." });
     },
