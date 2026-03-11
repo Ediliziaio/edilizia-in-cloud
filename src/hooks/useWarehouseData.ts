@@ -379,8 +379,8 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
     onError: () => {
