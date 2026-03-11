@@ -143,7 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAuth = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // getSession reads from localStorage – fast & offline-safe
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
     
     if (user) {
       const userData = await fetchUserData(user.id);
@@ -193,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener BEFORE checking initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
           // Use setTimeout to avoid potential race conditions
           setTimeout(async () => {
             const userData = await fetchUserData(session.user.id);
