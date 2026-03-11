@@ -361,7 +361,7 @@ export function useTopLeads(companyId: string | null, limit = 20) {
       const { data, error } = await supabase
         .from("marketing_contacts")
         .select(
-          `id, full_name, company_name, lead_score, icp_score, icp_tier, source, city, assigned_to, last_activity_at`
+          `id, first_name, last_name, company_name, lead_score, icp_score, icp_tier, source, city, assigned_to, last_activity_at`
         )
         .eq("company_id", companyId!)
         .gt("lead_score", 0)
