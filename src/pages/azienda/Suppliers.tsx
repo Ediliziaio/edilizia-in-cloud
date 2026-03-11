@@ -133,7 +133,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
                   <div>
                     <p className="text-muted-foreground">Da pagare</p>
                     <p className={`font-medium ${(s.scadenze_importo || 0) > 0 ? "text-destructive" : ""}`}>
-                      {fmtEur(s.scadenze_importo || 0)}
+                      {formatCurrency(s.scadenze_importo || 0)}
                     </p>
                   </div>
                 </div>
