@@ -100,6 +100,7 @@ function MarketingOpportunitiesContent() {
   // List state
   const [createListOpen, setCreateListOpen] = useState(false);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [onlyMine, setOnlyMine] = useState(false);
 
   // Fetch saved lists for current pipeline
   const { data: savedLists = [] } = useQuery({
