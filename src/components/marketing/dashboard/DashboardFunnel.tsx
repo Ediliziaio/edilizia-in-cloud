@@ -17,7 +17,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Funnel Pipeline</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Pipeline</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </CardContent>
