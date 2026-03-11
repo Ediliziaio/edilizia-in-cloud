@@ -176,7 +176,7 @@ export function MessagingSettingsTab() {
 
             queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
           } catch (err: any) {
-            console.error("Connect error:", err);
+            logger.error("Connect error:", err);
             toast.error("Errore collegamento", {
               description: err?.message || "Impossibile completare il collegamento. Riprova.",
             });
