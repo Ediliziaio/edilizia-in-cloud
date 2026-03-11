@@ -11,7 +11,7 @@ export default function SalespersonDashboard() {
 
   // Fetch salesperson data
   const { data: salesperson } = useQuery({
-    queryKey: ["my-salesperson-record", user?.id],
+    queryKey: queryKeys.salespersonPortal.record(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
