@@ -101,7 +101,7 @@ export default function CompaniesList() {
   }, [sortKey, sortDir]);
 
   const { data: allCompanies = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-companies-full"],
+    queryKey: queryKeys.admin.companiesFull,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
