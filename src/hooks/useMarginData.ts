@@ -40,11 +40,10 @@ export interface MarginData {
   salariesMonthly: number;
   // Break even
   breakEvenRevenue: number;
+  breakEvenAnnual: number;
+  breakEvenMonthOfYear: number; // 1-12 = mese da cui guadagni per te; >12 = non raggiunto
   currentMonthlyRevenue: number;
   breakEvenDelta: number;
-  breakEvenAnnual: number;
-  yearlyRevenue: number;
-  breakEvenMonthOfYear: number; // 1-12 month where cumulative revenue >= annual fixed costs, 0 if unreachable
   // Company context
   companyId: string | null;
 }
@@ -272,24 +271,12 @@ export function useMarginData(): MarginData {
 
   const breakEvenDelta = currentMonthlyRevenue - breakEvenRevenue;
 
-  // Annual break-even
+  // Annual break-even & break-even month of year (based on ACTUAL revenue pace)
   const breakEvenAnnual = breakEvenRevenue * 12;
-  const yearlyRevenue = currentMonthlyRevenue * 12;
-
-  // Month of year where cumulative revenue covers cumulative fixed costs
-  let breakEvenMonthOfYear = 0;
-  if (currentMonthlyRevenue > 0 && totalFixedCostsMonthly > 0) {
-    let cumRevenue = 0;
-    let cumCosts = 0;
-    for (let m = 1; m <= 12; m++) {
-      cumRevenue += currentMonthlyRevenue * (avgMarginPercent / 100);
-      cumCosts += totalFixedCostsMonthly;
-      if (cumRevenue >= cumCosts) {
-        breakEvenMonthOfYear = m;
-        break;
-      }
-    }
-  }
+  const monthlyContribution = currentMonthlyRevenue * (avgMarginPercent / 100);
+  const breakEvenMonthOfYear = monthlyContribution > 0
+    ? Math.min(13, Math.ceil((totalFixedCostsMonthly * 12) / monthlyContribution))
+    : 13; // 13 = non raggiunto nell'anno
 
   return {
     isLoading,
@@ -303,11 +290,10 @@ export function useMarginData(): MarginData {
     totalFixedCostsMonthly,
     salariesMonthly,
     breakEvenRevenue,
+    breakEvenAnnual,
+    breakEvenMonthOfYear,
     currentMonthlyRevenue,
     breakEvenDelta,
-    breakEvenAnnual,
-    yearlyRevenue,
-    breakEvenMonthOfYear,
     companyId,
   };
 }
