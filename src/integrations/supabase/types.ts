@@ -11874,7 +11874,10 @@ export type Database = {
           can_manage_tickets: boolean
           can_view_platform_stats: boolean
           created_at: string
+          department: string | null
           id: string
+          job_title: string | null
+          platform_role: string | null
           updated_at: string
           user_id: string
         }
@@ -11888,7 +11891,10 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          department?: string | null
           id?: string
+          job_title?: string | null
+          platform_role?: string | null
           updated_at?: string
           user_id: string
         }
@@ -11902,7 +11908,10 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          department?: string | null
           id?: string
+          job_title?: string | null
+          platform_role?: string | null
           updated_at?: string
           user_id?: string
         }
