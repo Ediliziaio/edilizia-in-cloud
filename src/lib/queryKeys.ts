@@ -169,6 +169,24 @@ export const queryKeys = {
       ["cashflow", "company-costs", companyId] as const,
     commissions: (companyId: string | undefined) =>
       ["cashflow", "commissions", companyId] as const,
+    pendingItems: (companyId: string | undefined) =>
+      ["cashflow", "pending-items", companyId] as const,
+    supplierBalances: (companyId: string | undefined) =>
+      ["cashflow", "supplier-balances", companyId] as const,
+    scadenze: (companyId: string | undefined) =>
+      ["cashflow", "scadenze", companyId] as const,
+    treasuryPaidCosts: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-costs"] as const,
+    treasuryPaidTeams: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-teams"] as const,
+    treasuryPaidCommissions: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-commissions"] as const,
+    treasuryPaidSuppliers: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-suppliers"] as const,
+    treasuryEmployees: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "employees"] as const,
+    treasuryCategories: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "categories"] as const,
     bankBalance: (companyId: string | undefined) =>
       ["cashflow", "bank-balance", companyId] as const,
     treasury: (companyId: string | undefined) =>
