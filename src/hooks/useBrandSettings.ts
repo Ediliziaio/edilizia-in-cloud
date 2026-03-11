@@ -42,7 +42,7 @@ export function useBrandSettings(companyId?: string) {
   const queryClient = useQueryClient();
 
   const { data: brand, isLoading } = useQuery({
-    queryKey: ["brand-settings", id],
+    queryKey: queryKeys.branding.settings(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
