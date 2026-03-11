@@ -483,7 +483,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateEmployeeOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Dipendente creato");
     },
     onError: (err: any) => {
