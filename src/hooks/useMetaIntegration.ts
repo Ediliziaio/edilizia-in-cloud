@@ -32,7 +32,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch lead forms
   const { data: forms = [], refetch: refetchForms } = useQuery({
-    queryKey: ["meta-forms", companyId, integration?.id],
+    queryKey: queryKeys.metaForms.forms(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
