@@ -147,7 +147,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_user_counts");
       if (error) throw error;
       const counts: Record<string, number> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyUserCount[]).forEach((row) => {
         if (row.company_id) {
           counts[row.company_id] = Number(row.user_count) || 0;
         }
