@@ -43,13 +43,18 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
     }
   });
 
+  const Wrapper = compact ? "div" : Card;
+  const wrapperProps = compact ? { className: "" } : {};
+
   return (
     <TooltipProvider delayDuration={200}>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Funnel Pipeline</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Wrapper {...wrapperProps}>
+        {!compact && (
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Funnel Pipeline</CardTitle>
+          </CardHeader>
+        )}
+        <div className={compact ? "" : ""}>
           {stages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
           ) : (
