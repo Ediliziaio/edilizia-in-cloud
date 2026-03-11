@@ -22,9 +22,9 @@ interface Completion {
 }
 
 export function OnboardingChecklist() {
-  const { user, company } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-  const companyId = company?.id;
+  const companyId = effectiveCompany?.id;
 
   // Get company onboarding assignment
   const { data: onboarding } = useQuery({

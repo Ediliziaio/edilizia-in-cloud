@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState } from "@/types/auth";
@@ -225,37 +225,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchUserData, refreshAuth]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     return { error: error as Error | null };
-  };
+  }, []);
 
-  const signOut = async () => {
-    // End session tracking before sign out
+  const signOut = useCallback(async () => {
     await endSession();
-    // Clear quick login session data
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
     await supabase.auth.signOut();
-  };
+  }, []);
 
   const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
 
-  const impersonateCompany = async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
-    // Only super_admin can impersonate
+  const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     if (state.role !== "super_admin") {
       console.error("Only super_admin can impersonate companies");
       return;
     }
 
-    // Verify permissions if provided
     if (permissions) {
       if (!permissions.can_manage_companies) {
         console.error("Missing can_manage_companies permission for impersonation");
-        // Log unauthorized attempt (fire-and-forget)
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
         });
@@ -272,7 +267,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Use secure edge function to start impersonation
       const { data, error } = await supabase.functions.invoke("secure-impersonation", {
         body: { action: "start", companyId },
       });
@@ -287,11 +281,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Impersonation error:", err);
     }
-  };
+  }, [state.role]);
 
-  const exitImpersonation = async () => {
+  const exitImpersonation = useCallback(async () => {
     try {
-      // End impersonation on server
       await supabase.functions.invoke("secure-impersonation", {
         body: { action: "end" },
       });
@@ -301,28 +294,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonationToken(null);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
-  };
+  }, []);
 
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
   // Effective company is the impersonated one when impersonating, otherwise the real one
   const effectiveCompany = isImpersonating ? impersonatedCompany : state.company;
 
+  const contextValue = useMemo(
+    () => ({
+      ...state,
+      signIn,
+      signOut,
+      refreshAuth,
+      impersonatedCompanyId,
+      impersonatedCompany,
+      isImpersonating,
+      impersonateCompany,
+      exitImpersonation,
+      effectiveCompany,
+    }),
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        ...state,
-        signIn,
-        signOut,
-        refreshAuth,
-        impersonatedCompanyId,
-        impersonatedCompany,
-        isImpersonating,
-        impersonateCompany,
-        exitImpersonation,
-        effectiveCompany,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
