@@ -171,6 +171,14 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         ) : (
           <div className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
             <div className="space-y-4 pb-6">
+              {isSelf && (
+                <Alert variant="default" className="border-amber-300 bg-amber-50 dark:bg-amber-950">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-300">
+                    Non puoi modificare i tuoi stessi permessi. Chiedi a un altro Super Admin.
+                  </AlertDescription>
+                </Alert>
+              )}
               <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
               {permItems.map(({ key, icon: Icon, label, desc }) => (
                 <div key={key} className="flex items-center justify-between gap-3 rounded-lg border p-3">
