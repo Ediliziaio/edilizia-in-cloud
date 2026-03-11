@@ -163,7 +163,7 @@ export default function Employees() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["external-teams"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
       toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
     },
     onError: () => {
