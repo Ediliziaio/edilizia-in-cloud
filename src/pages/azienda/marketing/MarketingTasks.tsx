@@ -75,7 +75,7 @@ export default function MarketingTasks() {
         .from("tasks")
         .select(`
           *,
-          assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
+          assigned_profile:profiles!inner(first_name, last_name),
           contact:marketing_contacts!tasks_contact_id_fkey(first_name, last_name),
           opportunity:marketing_opportunities!tasks_opportunity_id_fkey(name, value)
         `)
