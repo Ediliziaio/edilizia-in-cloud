@@ -588,7 +588,7 @@ function PrimaNotaTab({ entries, isLoading, navigate }: { entries: any[]; isLoad
                 <td className="p-3 text-xs text-muted-foreground capitalize">{e.account_label || "—"}</td>
                 <td className="p-3 text-right font-mono">
                   <span className={e.direction === "entrata" ? "text-green-700 dark:text-green-400" : "text-destructive"}>
-                    {e.direction === "uscita" ? "-" : "+"}{fmtEur(Number(e.amount))}
+                    {e.direction === "uscita" ? "-" : "+"}{formatCurrency(Number(e.amount))}
                   </span>
                 </td>
                 <td className="p-3 text-xs text-muted-foreground capitalize">{e.payment_method || "—"}</td>
