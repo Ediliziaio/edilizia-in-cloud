@@ -50,7 +50,10 @@ export default function MultiCompanyUsersTab() {
         body: { action: "list-multi-company" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        const body = await res.error.context?.json?.();
+        throw new Error(body?.error || res.error.message);
+      }
       return (res.data?.users || []) as MultiCompanyUser[];
     },
   });
