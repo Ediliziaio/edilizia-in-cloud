@@ -180,7 +180,7 @@ export default function PlatformSettingsPage() {
       next.delete(row.id);
       return next;
     });
-    queryClient.invalidateQueries({ queryKey: ["platform-pricing"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
   };
 
   const applyGlobalMarkup = async () => {
