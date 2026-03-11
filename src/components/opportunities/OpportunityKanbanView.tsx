@@ -8,6 +8,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { OpportunityCard } from "./OpportunityCard";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
