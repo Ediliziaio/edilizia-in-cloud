@@ -9,7 +9,7 @@ export function useCustomerUnreadCount() {
   const queryClient = useQueryClient();
 
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["customer-messages-unread", user?.id],
+    queryKey: queryKeys.customerUnread.messages(user?.id),
     queryFn: async () => {
       const { count, error } = await supabase
         .from("customer_messages")
