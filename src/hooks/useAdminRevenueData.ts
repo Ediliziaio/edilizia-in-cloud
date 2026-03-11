@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { subMonths, format, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
+import type { CompanyHealthData } from "@/types/adminRpc";
 
 export type HealthStatus = "healthy" | "at_risk" | "critical";
 
