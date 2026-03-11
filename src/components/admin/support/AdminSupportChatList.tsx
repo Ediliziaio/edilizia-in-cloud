@@ -134,7 +134,7 @@ export function AdminSupportChatList() {
   });
 
   const { data: conversationsData = [], isError: isErrorConversations } = useQuery({
-    queryKey: ["admin-support-conversations"],
+    queryKey: queryKeys.admin.supportConversations,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_conversations")
