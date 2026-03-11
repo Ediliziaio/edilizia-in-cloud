@@ -677,11 +677,7 @@ export function CompanyLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <CompanySidebar
-          onOpenNotifications={() => setNotificationsPanelOpen(true)}
-          notificationCount={notifUnreadCount}
-          onOpenSearch={() => setCommandOpen(true)}
-        />
+        <CompanySidebar />
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
