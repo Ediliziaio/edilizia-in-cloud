@@ -27,6 +27,7 @@ import { WarehouseMapView } from "./WarehouseMapView";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
+import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
