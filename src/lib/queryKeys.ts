@@ -574,6 +574,67 @@ export const queryKeys = {
     all: ["appointments"] as const,
     list: (companyId: string | undefined, ...filters: any[]) =>
       ["appointments", "list", companyId, ...filters] as const,
+    byOrder: (orderId: string | undefined) => ["order-appointments", orderId] as const,
+  },
+
+  // ── Invoices ──────────────────────────────────────────
+  invoices: {
+    all: ["invoices"] as const,
+    detail: (id: string | undefined) => ["invoice", id] as const,
+    reconciliations: (id: string | undefined) => ["invoice-reconciliations", id] as const,
+  },
+
+  // ── Campaign Editor / Builder ─────────────────────────
+  campaignEditor: {
+    all: ["campaign-editor"] as const,
+    detail: (id: string | undefined) => ["campaign-editor", id] as const,
+    builder: (id: string | undefined) => ["campaign-builder", id] as const,
+    sendSettings: (id: string | undefined) => ["campaign-send-settings", id] as const,
+  },
+
+  // ── Users / Settings ──────────────────────────────────
+  users: {
+    all: ["users"] as const,
+    detail: (userId: string | undefined) => ["user-detail", userId] as const,
+    companyUsers: ["company-users"] as const,
+    companyUsersList: (companyId: string | undefined) => ["company-users-list", companyId] as const,
+    permissionTemplates: (companyId: string | undefined) => ["permission-templates", companyId] as const,
+    permissionTemplatesAll: ["permission-templates"] as const,
+  },
+
+  // ── Leave / HR (Employee portal) ──────────────────────
+  leave: {
+    all: ["leave"] as const,
+    employeeProfile: (userId: string | undefined) => ["my-employee-profile", userId] as const,
+    balance: (employeeId: string | undefined, year: number) => ["leave-balance", employeeId, year] as const,
+    requests: (employeeId: string | undefined) => ["leave-requests-employee", employeeId] as const,
+    requestsAll: ["leave-requests-employee"] as const,
+  },
+
+  // ── Customer Portal (Tickets) ─────────────────────────
+  customerSupport: {
+    all: ["customer-tickets"] as const,
+    list: (userId: string | undefined) => ["customer-tickets", userId] as const,
+  },
+
+  // ── Partner Payouts ───────────────────────────────────
+  partnerPayouts: {
+    referrer: (userId: string | undefined) => ["my-referrer", userId] as const,
+    payouts: (referrerId: string | undefined) => ["my-payouts", referrerId] as const,
+    payoutsAll: ["my-payouts"] as const,
+  },
+
+  // ── Order Attachments ─────────────────────────────────
+  orderAttachments: {
+    all: ["order-attachments"] as const,
+    byOrder: (orderId: string | undefined) => ["order-attachments", orderId] as const,
+    customerByOrder: (orderId: string | undefined) => ["customer-order-attachments", orderId] as const,
+  },
+
+  // ── Marketing Contacts (misc) ─────────────────────────
+  contactLists: {
+    all: ["marketing-contact-lists"] as const,
+    list: (companyId: string | undefined) => ["marketing-contact-lists", companyId] as const,
   },
 
   // ── AI Agents (Marketing/Sales) ─────────────────────
