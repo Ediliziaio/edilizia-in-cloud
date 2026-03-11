@@ -4,7 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
 import { fmt, fmtCur } from "@/components/marketing/dashboard/utils";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
-import { Trophy, Users, Target, Phone } from "lucide-react";
+import { Trophy, Users, Target, Phone, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useRecalculateAllLeadScores } from "@/hooks/useSalesOS";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 interface Props {
   data: DashboardStats | undefined;

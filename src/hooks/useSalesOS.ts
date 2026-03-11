@@ -492,6 +492,67 @@ export function useSalesOSCompanyId(): string | null {
 // SO5: LEAD SCORE RECALCULATION
 // ============================================================
 
+export function useRecalculateAllLeadScores(companyId: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error('companyId mancante');
+
+      // Fetch all contacts for this company
+      const { data: contacts, error: cErr } = await supabase
+        .from('marketing_contacts')
+        .select('id, first_name, last_name, company_name, phone, city, source, address')
+        .eq('company_id', companyId);
+      if (cErr) throw cErr;
+      if (!contacts?.length) return { updated: 0 };
+
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString();
+      let updated = 0;
+
+      // Process in batches of 10 to avoid overwhelming the DB
+      for (let i = 0; i < contacts.length; i += 10) {
+        const batch = contacts.slice(i, i + 10);
+        await Promise.all(batch.map(async (contact) => {
+          const [{ count: activitiesCount }, { count: recentCount }, { data: opps }] = await Promise.all([
+            supabase.from('marketing_contact_activities').select('id', { count: 'exact', head: true }).eq('contact_id', contact.id).eq('company_id', companyId!),
+            supabase.from('marketing_contact_activities').select('id', { count: 'exact', head: true }).eq('contact_id', contact.id).eq('company_id', companyId!).gte('created_at', fourteenDaysAgo),
+            supabase.from('marketing_opportunities').select('id, status').eq('contact_id', contact.id).eq('company_id', companyId!),
+          ]);
+
+          const openOpps = (opps ?? []).filter((o) => o.status === 'open');
+          const { leadScore, icpScore } = calculateLeadScore({
+            hasCompanyName: !!contact.company_name,
+            hasPhone: !!contact.phone,
+            hasAddress: !!contact.address,
+            source: contact.source,
+            city: contact.city,
+            activitiesCount: activitiesCount ?? 0,
+            hasOpenOpportunity: openOpps.length > 0,
+            hasRecentActivity: (recentCount ?? 0) > 0,
+            opportunitiesCount: (opps ?? []).length,
+          });
+
+          const icpTier = getIcpTier(icpScore);
+          await supabase.from('marketing_contacts').update({
+            lead_score: leadScore,
+            icp_score: icpScore,
+            icp_tier: icpTier,
+            last_score_update: new Date().toISOString(),
+          }).eq('id', contact.id);
+          updated++;
+        }));
+      }
+
+      return { updated };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: salesOSKeys.topLeads(companyId ?? '') });
+      queryClient.invalidateQueries({ queryKey: ['marketing_contacts'] });
+    },
+  });
+}
+
 export function useRecalculateLeadScore(companyId: string | null) {
   const queryClient = useQueryClient();
 
