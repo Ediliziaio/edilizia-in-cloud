@@ -709,6 +709,81 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </Collapsible>
                 )}
 
+                {/* Collapsible: Lead Score */}
+                <Collapsible defaultOpen>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                    Lead Score
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-1 space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Punteggio totale</span>
+                      <span className="text-sm font-bold">{contact.lead_score ?? 0}/100</span>
+                    </div>
+                    <Progress value={contact.lead_score ?? 0} className="h-2" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ICP Score</span>
+                      <span className="text-xs font-medium">{contact.icp_score ?? 0}/50</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ICP Tier</span>
+                      <Badge variant={
+                        contact.icp_tier === "A" ? "default" :
+                        contact.icp_tier === "B" ? "secondary" : "outline"
+                      } className="text-[10px] h-4 px-1.5">
+                        {contact.icp_tier || "D"}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs gap-1 mt-1"
+                      onClick={async () => {
+                        if (!id || !companyId) return;
+                        try {
+                          // Fetch data for scoring
+                          const [{ count: activitiesCount }, { count: oppsCount }, { data: openOpps }] = await Promise.all([
+                            supabase.from("marketing_contact_activities").select("*", { count: "exact", head: true }).eq("contact_id", id),
+                            supabase.from("marketing_opportunities").select("*", { count: "exact", head: true }).eq("contact_id", id),
+                            supabase.from("marketing_opportunities").select("id").eq("contact_id", id).eq("status", "open"),
+                          ]);
+                          const { data: recentActs } = await supabase.from("marketing_contact_activities")
+                            .select("id").eq("contact_id", id)
+                            .gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString())
+                            .limit(1);
+
+                          const { calculateLeadScore, getIcpTier } = await import("@/utils/leadScoring");
+                          const result = calculateLeadScore({
+                            hasCompanyName: !!contact.company_name,
+                            hasPhone: !!contact.phone,
+                            hasAddress: !!contact.address,
+                            source: contact.source,
+                            city: contact.city,
+                            icpOverride: null,
+                            activitiesCount: activitiesCount || 0,
+                            hasOpenOpportunity: (openOpps?.length || 0) > 0,
+                            hasRecentActivity: (recentActs?.length || 0) > 0,
+                            opportunitiesCount: oppsCount || 0,
+                          });
+                          const tier = getIcpTier(result.icpScore);
+                          await supabase.from("marketing_contacts").update({
+                            lead_score: result.leadScore,
+                            icp_score: result.icpScore,
+                            icp_tier: tier,
+                            last_score_update: new Date().toISOString(),
+                          }).eq("id", id);
+                          queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+                          toast.success(`Lead Score aggiornato: ${result.leadScore}/100 (Tier ${tier})`);
+                        } catch (err: any) {
+                          toast.error(err.message || "Errore ricalcolo");
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-3 w-3" /> Ricalcola
+                    </Button>
+                  </CollapsibleContent>
+                </Collapsible>
+
                 {/* Collapsible: Attribuzione UTM */}
                 <Collapsible>
                   <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
