@@ -130,7 +130,11 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
         className={cn(
-          "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2",
+          "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2 border-l-[3px]",
+          opportunity.status === "open" && "border-l-blue-500",
+          opportunity.status === "won" && "border-l-green-500",
+          opportunity.status === "lost" && "border-l-red-500",
+          opportunity.status === "abandoned" && "border-l-gray-400",
           isDragging && "opacity-30 shadow-lg",
           isOverlay && "shadow-xl border-primary/40",
           selected && "ring-2 ring-primary border-primary/50"
