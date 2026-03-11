@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener BEFORE checking initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
           // Use setTimeout to avoid potential race conditions
           setTimeout(async () => {
             const userData = await fetchUserData(session.user.id);
