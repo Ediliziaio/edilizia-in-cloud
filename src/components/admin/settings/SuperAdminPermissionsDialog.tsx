@@ -58,6 +58,8 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
 
 export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminId, adminName }: Props) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isSelf = adminId === user?.id;
   const [perms, setPerms] = useState<Permissions>(defaults);
   const [allCompanies, setAllCompanies] = useState(true);
 
