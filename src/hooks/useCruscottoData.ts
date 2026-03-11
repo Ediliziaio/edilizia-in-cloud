@@ -379,6 +379,104 @@ export function useCruscottoData() {
     return { ...base, incomingPayments, incomingPaymentsCount };
   }, [rawWeeklyData, paymentsData]);
 
+  // Today data — live, ignores dateRange
+  const { data: todayData, isLoading: todayLoading } = useQuery<TodayData>({
+    queryKey: queryKeys.cruscotto.today(companyId),
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const in7Days = format(addDays(new Date(), 7), "yyyy-MM-dd");
+
+      const [leadsRes, appointmentsRes, overdueRes, suppliersRes] = await Promise.all([
+        supabase.from("marketing_contacts").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .gte("created_at", `${todayStr}T00:00:00`)
+          .lte("created_at", `${todayStr}T23:59:59`),
+        supabase.from("appointments").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .eq("appointment_date", todayStr)
+          .eq("is_blocked_slot", false),
+        (supabase as any).from("order_installments")
+          .select("id, amount, expected_date, order:orders!inner(company_id)")
+          .eq("order.company_id", companyId!)
+          .eq("is_paid", false)
+          .lt("expected_date", todayStr),
+        supabase.from("company_costs")
+          .select("id, name, amount, due_date, category")
+          .eq("company_id", companyId!)
+          .eq("is_paid", false)
+          .gte("due_date", todayStr)
+          .lte("due_date", in7Days)
+          .order("due_date", { ascending: true }),
+      ]);
+
+      const overdueCount = overdueRes.data?.length ?? 0;
+      const overdueAmount = (overdueRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
+      const suppliersDue = (suppliersRes.data ?? []) as Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+      const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
+
+      return {
+        leadsToday: leadsRes.count ?? 0,
+        appointmentsToday: appointmentsRes.count ?? 0,
+        overdueAmount,
+        overdueCount,
+        suppliersDueAmount,
+        suppliersDue,
+      };
+    },
+  });
+
+  // Cash flow forecast + revenue by period
+  const { data: cashFlowForecast, isLoading: forecastLoading } = useQuery<CashFlowForecastData>({
+    queryKey: queryKeys.cruscotto.cashFlowForecast(companyId),
+    enabled: !!companyId,
+    staleTime: 300_000,
+    queryFn: async () => {
+      const now = new Date();
+      const todayStr = format(now, "yyyy-MM-dd");
+      const in30 = format(addDays(now, 30), "yyyy-MM-dd");
+      const in60 = format(addDays(now, 60), "yyyy-MM-dd");
+      const in90 = format(addDays(now, 90), "yyyy-MM-dd");
+
+      const { data: futureInstallments } = await (supabase as any)
+        .from("order_installments")
+        .select("amount, expected_date, order:orders!inner(company_id)")
+        .eq("order.company_id", companyId!)
+        .eq("is_paid", false)
+        .gte("expected_date", todayStr)
+        .lte("expected_date", in90);
+
+      const all = (futureInstallments ?? []) as Array<{ amount: number; expected_date: string }>;
+      const incoming30 = all.filter(i => i.expected_date <= in30).reduce((s, i) => s + safeNumber(i.amount), 0);
+      const incoming60 = all.filter(i => i.expected_date <= in60).reduce((s, i) => s + safeNumber(i.amount), 0);
+      const incoming90 = all.reduce((s, i) => s + safeNumber(i.amount), 0);
+
+      const yearStart = `${now.getFullYear()}-01-01T00:00:00`;
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01T00:00:00`;
+      const quarter = Math.floor(now.getMonth() / 3);
+      const quarterStart = `${now.getFullYear()}-${String(quarter * 3 + 1).padStart(2, "0")}-01T00:00:00`;
+
+      const [{ data: ytdOrders }, { data: monthOrders }, { data: qOrders }] = await Promise.all([
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", yearStart),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", monthStart),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", quarterStart),
+      ]);
+
+      const sum = (rows: Array<{ total_amount?: number }> | null) =>
+        (rows ?? []).reduce((s, r) => s + safeNumber(r.total_amount), 0);
+
+      return {
+        incoming30,
+        incoming60,
+        incoming90,
+        ytdRevenue: sum(ytdOrders),
+        monthRevenue: sum(monthOrders),
+        quarterRevenue: sum(qOrders),
+      };
+    },
+  });
+
   const updateFilters = useCallback((partial: Partial<CruscottoFiltersState>) => {
     setFilters((prev: CruscottoFiltersState) => {
       const next = { ...prev, ...partial };
@@ -398,7 +496,9 @@ export function useCruscottoData() {
     weeklyAgenda,
     invoiceStats: invoiceStats || null,
     companyTargets: companyTargets || null,
-    isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading,
+    todayData: todayData ?? null,
+    cashFlowForecast: cashFlowForecast ?? null,
+    isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading || todayLoading || forecastLoading,
     error: marketingError as Error | null,
     filters,
     updateFilters,
