@@ -97,7 +97,7 @@ export const OpportunityListView = memo(function OpportunityListView({
             <TableBody>
               {opportunities.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
                     Nessuna opportunità trovata
                   </TableCell>
                 </TableRow>
