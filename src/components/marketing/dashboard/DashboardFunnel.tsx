@@ -51,7 +51,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
       <Wrapper {...wrapperProps}>
         {!compact && (
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Funnel Pipeline</CardTitle>
+            <CardTitle className="text-base">Pipeline</CardTitle>
           </CardHeader>
         )}
         <CardContent className={compact ? "p-0" : ""}>
