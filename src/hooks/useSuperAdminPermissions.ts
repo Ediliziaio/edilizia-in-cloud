@@ -40,7 +40,7 @@ const NO_ACCESS: SuperAdminPermissions = {
 
 export function useSuperAdminPermissions() {
   const { user, role } = useAuth();
-  const isSuperAdmin = role === "super_admin";
+  const isAdminPlatformRole = !!role && ADMIN_PLATFORM_ROLES.includes(role);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.admin.superAdminPermissions(user?.id),
