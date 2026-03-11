@@ -143,9 +143,8 @@ export function useSimulateMessage() {
       return { conversationId, messageId: msg.id, companyId };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["messaging-messages"] });
-    },
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messagesAll });
   });
 }
 
