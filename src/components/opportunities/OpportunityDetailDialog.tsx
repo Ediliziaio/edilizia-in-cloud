@@ -100,7 +100,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lossReason, setLossReason] = useState("");
   const [lossNotes, setLossNotes] = useState("");
   const [showLossDialog, setShowLossDialog] = useState(false);
-  const [pendingLostStatus, setPendingLostStatus] = useState(false);
+  const [pendingLostStatus, setPendingLostStatus] = useState<string | false>(false);
   const [nextAction, setNextAction] = useState("");
   const [nextActionDate, setNextActionDate] = useState("");
   const [lostReasonCategory, setLostReasonCategory] = useState("");
@@ -408,7 +408,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               const daysSinceActivity = opportunity.updated_at
                 ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
                 : 0;
-              const stalledThreshold = 14;
+              const currentPipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
+              const currentStage = currentPipeline?.marketing_pipeline_stages?.find((s: any) => s.id === (stageId || opportunity.stage_id));
+              const stalledThreshold = currentStage?.stalled_threshold_days || 14;
               return daysSinceActivity >= stalledThreshold && status === "open" ? (
                 <Badge variant="destructive" className="text-xs">⚠ Ferma da {daysSinceActivity}gg</Badge>
               ) : null;
@@ -643,14 +645,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={(newStatus) => {
-                            if (newStatus === "lost" && status !== "lost") {
-                              setPendingLostStatus(true);
+                            if ((newStatus === "lost" || newStatus === "abandoned") && status !== newStatus) {
+                              setPendingLostStatus(newStatus);
                               setShowLossDialog(true);
                             } else {
                               setStatus(newStatus);
-                              if (newStatus !== "lost") {
+                              if (newStatus !== "lost" && newStatus !== "abandoned") {
                                 setLossReason("");
                                 setLossNotes("");
+                                setLostReasonCategory("");
+                                setCompetitorWon("");
                               }
                             }
                           }}>
@@ -717,8 +721,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         />
                       </div>
 
-                      {/* Loss reason (shown only when status is lost) */}
-                      {status === "lost" && (
+                      {/* Loss reason (shown only when status is lost/abandoned) */}
+                      {(status === "lost" || status === "abandoned") && (
                         <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
                           <div className="flex items-center gap-2 text-destructive">
                             <AlertTriangle className="h-3.5 w-3.5" />
@@ -999,7 +1003,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             disabled={!lostReasonCategory}
             onClick={() => {
               if (!lostReasonCategory) return;
-              setStatus("lost");
+              setStatus(pendingLostStatus as string);
               setPendingLostStatus(false);
               setShowLossDialog(false);
             }}
