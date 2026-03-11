@@ -64,7 +64,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch overrides
   const { data: overrides, isLoading: overridesLoading } = useQuery({
-    queryKey: ["billing-overrides", companyId],
+    queryKey: queryKeys.billingOverrides.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_billing_overrides" as never)
