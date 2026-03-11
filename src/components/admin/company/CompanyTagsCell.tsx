@@ -32,7 +32,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags });
       setNewTag("");
       setOpen(false);
     },
