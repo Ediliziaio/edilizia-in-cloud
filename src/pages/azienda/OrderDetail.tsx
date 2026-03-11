@@ -331,6 +331,11 @@ export default function OrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["margin"] });
+      queryClient.invalidateQueries({ queryKey: ["break-even"] });
+      queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       toast.success("Ordine eliminato");
       navigate("/azienda/ordini");
     },

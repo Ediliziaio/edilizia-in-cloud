@@ -364,6 +364,11 @@ export default function CreateOrder() {
     onSuccess: async (order) => {
       clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["margin"] });
+      queryClient.invalidateQueries({ queryKey: ["break-even"] });
+      queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       setCreatedOrderId(order.id);
 
       // Upload pending files
