@@ -428,7 +428,7 @@ export default function OrdersList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Stato aggiornato", description: "L'ordine è stato spostato al nuovo stato" });
     },
     onError: () => {
