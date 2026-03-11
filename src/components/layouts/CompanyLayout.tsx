@@ -6,6 +6,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { 
   HeadphonesIcon,
   Settings,
@@ -712,6 +713,7 @@ export function CompanyLayout() {
               {effectiveCompany?.name}
             </span>
           </header>
+          <OfflineBanner />
           <LifecycleNotificationsBanner />
           <main className="flex-1 p-6 bg-muted/30">
             <Outlet />

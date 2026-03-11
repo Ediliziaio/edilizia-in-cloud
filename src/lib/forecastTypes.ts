@@ -108,6 +108,8 @@ export const RECURRENCE_LABELS: Record<string, string> = {
 
 export function recurrenceMultiplier(recurrence: string): number {
   switch (recurrence) {
+    case "once":
+    case "one_time": return 0;
     case "weekly": return 4.33;
     case "monthly": return 1;
     case "quarterly": return 1 / 3;

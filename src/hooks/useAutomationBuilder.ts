@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const saveAllRef = useRef<() => Promise<void>>(async () => {});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  useBeforeUnload(hasUnsavedChanges);
 
   // Use refs for history to avoid callback recreation cascades
   const historyRef = useRef<BuilderState[]>([]);
