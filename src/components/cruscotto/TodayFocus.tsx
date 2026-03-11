@@ -1,10 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { Users, Calendar, AlertCircle, CreditCard } from "lucide-react";
+import { Users, Calendar, AlertCircle, CreditCard, TrendingUp, Wallet, Receipt } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
@@ -51,10 +55,73 @@ interface Props {
   onDateRangeChange: (from: string, to: string) => void;
 }
 
+function useDailyTrend(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["cruscotto-daily-trend", companyId],
+    enabled: !!companyId,
+    staleTime: 120_000,
+    queryFn: async () => {
+      const days: { date: string; revenue: number; collected: number }[] = [];
+      const now = new Date();
+      const from = format(subDays(now, 6), "yyyy-MM-dd");
+      const to = format(now, "yyyy-MM-dd");
+
+      const [ordersRes, installmentsRes] = await Promise.all([
+        supabase.from("orders")
+          .select("total_amount, created_at")
+          .eq("company_id", companyId!)
+          .gte("created_at", `${from}T00:00:00`)
+          .lte("created_at", `${to}T23:59:59`),
+        (supabase as any).from("order_installments")
+          .select("amount, paid_date, order:orders!inner(company_id)")
+          .eq("order.company_id", companyId!)
+          .eq("is_paid", true)
+          .gte("paid_date", from)
+          .lte("paid_date", to),
+      ]);
+
+      // Build a map for each day
+      for (let i = 6; i >= 0; i--) {
+        const d = format(subDays(now, i), "yyyy-MM-dd");
+        days.push({ date: d, revenue: 0, collected: 0 });
+      }
+      const dayMap = new Map(days.map(d => [d.date, d]));
+
+      (ordersRes.data ?? []).forEach((o: any) => {
+        const d = format(new Date(o.created_at), "yyyy-MM-dd");
+        const entry = dayMap.get(d);
+        if (entry) entry.revenue += Number(o.total_amount) || 0;
+      });
+      (installmentsRes.data ?? []).forEach((i: any) => {
+        const d = i.paid_date;
+        const entry = dayMap.get(d);
+        if (entry) entry.collected += Number(i.amount) || 0;
+      });
+
+      return days;
+    },
+  });
+}
+
+const sparkTooltipStyle = {
+  contentStyle: {
+    fontSize: 11,
+    padding: "4px 8px",
+    borderRadius: 8,
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--popover))",
+    color: "hsl(var(--popover-foreground))",
+  },
+  labelStyle: { display: "none" as const },
+};
+
 export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRangeChange }: Props) {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const activePreset = detectPreset(dateFrom, dateTo);
   const dynamicLabel = FOCUS_PRESETS.find(p => p.value === activePreset)?.dynamicLabel ?? "oggi";
+  const { data: dailyTrend } = useDailyTrend(companyId);
 
   const today = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
@@ -69,6 +136,33 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
   );
 
   const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [], revenueInRange: 0, collectedInRange: 0, costsPaidInRange: 0 };
+
+  const miniStats = [
+    {
+      icon: <TrendingUp className="h-4 w-4" />,
+      iconClass: "text-primary",
+      bgClass: "bg-primary/10 border-primary/20",
+      label: "Fatturato",
+      value: fmtEur(data.revenueInRange),
+      valueClass: "text-primary",
+    },
+    {
+      icon: <Wallet className="h-4 w-4" />,
+      iconClass: "text-emerald-600 dark:text-emerald-400",
+      bgClass: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40",
+      label: "Incassato",
+      value: fmtEur(data.collectedInRange),
+      valueClass: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      icon: <Receipt className="h-4 w-4" />,
+      iconClass: "text-destructive",
+      bgClass: "bg-destructive/5 border-destructive/20",
+      label: "Costi Pagati",
+      value: fmtEur(data.costsPaidInRange),
+      valueClass: "text-destructive",
+    },
+  ];
 
   const tiles = [
     {
@@ -114,7 +208,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
   ];
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Focus · {todayCap}
@@ -137,22 +231,85 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="font-medium text-foreground">Fatturato:</span>
-          <span className="text-base font-bold text-foreground">{fmtEur(data.revenueInRange)}</span>
-        </span>
-        <span className="w-px h-4 bg-border" />
-        <span className="flex items-center gap-1">
-          <span className="font-medium text-emerald-600 dark:text-emerald-400">Incassato:</span>
-          <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtEur(data.collectedInRange)}</span>
-        </span>
-        <span className="w-px h-4 bg-border" />
-        <span className="flex items-center gap-1">
-          <span className="font-medium text-destructive">Costi Pagati:</span>
-          <span className="text-base font-bold text-destructive">{fmtEur(data.costsPaidInRange)}</span>
-        </span>
+      {/* Enhanced mini-stats + sparkline */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {miniStats.map((s) => (
+          <div
+            key={s.label}
+            className={cn(
+              "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+              s.bgClass
+            )}
+          >
+            <div className={cn("shrink-0", s.iconClass)}>{s.icon}</div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
+              <p className={cn("text-lg font-bold tracking-tight", s.valueClass)}>{s.value}</p>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* Sparkline chart */}
+      {dailyTrend && dailyTrend.length > 0 && (
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-[11px] font-medium text-muted-foreground mb-1">Trend ultimi 7 giorni</p>
+          <div className="h-[72px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyTrend} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
+                <defs>
+                  <linearGradient id="sparkRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="sparkCollected" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  {...sparkTooltipStyle}
+                  formatter={(value: number, name: string) => [
+                    fmtEur(value),
+                    name === "revenue" ? "Fatturato" : "Incassato",
+                  ]}
+                  labelFormatter={(label: string) => {
+                    try {
+                      return new Date(label).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+                    } catch { return label; }
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  fill="url(#sparkRevenue)"
+                  dot={false}
+                  animationDuration={600}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="collected"
+                  stroke="hsl(142 71% 45%)"
+                  strokeWidth={2}
+                  fill="url(#sparkCollected)"
+                  dot={false}
+                  animationDuration={600}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center gap-4 mt-1">
+            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-primary" /> Fatturato
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(142 71% 45%)" }} /> Incassato
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((t) => (
