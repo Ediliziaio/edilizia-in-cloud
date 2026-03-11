@@ -219,7 +219,7 @@ export default function GlobalErrors() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.thisMonth)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.thisMonth)}</div>
             {stats.topCategory && (
               <p className="text-xs text-muted-foreground">
                 Categoria più frequente: <strong>{CATEGORY_LABELS[stats.topCategory[0]] || stats.topCategory[0]}</strong> ({stats.topCategory[1]})
