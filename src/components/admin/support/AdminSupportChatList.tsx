@@ -370,8 +370,8 @@ export function AdminSupportChatList() {
           onOpenChange={(open) => {
             if (!open) {
               setSelectedCompany(null);
-              queryClient.invalidateQueries({ queryKey: ["admin-support-messages"] });
-              queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportMessages });
+              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
             }
           }}
           companyId={selectedCompany.id}

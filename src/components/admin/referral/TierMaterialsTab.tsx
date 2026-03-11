@@ -60,7 +60,7 @@ export function TierMaterialsTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-partner-materials"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.partnerMaterials });
       toast.success("Materiale eliminato");
     },
   });

@@ -63,7 +63,7 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-notes", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyNotes(companyId) });
       setNewNote("");
       toast.success("Nota aggiunta");
     },

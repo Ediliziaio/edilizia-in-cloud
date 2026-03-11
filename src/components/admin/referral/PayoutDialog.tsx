@@ -88,8 +88,8 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
       if (updateError) throw updateError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["referrers"] });
-      queryClient.invalidateQueries({ queryKey: ["referral_payouts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.referrers });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.referralPayouts });
       toast({ title: "Pagamento registrato" });
       form.reset();
       onOpenChange();

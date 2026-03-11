@@ -49,7 +49,7 @@ export function LifecycleNotificationsBanner() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lifecycle-notifications", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
     },
     onError: () => {
       toast.error("Errore nel nascondere la notifica");

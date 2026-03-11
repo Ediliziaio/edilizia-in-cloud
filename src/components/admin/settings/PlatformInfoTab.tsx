@@ -302,7 +302,7 @@ export default function PlatformInfoTab() {
     },
     onSuccess: () => {
       toast.success("Configurazione salvata");
-      queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettings });
     },
     onError: (err: Error) => toast.error(err.message),
   });

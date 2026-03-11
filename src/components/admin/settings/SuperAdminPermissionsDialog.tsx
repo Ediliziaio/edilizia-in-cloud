@@ -116,8 +116,8 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["super-admins"] });
-      queryClient.invalidateQueries({ queryKey: ["super-admin-permissions", adminId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdminPermissions(adminId) });
       onOpenChange(false);
       toast.success("Permessi aggiornati");
     },

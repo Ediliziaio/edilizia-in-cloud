@@ -201,7 +201,7 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: lastTestStatusKey, value: "fail", updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } finally {
       setIsTesting(false);
     }
