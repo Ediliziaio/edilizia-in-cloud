@@ -261,15 +261,35 @@ export function useMarginData(): MarginData {
     ? totalFixedCostsMonthly / (avgMarginPercent / 100)
     : 0;
 
-  // Current monthly revenue (estimate from total orders / active months)
-  const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
-  // Estimate active months from oldest order to now
+  // Current monthly revenue (rolling 12-month window for accuracy)
   const now = new Date();
-  const oldestOrderDate = ordersRaw && ordersRaw.length > 0
-    ? new Date(Math.min(...ordersRaw.map(o => new Date(o.created_at ?? now).getTime())))
-    : now;
-  const monthsActive = Math.max(1, (now.getTime() - oldestOrderDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  const currentMonthlyRevenue = totalRevenue / monthsActive;
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+  const recentOrders = orders.filter(o => {
+    const raw = ordersRaw?.find(r => r.id === o.orderId);
+    return raw?.created_at && new Date(raw.created_at) >= twelveMonthsAgo;
+  });
+
+  let currentMonthlyRevenue: number;
+  if (recentOrders.length > 0) {
+    const recentRevenue = recentOrders.reduce((s, o) => s + o.totalAmount, 0);
+    const oldestRecentTs = Math.min(
+      ...ordersRaw!
+        .filter(r => r.created_at && new Date(r.created_at) >= twelveMonthsAgo)
+        .map(r => new Date(r.created_at!).getTime())
+    );
+    const monthsInWindow = Math.max(1, (now.getTime() - oldestRecentTs) / (1000 * 60 * 60 * 24 * 30));
+    currentMonthlyRevenue = recentRevenue / monthsInWindow;
+  } else {
+    // Fallback: storico completo
+    const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
+    const oldestOrderDate = ordersRaw && ordersRaw.length > 0
+      ? new Date(Math.min(...ordersRaw.map(o => new Date(o.created_at ?? now).getTime())))
+      : now;
+    const monthsActive = Math.max(1, (now.getTime() - oldestOrderDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    currentMonthlyRevenue = totalRevenue / monthsActive;
+  }
 
   const breakEvenDelta = currentMonthlyRevenue - breakEvenRevenue;
 
