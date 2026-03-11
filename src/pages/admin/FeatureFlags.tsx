@@ -34,7 +34,7 @@ export default function FeatureFlags() {
 
   // Fetch flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
-    queryKey: ["admin-feature-flags"],
+    queryKey: queryKeys.admin.featureFlags,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
