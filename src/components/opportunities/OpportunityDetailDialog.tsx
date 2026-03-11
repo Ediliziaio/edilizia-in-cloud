@@ -686,7 +686,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
                             <span>0%</span>
-                            <span className="font-medium">Pesato: {((parseFloat(value) || 0) * probability / 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })} €</span>
                             <span>100%</span>
                           </div>
                         </div>
