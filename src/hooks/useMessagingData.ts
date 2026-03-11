@@ -59,7 +59,7 @@ export function useMessages(conversationId: string | null) {
 
 export function useAiRuns(messageId: string | null) {
   return useQuery({
-    queryKey: ["messaging-ai-runs", messageId],
+    queryKey: queryKeys.messaging.aiRuns(messageId),
     queryFn: async () => {
       if (!messageId) return [];
       const { data, error } = await supabase
