@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import {
   BarChart,
   Bar,
@@ -170,7 +170,7 @@ export default function GlobalErrors() {
     });
   }, [errors]);
 
-  const fmt = (v: number) => `€ ${v.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Caricamento errori...</div>;
@@ -191,7 +191,7 @@ export default function GlobalErrors() {
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{fmt(stats.totalLoss)}</div>
+            <div className="text-2xl font-bold text-destructive">{formatCurrency(stats.totalLoss)}</div>
             <p className="text-xs text-muted-foreground">{filtered.length} errori totali</p>
           </CardContent>
         </Card>
@@ -201,7 +201,7 @@ export default function GlobalErrors() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.merceTotal)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.merceTotal)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -210,7 +210,7 @@ export default function GlobalErrors() {
             <HardHat className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.manodoperaTotal)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.manodoperaTotal)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -219,7 +219,7 @@ export default function GlobalErrors() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.thisMonth)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.thisMonth)}</div>
             {stats.topCategory && (
               <p className="text-xs text-muted-foreground">
                 Categoria più frequente: <strong>{CATEGORY_LABELS[stats.topCategory[0]] || stats.topCategory[0]}</strong> ({stats.topCategory[1]})
@@ -244,7 +244,7 @@ export default function GlobalErrors() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={formatCurrencyCompact} />
                   <YAxis type="category" dataKey="category" width={100} />
-                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>
                     {categoryChart.map((entry) => (
                       <Cell key={entry.key} fill={CATEGORY_COLORS[entry.key] || "hsl(var(--primary))"} />
@@ -264,8 +264,8 @@ export default function GlobalErrors() {
               <BarChart data={monthlyChart}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(v: number) => fmt(v)} />
+                <YAxis tickFormatter={formatCurrencyCompact} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Legend />
                 <Bar dataKey="merce" name="Merce" stackId="a" fill="hsl(var(--destructive))" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="manodopera" name="Manodopera" stackId="a" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
@@ -370,7 +370,7 @@ export default function GlobalErrors() {
                         </Badge>
                       </TableCell>
                       <TableCell>{CATEGORY_LABELS[e.error_category] || e.error_category}</TableCell>
-                      <TableCell className="text-right font-medium">{fmt(Number(e.amount))}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(e.amount))}</TableCell>
                       <TableCell className="max-w-[250px] truncate">{e.description}</TableCell>
                     </TableRow>
                   ))

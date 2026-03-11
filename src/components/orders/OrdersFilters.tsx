@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { Search, Euro, X, CalendarDays, SlidersHorizontal, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -305,7 +306,7 @@ export function OrdersFilters({
                   <Euro className="mr-2 h-4 w-4" />
                   {amountMin || amountMax ? (
                     <span className="truncate">
-                      {amountMin ? `€${amountMin}` : "..."} - {amountMax ? `€${amountMax}` : "..."}
+                      {amountMin ? formatCurrency(Number(amountMin)) : "..."} - {amountMax ? formatCurrency(Number(amountMax)) : "..."}
                     </span>
                   ) : (
                     <span>Importo</span>

@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
+import { logger } from "@/utils/logger";
 import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
@@ -117,7 +118,7 @@ export default function WarehouseStockTab() {
       category: costCategory || "Magazzino",
       recurrence: "once",
     });
-    if (error) console.error("Error inserting cost:", error);
+    if (error) logger.error("Error inserting cost:", error);
   };
 
   // Create/update stock item

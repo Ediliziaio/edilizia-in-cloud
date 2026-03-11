@@ -13,8 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Package, Plus, Loader2, Search, Truck } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency } from "@/lib/formatters";
 
 const STATUS_COLORS: Record<string, string> = {
   bozza: "bg-muted text-muted-foreground",
@@ -108,7 +107,7 @@ export default function PurchaseOrdersList() {
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">OdA attivi</p>
           <p className="text-xl font-bold">{kpis.activeCount}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(kpis.activeTotal)}</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(kpis.activeTotal)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
@@ -116,7 +115,7 @@ export default function PurchaseOrdersList() {
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Valore totale</p>
-          <p className="text-xl font-bold">{fmtEur(kpis.totalAll)}</p>
+          <p className="text-xl font-bold">{formatCurrency(kpis.totalAll)}</p>
         </CardContent></Card>
       </div>
 
@@ -172,7 +171,7 @@ export default function PurchaseOrdersList() {
                       {STATUS_LABELS[o.status] || o.status}
                     </Badge>
                   </td>
-                  <td className="p-3 text-right font-medium">{fmtEur(Number(o.total))}</td>
+                  <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
                   <td className="p-3 text-sm text-muted-foreground">
                     {o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it }) : "—"}
                   </td>

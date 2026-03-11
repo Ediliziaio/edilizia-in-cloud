@@ -21,8 +21,7 @@ import { useOperationalSuppliers, useSupplierDetail } from "@/hooks/useOperation
 import type { SupplierWithStats } from "@/hooks/useOperationalSuppliers";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 
 function RatingStars({ rating }: { rating: number | null }) {
   if (!rating) return <span className="text-xs text-muted-foreground">N/A</span>;
@@ -77,11 +76,11 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(suppliers.reduce((s, f) => s + (f.oda_total || 0), 0))}</p>
+          <p className="text-xl font-bold">{formatCurrency(suppliers.reduce((s, f) => s + (f.oda_total || 0), 0))}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Debito residuo</p>
-          <p className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}>{fmtEur(totalDebt)}</p>
+          <p className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}>{formatCurrency(totalDebt)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground">Con scadenze aperte</p>
@@ -129,12 +128,12 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <p className="text-muted-foreground">OdA</p>
-                    <p className="font-medium">{s.oda_count || 0} · {fmtEur(s.oda_total || 0)}</p>
+                    <p className="font-medium">{s.oda_count || 0} · {formatCurrency(s.oda_total || 0)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Da pagare</p>
                     <p className={`font-medium ${(s.scadenze_importo || 0) > 0 ? "text-destructive" : ""}`}>
-                      {fmtEur(s.scadenze_importo || 0)}
+                      {formatCurrency(s.scadenze_importo || 0)}
                     </p>
                   </div>
                 </div>
@@ -254,17 +253,17 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><Package className="h-3 w-3" /> Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(totalOda)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
           <p className="text-xs text-muted-foreground">{oda.length} ordini</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><CreditCard className="h-3 w-3" /> Totale pagato</p>
-          <p className="text-xl font-bold">{fmtEur(totalPagato)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Scadenze aperte</p>
           <p className="text-xl font-bold">{openScadenze.length}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(supplier.scadenze_importo || 0)} residuo</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(supplier.scadenze_importo || 0)} residuo</p>
         </CardContent></Card>
         <Card className={scaduteCount > 0 ? "border-destructive" : ""}>
           <CardContent className="pt-3 pb-2">
@@ -433,13 +432,13 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
                 {s.min_order_amount > 0 && (
                   <div>
                     <p className="text-muted-foreground text-xs">Ordine minimo</p>
-                    <p className="font-medium">{fmtEur(s.min_order_amount)}</p>
+                    <p className="font-medium">{formatCurrency(s.min_order_amount)}</p>
                   </div>
                 )}
                 {s.credit_limit && (
                   <div>
                     <p className="text-muted-foreground text-xs">Fido</p>
-                    <p className="font-medium">{fmtEur(s.credit_limit)}</p>
+                    <p className="font-medium">{formatCurrency(s.credit_limit)}</p>
                   </div>
                 )}
               </div>
@@ -493,7 +492,7 @@ function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; 
               <td className="p-3 font-mono text-xs">{o.oda_number}</td>
               <td className="p-3">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
               <td className="p-3"><Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{o.status}</Badge></td>
-              <td className="p-3 text-right font-medium">{fmtEur(Number(o.total))}</td>
+              <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
               <td className="p-3 text-sm text-muted-foreground">
                 {o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it }) : "—"}
               </td>
@@ -541,9 +540,9 @@ function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoa
                     </div>
                   </td>
                   <td className="p-3 truncate max-w-[200px]">{s.description}</td>
-                  <td className="p-3 text-right">{fmtEur(Number(s.amount))}</td>
+                  <td className="p-3 text-right">{formatCurrency(Number(s.amount))}</td>
                   <td className="p-3 text-right font-medium">
-                    {s.status === "pagata" ? <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Saldato</Badge> : fmtEur(remaining)}
+                    {s.status === "pagata" ? <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Saldato</Badge> : formatCurrency(remaining)}
                   </td>
                   <td className="p-3">
                     <Badge variant={isOverdue ? "destructive" : s.status === "pagata" ? "default" : "outline"} className="text-xs">
@@ -589,7 +588,7 @@ function PrimaNotaTab({ entries, isLoading, navigate }: { entries: any[]; isLoad
                 <td className="p-3 text-xs text-muted-foreground capitalize">{e.account_label || "—"}</td>
                 <td className="p-3 text-right font-mono">
                   <span className={e.direction === "entrata" ? "text-green-700 dark:text-green-400" : "text-destructive"}>
-                    {e.direction === "uscita" ? "-" : "+"}{fmtEur(Number(e.amount))}
+                    {e.direction === "uscita" ? "-" : "+"}{formatCurrency(Number(e.amount))}
                   </span>
                 </td>
                 <td className="p-3 text-xs text-muted-foreground capitalize">{e.payment_method || "—"}</td>
@@ -631,18 +630,18 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(totalOda)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
           <p className="text-xs text-muted-foreground">{oda.length} ordini</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale pagato</p>
-          <p className="text-xl font-bold">{fmtEur(totalPagato)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
           <p className="text-xs text-muted-foreground">{primaNota.filter((e: any) => e.direction === "uscita").length} movimenti</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Scadenze aperte</p>
           <p className="text-xl font-bold">{scadenze.filter((s: any) => s.status !== "pagata" && s.status !== "annullata").length}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(supplier.scadenze_importo || 0)} residuo</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(supplier.scadenze_importo || 0)} residuo</p>
         </CardContent></Card>
         <Card className={scaduteCount > 0 ? "border-destructive" : ""}><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Scadute</p>
@@ -664,9 +663,9 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} className="fill-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} className="fill-muted-foreground" />
                   <Tooltip
-                    formatter={(value: number) => [fmtEur(value), "Spesa"]}
+                    formatter={(value: number) => [formatCurrency(value), "Spesa"]}
                     contentStyle={{ fontSize: 12 }}
                   />
                   <Bar dataKey="totale" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />

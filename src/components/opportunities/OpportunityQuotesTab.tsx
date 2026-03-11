@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { formatCurrency } from "@/lib/formatters";
 
 interface Props {
   contactId: string | null;
@@ -295,8 +296,7 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
     );
   }
 
-  const fmt = (n: number) =>
-    `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n: number) => formatCurrency(n);
 
   return (
     <div className="space-y-4">
@@ -574,7 +574,7 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
                 <div className="text-right shrink-0">
                   <p className="text-sm font-medium">
                     {q.total != null
-                      ? `€ ${Number(q.total).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                      ? formatCurrency(Number(q.total))
                       : "—"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">

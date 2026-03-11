@@ -5,6 +5,7 @@ import { Trash2, Plus, FolderPlus, Copy, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import {
   type TriggerFilters,
   type TriggerCondition,
@@ -60,7 +61,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       .eq("object_type", objectType)
       .then(({ data, error }) => {
         if (error) {
-          console.error("Error loading custom fields:", error.message);
+          logger.error("Error loading custom fields:", error.message);
           setCustomFields([]);
           return;
         }

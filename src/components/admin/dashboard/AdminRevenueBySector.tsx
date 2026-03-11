@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { PieChart } from "lucide-react";
 import type { SectorRevenue } from "@/hooks/useAdminRevenueData";
 
@@ -35,7 +35,7 @@ export function AdminRevenueBySector({ data }: Props) {
               <XAxis
                 type="number"
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                tickFormatter={(v) => `€${v}`}
+                tickFormatter={formatCurrencyCompact}
               />
               <YAxis
                 type="category"

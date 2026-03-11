@@ -6,6 +6,7 @@ import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle, Clo
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -110,7 +111,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   // Mini layout — ultra-compact card
   if (layout === "mini") {
     const phoneVal = contact?.phone || "";
-    const valueStr = `€ ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+    const valueStr = formatCurrency(Number(opportunity.value || 0));
     const updatedAgo = opportunity.updated_at
       ? formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })
       : null;
@@ -293,7 +294,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
       source: () => ({ label: "Fonte", value: opportunity.source || "—" }),
       value: () => ({
         label: "Valore",
-        value: `EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`,
+        value: formatCurrency(Number(opportunity.value || 0)),
         highlight: true,
       }),
       contact_email: () => ({ label: "Email", value: contact?.email || "—" }),

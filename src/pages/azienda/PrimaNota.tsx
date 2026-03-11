@@ -14,8 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -122,7 +121,7 @@ export default function PrimaNota() {
               <p className="text-xs text-muted-foreground">Entrate</p>
             </div>
             <p className="text-xl font-bold text-green-600">
-              {isSaldoLoading ? "..." : fmtEur(saldo?.entrate || 0)}
+              {isSaldoLoading ? "..." : formatCurrency(saldo?.entrate || 0)}
             </p>
           </CardContent>
         </Card>
@@ -133,7 +132,7 @@ export default function PrimaNota() {
               <p className="text-xs text-muted-foreground">Uscite</p>
             </div>
             <p className="text-xl font-bold text-destructive">
-              {isSaldoLoading ? "..." : fmtEur(saldo?.uscite || 0)}
+              {isSaldoLoading ? "..." : formatCurrency(saldo?.uscite || 0)}
             </p>
           </CardContent>
         </Card>
@@ -144,7 +143,7 @@ export default function PrimaNota() {
               <p className="text-xs text-muted-foreground">Saldo netto</p>
             </div>
             <p className={`text-xl font-bold ${(saldo?.saldo || 0) >= 0 ? "text-green-600" : "text-destructive"}`}>
-              {isSaldoLoading ? "..." : fmtEur(saldo?.saldo || 0)}
+              {isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)}
             </p>
           </CardContent>
         </Card>
@@ -158,9 +157,9 @@ export default function PrimaNota() {
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData}>
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
                 <Tooltip
-                  formatter={(value: number) => fmtEur(value)}
+                  formatter={(value: number) => formatCurrency(value)}
                   labelStyle={{ fontWeight: 600 }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -246,12 +245,12 @@ export default function PrimaNota() {
                         ? <ArrowDownLeft className="h-3.5 w-3.5" />
                         : <ArrowUpRight className="h-3.5 w-3.5" />
                       }
-                      {e.direction === "uscita" ? "-" : "+"}{fmtEur(e.amount)}
+                      {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
-                      {fmtEur(e.runningBalance)}
+                      {formatCurrency(e.runningBalance)}
                     </span>
                   </td>
                   <td className="p-3 text-xs text-muted-foreground capitalize">

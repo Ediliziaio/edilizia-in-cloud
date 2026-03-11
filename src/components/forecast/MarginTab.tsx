@@ -13,7 +13,7 @@ import {
   Calculator, Lightbulb, BarChart3, ArrowUpRight, ArrowDownRight,
   CircleDot, Gauge,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useMarginData, type OrderMargin } from "@/hooks/useMarginData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -397,7 +397,7 @@ export function MarginTab() {
                       dataKey="x"
                       name="Fatturato"
                       tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                      tickFormatter={(v: number) => `€${(v / 1000).toFixed(0)}k`}
+                      tickFormatter={formatCurrencyCompact}
                       label={{ value: "Fatturato", position: "insideBottom", offset: -5, fontSize: 11 }}
                     />
                     <YAxis

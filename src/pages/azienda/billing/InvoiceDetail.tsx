@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2 } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -79,7 +80,7 @@ export default function InvoiceDetail() {
     return { subtotal, tax, total: subtotal + tax };
   }, [lines]);
 
-  const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+  const fmtEur = (n: number) => formatCurrency(n);
 
   // PDF download
   const downloadPdf = async () => {

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { logger } from "@/utils/logger";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,7 +138,7 @@ export function ChangePasswordForm() {
       setConfirmPassword("");
       setErrors({});
     } catch (error) {
-      console.error("Error changing password:", error);
+      logger.error("Error changing password:", error);
       toast.error("Errore durante il cambio password");
     } finally {
       setIsLoading(false);
