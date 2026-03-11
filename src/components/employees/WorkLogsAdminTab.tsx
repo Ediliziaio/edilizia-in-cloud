@@ -104,7 +104,7 @@ export function WorkLogsAdminTab() {
 
   // Fetch employees
   const { data: employees = [] } = useQuery({
-    queryKey: ["employees", companyId],
+    queryKey: queryKeys.employees.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

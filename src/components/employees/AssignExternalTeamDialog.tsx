@@ -68,7 +68,7 @@ export function AssignExternalTeamDialog({
 
   // Fetch available teams
   const { data: teams = [] } = useQuery({
-    queryKey: ["external-teams", effectiveCompanyId],
+    queryKey: queryKeys.externalTeams.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("external_teams")

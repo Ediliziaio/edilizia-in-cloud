@@ -57,7 +57,7 @@ export function AssignEmployeeDialog({
 
   // Fetch available employees
   const { data: employees = [] } = useQuery({
-    queryKey: ["employees", effectiveCompanyId],
+    queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

@@ -155,8 +155,8 @@ export function SalespeopleConfig() {
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staffUsers.all });
       const sp = createAccountDialog.salesperson;
       setCreateAccountDialog({ open: false, salesperson: null });
       resetAccountForm();
