@@ -137,7 +137,7 @@ export function useCompanyDetail(id: string | undefined) {
   }, [company?.id]);
 
   const { data: teamData } = useQuery({
-    queryKey: ["company-team", id],
+    queryKey: queryKeys.companyDetail.team(id),
     queryFn: async () => {
       if (!id) return null;
       const [profilesRes, permissionsRes, salespeopleRes, employeesRes] = await Promise.all([
