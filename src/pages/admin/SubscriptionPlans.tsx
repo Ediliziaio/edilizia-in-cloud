@@ -183,13 +183,25 @@ export default function SubscriptionPlans() {
     setDialogOpen(true);
   };
 
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [pendingSave, setPendingSave] = useState<(PlanForm & { id?: string }) | null>(null);
+
   const handleSave = () => {
     if (!form.name || !form.slug) {
       toast({ title: "Compila nome e slug", variant: "destructive" });
       return;
     }
     const features = featuresText.split("\n").map((f) => f.trim()).filter(Boolean);
-    saveMutation.mutate({ ...form, features, id: editingId || undefined });
+    const payload = { ...form, features, id: editingId || undefined };
+
+    // If editing an existing plan with active companies, show confirmation
+    const usageCount = editingId ? (companyCounts?.[editingId] ?? 0) : 0;
+    if (editingId && usageCount > 0) {
+      setPendingSave(payload);
+      setConfirmSaveOpen(true);
+    } else {
+      saveMutation.mutate(payload);
+    }
   };
 
   const formatLimit = (value: number) => (value === -1 ? "Illimitati" : value.toString());
