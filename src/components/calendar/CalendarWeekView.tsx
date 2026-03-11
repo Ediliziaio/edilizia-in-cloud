@@ -189,7 +189,7 @@ export function CalendarWeekView({
           .update({ expected_date: pendingDrop.toDate })
           .eq("id", pendingDrop.id);
         if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       }
       toast({ title: "Evento spostato" });
     } catch (e: any) {
