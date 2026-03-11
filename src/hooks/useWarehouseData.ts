@@ -397,7 +397,7 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       toast.success("Nota aggiornata");
     },
     onError: () => {
