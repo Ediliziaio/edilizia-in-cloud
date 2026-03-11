@@ -18,6 +18,7 @@ interface Props {
   filters: DashboardFiltersState;
   onUpdate: (partial: Partial<DashboardFiltersState>) => void;
   hideUserFilter?: boolean;
+  compact?: boolean;
 }
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
