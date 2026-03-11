@@ -104,20 +104,32 @@ export function useCompanyDashboardData() {
 
       if (error) throw error;
 
-      const result = data as any;
+      const result = data as unknown as {
+        stats: DashboardStats;
+        prevStats: PrevStats;
+        recentOrders: RecentOrder[];
+        cashFlow: CashFlow;
+        ceoStrip: CeoStrip;
+        urgentItems: UrgentItem[];
+        financialAlerts: FinancialAlert[];
+        weeklyDeadlines: WeeklyDeadlinesData;
+        monthlyBalance: { month: string; entrate: number; uscite: number }[];
+        revenueYTD: { month: string; revenue: number }[];
+        agingReceivables: { overdue: number; thisWeek: number; thisMonth: number; future: number };
+      };
 
       return {
-        stats: result.stats as DashboardStats,
-        prevStats: result.prevStats as PrevStats,
-        recentOrders: (result.recentOrders || []) as RecentOrder[],
-        cashFlow: result.cashFlow as CashFlow,
-        ceoStrip: result.ceoStrip as CeoStrip,
-        urgentItems: (result.urgentItems || []) as UrgentItem[],
-        financialAlerts: (result.financialAlerts || []) as FinancialAlert[],
-        weeklyDeadlines: result.weeklyDeadlines as WeeklyDeadlinesData,
-        monthlyBalance: (result.monthlyBalance || []) as { month: string; entrate: number; uscite: number }[],
-        revenueYTD: (result.revenueYTD || []) as { month: string; revenue: number }[],
-        agingReceivables: result.agingReceivables as { overdue: number; thisWeek: number; thisMonth: number; future: number },
+        stats: result.stats,
+        prevStats: result.prevStats,
+        recentOrders: result.recentOrders || [],
+        cashFlow: result.cashFlow,
+        ceoStrip: result.ceoStrip,
+        urgentItems: result.urgentItems || [],
+        financialAlerts: result.financialAlerts || [],
+        weeklyDeadlines: result.weeklyDeadlines,
+        monthlyBalance: result.monthlyBalance || [],
+        revenueYTD: result.revenueYTD || [],
+        agingReceivables: result.agingReceivables,
       };
     },
     enabled: !!companyId,
