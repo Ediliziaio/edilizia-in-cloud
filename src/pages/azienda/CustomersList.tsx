@@ -103,7 +103,7 @@ export default function CustomersList() {
 
   // Fetch salespeople for filter and inline select
   const { data: salespeople = [] } = useQuery({
-    queryKey: ["salespeople-active", effectiveCompany?.id],
+    queryKey: queryKeys.salespeople.active(effectiveCompany?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
