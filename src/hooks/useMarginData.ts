@@ -102,7 +102,7 @@ export function useMarginData(): MarginData {
 
   // 4. Salespeople commissions
   const { data: salespeople, isLoading: loadingSales } = useQuery({
-    queryKey: ["margin-salespeople", companyId],
+    queryKey: queryKeys.margin.salespeople(companyId, ordersRaw?.length ?? 0),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
