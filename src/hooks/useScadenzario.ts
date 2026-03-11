@@ -57,7 +57,7 @@ export function useScadenzario() {
   const companyId = effectiveCompany?.id;
 
   const scadenzeQuery = useQuery({
-    queryKey: ["scadenze", companyId],
+    queryKey: queryKeys.scadenzario.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
