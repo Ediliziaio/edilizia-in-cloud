@@ -175,6 +175,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setExpectedCloseDate(opportunity.expected_close_date || "");
       setLossReason(opportunity.loss_reason || "");
       setLossNotes(opportunity.loss_notes || "");
+      setNextAction(opportunity.next_action || "");
+      setNextActionDate(opportunity.next_action_date || "");
+      setLostReasonCategory(opportunity.lost_reason_category || "");
+      setCompetitorWon(opportunity.competitor_won || "");
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
