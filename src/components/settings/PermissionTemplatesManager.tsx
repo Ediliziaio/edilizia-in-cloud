@@ -116,7 +116,7 @@ export function PermissionTemplatesManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["permission-templates"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
       toast({ title: "Template eliminato" });
     },
     onError: () => {
