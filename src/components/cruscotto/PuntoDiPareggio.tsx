@@ -202,7 +202,7 @@ function StoricoAnniChart({
           <XAxis dataKey="anno" tick={{ fontSize: 12 }} />
           <YAxis
             tick={{ fontSize: 11 }}
-            tickFormatter={v => `€${(v / 1000).toFixed(0)}k`}
+            tickFormatter={formatCurrencyCompact}
             width={56}
           />
           <Tooltip
