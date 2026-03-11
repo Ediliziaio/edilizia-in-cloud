@@ -159,20 +159,26 @@ export default function CompanyCustomerDetail() {
 
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", id!)
-        .eq("company_id", effectiveCompany!.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("delete-company-user", {
+        body: { userId: id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
 
-      if (error) throw error;
+      if (res.error) {
+        const body = typeof res.error === "object" && "context" in res.error
+          ? await (res.error as any).context?.json?.()
+          : null;
+        throw new Error(body?.error || res.error.message || "Errore eliminazione");
+      }
+      if (res.data?.error) throw new Error(res.data.error);
 
       queryClient.invalidateQueries({ queryKey: ["customers-list"] });
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
-    } catch (error) {
-     logger.error("Error deleting customer:", error);
-      toast({ title: "Errore", description: "Impossibile eliminare il cliente.", variant: "destructive" });
+    } catch (error: any) {
+      logger.error("Error deleting customer:", error);
+      toast({ title: "Errore", description: error?.message || "Impossibile eliminare il cliente.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }

@@ -6571,13 +6571,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoice_payments_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "invoice_payments_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -6744,13 +6737,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -8614,13 +8600,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "multi_company_access_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "multi_company_access_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -9462,13 +9441,6 @@ export type Database = {
           work_start_date?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "orders_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "orders_company_id_fkey"
             columns: ["company_id"]
@@ -11469,13 +11441,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "signature_requests_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "signature_requests_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -12243,13 +12208,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "tasks_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tasks_company_id_fkey"
             columns: ["company_id"]
