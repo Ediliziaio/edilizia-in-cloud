@@ -290,7 +290,7 @@ export function useConversationsRealtime(companyId: string | undefined) {
         "postgres_changes",
         { event: "*", schema: "public", table: "messaging_conversations", filter: `company_id=eq.${companyId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
         }
       )
       .subscribe();
