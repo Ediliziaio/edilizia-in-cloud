@@ -139,7 +139,7 @@ export function useDeleteAgent() {
             agent_id: elAgentId,
           });
         } catch (e) {
-          console.warn("ElevenLabs delete failed (orphan may remain on provider):", e);
+          logger.warn("ElevenLabs delete failed (orphan may remain on provider):", e);
         }
       }
     },

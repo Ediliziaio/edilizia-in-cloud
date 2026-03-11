@@ -314,7 +314,7 @@ export function SuppliersConfig() {
       } else {
         toast.error("Errore", { description: "Impossibile eliminare il fornitore." });
       }
-      console.error(error);
+      logger.error("Errore eliminazione fornitore", error);
     },
   });
 

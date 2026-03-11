@@ -33,7 +33,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[ErrorBoundary] Errore catturato:", error.message);
+    logger.error("[ErrorBoundary] Errore catturato:", error.message);
 
     // Report to system_health_metrics for centralized observability
     this.reportError(error, errorInfo).catch(() => {

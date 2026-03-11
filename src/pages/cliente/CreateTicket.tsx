@@ -134,7 +134,7 @@ export default function CreateTicket() {
       navigate(`/cliente/assistenza/${ticket.id}`);
     },
     onError: (error) => {
-      console.error("Error creating ticket:", error);
+      logger.error("Error creating ticket:", error);
       toast({
         title: "Errore",
         description: "Impossibile creare il ticket. Riprova.",

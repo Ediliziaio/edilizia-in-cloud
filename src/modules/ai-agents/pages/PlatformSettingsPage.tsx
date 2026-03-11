@@ -137,7 +137,7 @@ export default function PlatformSettingsPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
-      console.error(err);
+      logger.error("Errore salvataggio configurazione", err);
       toast.error("Errore nel salvataggio della configurazione");
     } finally {
       setIsSaving(false);

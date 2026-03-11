@@ -120,7 +120,7 @@ export function EditOrderDatesDialog({
       onSave?.();
       onOpenChange(false);
     } catch (error) {
-      console.error("Errore aggiornamento date:", error);
+      logger.error("Errore aggiornamento date:", error);
       toast.error("Errore durante l'aggiornamento delle date");
     } finally {
       setIsSaving(false);

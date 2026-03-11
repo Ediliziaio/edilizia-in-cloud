@@ -254,7 +254,7 @@ export default function BankReconciliation({ companyId }: Props) {
       inv.status = newStatus;
       return true;
     } catch (e: any) {
-      console.error("Auto-match error:", e);
+      logger.error("Auto-match error:", e);
       return false;
     }
   }

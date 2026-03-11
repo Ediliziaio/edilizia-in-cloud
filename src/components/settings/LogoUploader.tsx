@@ -119,7 +119,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       await onLogoUpdated();
     } catch (error) {
-      console.error('Error removing logo:', error);
+      logger.error("Error removing logo:", error);
       toast.error("Errore", { description: "Impossibile rimuovere il logo. Riprova." });
     } finally {
       setIsRemoving(false);

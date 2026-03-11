@@ -314,7 +314,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
       toast({ title: "Documenti caricati", description: `${validFiles.length} file caricati con successo.` });
     } catch (error) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({ title: "Errore durante il caricamento", description: "Si è verificato un errore. Riprova.", variant: "destructive" });
     } finally {
       setUploading(false);

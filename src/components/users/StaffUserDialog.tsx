@@ -126,7 +126,7 @@ export function StaffUserDialog({
         setTemporaryPassword(result.temporaryPassword);
       }
     } catch (error) {
-      console.error("Error creating user:", error);
+      logger.error("Error creating user:", error);
     }
   };
 

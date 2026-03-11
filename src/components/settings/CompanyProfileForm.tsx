@@ -118,7 +118,7 @@ export function CompanyProfileForm() {
       await refreshAuth();
       toast.success("Profilo aggiornato", { description: "I dati aziendali sono stati salvati." });
     } catch (error) {
-      console.error("Error updating company:", error);
+      logger.error("Error updating company:", error);
       toast.error("Errore", { description: "Impossibile aggiornare i dati aziendali." });
     } finally {
       setIsSaving(false);

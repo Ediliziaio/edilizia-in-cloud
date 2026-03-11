@@ -151,7 +151,7 @@ export function AgentKBTab({ agentId, companyId, elevenlabsAgentId }: AgentKBTab
             payload: { elevenlabs_doc_id: doc.elevenlabs_doc_id },
           });
         } catch (e) {
-          console.warn("ElevenLabs KB doc removal failed:", e);
+          logger.warn("ElevenLabs KB doc removal failed:", e);
         }
       }
 

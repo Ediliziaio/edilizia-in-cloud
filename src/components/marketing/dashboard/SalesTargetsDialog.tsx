@@ -102,7 +102,7 @@ export function SalesTargetsDialog() {
       queryClient.invalidateQueries({ queryKey: ["sales-targets"] });
       setOpen(false);
     } catch (e: any) {
-      console.error(e);
+      logger.error("Errore nel salvataggio target", e);
       toast.error("Errore nel salvataggio: " + (e.message || ""));
     } finally {
       setSaving(false);

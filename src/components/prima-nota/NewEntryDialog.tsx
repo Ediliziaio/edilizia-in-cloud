@@ -132,7 +132,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           attachmentName = attachmentFile.name;
         }
       } catch (e) {
-        console.warn("Upload error:", e);
+        logger.warn("Upload error:", e);
       }
       setIsUploading(false);
     }

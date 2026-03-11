@@ -164,7 +164,7 @@ export function ExternalTeamAttachments({
       resetUploadForm();
     },
     onError: (error) => {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast.error("Errore", { description: "Si è verificato un errore durante il caricamento." });
     },
   });
