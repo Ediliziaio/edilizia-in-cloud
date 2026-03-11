@@ -276,7 +276,7 @@ export function useCompanyDetail(id: string | undefined) {
   // ========== MUTATIONS ==========
 
   const refreshCompany = () => {
-    queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
   };
 
   const assertCanManage = () => {
