@@ -156,7 +156,7 @@ export default function CustomersList() {
     queryFn: async (): Promise<PaginatedResult> => {
       if (!effectiveCompany?.id) return { rows: [], total_count: 0 };
       
-      const { data, error } = await supabase.rpc("get_customers_paginated", rpcParams as any);
+      const { data, error } = await supabase.rpc("get_customers_paginated" as never, rpcParams as never);
       if (error) throw error;
       return data as unknown as PaginatedResult;
     },
