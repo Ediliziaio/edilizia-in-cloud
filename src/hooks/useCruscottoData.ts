@@ -379,34 +379,44 @@ export function useCruscottoData() {
     return { ...base, incomingPayments, incomingPaymentsCount };
   }, [rawWeeklyData, paymentsData]);
 
-  // Today data — live, ignores dateRange
+  // Today focus filter state (separate from main filters)
+  const [todayDateFrom, setTodayDateFrom] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [todayDateTo, setTodayDateTo] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+
+  const updateTodayDateRange = useCallback((from: string, to: string) => {
+    setTodayDateFrom(from);
+    setTodayDateTo(to);
+  }, []);
+
+  // Today data — parameterized by todayDateFrom/todayDateTo for leads & appointments
   const { data: todayData, isLoading: todayLoading } = useQuery<TodayData>({
-    queryKey: queryKeys.cruscotto.today(companyId),
+    queryKey: queryKeys.cruscotto.today(companyId, todayDateFrom, todayDateTo),
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
-      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const nowStr = format(new Date(), "yyyy-MM-dd");
       const in7Days = format(addDays(new Date(), 7), "yyyy-MM-dd");
 
       const [leadsRes, appointmentsRes, overdueRes, suppliersRes] = await Promise.all([
         supabase.from("marketing_contacts").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
-          .gte("created_at", `${todayStr}T00:00:00`)
-          .lte("created_at", `${todayStr}T23:59:59`),
+          .gte("created_at", `${todayDateFrom}T00:00:00`)
+          .lte("created_at", `${todayDateTo}T23:59:59`),
         supabase.from("appointments").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
-          .eq("appointment_date", todayStr)
+          .gte("appointment_date", todayDateFrom)
+          .lte("appointment_date", todayDateTo)
           .eq("is_blocked_slot", false),
         (supabase as any).from("order_installments")
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
           .eq("is_paid", false)
-          .lt("expected_date", todayStr),
+          .lt("expected_date", nowStr),
         supabase.from("company_costs")
           .select("id, name, amount, due_date, category")
           .eq("company_id", companyId!)
           .eq("is_paid", false)
-          .gte("due_date", todayStr)
+          .gte("due_date", nowStr)
           .lte("due_date", in7Days)
           .order("due_date", { ascending: true }),
       ]);
