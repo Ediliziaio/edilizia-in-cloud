@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useWeightedPipeline,
@@ -11,207 +11,372 @@ import {
 } from "@/hooks/useSalesOS";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Legend,
 } from "recharts";
-import { Zap, AlertTriangle, Users, Target, Clock, Loader2, TrendingUp } from "lucide-react";
-import { fmtCur } from "@/components/marketing/dashboard/utils";
+import {
+  TrendingUp,
+  AlertTriangle,
+  Users,
+  Target,
+  Zap,
+  Loader2,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+const fmt = (v: number) =>
+  new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(v);
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
 
-// ── Sales Velocity Card ──
+// ─── SalesVelocityCard ────────────────────────────────────────────────────────
+
 function SalesVelocityCard({ companyId }: { companyId: string }) {
   const { data: velocity, isLoading } = useSalesVelocity(companyId);
 
-  if (isLoading) return (
-    <Card><CardContent className="h-24 flex items-center justify-center">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </CardContent></Card>
-  );
+  if (isLoading)
+    return (
+      <Card>
+        <CardContent className="h-24 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Calcolo velocità...</span>
+        </CardContent>
+      </Card>
+    );
+
   if (!velocity) return null;
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Zap className="h-4 w-4 text-primary" /> Sales Velocity (ultimi 90gg)
+          <Zap className="h-4 w-4 text-primary" />
+          Sales Velocity
+          <span className="text-xs text-muted-foreground font-normal">(ultimi 90gg)</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{fmtCur(velocity.sales_velocity)}/giorno</div>
-        <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
-          <div><span className="text-muted-foreground">Opp. aperte</span><p className="font-semibold">{velocity.open_opportunities}</p></div>
-          <div><span className="text-muted-foreground">Win rate</span><p className="font-semibold">{pct(velocity.win_rate)}</p></div>
-          <div><span className="text-muted-foreground">Ciclo medio</span><p className="font-semibold">{velocity.avg_cycle_days.toFixed(0)}gg</p></div>
+        <div className="text-2xl font-bold">
+          {fmt(velocity.sales_velocity)}
+          <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Weighted Pipeline Chart ──
-function WeightedPipelineChart({ companyId }: { companyId: string }) {
-  const { data: pipeline, isLoading } = useWeightedPipeline(companyId);
-
-  if (isLoading) return <Card><CardContent className="h-64 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
-
-  const totalWeighted = (pipeline ?? []).reduce((s, r) => s + r.weighted_value, 0);
-  const totalExpected = (pipeline ?? []).reduce((s, r) => s + r.total_value, 0);
-
-  const chartData = (pipeline ?? []).map((stage) => ({
-    name: stage.stage_name.length > 12 ? stage.stage_name.slice(0, 12) + "…" : stage.stage_name,
-    "Valore totale": stage.total_value,
-    "Forecast pesato": stage.weighted_value,
-  }));
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Pipeline Pesata per Stage</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Forecast pesato <span className="font-semibold text-foreground">{fmtCur(totalWeighted)}</span> su {fmtCur(totalExpected)} totali
-        </p>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(value: number, name: string) => [fmtCur(value), name]} />
-            <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} />
-            <Bar dataKey="Forecast pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Sales Forecast Chart ──
-function SalesForecastChart({ companyId }: { companyId: string }) {
-  const { data: forecast, isLoading } = useSalesForecast(companyId);
-
-  if (isLoading) return <Card><CardContent className="h-48 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
-  if (!forecast?.length) return (
-    <Card><CardContent className="h-48 flex items-center justify-center flex-col gap-2">
-      <Target className="h-8 w-8 text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">Nessun forecast disponibile.</p>
-      <p className="text-xs text-muted-foreground">Aggiungi date di chiusura prevista alle opportunità aperte.</p>
-    </CardContent></Card>
-  );
-
-  const chartData = forecast.map((m) => ({
-    mese: new Date(m.forecast_month).toLocaleDateString("it-IT", { month: "short", year: "2-digit" }),
-    Atteso: m.expected_revenue,
-    Pesato: m.weighted_revenue,
-  }));
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-green-500" /> Forecast Commerciale Pesato (3 mesi)
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(value: number, name: string) => [fmtCur(value), name]} />
-            <Line type="monotone" dataKey="Atteso" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
-            <Line type="monotone" dataKey="Pesato" stroke="hsl(var(--primary))" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Stalled Opportunities Panel ──
-function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
-  const { data: stalled, isLoading } = useStalledOpportunities(companyId);
-
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-  if (!stalled?.length) return <p className="text-sm text-muted-foreground text-center py-8">Nessuna opportunità ferma. Pipeline attiva! 🎉</p>;
-
-  const shown = stalled.slice(0, 10);
-  const remaining = stalled.length - shown.length;
-
-  return (
-    <div className="space-y-2">
-      {shown.map((opp) => (
-        <div key={opp.opportunity_id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
+        <div className="grid grid-cols-4 gap-4 mt-3 text-sm">
           <div>
-            <p className="text-sm font-medium">{opp.opportunity_name}</p>
-            <p className="text-xs text-muted-foreground">
-              {opp.contact_name} • Stage: {opp.stage_name}
-            </p>
+            <p className="font-semibold">{velocity.open_opportunities}</p>
+            <span className="text-muted-foreground">Opp. aperte</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold">{fmtCur(opp.value)}</span>
-            <Badge variant="destructive" className="text-xs whitespace-nowrap">
-              <Clock className="h-3 w-3 mr-1" />
-              {opp.days_stalled}gg ferma
-            </Badge>
+          <div>
+            <p className="font-semibold">{pct(velocity.win_rate)}</p>
+            <span className="text-muted-foreground">Win rate</span>
+          </div>
+          <div>
+            <p className="font-semibold">{fmt(velocity.avg_deal_size)}</p>
+            <span className="text-muted-foreground">Avg deal size</span>
+          </div>
+          <div>
+            <p className="font-semibold">{velocity.avg_cycle_days}gg</p>
+            <span className="text-muted-foreground">Ciclo medio</span>
           </div>
         </div>
-      ))}
-      {remaining > 0 && <p className="text-xs text-muted-foreground text-center">+{remaining} altre opportunità ferme</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── WeightedPipelineChart ────────────────────────────────────────────────────
+
+function WeightedPipelineChart({ companyId }: { companyId: string }) {
+  const { data: stages, isLoading } = useWeightedPipeline(companyId);
+
+  if (isLoading)
+    return (
+      <Card>
+        <CardContent className="h-64 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Caricamento pipeline...</span>
+        </CardContent>
+      </Card>
+    );
+
+  if (!stages || stages.length === 0)
+    return (
+      <Card>
+        <CardContent className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+          Nessuna opportunità aperta.
+        </CardContent>
+      </Card>
+    );
+
+  const chartData = stages.map((s) => ({
+    name:
+      s.stage_name.length > 12
+        ? s.stage_name.slice(0, 12) + "…"
+        : s.stage_name,
+    "Valore totale": Math.round(s.total_value),
+    "Valore pesato": Math.round(s.weighted_value),
+    "N° opp": s.opportunity_count,
+    "Prob %": s.avg_probability,
+  }));
+
+  return (
+    <div className="space-y-4">
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+          <Tooltip
+            formatter={(value: number, name: string) =>
+              name === "Prob %" ? [`${value}%`, name] : [fmt(value), name]
+            }
+          />
+          <Legend />
+          <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Valore pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-4 text-center">
+        <div>
+          <p className="text-lg font-bold">
+            {fmt(stages.reduce((a, s) => a + s.total_value, 0))}
+          </p>
+          <p className="text-xs text-muted-foreground">Valore totale pipeline</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold">
+            {fmt(stages.reduce((a, s) => a + s.weighted_value, 0))}
+          </p>
+          <p className="text-xs text-muted-foreground">Valore pesato</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Seller Comparison Table ──
+// ─── SalesForecastChart ───────────────────────────────────────────────────────
+
+function SalesForecastChart({ companyId }: { companyId: string }) {
+  const { data: forecast, isLoading } = useSalesForecast(companyId, 3);
+
+  if (isLoading)
+    return (
+      <Card>
+        <CardContent className="h-48 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Calcolo forecast...</span>
+        </CardContent>
+      </Card>
+    );
+
+  if (!forecast || forecast.length === 0)
+    return (
+      <Card>
+        <CardContent className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+          Nessuna opportunità con data chiusura impostata.
+        </CardContent>
+      </Card>
+    );
+
+  const chartData = forecast.map((f) => ({
+    mese: new Date(f.forecast_month).toLocaleDateString("it-IT", {
+      month: "short",
+      year: "2-digit",
+    }),
+    "Atteso": Math.round(f.expected_revenue),
+    "Pesato": Math.round(f.weighted_revenue),
+    "N° opp": f.opportunity_count,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <LineChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
+        <YAxis
+          tick={{ fontSize: 11 }}
+          tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+        />
+        <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} />
+        <Legend />
+        <Line type="monotone" dataKey="Atteso" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
+        <Line type="monotone" dataKey="Pesato" stroke="hsl(var(--primary))" strokeWidth={2} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── StalledOpportunitiesPanel ────────────────────────────────────────────────
+
+function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
+  const { data: stalled, isLoading } = useStalledOpportunities(companyId);
+  const navigate = useNavigate();
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Analisi opportunità ferme...</span>
+      </div>
+    );
+
+  if (!stalled || stalled.length === 0)
+    return (
+      <div className="text-center py-8 space-y-1">
+        <span className="text-3xl">✅</span>
+        <p className="text-sm text-muted-foreground">Nessuna opportunità ferma — ottimo lavoro!</p>
+      </div>
+    );
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Opportunità</TableHead>
+          <TableHead>Stage</TableHead>
+          <TableHead>Ferma da</TableHead>
+          <TableHead>Threshold</TableHead>
+          <TableHead className="text-right">Valore</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {stalled.map((s) => (
+          <TableRow
+            key={s.opportunity_id}
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => navigate(`/azienda/marketing/opportunita`)}
+          >
+            <TableCell>
+              <p className="font-medium text-sm">{s.opportunity_name}</p>
+              {s.contact_name && (
+                <p className="text-xs text-muted-foreground">{s.contact_name}</p>
+              )}
+            </TableCell>
+            <TableCell>{s.stage_name}</TableCell>
+            <TableCell>
+              <Badge
+                variant={
+                  s.days_stalled > s.stalled_threshold * 2
+                    ? "destructive"
+                    : "secondary"
+                }
+                className="text-xs"
+              >
+                {s.days_stalled}gg
+              </Badge>
+            </TableCell>
+            <TableCell>
+              {s.stalled_threshold}gg
+            </TableCell>
+            <TableCell className="text-right">
+              {fmt(s.value)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ─── SellerComparisonTable ────────────────────────────────────────────────────
+
 function SellerComparisonTable({ companyId }: { companyId: string }) {
   const now = new Date();
-  const { data: sellers, isLoading } = useSellerPerformance(companyId, now.getFullYear(), now.getMonth() + 1);
+  const { data: sellers, isLoading } = useSellerPerformance(
+    companyId,
+    now.getFullYear(),
+    now.getMonth() + 1
+  );
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-  if (!sellers?.length) return <p className="text-sm text-muted-foreground text-center py-8">Nessun dato venditore disponibile per questo mese.</p>;
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Analisi team vendite...</span>
+      </div>
+    );
 
-  const medals = ["🥇", "🥈", "🥉"];
+  if (!sellers || sellers.length === 0)
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-muted-foreground">Nessun dato venditori per questo mese.</p>
+      </div>
+    );
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Venditore</TableHead>
-          <TableHead className="text-right">Chiuse</TableHead>
-          <TableHead className="text-right">Fatturato</TableHead>
-          <TableHead className="text-right">Win Rate</TableHead>
-          <TableHead className="text-right">Target</TableHead>
-          <TableHead className="text-right">Raggiungimento</TableHead>
+          <TableHead className="text-right">Vinte</TableHead>
+          <TableHead className="text-right">Aperte</TableHead>
+          <TableHead className="text-right">Win rate</TableHead>
+          <TableHead className="text-right">Valore vinto</TableHead>
+          <TableHead>Target mese</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sellers.map((s, i) => (
+        {sellers.map((s) => (
           <TableRow key={s.assigned_to ?? "unassigned"}>
             <TableCell className="font-medium">
-              {i < 3 && <span className="mr-1">{medals[i]}</span>}
               {s.display_name}
             </TableCell>
             <TableCell className="text-right">
-              <Badge variant={s.won_count > 0 ? "default" : "secondary"}>{s.won_count}</Badge>
+              <Badge variant={s.won_count > 0 ? "default" : "secondary"}>
+                {s.won_count}
+              </Badge>
             </TableCell>
-            <TableCell className="text-right">{fmtCur(s.won_value)}</TableCell>
-            <TableCell className={`text-right ${s.win_rate >= 50 ? "text-green-600 font-medium" : "text-muted-foreground"}`}>
+            <TableCell className="text-right">{s.open_count}</TableCell>
+            <TableCell className="text-right">
               {pct(s.win_rate)}
             </TableCell>
-            <TableCell className="text-right">{s.target_amount > 0 ? fmtCur(s.target_amount) : "—"}</TableCell>
             <TableCell className="text-right">
+              {fmt(s.won_value)}
+            </TableCell>
+            <TableCell>
               {s.target_amount > 0 ? (
-                <span className={s.target_achievement >= 100 ? "text-green-600 font-bold" : ""}>
-                  {pct(s.target_achievement)}
-                </span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span>
+                      {fmt(s.won_value)} / {fmt(s.target_amount)}
+                    </span>
+                    <span
+                      className={
+                        s.target_achievement >= 100
+                          ? "text-green-600 font-bold"
+                          : ""
+                      }
+                    >
+                      {pct(s.target_achievement)}
+                    </span>
+                  </div>
+                  <Progress value={Math.min(s.target_achievement, 100)} className="h-2" />
+                </div>
               ) : (
                 <span className="text-xs text-muted-foreground">No target</span>
               )}
@@ -223,45 +388,92 @@ function SellerComparisonTable({ companyId }: { companyId: string }) {
   );
 }
 
-// ── Conversion By Source Chart ──
+// ─── ConversionBySourceChart ──────────────────────────────────────────────────
+
 function ConversionBySourceChart({ companyId }: { companyId: string }) {
   const { data: sources, isLoading } = useConversionBySource(companyId);
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-  if (!sources?.length) return <p className="text-sm text-muted-foreground text-center py-8">Nessun dato fonte lead disponibile.</p>;
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Analisi fonti lead...</span>
+      </div>
+    );
+
+  if (!sources || sources.length === 0)
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-muted-foreground">Nessun dato fonte lead disponibile.</p>
+      </div>
+    );
 
   const chartData = sources.slice(0, 8).map((s) => ({
-    fonte: s.source,
-    Vinte: s.total_won_value,
+    fonte:
+      s.source.length > 15 ? s.source.slice(0, 15) + "…" : s.source,
+    Opportunità: s.total_opportunities,
+    "Chiuse vinte": s.won_opportunities,
+    "Win rate %": parseFloat(s.win_rate.toFixed(1)),
   }));
 
   return (
     <div className="space-y-4">
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={chartData} layout="vertical">
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis type="number" tick={{ fontSize: 11 }} />
-          <YAxis type="category" dataKey="fonte" tick={{ fontSize: 11 }} width={100} />
-          <Tooltip formatter={(value: number) => fmtCur(value)} />
-          <Bar dataKey="Vinte" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+          <XAxis dataKey="fonte" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Legend />
+          <Tooltip
+            formatter={(value: number, name: string) =>
+              name === "Win rate %"
+                ? [`${value.toFixed(1)}%`, name]
+                : [value, name]
+            }
+          />
+          <Bar dataKey="Opportunità" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Chiuse vinte" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {sources.slice(0, 4).map((s) => (
+          <div key={s.source} className="text-center">
+            <p className="text-xs text-muted-foreground">{s.source}</p>
+            <p className="text-sm font-semibold">
+              {fmt(s.total_won_value)}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Top Leads Table ──
+// ─── TopLeadsTable ────────────────────────────────────────────────────────────
+
 function TopLeadsTable({ companyId }: { companyId: string }) {
-  const { data: leads, isLoading } = useTopLeads(companyId);
+  const { data: leads, isLoading } = useTopLeads(companyId, 10);
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-  if (!leads?.length) return <p className="text-sm text-muted-foreground text-center py-8">Nessun lead con score disponibile.</p>;
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Calcolo lead score...</span>
+      </div>
+    );
 
-  const tierColors: Record<string, string> = {
-    A: "bg-green-100 text-green-800 border-green-200",
-    B: "bg-blue-100 text-blue-800 border-blue-200",
-    C: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    D: "bg-muted text-muted-foreground",
+  if (!leads || leads.length === 0)
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-muted-foreground">Nessun lead con score disponibile.</p>
+      </div>
+    );
+
+  const tierColor: Record<string, string> = {
+    A: "bg-green-100 text-green-800",
+    B: "bg-blue-100 text-blue-800",
+    C: "bg-yellow-100 text-yellow-800",
+    D: "bg-gray-100 text-gray-800",
   };
 
   return (
@@ -270,29 +482,48 @@ function TopLeadsTable({ companyId }: { companyId: string }) {
         <TableRow>
           <TableHead>Lead</TableHead>
           <TableHead>Tier ICP</TableHead>
-          <TableHead className="text-right">Score</TableHead>
+          <TableHead>Score</TableHead>
           <TableHead>Fonte</TableHead>
           <TableHead className="text-right">Opp. aperte</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {leads.slice(0, 10).map((lead) => (
+        {leads.map((lead) => (
           <TableRow key={lead.id}>
             <TableCell>
               <p className="font-medium text-sm">{lead.full_name}</p>
-              {lead.company_name && <p className="text-xs text-muted-foreground">{lead.company_name}</p>}
+              {lead.company_name && (
+                <p className="text-xs text-muted-foreground">{lead.company_name}</p>
+              )}
             </TableCell>
             <TableCell>
               {lead.icp_tier ? (
-                <Badge className={tierColors[lead.icp_tier] ?? ""}>Tier {lead.icp_tier}</Badge>
-              ) : "—"}
+                <Badge className={tierColor[lead.icp_tier] ?? ""}>
+                  {lead.icp_tier}
+                </Badge>
+              ) : (
+                "—"
+              )}
             </TableCell>
-            <TableCell className="text-right font-semibold">{lead.lead_score}</TableCell>
-            <TableCell className="text-sm">{lead.source ?? "—"}</TableCell>
+            <TableCell>
+              <div className="flex items-center gap-2">
+                <div className="w-16">
+                  <Progress value={lead.lead_score} className="h-2" />
+                </div>
+                <span className="text-sm font-semibold">
+                  {lead.lead_score}
+                </span>
+              </div>
+            </TableCell>
+            <TableCell>
+              {lead.source ?? "—"}
+            </TableCell>
             <TableCell className="text-right">
               {lead.open_opportunities_count > 0 ? (
                 <Badge>{lead.open_opportunities_count}</Badge>
-              ) : "0"}
+              ) : (
+                "0"
+              )}
             </TableCell>
           </TableRow>
         ))}
@@ -301,44 +532,91 @@ function TopLeadsTable({ companyId }: { companyId: string }) {
   );
 }
 
-// ── Main Dashboard ──
+// ─── SalesOSDashboard (pagina principale) ────────────────────────────────────
+
 export default function SalesOSDashboard() {
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = effectiveCompany?.id ?? null;
   const [activeTab, setActiveTab] = useState("pipeline");
 
-  if (!companyId) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-    </div>
-  );
+  if (!companyId)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Caricamento dati azienda...</span>
+      </div>
+    );
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Sales OS</h1>
-        <p className="text-sm text-muted-foreground">Centro di comando commerciale</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Target className="h-6 w-6 text-primary" />
+              Sales OS
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Centro di comando commerciale
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* KPI Bar — sempre visibile */}
       <SalesVelocityCard companyId={companyId} />
 
+      {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="pipeline" className="flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" />
+            Pipeline
+          </TabsTrigger>
           <TabsTrigger value="stalled" className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5" /> Ferme
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Ferme
           </TabsTrigger>
           <TabsTrigger value="team" className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" /> Team
+            <Users className="h-3.5 w-3.5" />
+            Team
           </TabsTrigger>
-          <TabsTrigger value="analisi">Analisi</TabsTrigger>
+          <TabsTrigger value="analisi" className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" />
+            Analisi
+          </TabsTrigger>
         </TabsList>
 
+        {/* TAB: Pipeline & Forecast */}
         <TabsContent value="pipeline" className="space-y-4 mt-4">
-          <WeightedPipelineChart companyId={companyId} />
-          <SalesForecastChart companyId={companyId} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  Pipeline Pesata per Stage
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WeightedPipelineChart companyId={companyId} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  Forecast Prossimi 3 Mesi
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SalesForecastChart companyId={companyId} />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
+        {/* TAB: Opportunità ferme */}
         <TabsContent value="stalled" className="mt-4">
           <Card>
             <CardHeader>
@@ -353,10 +631,14 @@ export default function SalesOSDashboard() {
           </Card>
         </TabsContent>
 
+        {/* TAB: Team / Venditori */}
         <TabsContent value="team" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Confronto Venditori — Mese Corrente</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Confronto Venditori — Mese Corrente
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <SellerComparisonTable companyId={companyId} />
@@ -364,7 +646,10 @@ export default function SalesOSDashboard() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Top Lead per Score</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" />
+                Top Lead per Score
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <TopLeadsTable companyId={companyId} />
@@ -372,10 +657,13 @@ export default function SalesOSDashboard() {
           </Card>
         </TabsContent>
 
+        {/* TAB: Analisi conversione */}
         <TabsContent value="analisi" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Conversione per Fonte Lead</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Conversione per Fonte Lead
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ConversionBySourceChart companyId={companyId} />
