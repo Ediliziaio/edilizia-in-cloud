@@ -160,8 +160,8 @@ export function useAnalyzeMessage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["messaging-messages"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messagesAll });
     },
     onError: (err: any) => {
       toast.error("Errore analisi AI", { description: err?.message || "Errore durante l'analisi del messaggio" });
