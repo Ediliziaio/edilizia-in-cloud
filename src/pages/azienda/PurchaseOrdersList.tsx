@@ -107,7 +107,7 @@ export default function PurchaseOrdersList() {
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">OdA attivi</p>
           <p className="text-xl font-bold">{kpis.activeCount}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(kpis.activeTotal)}</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(kpis.activeTotal)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
