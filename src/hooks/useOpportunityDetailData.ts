@@ -9,7 +9,7 @@ export function useContactCustomFields() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_custom_fields", "contact", companyId],
+    queryKey: queryKeys.customFields.byType(companyId, "contact"),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
