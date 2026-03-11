@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface QuickActionsProps {
   company: { id: string; name: string; email: string; status: string; trial_ends_at: string | null };
