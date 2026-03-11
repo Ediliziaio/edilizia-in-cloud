@@ -195,7 +195,7 @@ export default function OrderDetail() {
 
   // Fetch order installments from DB
   const { data: dbInstallments = [] } = useQuery({
-    queryKey: ["order-installments", id],
+    queryKey: queryKeys.orders.installments(id),
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("order_installments")
