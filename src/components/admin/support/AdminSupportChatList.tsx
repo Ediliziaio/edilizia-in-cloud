@@ -102,7 +102,7 @@ export function AdminSupportChatList() {
       toast.error(error.message);
     } else {
       toast.success("Aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
     }
   };
 
