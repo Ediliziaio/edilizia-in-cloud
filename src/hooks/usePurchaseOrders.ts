@@ -155,7 +155,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
   });
 
   const itemsQuery = useQuery({
-    queryKey: ["purchase-order-items", poId],
+    queryKey: queryKeys.purchaseOrders.items(poId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_order_items")
