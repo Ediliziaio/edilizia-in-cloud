@@ -355,7 +355,7 @@ export default function OrderDetail() {
     },
     onSuccess: (data) => {
       setDuplicateDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success(`Ordine duplicato con codice ${data.order_code}`);
       navigate(`/azienda/ordini/${data.id}`);
     },
