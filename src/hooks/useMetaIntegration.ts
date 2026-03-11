@@ -49,7 +49,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch field mappings
   const { data: mappings = [], refetch: refetchMappings } = useQuery({
-    queryKey: ["meta-mappings", companyId, integration?.id],
+    queryKey: queryKeys.metaAds.mappings(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
