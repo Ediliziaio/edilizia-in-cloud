@@ -74,6 +74,31 @@ import { NotificationsPanel } from "@/components/notifications/NotificationsPane
 
 import { CommandPalette } from "@/components/CommandPalette";
 
+function MultiCompanySwitcher() {
+  const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
+
+  if (role !== "multi_company_user" || multiCompanyAccesses.length <= 1) return null;
+
+  return (
+    <div className="bg-muted/50 border-b px-4 py-2">
+      <div className="flex items-center gap-2">
+        <Building2 className="h-4 w-4 text-muted-foreground" />
+        <select
+          value={selectedMultiCompanyId || ""}
+          onChange={(e) => switchMultiCompany(e.target.value)}
+          className="text-sm bg-transparent border rounded px-2 py-1 flex-1 max-w-xs"
+        >
+          {multiCompanyAccesses.map((access) => (
+            <option key={access.company_id} value={access.company_id}>
+              {access.company?.name || access.company_id}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
   const navigate = useNavigate();
