@@ -208,6 +208,7 @@ export const queryKeys = {
     commissions: (companyId: string | undefined) => ["costs", "commissions", companyId] as const,
     ordersForCosts: (companyId: string | undefined) => ["costs", "orders-for-costs", companyId] as const,
     categories: (companyId: string | undefined) => ["costs", "categories", companyId] as const,
+    budgets: (companyId: string | undefined) => ["costs", "budgets", companyId] as const,
   },
 
   // ── Warehouse ──────────────────────────────────────────
