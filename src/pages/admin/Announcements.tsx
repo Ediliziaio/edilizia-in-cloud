@@ -142,7 +142,7 @@ export default function Announcements() {
     onSuccess: () => {
       toast.success("Annuncio creato");
       setCreateOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["admin-announcements"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
     onError: () => toast.error("Errore nella creazione"),
   });
