@@ -68,7 +68,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
     </div>
   );
 
-  const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [] };
+  const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [], revenueInRange: 0, collectedInRange: 0, costsPaidInRange: 0 };
 
   const tiles = [
     {
