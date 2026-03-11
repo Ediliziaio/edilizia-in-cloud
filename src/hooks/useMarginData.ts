@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
+import { isCustomerProfile } from "@/lib/typeGuards";
 
 export interface OrderMargin {
   orderId: string;
