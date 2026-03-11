@@ -438,7 +438,7 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
                 {s.credit_limit && (
                   <div>
                     <p className="text-muted-foreground text-xs">Fido</p>
-                    <p className="font-medium">{fmtEur(s.credit_limit)}</p>
+                    <p className="font-medium">{formatCurrency(s.credit_limit)}</p>
                   </div>
                 )}
               </div>
