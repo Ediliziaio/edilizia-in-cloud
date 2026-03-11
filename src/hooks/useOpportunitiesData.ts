@@ -207,13 +207,30 @@ export function useUpdateOpportunityStage() {
 
       queryClient.setQueriesData(
         { queryKey: queryKeys.opportunities.all },
-        (old: any[] | undefined) => {
+        (old: any) => {
           if (!old) return old;
-          return old.map((o: any) =>
-            o.id === id
-              ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
-              : o
-          );
+          // Handle infinite query data structure { pages, pageParams }
+          if (old.pages && Array.isArray(old.pages)) {
+            return {
+              ...old,
+              pages: old.pages.map((page: any[]) =>
+                page.map((o: any) =>
+                  o.id === id
+                    ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                    : o
+                )
+              ),
+            };
+          }
+          // Fallback for flat array
+          if (Array.isArray(old)) {
+            return old.map((o: any) =>
+              o.id === id
+                ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                : o
+            );
+          }
+          return old;
         }
       );
 
