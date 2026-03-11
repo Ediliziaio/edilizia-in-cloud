@@ -93,7 +93,7 @@ export default function LeaveRequests() {
 
   // Requests
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["leave-requests-employee", employee?.id],
+    queryKey: queryKeys.leave.requests(employee?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_requests")
