@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,7 +8,8 @@ import {
   useContactFieldValues, useOpportunityFieldValues,
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -23,11 +24,12 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import {
-  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity, Receipt,
-  Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder, AlertTriangle,
+  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
+  Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
+  Target, AlertTriangle, Trophy,
 } from "lucide-react";
+import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -36,7 +38,6 @@ import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
-import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
@@ -47,7 +48,7 @@ interface Props {
   initialTab?: string;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
+type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props) {
   const navigate = useNavigate();
@@ -95,31 +96,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppNotes, setOppNotes] = useState("");
   const [oppTags, setOppTags] = useState<string[]>([]);
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
-  const [probability, setProbability] = useState(50);
-  const [expectedCloseDate, setExpectedCloseDate] = useState("");
-  const [lossReason, setLossReason] = useState("");
-  const [lossNotes, setLossNotes] = useState("");
-  const [showLossDialog, setShowLossDialog] = useState(false);
-  const [pendingLostStatus, setPendingLostStatus] = useState<string | false>(false);
-  const [nextAction, setNextAction] = useState("");
-  const [nextActionDate, setNextActionDate] = useState("");
-  const [lostReasonCategory, setLostReasonCategory] = useState("");
-  const [competitorWon, setCompetitorWon] = useState("");
 
-  // Loss reasons for the company
-  const { data: lossReasons = [] } = useQuery({
-    queryKey: ["opportunity_loss_reasons", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("opportunity_loss_reasons")
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("position");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!companyId,
-  });
+  // Sales OS state
+  const [showLostDialog, setShowLostDialog] = useState(false);
+  const [pendingLostStatus, setPendingLostStatus] = useState<string | null>(null);
+  const [lostReason, setLostReason] = useState("");
+  const [lostCategory, setLostCategory] = useState("");
+  const [competitorWon, setCompetitorWon] = useState("");
+  const updateOpportunity = useUpdateOpportunityMutation();
 
   // Change contact state
   const [changingContact, setChangingContact] = useState(false);
@@ -171,14 +155,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
-      setProbability(opportunity.probability ?? 50);
-      setExpectedCloseDate(opportunity.expected_close_date || "");
-      setLossReason(opportunity.loss_reason || "");
-      setLossNotes(opportunity.loss_notes || "");
-      setNextAction(opportunity.next_action || "");
-      setNextActionDate(opportunity.next_action_date || "");
-      setLostReasonCategory(opportunity.lost_reason_category || "");
-      setCompetitorWon(opportunity.competitor_won || "");
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
@@ -304,14 +280,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       notes: oppNotes || null,
       tags: oppTags,
       contact_id: finalContactId,
-      probability,
-      expected_close_date: expectedCloseDate || null,
-      loss_reason: lossReason || null,
-      loss_notes: lossNotes || null,
-      next_action: nextAction || null,
-      next_action_date: nextActionDate || null,
-      lost_reason_category: lostReasonCategory || null,
-      competitor_won: competitorWon || null,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
@@ -330,6 +298,19 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       },
       onError: (e: any) => toast.error(e.message || "Errore durante il salvataggio"),
     });
+  };
+
+  // Sales OS: intercetta status → lost/abandoned per mostrare dialog motivo
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus === "lost" || newStatus === "abandoned") {
+      setPendingLostStatus(newStatus);
+      setLostReason("");
+      setLostCategory("");
+      setCompetitorWon("");
+      setShowLostDialog(true);
+    } else {
+      setStatus(newStatus);
+    }
   };
 
   const handleDelete = () => {
@@ -391,7 +372,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
-    { key: "quotes", label: "Preventivi", icon: <Receipt className="h-4 w-4" />, enabled: true },
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -402,17 +382,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-5 pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+            {/* SALES OS: Badge opportunità ferma */}
             {(() => {
-              const daysSinceActivity = opportunity.updated_at
+              const daysSince = opportunity.updated_at
                 ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
                 : 0;
-              const currentPipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
-              const currentStage = currentPipeline?.marketing_pipeline_stages?.find((s: any) => s.id === (stageId || opportunity.stage_id));
-              const stalledThreshold = currentStage?.stalled_threshold_days || 14;
-              return daysSinceActivity >= stalledThreshold && status === "open" ? (
-                <Badge variant="destructive" className="text-xs">⚠ Ferma da {daysSinceActivity}gg</Badge>
+              return daysSince >= 14 && opportunity.status === "open" ? (
+                <Badge variant="destructive" className="text-xs">
+                  ⚠ Ferma da {daysSince}gg
+                </Badge>
               ) : null;
             })()}
           </div>
@@ -501,12 +481,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                                 setShowNewContactForm(false);
                               }}
                               onFocus={() => setShowContactDropdown(true)}
-                              onBlur={() => setTimeout(() => setShowContactDropdown(false), 300)}
+                              onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
                               className="h-8 text-sm"
-                              autoFocus
                             />
                             {showContactDropdown && (
-                              <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[200px] overflow-y-auto">
+                              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
                                 {searchContacts.length > 0 ? (
                                   searchContacts.map((c: any) => (
                                     <button
@@ -644,20 +623,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
-                          <Select value={status} onValueChange={(newStatus) => {
-                            if ((newStatus === "lost" || newStatus === "abandoned") && status !== newStatus) {
-                              setPendingLostStatus(newStatus);
-                              setShowLossDialog(true);
-                            } else {
-                              setStatus(newStatus);
-                              if (newStatus !== "lost" && newStatus !== "abandoned") {
-                                setLossReason("");
-                                setLossNotes("");
-                                setLostReasonCategory("");
-                                setCompetitorWon("");
-                              }
-                            }
-                          }}>
+                          <Select value={status} onValueChange={handleStatusChange}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
@@ -671,90 +637,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" className="h-8 text-sm" />
                         </div>
                       </div>
-
-                      {/* Probability + Expected Close Date */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Probabilità di chiusura ({probability}%)</Label>
-                          <Slider
-                            value={[probability]}
-                            onValueChange={([v]) => setProbability(v)}
-                            min={0}
-                            max={100}
-                            step={5}
-                            className="py-2"
-                          />
-                          <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>0%</span>
-                            <span>100%</span>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
-                          <Input
-                            type="date"
-                            value={expectedCloseDate}
-                            onChange={(e) => setExpectedCloseDate(e.target.value)}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Next Action */}
-                      <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/20">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
-                          <Label className="text-xs font-semibold">Prossima azione</Label>
-                        </div>
-                        <Input
-                          value={nextAction}
-                          onChange={(e) => setNextAction(e.target.value)}
-                          placeholder="Es: Chiamare per follow-up, Inviare preventivo..."
-                          className="h-8 text-sm"
-                        />
-                        <Input
-                          type="date"
-                          value={nextActionDate}
-                          onChange={(e) => setNextActionDate(e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-
-                      {/* Loss reason (shown only when status is lost/abandoned) */}
-                      {(status === "lost" || status === "abandoned") && (
-                        <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-                          <div className="flex items-center gap-2 text-destructive">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            <Label className="text-xs font-semibold">Motivo della perdita</Label>
-                          </div>
-                          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">— Nessuno —</SelectItem>
-                              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
-                              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
-                              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
-                              <SelectItem value="non_risponde">Non risponde</SelectItem>
-                              <SelectItem value="non_interessato">Non più interessato</SelectItem>
-                              <SelectItem value="budget">Budget insufficiente</SelectItem>
-                              <SelectItem value="altro">Altro</SelectItem>
-                              {lossReasons.map((r: any) => (
-                                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Note sulla perdita</Label>
-                            <Textarea
-                              value={lossNotes}
-                              onChange={(e) => setLossNotes(e.target.value)}
-                              placeholder="Dettagli opzionali..."
-                              rows={2}
-                              className="text-sm"
-                            />
-                          </div>
-                        </div>
-                      )}
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
@@ -816,6 +698,98 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       )}
                     </div>
                   </div>
+
+                  <Separator />
+
+                  {/* SALES OS: Avanzamento Commerciale */}
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-3 pt-4 px-4">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Target className="h-4 w-4 text-primary" />
+                        Avanzamento Commerciale
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 px-4 pb-4">
+
+                      {/* Riga 1: Data chiusura prevista + Probabilità */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                            Data chiusura prevista
+                            {!opportunity.expected_close_date && (
+                              <span className="text-destructive">*</span>
+                            )}
+                          </Label>
+                          <Input
+                            type="date"
+                            defaultValue={opportunity.expected_close_date ?? ""}
+                            className="h-8 text-sm"
+                            onChange={(e) =>
+                              updateOpportunity.mutate({
+                                id: opportunity.id,
+                                data: { expected_close_date: e.target.value || null },
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Probabilità % (override)
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            placeholder="Auto da stage"
+                            defaultValue={opportunity.probability ?? ""}
+                            className="h-8 text-sm"
+                            onChange={(e) => {
+                              const val = e.target.value ? parseInt(e.target.value) : null;
+                              updateOpportunity.mutate({
+                                id: opportunity.id,
+                                data: { probability: val },
+                              });
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Riga 2: Prossima azione + Data */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                          Prossima azione
+                          {!opportunity.next_action && (
+                            <span className="text-destructive">*</span>
+                          )}
+                        </Label>
+                        <Textarea
+                          placeholder="Es: Inviare preventivo, Chiamare per follow-up..."
+                          defaultValue={opportunity.next_action ?? ""}
+                          className="text-sm min-h-[60px] resize-none"
+                          onBlur={(e) =>
+                            updateOpportunity.mutate({
+                              id: opportunity.id,
+                              data: { next_action: e.target.value || null },
+                            })
+                          }
+                        />
+                        <Input
+                          type="date"
+                          defaultValue={opportunity.next_action_date ?? ""}
+                          placeholder="Data scadenza azione"
+                          className="mt-1 h-8 text-sm"
+                          onChange={(e) =>
+                            updateOpportunity.mutate({
+                              id: opportunity.id,
+                              data: { next_action_date: e.target.value || null },
+                            })
+                          }
+                        />
+                      </div>
+
+                    </CardContent>
+                  </Card>
                 </div>
               )}
 
@@ -885,13 +859,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   linkToOpportunity
                 />
               )}
-
-              {tab === "quotes" && (
-                <OpportunityQuotesTab
-                  contactId={opportunity.contact_id}
-                  companyId={companyId}
-                />
-              )}
             </div>
           </ScrollArea>
         </div>
@@ -941,30 +908,26 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       </AlertDialogContent>
     </AlertDialog>
 
-    {/* Loss reason dialog */}
-    <AlertDialog open={showLossDialog} onOpenChange={(open) => {
-      if (!open) {
-        setPendingLostStatus(false);
-      }
-      setShowLossDialog(open);
-    }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            Motivo della perdita
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Seleziona il motivo per cui questa opportunità è stata persa.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-3 py-2">
+    {/* SALES OS: Dialog motivo perdita */}
+    <Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-destructive" />
+            Perché hai perso questa opportunità?
+          </DialogTitle>
+          <DialogDescription>
+            Queste informazioni migliorano le previsioni e aiutano il team.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label className="text-xs font-semibold">Categoria motivo *</Label>
-            <Select value={lostReasonCategory || "none"} onValueChange={(v) => setLostReasonCategory(v === "none" ? "" : v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona categoria..." /></SelectTrigger>
+            <Label className="text-sm font-medium">Categoria motivo *</Label>
+            <Select value={lostCategory} onValueChange={setLostCategory}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Seleziona categoria..." />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">— Seleziona —</SelectItem>
                 <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
                 <SelectItem value="concorrente">Scelta concorrente</SelectItem>
                 <SelectItem value="budget_non_disponibile">Budget non disponibile</SelectItem>
@@ -976,42 +939,61 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Dettaglio (opzionale)</Label>
+            <Label className="text-sm font-medium">Dettaglio (opzionale)</Label>
             <Textarea
-              value={lossNotes}
-              onChange={(e) => setLossNotes(e.target.value)}
-              placeholder="Note opzionali..."
-              rows={2}
-              className="text-sm"
+              placeholder="Descrivi cosa è successo..."
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              className="mt-1 text-sm min-h-[80px] resize-none"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Concorrente che ha vinto (opzionale)</Label>
+            <Label className="text-sm font-medium">Concorrente che ha vinto (opzionale)</Label>
             <Input
+              placeholder="Es: Competitor SpA, nessuno, cliente interno..."
               value={competitorWon}
               onChange={(e) => setCompetitorWon(e.target.value)}
-              placeholder="Es: Competitor SpA, nessuno..."
-              className="h-8 text-sm"
+              className="mt-1"
             />
           </div>
         </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setPendingLostStatus(false)}>Annulla</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            disabled={!lostReasonCategory}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowLostDialog(false)}>
+            Annulla
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!lostCategory || updateOpportunity.isPending}
             onClick={() => {
-              if (!lostReasonCategory) return;
-              setStatus(pendingLostStatus as string);
-              setPendingLostStatus(false);
-              setShowLossDialog(false);
+              if (!lostCategory) return;
+              updateOpportunity.mutate(
+                {
+                  id: opportunity.id,
+                  data: {
+                    status: pendingLostStatus as string,
+                    lost_reason: lostReason || null,
+                    lost_reason_category: lostCategory,
+                    competitor_won: competitorWon || null,
+                  },
+                },
+                {
+                  onSuccess: () => {
+                    setStatus(pendingLostStatus!);
+                    setShowLostDialog(false);
+                    toast.success("Opportunità aggiornata");
+                  },
+                }
+              );
             }}
           >
-            Conferma Perdita
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+            {updateOpportunity.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            Conferma perdita
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
