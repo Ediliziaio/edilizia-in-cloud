@@ -47,7 +47,7 @@ export default function PlatformSettingsPage() {
   const [welcomeBonus, setWelcomeBonus] = useState("5");
 
   const { data: savedSettings } = useQuery({
-    queryKey: ["platform-settings-elevenlabs"],
+    queryKey: queryKeys.platformSettingsAI.elevenlabs,
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
