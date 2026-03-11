@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
