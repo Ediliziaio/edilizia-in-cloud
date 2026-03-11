@@ -161,10 +161,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       setAdjustDialog({ open: false, service: "", direction: "add" });
       setAdjustAmount("");
       setAdjustReason("");
-      queryClient.invalidateQueries({ queryKey: ["admin-email-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-ai-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-wa-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-credit-adjustments", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.emailCredits(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.aiCreditsAdmin(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.waCredits(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
     },
     onError: (e) => toast.error(e.message),
   });

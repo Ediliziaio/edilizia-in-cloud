@@ -50,7 +50,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
       const { error } = await supabase.from("company_tags").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["company-tags"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags }),
   });
 
   return (
