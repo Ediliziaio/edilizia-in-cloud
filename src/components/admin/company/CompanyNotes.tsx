@@ -22,7 +22,7 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
   const [newNote, setNewNote] = useState("");
 
   const { data: notes = [], isLoading } = useQuery({
-    queryKey: ["company-notes", companyId],
+    queryKey: queryKeys.admin.companyNotes(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_notes")
