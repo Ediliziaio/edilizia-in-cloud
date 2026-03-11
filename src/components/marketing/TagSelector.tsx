@@ -24,7 +24,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   const [search, setSearch] = useState("");
 
   const { data: tags = [] } = useQuery({
-    queryKey: ["marketing_tags", companyId],
+    queryKey: queryKeys.marketingTags.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
