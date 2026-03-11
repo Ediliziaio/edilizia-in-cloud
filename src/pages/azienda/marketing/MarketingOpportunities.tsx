@@ -363,7 +363,7 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           <Badge className="bg-primary text-primary-foreground hover:bg-primary/90 h-6 px-2 text-xs">
