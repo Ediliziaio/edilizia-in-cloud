@@ -121,7 +121,7 @@ export function AdminSupportChatList() {
   });
 
   const { data: companies = [], isError: isErrorCompanies } = useQuery({
-    queryKey: ["admin-companies-for-support"],
+    queryKey: queryKeys.admin.companiesForSupport,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
