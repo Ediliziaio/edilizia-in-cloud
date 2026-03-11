@@ -264,7 +264,7 @@ export default function GlobalErrors() {
               <BarChart data={monthlyChart}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis tickFormatter={(v) => `€${v}`} />
+                <YAxis tickFormatter={formatCurrencyCompact} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
                 <Legend />
                 <Bar dataKey="merce" name="Merce" stackId="a" fill="hsl(var(--destructive))" radius={[0, 0, 0, 0]} />
