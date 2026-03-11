@@ -52,7 +52,7 @@ export default function SettingsPrivacy() {
 
   // Requests
   const { data: requests = [] } = useQuery({
-    queryKey: ["gdpr-requests"],
+    queryKey: queryKeys.gdpr.requests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_requests" },
