@@ -175,7 +175,7 @@ export function useCashFlowData() {
 
   // Paid external teams
   const { data: paidExternalTeams = [], isLoading: loadingPaidTeams } = useQuery({
-    queryKey: ["cashflow", "treasury", companyId, "paid-teams"] as const,
+    queryKey: queryKeys.cashflow.treasuryPaidTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_external_teams")
