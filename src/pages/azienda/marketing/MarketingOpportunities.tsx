@@ -363,7 +363,7 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           <Badge className="bg-primary text-primary-foreground hover:bg-primary/90 h-6 px-2 text-xs">
@@ -456,9 +456,9 @@ function MarketingOpportunitiesContent() {
           </DropdownMenu>
         </div>
       </div>
-      <OpportunityStatsStrip opportunities={filteredOpportunities} />
+      <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
 
-      <div className="flex items-center gap-1 border-b">
+      <div className="flex items-center gap-1 border-b shrink-0">
         <Button
           variant="ghost"
           size="sm"
@@ -502,7 +502,7 @@ function MarketingOpportunitiesContent() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
             <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
@@ -563,8 +563,8 @@ function MarketingOpportunitiesContent() {
         </div>
       ) : (
         <>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg">
+           {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
               <Badge variant="secondary" className="text-xs font-semibold">
                 {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
               </Badge>
@@ -587,7 +587,7 @@ function MarketingOpportunitiesContent() {
           {viewMode === "list" ? (
             <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
           ) : (
-            <OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
+            <div className="flex-1 min-h-0"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} /></div>
           )}
         </>
       )}
