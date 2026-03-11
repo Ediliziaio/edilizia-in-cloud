@@ -1,194 +1,165 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+# MEGA AUDIT — Piano di Implementazione Completo
+
+Questo piano copre tutte le 12 fasi richieste. L'implementazione avverra fase per fase, con fix chirurgici e nessuna riscrittura di componenti funzionanti.
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Stato Attuale (Sintesi Audit)
+
+Molte best practice sono GIA implementate:
+- `effectiveCompany` usato correttamente negli hook (nessun leak `useAuth().company` trovato)
+- `queryKeys` factory centralizzata e gia ampiamente adottata (~980 righe)
+- `SectionErrorBoundary` gia presente nel Cruscotto
+- `ProtectedRoute` con `isLoading` guard gia funzionante
+- Admin routes tutte protette con `allowedRoles={["super_admin"]}`
+- `useEffectiveCompanyId()` hook gia esistente
+- Context value gia memoizzato con `useMemo`
+- Auth cleanup gia presente (`subscription.unsubscribe()`)
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## FASE 1 — Auth, Contesto e Sicurezza
+
+**Bug trovato**: `recurrenceMultiplier()` in `forecastTypes.ts` non gestisce il caso `"once"` / `"one_time"` — ritorna `1` (default = monthly) invece di `0` per costi una tantum. Questo gonfia i costi fissi mensili.
+
+**Fix da applicare**:
+1. **`src/lib/forecastTypes.ts`**: Aggiungere `case "once": case "one_time": return 0;` nella funzione `recurrenceMultiplier()` prima del `default`.
+
+**Nessun altro bug trovato**: Auth context, ProtectedRoute, RoleBasedRedirect, usePermissions e useSubscriptionLimits sono corretti.
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## FASE 2 — React Query: Pattern e Cache
+
+**Gia implementato**: queryKeys factory, enabled flags, staleTime a 5 min, companyId in tutte le key.
+
+**Fix da applicare**:
+1. Nessun fix critico necessario — i pattern sono corretti. Le query dipendenti (items, teams, salespeople) hanno gia `enabled: ordersRaw?.length > 0` e hash di stabilita nel queryKey.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## FASE 3 — Modulo Ordini
+
+**Fix da applicare**:
+1. Nessun fix strutturale — i calcoli IVA usano gia `vatUtils.ts`, il `FinancialSummary` gestisce gia il `parseFloat || 0`.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## FASE 4 — CRM e Opportunita
+
+**Gia implementato**: useInfiniteQuery con pagine da 500, virtualizzazione Kanban.
+
+**Nessun fix critico identificato.**
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## FASE 5 — Finanza: Cash Flow, Margini e Costi
+
+**Bug critico trovato (gia menzionato Fase 1)**:
+1. **`recurrenceMultiplier("once")` ritorna 1 invece di 0** — un costo "una tantum" viene trattato come mensile nel calcolo break-even e forecast. Fix nella Fase 1.
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## FASE 6 — Magazzino, Dipendenti e Task
+
+**Nessun fix critico identificato** dalla lettura dei file.
 
 ---
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+## FASE 7 — Performance e Bundle
+
+**Fix da applicare**:
+1. **Creare `src/lib/logger.ts`**: Logger condizionale che sopprime i log in produzione. Esportare `log`, `logWarn`, `logError`.
+2. **Sostituire `console.error` nei catch block** (380 occorrenze in 44 file) con il logger centralizzato — questo sara un refactor progressivo, iniziando dai file piu critici (hooks, contexts).
+
+**Gia implementato**: Lazy loading routes, Suspense, tree-shaking corretto per recharts/lucide/date-fns, `@tanstack/react-virtual` per Kanban.
 
 ---
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+## FASE 8 — Error Handling e Resilienza
+
+**Fix da applicare**:
+1. **Creare `src/lib/supabaseErrors.ts`**: Funzione `formatSupabaseError(error)` che traduce codici Supabase (42501, 23503, 23505) in messaggi italiani user-friendly.
+2. **Creare `src/hooks/useOnlineStatus.ts`**: Hook che monitora `navigator.onLine` e mostra un banner quando offline.
+3. **Creare componente `OfflineBanner`** e integrarlo nel layout principale.
+
+**Gia implementato**: SectionErrorBoundary nel Cruscotto, ErrorBoundary globale in App.tsx, ErrorBoundary nelle admin routes.
 
 ---
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+## FASE 9 — Type Safety e TypeScript
+
+**Problemi trovati**:
+1. **4313 occorrenze di `: any`** in 248 file — troppo per un singolo pass. Prioritizzare: hooks critici e componenti core.
+2. **Cast fiducioso** in `useMarginData.ts` linea 197: `order.customer as { first_name: string; last_name: string } | null` — aggiungere type guard.
+
+**Fix da applicare**:
+1. Creare type guard `isCustomerProfile()` in un utils condiviso.
+2. AppRole e gia un union type (corretto).
+3. Non modificare `types.ts` auto-generato.
 
 ---
 
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+## FASE 10 — UI/UX: Accessibilita e Form
+
+**Problemi trovati**:
+1. **332 occorrenze di `€${...}.toFixed(2)`** in 48 file — formattazione valutaria inline invece di `formatCurrency()`.
+2. Refactor progressivo per sostituire con `formatCurrency()` da `src/lib/formatters.ts`.
 
 ---
 
-## ✅ Tutte le funzionalità pianificate sono state completate!
+## FASE 11 — Marketing, Email Builder e Automazioni
+
+**`useBeforeUnload` non trovato** — il prompt menziona che dovrebbe esistere per proteggere il builder automazioni. Dalla memoria del progetto, il modulo Automazioni implementa gia autosave su localStorage ogni 30s e guardia `useBeforeUnload`.
+
+**Ricerca nel codice**: `useBeforeUnload` non trovato nel codebase attuale. Potrebbe essere stato rimosso o non ancora implementato.
+
+**Fix da applicare**:
+1. **Creare `src/hooks/useBeforeUnload.ts`**: Hook per intercettare navigazione accidentale.
+2. Integrarlo nei builder automazioni (Marketing e Internal).
 
 ---
 
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+## FASE 12 — Dashboard Admin e Metriche
+
+**Nessun fix critico** — admin routes protette, impersonation loggata via edge function `secure-impersonation`.
 
 ---
 
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+## Piano di Implementazione Ordinato
 
----
+Data la vastita dell'audit, implementeremo in 4 batch:
 
-## Gap Analysis — Implementazione Completata ✅
+### Batch A — Fix Critici (Impatto sulla correttezza dei dati)
+1. Fix `recurrenceMultiplier()` per gestire `"once"` / `"one_time"` (1 file)
+2. Creare `src/lib/supabaseErrors.ts` con `formatSupabaseError()` (1 file nuovo)
+3. Creare `src/hooks/useOnlineStatus.ts` + componente `OfflineBanner` (2 file nuovi)
+4. Creare `src/lib/logger.ts` — logger condizionale (1 file nuovo)
 
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+### Batch B — Type Safety e Resilienza
+5. Creare type guard `isCustomerProfile()` e applicare in `useMarginData.ts`
+6. Creare `src/hooks/useBeforeUnload.ts` e integrare nei builder
 
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
+### Batch C — Refactor Progressivo (fasi successive)
+7. Sostituire `console.error` con logger nei file critici (hooks, contexts)
+8. Sostituire formattazione `€` inline con `formatCurrency()` nei file piu visibili
+9. Ridurre i `: any` nei componenti core
 
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+### Batch D — Verifica Finale
+10. Checklist post-audit su tutti i punti elencati nel riepilogo
 
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
+### File che verranno creati:
+- `src/lib/supabaseErrors.ts`
+- `src/hooks/useOnlineStatus.ts`
+- `src/lib/logger.ts`
+- `src/hooks/useBeforeUnload.ts`
+- `src/components/ui/OfflineBanner.tsx`
 
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+### File che verranno modificati:
+- `src/lib/forecastTypes.ts` (fix recurrenceMultiplier)
+- `src/hooks/useMarginData.ts` (type guard)
+- `src/components/layouts/CompanyLayout.tsx` (integrazione OfflineBanner)
+- Builder automazioni (integrazione useBeforeUnload)
 
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
