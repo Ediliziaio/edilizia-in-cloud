@@ -186,6 +186,13 @@ export const OpportunityListView = memo(function OpportunityListView({
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          {opp.status === 'open' ? (
+                            <DealHealthBadge opportunity={opp} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           {ownerName ? (
                             <div className="flex items-center gap-1.5">
                               <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">

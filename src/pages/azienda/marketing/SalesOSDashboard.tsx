@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
+import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
