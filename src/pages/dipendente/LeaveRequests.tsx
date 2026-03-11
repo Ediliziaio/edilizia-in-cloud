@@ -118,7 +118,7 @@ export default function LeaveRequests() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success("Richiesta annullata");
     },
     onError: () => toast.error("Errore nell'annullamento"),
