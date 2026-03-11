@@ -21,7 +21,7 @@ export function TagsConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: tags = [], isLoading } = useQuery({
-    queryKey: ["marketing_tags", companyId],
+    queryKey: queryKeys.marketingTags.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
