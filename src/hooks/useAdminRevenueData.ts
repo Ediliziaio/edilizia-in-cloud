@@ -165,8 +165,8 @@ export function useAdminRevenueData() {
           : c.status,
       }));
       const allPlans = plansRes.data || [];
-      const healthDataMap = new Map<string, any>();
-      (healthRes.data || []).forEach((h: any) => {
+      const healthDataMap = new Map<string, CompanyHealthData>();
+      ((healthRes.data || []) as CompanyHealthData[]).forEach((h) => {
         healthDataMap.set(h.company_id, h);
       });
 
