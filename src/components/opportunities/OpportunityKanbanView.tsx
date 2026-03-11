@@ -124,7 +124,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
 
   return (
     <>
-      <div className="w-full overflow-x-auto">
+      <div className="w-full h-full overflow-x-auto overflow-y-hidden">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
