@@ -20,7 +20,7 @@ export function useBreakEvenHistorical() {
   const companyId = effectiveCompany?.id || null;
 
   const { data: ordersRaw, isLoading: loadingOrders } = useQuery({
-    queryKey: ["be-hist-orders", companyId],
+    queryKey: queryKeys.breakEven.orders(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
