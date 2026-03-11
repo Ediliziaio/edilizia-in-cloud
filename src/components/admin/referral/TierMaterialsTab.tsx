@@ -28,7 +28,7 @@ export function TierMaterialsTab() {
   });
 
   const { data: materials = [], isLoading } = useQuery({
-    queryKey: ["admin-partner-materials"],
+    queryKey: queryKeys.admin.partnerMaterials,
     queryFn: async () => {
       const { data } = await supabase.from("partner_materials").select("*").order("sort_order");
       return data || [];
