@@ -14,8 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
-
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
