@@ -73,7 +73,7 @@ export function useInternalCallLog(id?: string) {
 
 export function useInternalCallActions(callId?: string) {
   return useQuery({
-    queryKey: ["internal-call-actions", callId],
+    queryKey: queryKeys.internalCallLogs.actions(callId),
     enabled: !!callId,
     queryFn: async () => {
       const { data, error } = await supabase

@@ -159,6 +159,7 @@ export function useUpsertOpportunityFieldValues() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
     },
     onError: (e: any) => toast.error(e.message),
   });

@@ -36,7 +36,7 @@ export function useInternalCampaigns() {
   });
 
   const statsQuery = useQuery({
-    queryKey: [...key, "stats"],
+    queryKey: queryKeys.internalCampaigns.stats,
     queryFn: async () => {
       const { companyId } = await getCompanyId();
       const { data, error } = await supabase

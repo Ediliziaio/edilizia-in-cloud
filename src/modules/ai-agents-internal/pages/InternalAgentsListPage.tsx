@@ -42,7 +42,7 @@ export default function InternalAgentsListPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["internal-ai-agents"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.internalAgents.all });
       toast.success("Agente archiviato");
       setArchiveId(null);
     },

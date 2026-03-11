@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function OpportunitiesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
   const { data: opps = [], isLoading } = useQuery({
-    queryKey: ["contact_opportunities", contactId],
+    queryKey: queryKeys.opportunities.byContact(contactId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunities")
