@@ -93,9 +93,9 @@ export function LeaveAdminTab() {
       if (error) throw error;
     },
     onSuccess: (_, { approved }) => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["leave-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.pendingAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.summaryAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success(approved ? "Richiesta approvata" : "Richiesta rifiutata");
       setRejectDialog(null);
       setRejectNote("");
