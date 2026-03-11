@@ -78,7 +78,7 @@ export function useAdminDashboardData() {
         supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)").limit(10000),
       ]);
 
-      const aggRow = (ordersAggRes.data as any)?.[0];
+      const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
       const totalOrders = Number(aggRow?.total_count) || 0;
       const totalValue = Number(aggRow?.total_value) || 0;
 
