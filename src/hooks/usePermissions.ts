@@ -121,7 +121,7 @@ export function usePermissions(): Permissions {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching permissions:", error);
+        logger.error("Error fetching permissions:", error);
         return null;
       }
       return data;

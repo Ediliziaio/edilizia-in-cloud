@@ -54,7 +54,7 @@ export function useGoogleCalendarSync() {
       if (error) throw error;
       return data;
     } catch (e: any) {
-      console.error(`Google Calendar sync (${action}) failed:`, e);
+      logger.error(`Google Calendar sync (${action}) failed:`, e);
       toast.error("Errore sincronizzazione Google", {
         description: e.message || "Operazione non riuscita",
       });

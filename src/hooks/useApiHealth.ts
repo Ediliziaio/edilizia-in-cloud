@@ -28,7 +28,7 @@ export function useApiHealth() {
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("check-api-health");
       if (error) {
-        console.warn("Failed to check API health:", error);
+        logger.warn("Failed to check API health:", error);
         return defaultServices;
       }
       return data as ApiServices;

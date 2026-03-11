@@ -20,7 +20,7 @@ export function useQuoteTemplates() {
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
       if (error) {
-        console.error('Errore caricamento template:', error);
+        logger.error('Errore caricamento template:', error);
         throw error;
       }
       return (data ?? []) as unknown as QuoteTemplate[];

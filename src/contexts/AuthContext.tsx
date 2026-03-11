@@ -280,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setImpersonationToken(data.token);
       setImpersonatedCompanyId(companyId);
     } catch (err) {
-      console.error("Impersonation error:", err);
+      logger.error("Impersonation error:", err);
     }
   }, [state.role]);
 
