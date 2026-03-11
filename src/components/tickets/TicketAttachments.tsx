@@ -64,7 +64,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
   };
 
   const { data: attachments = [], isLoading } = useQuery({
-    queryKey: ["ticket-attachments", ticketId],
+    queryKey: queryKeys.ticketAttachments.byTicket(ticketId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
