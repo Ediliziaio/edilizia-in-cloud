@@ -178,7 +178,7 @@ export default function CustomersList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile assegnare il venditore", variant: "destructive" });
