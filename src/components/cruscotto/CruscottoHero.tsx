@@ -102,7 +102,7 @@ export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterR
 
       {/* Cash Flow Mese */}
       <Card className="border-none shadow-md">
-        <CardContent className="p-5 space-y-3">
+        <CardContent className="p-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cash Flow Mese</p>
           <div className="flex items-end gap-2">
             <span className={cn("text-2xl font-bold", finance.cashFlowNet >= 0 ? "text-green-600" : "text-destructive")}>
