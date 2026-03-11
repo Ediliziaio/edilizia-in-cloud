@@ -86,6 +86,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                 <TableHead className="min-w-[120px]">Fase</TableHead>
                 <TableHead className="min-w-[100px] text-right">Valore</TableHead>
                 <TableHead className="min-w-[100px]">Stato</TableHead>
+                <TableHead className="min-w-[80px]">Salute</TableHead>
                 <TableHead className="min-w-[130px]">Titolare</TableHead>
                 <TableHead className="min-w-[120px]">Etichette</TableHead>
                 <TableHead className="min-w-[100px]">Fonte</TableHead>
