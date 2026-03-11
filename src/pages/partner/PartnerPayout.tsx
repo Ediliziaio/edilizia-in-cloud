@@ -23,7 +23,7 @@ export default function PartnerPayout() {
   const [notes, setNotes] = useState("");
 
   const { data: referrer } = useQuery({
-    queryKey: ["my-referrer", user?.id],
+    queryKey: queryKeys.partnerPayouts.referrer(user?.id),
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await supabase.from("referrers").select("id, total_earned, total_paid, payout_method, payout_details").eq("user_id", user!.id).maybeSingle();
