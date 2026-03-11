@@ -133,8 +133,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     },
     onSuccess: () => {
       toast.success("Registrazione creata");
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
