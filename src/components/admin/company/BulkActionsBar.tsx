@@ -66,7 +66,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction(`bulk_${status}`, { new_status: status, count: ids.length });
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       const labels: Record<string, string> = { suspended: "sospese", active: "riattivate" };
       toast.success(`${count} aziende ${labels[vars.status] || "aggiornate"}`);
       onClearSelection();
