@@ -41,7 +41,7 @@ export function useConversations(filter?: string) {
 
 export function useMessages(conversationId: string | null) {
   return useQuery({
-    queryKey: ["messaging-messages", conversationId],
+    queryKey: queryKeys.messaging.messages(conversationId),
     queryFn: async () => {
       if (!conversationId) return [];
       const { data, error } = await supabase
