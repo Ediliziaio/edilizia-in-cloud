@@ -216,7 +216,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: recentTickets } = useQuery({
-    queryKey: ["company-recent-tickets", id],
+    queryKey: queryKeys.companyDetail.recentTickets(id),
     queryFn: async () => {
       const { data } = await supabase.from("tickets").select("id, subject, status, created_at").eq("company_id", id!).order("created_at", { ascending: false }).limit(5);
       return data || [];
