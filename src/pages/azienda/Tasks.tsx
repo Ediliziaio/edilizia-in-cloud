@@ -75,7 +75,7 @@ export default function Tasks() {
         .from("tasks")
         .select(`
           *,
-          assigned_profile:profiles!inner(first_name, last_name),
+          assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
           order:orders!tasks_order_id_fkey(description, order_code),
           stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
           cost:company_costs!tasks_cost_id_fkey(name, amount)
