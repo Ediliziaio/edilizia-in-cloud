@@ -253,7 +253,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><Package className="h-3 w-3" /> Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(totalOda)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
           <p className="text-xs text-muted-foreground">{oda.length} ordini</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
