@@ -8,6 +8,7 @@ import { Eye, EyeOff, CheckCircle2, XCircle, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function TelnyxSettingsCard() {
   const queryClient = useQueryClient();
