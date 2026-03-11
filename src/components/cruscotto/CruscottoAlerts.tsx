@@ -118,7 +118,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       id: "overdue-payments",
       level: "critical",
       icon: CreditCard,
-      message: `${operations.overduePayments} pagamenti scaduti (€${Math.round(operations.overdueAmount).toLocaleString("it-IT")})`,
+      message: `${operations.overduePayments} pagamenti scaduti (${formatCurrency(operations.overdueAmount)})`,
       action: "Sollecitare incassi urgenti",
       link: "/azienda/ordini",
     });
