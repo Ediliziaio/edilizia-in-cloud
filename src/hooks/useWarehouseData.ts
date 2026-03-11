@@ -43,7 +43,7 @@ export function useWarehouseData() {
     isLoading: isLoadingSuppliers,
     isError: isErrorSuppliers,
   } = useQuery({
-    queryKey: ["suppliers", companyId],
+    queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
