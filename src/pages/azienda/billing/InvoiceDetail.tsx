@@ -40,7 +40,7 @@ export default function InvoiceDetail() {
   const { effectiveCompany } = useAuth();
 
   const { data: invoice, isLoading } = useQuery({
-    queryKey: ["invoice", id],
+    queryKey: queryKeys.invoices.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
