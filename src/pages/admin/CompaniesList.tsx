@@ -129,7 +129,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_order_stats");
       if (error) throw error;
       const stats: Record<string, { count: number; totalValue: number; lastOrderDate: string | null }> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyOrderStats[]).forEach((row) => {
         stats[row.company_id] = {
           count: Number(row.order_count) || 0,
           totalValue: Number(row.total_value) || 0,
