@@ -46,7 +46,7 @@ export function TierMaterialsTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-partner-materials"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.partnerMaterials });
       setMaterialDialog(false);
       setEditingMaterial(null);
       toast.success(editingMaterial ? "Materiale aggiornato" : "Materiale creato");
