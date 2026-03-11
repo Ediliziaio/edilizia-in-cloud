@@ -221,8 +221,8 @@ export default function WarehouseStockTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(companyId) });
       setMovementDialog({ open: false, type: "carico", item: null });
       toast.success("Movimento registrato");
     },
