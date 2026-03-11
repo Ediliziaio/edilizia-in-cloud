@@ -183,8 +183,8 @@ export default function Employees() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staffUsers.all });
       if (data.temp_password) {
         setCreatedPassword(data.temp_password);
       } else {

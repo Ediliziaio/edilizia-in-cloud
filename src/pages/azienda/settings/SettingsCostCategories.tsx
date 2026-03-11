@@ -161,7 +161,7 @@ export default function SettingsCostCategories() {
       return toInsert.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
       if (count) toast.success(`${count} categorie importate`);
     },
     onError: () => toast.error("Errore nell'importazione"),

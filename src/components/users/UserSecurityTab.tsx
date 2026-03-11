@@ -70,7 +70,7 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
     },
     onSuccess: (_, value) => {
       setRequire2fa(value);
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       toast({ title: value ? "2FA richiesta attivata" : "2FA richiesta disattivata" });
     },
     onError: () => {
