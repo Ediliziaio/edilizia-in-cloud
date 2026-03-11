@@ -158,7 +158,7 @@ export function EmployeeAttachments({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-attachments", employee.id],
+        queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
       });
       toast.success("Documento caricato", { description: "Il documento è stato caricato con successo." });
       resetUploadForm();
