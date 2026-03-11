@@ -260,7 +260,7 @@ export default function OrderDetail() {
 
   // Fetch order statuses
   const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", effectiveCompany?.id],
+    queryKey: queryKeys.orders.statuses(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
