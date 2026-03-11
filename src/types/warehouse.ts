@@ -1,7 +1,7 @@
 import { differenceInDays } from "date-fns";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 
-export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
+export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino" | "prenotato" | "installato";
 
 export interface WarehouseItem {
   id: string;
