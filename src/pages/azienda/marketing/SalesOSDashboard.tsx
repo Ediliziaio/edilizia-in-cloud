@@ -591,6 +591,9 @@ export default function SalesOSDashboard() {
 
         {/* TAB: Pipeline & Forecast */}
         <TabsContent value="pipeline" className="space-y-4 mt-4">
+          {/* Deal Health Overview */}
+          <DealHealthOverview companyId={companyId} />
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
