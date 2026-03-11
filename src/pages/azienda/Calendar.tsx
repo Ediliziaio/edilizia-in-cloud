@@ -84,7 +84,7 @@ export default function Calendar() {
   }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({
-    queryKey: ["calendar-orders", effectiveCompany?.id],
+    queryKey: queryKeys.calendarOrders.list(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       
