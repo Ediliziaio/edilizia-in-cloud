@@ -49,7 +49,7 @@ export default function AdminSettingsIPAllowlist() {
       toast.success("IP aggiunto alla whitelist");
       setNewIp("");
       setNewLabel("");
-      queryClient.invalidateQueries({ queryKey: ["admin-ip-allowlist"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.ipAllowlist });
     },
     onError: (e: any) => {
       if (e.message?.includes("duplicate")) {
