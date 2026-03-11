@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { LeadTemperatureBadge } from "./LeadTemperatureBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export type SortDirection = "asc" | "desc";
 
 export const COLUMNS = [
   { key: "name", label: "Nome del Contatto", sortField: "first_name" as SortField, fixed: true, group: "Contatto" },
+  { key: "temperature", label: "Temp.", group: "Contatto" },
   { key: "phone", label: "Telefono", sortField: "phone" as SortField, group: "Contatto" },
   { key: "email", label: "Email", sortField: "email" as SortField, group: "Contatto" },
   { key: "company_name", label: "Azienda", sortField: "company_name" as SortField, group: "Contatto" },
@@ -218,6 +220,16 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_source || "—"}</TableCell>;
     case "attr_campaign":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_campaign || "—"}</TableCell>;
+    case "temperature":
+      return (
+        <TableCell key={col.key} className={cls}>
+          <LeadTemperatureBadge
+            lastActivityAt={c.last_activity_at}
+            hasOpenOpportunity={!!c.opp_status && c.opp_status === 'open'}
+            compact
+          />
+        </TableCell>
+      );
     default:
       return null;
   }

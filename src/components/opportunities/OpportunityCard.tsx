@@ -8,6 +8,7 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { DealHealthBadge } from "./DealHealthBadge";
+import { LeadTemperatureBadge } from "@/components/marketing/LeadTemperatureBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -196,13 +197,16 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               </div>
             )}
             {contact ? (
-              <p
-                className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
-                onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                {displayName}
-              </p>
+              <div className="flex items-center gap-1 min-w-0">
+                <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity compact />
+                <p
+                  className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {displayName}
+                </p>
+              </div>
             ) : (
               <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
             )}
