@@ -84,8 +84,8 @@ export default function SettingsCostCategories() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
       setNewName("");
       toast.success("Categoria aggiunta");
     },
