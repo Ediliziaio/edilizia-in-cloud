@@ -387,6 +387,19 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>Vista lista</TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={layout === "mini" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setLayout(layout === "mini" ? "default" : "mini")}
+              >
+                {layout === "mini" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
+          </Tooltip>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
