@@ -630,12 +630,12 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale OdA</p>
-          <p className="text-xl font-bold">{fmtEur(totalOda)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalOda)}</p>
           <p className="text-xs text-muted-foreground">{oda.length} ordini</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Totale pagato</p>
-          <p className="text-xl font-bold">{fmtEur(totalPagato)}</p>
+          <p className="text-xl font-bold">{formatCurrency(totalPagato)}</p>
           <p className="text-xs text-muted-foreground">{primaNota.filter((e: any) => e.direction === "uscita").length} movimenti</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
