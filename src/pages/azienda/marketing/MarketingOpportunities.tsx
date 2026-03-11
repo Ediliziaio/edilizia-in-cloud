@@ -456,7 +456,7 @@ function MarketingOpportunitiesContent() {
           </DropdownMenu>
         </div>
       </div>
-      <OpportunityStatsStrip opportunities={filteredOpportunities} />
+      <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
 
       <div className="flex items-center gap-1 border-b">
         <Button
