@@ -5,12 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { FinanceData, OperationsData } from "@/hooks/useCruscottoData";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
-
-function fmtEur(n: number): string {
-  if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `€${(n / 1_000).toFixed(0)}k`;
-  return `€${Math.round(n)}`;
-}
+import { formatCurrencyCompact } from "@/lib/formatters";
 
 function pctDelta(curr: number, prev: number): number | null {
   if (!prev) return null;

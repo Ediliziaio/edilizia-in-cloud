@@ -10,31 +10,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Cell, LabelList,
 } from "recharts";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useMarginData } from "@/hooks/useMarginData";
 import { useBreakEvenHistorical } from "@/hooks/useBreakEvenHistorical";
-
-const MONTH_NAMES = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
-];
-const MONTH_SHORT = [
-  "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-  "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
-];
-
-function monthLabel(m: number): string {
-  if (m <= 0 || m > 12) return "—";
-  return MONTH_NAMES[m - 1];
-}
-
-// ─── CalendarioAnno ───────────────────────────────────────────────────────────
-
-function formatCompact(v: number): string {
-  if (v >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
-  return `€${Math.round(v)}`;
-}
 
 function CalendarioAnno({
   breakEvenMonth,
