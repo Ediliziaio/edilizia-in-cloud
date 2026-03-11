@@ -303,7 +303,7 @@ export default function OrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
