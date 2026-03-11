@@ -242,7 +242,7 @@ export default function WarehouseStockTab() {
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       const count = variables.ids.length;
       setSelectedIds(new Set());
       setBatchTargetSection("");

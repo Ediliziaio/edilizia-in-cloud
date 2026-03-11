@@ -108,7 +108,7 @@ export default function Warehouse() {
     return stored !== null ? stored === "true" : true;
   });
   const { data: fullStockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock", effectiveCompany?.id],
+    queryKey: queryKeys.warehouse.stock(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase

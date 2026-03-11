@@ -575,7 +575,7 @@ export default function Calendar() {
             <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
               <AlertTriangle className="h-10 w-10 text-destructive" />
               <p>Errore nel caricamento dei dati del calendario</p>
-              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["calendar-orders"] })}>
+              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all })}>
                 Riprova
               </Button>
             </div>

@@ -472,7 +472,7 @@ export default function OrdersList() {
     try {
       await Promise.all(orderIds.map(deleteOrderCascading));
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({
         title: "Ordini eliminati",
         description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,

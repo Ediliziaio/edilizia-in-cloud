@@ -115,7 +115,7 @@ export function EditOrderDatesDialog({
       if (error) throw error;
 
       toast.success("Date aggiornate con successo");
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       onSave?.();
       onOpenChange(false);
     } catch (error) {
