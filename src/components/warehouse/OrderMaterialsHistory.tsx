@@ -1,27 +1,40 @@
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { History, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { History, ArrowDown, ArrowUp, RotateCcw, Bookmark } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useOrderMaterialsHistory } from "@/hooks/useMagazzinoLive";
 
 interface Props {
+  companyId: string;
   orderId: string;
 }
 
-export default function OrderMaterialsHistory({ orderId }: Props) {
-  const { data: movements = [], isLoading } = useOrderMaterialsHistory(orderId);
+const MOVEMENT_CONFIG: Record<string, { label: string; icon: typeof ArrowDown; color: string; bg: string }> = {
+  carico: { label: "Carico", icon: ArrowDown, color: "text-green-700", bg: "bg-green-50" },
+  scarico: { label: "Scarico", icon: ArrowUp, color: "text-red-700", bg: "bg-red-50" },
+  scarico_automatico: { label: "Scarico automatico", icon: ArrowUp, color: "text-orange-700", bg: "bg-orange-50" },
+  prenotazione: { label: "Prenotazione", icon: Bookmark, color: "text-blue-700", bg: "bg-blue-50" },
+  rilascio: { label: "Rilascio", icon: RotateCcw, color: "text-purple-700", bg: "bg-purple-50" },
+  rettifica: { label: "Rettifica", icon: RotateCcw, color: "text-gray-700", bg: "bg-gray-50" },
+  reso_fornitore: { label: "Reso fornitore", icon: ArrowUp, color: "text-yellow-700", bg: "bg-yellow-50" },
+};
 
-  if (isLoading) return null;
-  if (movements.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-center text-sm text-muted-foreground">
-          Nessun movimento materiali per questo ordine.
-        </CardContent>
-      </Card>
-    );
-  }
+const fmt = (v: number) =>
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+
+export default function OrderMaterialsHistory({ companyId, orderId }: Props) {
+  const { data: movements = [], isLoading } = useOrderMaterialsHistory(companyId, orderId);
+
+  if (isLoading) return (
+    <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">Caricamento storico...</CardContent></Card>
+  );
+
+  if (movements.length === 0) return (
+    <Card>
+      <CardContent className="py-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+        <History className="h-4 w-4" /> Nessun movimento materiali per questa commessa
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Card>
@@ -34,26 +47,47 @@ export default function OrderMaterialsHistory({ orderId }: Props) {
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {movements.map((m) => {
-            const isIn = m.movement_type === "carico";
+          {movements.map((mov) => {
+            const cfg = MOVEMENT_CONFIG[mov.movement_type] ?? MOVEMENT_CONFIG.carico;
+            const Icon = cfg.icon;
+            const isOut = ["scarico", "scarico_automatico", "reso_fornitore"].includes(mov.movement_type);
+
             return (
-              <div key={m.movement_id} className="flex items-start gap-3 p-2 rounded-md border text-sm">
-                {isIn ? (
-                  <ArrowDownCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                ) : (
-                  <ArrowUpCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">{m.stock_item_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {m.movement_type} · {m.quantity} pz
-                    {m.lot_number && ` · Lotto: ${m.lot_number}`}
-                    {m.notes && ` · ${m.notes}`}
-                  </div>
+              <div key={mov.movement_id} className={`flex items-start gap-3 p-2 rounded-md border text-sm ${cfg.bg}`}>
+                <div className={`mt-0.5 shrink-0 ${cfg.color}`}>
+                  <Icon className="h-3.5 w-3.5" />
                 </div>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {format(new Date(m.created_at), "d MMM HH:mm", { locale: it })}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{mov.stock_item_name ?? "Articolo rimosso"}</span>
+                    <Badge variant="outline" className={`text-xs ${cfg.color} border-current`}>
+                      {cfg.label}
+                    </Badge>
+                    {mov.lot_number && (
+                      <span className="text-[10px] text-muted-foreground">Lotto: {mov.lot_number}</span>
+                    )}
+                  </div>
+                  {mov.order_item_name && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Articolo commessa: {mov.order_item_name}</p>
+                  )}
+                  {mov.notes && <p className="text-xs text-muted-foreground mt-0.5">{mov.notes}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className={`font-mono text-sm ${isOut ? "text-red-600" : "text-green-600"}`}>
+                    {isOut ? "-" : "+"}{mov.quantity} pz
+                  </div>
+                  {mov.unit_cost && (
+                    <div className="text-[10px] text-muted-foreground">{fmt(mov.unit_cost * mov.quantity)}</div>
+                  )}
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {new Date(mov.created_at).toLocaleDateString("it-IT", {
+                      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </div>
+                  {mov.performed_by_name && (
+                    <div className="text-[10px] text-muted-foreground">{mov.performed_by_name}</div>
+                  )}
+                </div>
               </div>
             );
           })}

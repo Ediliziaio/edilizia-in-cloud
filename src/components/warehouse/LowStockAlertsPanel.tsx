@@ -1,55 +1,85 @@
-import { PackageOpen, AlertCircle } from "lucide-react";
+import { PackageOpen, AlertCircle, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLowStockAlerts } from "@/hooks/useMagazzinoLive";
 
-export default function LowStockAlertsPanel() {
-  const { data: alerts = [], isLoading } = useLowStockAlerts();
+interface Props {
+  companyId: string;
+  compact?: boolean;
+}
 
-  if (isLoading || alerts.length === 0) return null;
+export default function LowStockAlertsPanel({ companyId, compact = false }: Props) {
+  const { data: alerts = [], isLoading } = useLowStockAlerts(companyId);
 
-  const outOfStock = alerts.filter((a) => a.available <= 0);
-  const lowStock = alerts.filter((a) => a.available > 0);
+  if (isLoading) return (
+    <Card><CardContent className="py-4 text-center text-sm text-muted-foreground">Verifica giacenze...</CardContent></Card>
+  );
+
+  if (alerts.length === 0) return (
+    <Card><CardContent className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+      <PackageOpen className="h-4 w-4" /> Tutte le giacenze sopra il livello minimo
+    </CardContent></Card>
+  );
+
+  const critical = alerts.filter((a) => a.quantity_available === 0);
+  const warning = alerts.filter((a) => a.quantity_available > 0);
 
   return (
     <Card className="border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <PackageOpen className="h-4 w-4 text-amber-600" />
-          Alert Sottoscorta
-          <Badge variant="outline" className="ml-auto border-amber-500 text-amber-700">
-            {alerts.length}
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <TrendingDown className="h-4 w-4 text-amber-600" />
+          Sottoscorta
+          <Badge className="bg-amber-100 text-amber-800 text-xs ml-auto border-amber-300">
+            {alerts.length} articol{alerts.length === 1 ? "o" : "i"}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {outOfStock.length > 0 && (
+        {/* Esauriti (rosso) */}
+        {critical.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-destructive flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" /> Esauriti ({outOfStock.length})
+              <AlertCircle className="h-3 w-3" /> Esauriti ({critical.length})
             </p>
-            {outOfStock.slice(0, 4).map((a) => (
+            {critical.slice(0, compact ? 3 : undefined).map((a) => (
               <div key={a.stock_item_id} className="flex items-center justify-between p-1.5 rounded bg-destructive/10 text-sm">
-                <span className="truncate font-medium">{a.item_name}</span>
-                <Badge variant="destructive" className="text-[10px]">0 disp.</Badge>
+                <div className="min-w-0">
+                  <span className="truncate font-medium block">{a.name}</span>
+                  {a.supplier_name && <span className="text-[10px] text-muted-foreground">{a.supplier_name}</span>}
+                </div>
+                <Badge variant="destructive" className="text-[10px] shrink-0">
+                  mancano {a.deficit}
+                </Badge>
               </div>
             ))}
           </div>
         )}
-        {lowStock.length > 0 && (
+
+        {/* Sotto soglia (giallo) */}
+        {warning.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-              Sotto soglia ({lowStock.length})
+              Sotto soglia ({warning.length})
             </p>
-            {lowStock.slice(0, 4).map((a) => (
+            {warning.slice(0, compact ? 3 : undefined).map((a) => (
               <div key={a.stock_item_id} className="flex items-center justify-between p-1.5 rounded bg-background/80 border text-sm">
-                <span className="truncate">{a.item_name}</span>
+                <div className="min-w-0">
+                  <span className="truncate block">{a.name}</span>
+                  {a.supplier_name && <span className="text-[10px] text-muted-foreground">{a.supplier_name}</span>}
+                </div>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {a.available}/{a.min_level} min
+                  {a.quantity_available}/{a.min_stock_level} min · mancano {a.deficit}
                 </span>
               </div>
             ))}
           </div>
+        )}
+
+        {compact && alerts.length > 6 && (
+          <p className="text-xs text-muted-foreground text-center pt-1">
+            +{alerts.length - 6} altri articoli sotto scorta
+          </p>
         )}
       </CardContent>
     </Card>
