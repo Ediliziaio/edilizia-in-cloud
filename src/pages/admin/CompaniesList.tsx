@@ -202,7 +202,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
       if (error) throw error;
       const map: Record<string, Array<{ id: string; tag: string; color: string }>> = {};
-      (data || []).forEach((row: any) => {
+      (data || []).forEach((row) => {
         if (!map[row.company_id]) map[row.company_id] = [];
         map[row.company_id].push({ id: row.id, tag: row.tag, color: row.color });
       });
