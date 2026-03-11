@@ -65,7 +65,7 @@ export function EmailProviderConfig({ stream }: Props) {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const { data: settings } = useQuery({
-    queryKey: ["platform-settings-email", stream],
+    queryKey: queryKeys.admin.platformSettingsEmail(stream),
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
