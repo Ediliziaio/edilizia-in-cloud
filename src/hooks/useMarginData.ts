@@ -42,6 +42,9 @@ export interface MarginData {
   breakEvenRevenue: number;
   currentMonthlyRevenue: number;
   breakEvenDelta: number;
+  breakEvenAnnual: number;
+  yearlyRevenue: number;
+  breakEvenMonthOfYear: number; // 1-12 month where cumulative revenue >= annual fixed costs, 0 if unreachable
   // Company context
   companyId: string | null;
 }
