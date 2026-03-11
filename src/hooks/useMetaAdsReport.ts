@@ -74,7 +74,7 @@ export function useMetaAdsReport() {
 
   // Get integration
   const { data: integration } = useQuery({
-    queryKey: ["meta-integration", companyId],
+    queryKey: queryKeys.metaAds.integration(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
