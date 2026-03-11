@@ -81,7 +81,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       await onLogoUpdated();
     } catch (error) {
-      console.error('Error uploading logo:', error);
+      logger.error("Error uploading logo:", error);
       toast.error("Errore", { description: "Impossibile caricare il logo. Riprova." });
     } finally {
       setIsUploading(false);
