@@ -16,7 +16,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
     queryFn: async () => {
       const { data, error } = await supabase
         .from('marketing_opportunities')
-        .select('id, updated_at, next_action, expected_close_date, probability, notes_count, created_at')
+        .select('id, updated_at, next_action, expected_close_date, probability, created_at')
         .eq('company_id', companyId)
         .eq('status', 'open');
       if (error) throw error;

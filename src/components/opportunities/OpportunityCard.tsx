@@ -227,6 +227,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               </TooltipContent>
             </Tooltip>
           )}
+          </div>
         </div>
 
         {/* Detail rows - driven by field preferences */}
