@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -49,7 +50,7 @@ export function LeaveAdminTab() {
 
   // Pending requests
   const { data: pendingRequests = [], isLoading: loadingPending } = useQuery({
-    queryKey: ["leave-requests-pending", companyId],
+    queryKey: queryKeys.leaveAdmin.pending(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_requests")
@@ -66,7 +67,7 @@ export function LeaveAdminTab() {
 
   // Summary via RPC
   const { data: summaries = [], isLoading: loadingSummary } = useQuery({
-    queryKey: ["leave-summary", companyId, selectedYear],
+    queryKey: queryKeys.leaveAdmin.summary(companyId, selectedYear),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_leave_summary", {
         p_company_id: companyId!,
@@ -92,9 +93,9 @@ export function LeaveAdminTab() {
       if (error) throw error;
     },
     onSuccess: (_, { approved }) => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["leave-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.pendingAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.summaryAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leave.requestsAll });
       toast.success(approved ? "Richiesta approvata" : "Richiesta rifiutata");
       setRejectDialog(null);
       setRejectNote("");
@@ -121,7 +122,7 @@ export function LeaveAdminTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-summary"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaveAdmin.summaryAll });
       toast.success("Saldi aggiornati");
       setEditingBalance(null);
     },

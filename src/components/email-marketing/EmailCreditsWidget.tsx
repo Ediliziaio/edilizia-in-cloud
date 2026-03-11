@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
@@ -12,7 +13,7 @@ export function EmailCreditsWidget() {
   const companyId = effectiveCompany?.id;
 
   const { data: credits, isLoading } = useQuery({
-    queryKey: ["email-credits", companyId],
+    queryKey: queryKeys.emailCredits.byCompany(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase

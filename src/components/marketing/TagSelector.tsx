@@ -1,6 +1,7 @@
 import { useState, forwardRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   const [search, setSearch] = useState("");
 
   const { data: tags = [] } = useQuery({
-    queryKey: ["marketing_tags", companyId],
+    queryKey: queryKeys.marketingTags.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -46,7 +47,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
       if (error) throw error;
     },
     onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       const normalized = name.trim().toLowerCase();
       if (!selectedTags.includes(normalized)) {
         onTagsChange([...selectedTags, normalized]);

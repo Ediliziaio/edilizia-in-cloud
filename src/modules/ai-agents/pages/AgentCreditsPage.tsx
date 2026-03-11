@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 
 const TOPUP_OPTIONS = [
@@ -108,8 +109,8 @@ export default function AgentCreditsPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success(`Ricarica di ${formatEur(topupAmount)} completata! Fattura: ${data.invoice_number}`);
-      queryClient.invalidateQueries({ queryKey: ["ai-credits"] });
-      queryClient.invalidateQueries({ queryKey: ["ai-credit-topups"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.topups() });
       setShowConfirmDialog(false);
     } catch (err) {
       toast.error("Errore durante la ricarica");
@@ -136,7 +137,7 @@ export default function AgentCreditsPage() {
         .eq("company_id" as never, companyId as never);
 
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["ai-credits"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
       toast.success("Impostazioni ricarica automatica salvate");
     } catch (err) {
       toast.error("Errore nel salvataggio");

@@ -684,4 +684,93 @@ export const queryKeys = {
     fixedCosts: (companyId: string | null) => ["break-even", "fixed-costs", companyId] as const,
     employees: (companyId: string | null) => ["break-even", "employees", companyId] as const,
   },
+
+  // ── Email Credits ──────────────────────────────────────
+  emailCredits: {
+    all: ["email-credits"] as const,
+    byCompany: (companyId: string | undefined) => ["email-credits", companyId] as const,
+  },
+
+  // ── Leave Admin ────────────────────────────────────────
+  leaveAdmin: {
+    all: ["leave-admin"] as const,
+    pending: (companyId: string | undefined) => ["leave-requests-pending", companyId] as const,
+    pendingAll: ["leave-requests-pending"] as const,
+    summary: (companyId: string | undefined, year: number) => ["leave-summary", companyId, year] as const,
+    summaryAll: ["leave-summary"] as const,
+  },
+
+  // ── Employee Attachments ───────────────────────────────
+  employeeAttachments: {
+    all: ["employee-attachments"] as const,
+    byEmployee: (employeeId: string | undefined) => ["employee-attachments", employeeId] as const,
+  },
+
+  // ── Meta Ads ───────────────────────────────────────────
+  metaAds: {
+    all: ["meta"] as const,
+    integration: (companyId: string | undefined) => ["meta-integration", companyId] as const,
+    adAccounts: (companyId: string | undefined, integrationId: string | undefined) => ["meta-ad-accounts", companyId, integrationId] as const,
+    insights: (companyId: string | undefined, accountId: string | null, dateStart: string, dateEnd: string, level: string) =>
+      ["meta-insights", companyId, accountId, dateStart, dateEnd, level] as const,
+    insightsDaily: (companyId: string | undefined, accountId: string | null, dateStart: string, dateEnd: string) =>
+      ["meta-insights-daily", companyId, accountId, dateStart, dateEnd] as const,
+    campaignStatus: (companyId: string | undefined, accountId: string | null) => ["meta-campaign-status", companyId, accountId] as const,
+    assets: (companyId: string | undefined, integrationId: string | undefined) => ["meta-assets", companyId, integrationId] as const,
+    assetsAll: ["meta-assets"] as const,
+    formsAll: ["meta-forms"] as const,
+    mappings: (companyId: string | undefined, integrationId: string | undefined) => ["meta-mappings", companyId, integrationId] as const,
+  },
+
+  // ── Integrations ───────────────────────────────────────
+  integrations: {
+    all: ["integrations"] as const,
+  },
+
+  // ── Company Detail (Admin) ─────────────────────────────
+  companyDetail: {
+    all: ["company-detail"] as const,
+    detail: (id: string | undefined) => ["company-detail", id] as const,
+    team: (id: string | undefined) => ["company-team", id] as const,
+    plan: (planId: string | undefined) => ["company-plan", planId] as const,
+    planAll: ["company-plan"] as const,
+    subscriptionLogs: (id: string | undefined) => ["subscription-logs", id] as const,
+    subscription: (id: string | undefined) => ["company-subscription", id] as const,
+    plansActive: ["subscription-plans-active"] as const,
+    recentOrders: (id: string | undefined) => ["company-recent-orders", id] as const,
+    recentTickets: (id: string | undefined) => ["company-recent-tickets", id] as const,
+    allOrdersChart: (id: string | undefined) => ["company-all-orders-chart", id] as const,
+  },
+
+  // ── Branding (company) ─────────────────────────────────
+  companyBranding: {
+    all: ["company-branding"] as const,
+    byCompany: (companyId: string | undefined) => ["company-branding", companyId] as const,
+  },
+
+  // ── Tags (marketing) ──────────────────────────────────
+  marketingTags: {
+    all: ["marketing_tags"] as const,
+    list: (companyId: string | undefined) => ["marketing_tags", companyId] as const,
+  },
+
+  // ── Pipelines Config ───────────────────────────────────
+  pipelinesConfig: {
+    all: ["marketing_pipelines"] as const,
+    list: (companyId: string | undefined) => ["marketing_pipelines", companyId] as const,
+  },
+
+  // ── Platform Settings (AI) ─────────────────────────────
+  platformSettingsAI: {
+    elevenlabs: ["platform-settings-elevenlabs"] as const,
+    pricing: ["platform-pricing"] as const,
+    kbGlobal: ["ai-kb-global"] as const,
+    telnyxSettings: ["telnyx-settings"] as const,
+  },
+
+  // ── API Usage ──────────────────────────────────────────
+  apiUsage: {
+    all: ["api-usage"] as const,
+    chart: (keyId: string | undefined, days: number) => ["api-usage", keyId, days] as const,
+  },
 } as const;

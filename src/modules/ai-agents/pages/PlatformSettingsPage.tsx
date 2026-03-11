@@ -14,6 +14,7 @@ import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculateMarginPercent, formatEur } from "../lib/creditCalculator";
@@ -47,7 +48,7 @@ export default function PlatformSettingsPage() {
   const [welcomeBonus, setWelcomeBonus] = useState("5");
 
   const { data: savedSettings } = useQuery({
-    queryKey: ["platform-settings-elevenlabs"],
+    queryKey: queryKeys.platformSettingsAI.elevenlabs,
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
@@ -78,7 +79,7 @@ export default function PlatformSettingsPage() {
 
   // Fetch pricing
   const { data: pricing, isLoading: pricingLoading } = useQuery({
-    queryKey: ["platform-pricing"],
+    queryKey: queryKeys.platformSettingsAI.pricing,
     queryFn: async (): Promise<PricingRow[]> => {
       const { data, error } = await supabase
         .from("platform_pricing" as never)
@@ -132,7 +133,7 @@ export default function PlatformSettingsPage() {
         if (error) throw error;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-elevenlabs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
       console.error(err);
@@ -180,7 +181,7 @@ export default function PlatformSettingsPage() {
       next.delete(row.id);
       return next;
     });
-    queryClient.invalidateQueries({ queryKey: ["platform-pricing"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
   };
 
   const applyGlobalMarkup = async () => {
@@ -203,7 +204,7 @@ export default function PlatformSettingsPage() {
     }
 
     toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-    queryClient.invalidateQueries({ queryKey: ["platform-pricing"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
   };
 
   const previewReal = 0.02;

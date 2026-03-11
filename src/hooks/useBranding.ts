@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 
@@ -30,7 +31,7 @@ export function useBranding() {
   const companyId = effectiveCompany?.id;
 
   const query = useQuery({
-    queryKey: ["company-branding", companyId],
+    queryKey: queryKeys.companyBranding.byCompany(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<CompanyBranding | null> => {
       const { data, error } = await supabase

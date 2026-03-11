@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { toast } from "sonner";
@@ -82,7 +83,7 @@ export function useCompanyDetail(id: string | undefined) {
   // ========== QUERIES ==========
 
   const { data: companyData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["company-detail", id],
+    queryKey: queryKeys.companyDetail.detail(id),
     queryFn: async () => {
       if (!id) return null;
       const [companyRes, ordersRes, profilesRes, ticketsRes] = await Promise.all([
@@ -136,7 +137,7 @@ export function useCompanyDetail(id: string | undefined) {
   }, [company?.id]);
 
   const { data: teamData } = useQuery({
-    queryKey: ["company-team", id],
+    queryKey: queryKeys.companyDetail.team(id),
     queryFn: async () => {
       if (!id) return null;
       const [profilesRes, permissionsRes, salespeopleRes, employeesRes] = await Promise.all([
@@ -167,7 +168,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: currentPlan } = useQuery({
-    queryKey: ["company-plan", company?.subscription_plan_id],
+    queryKey: queryKeys.companyDetail.plan(company?.subscription_plan_id),
     queryFn: async () => {
       if (!company?.subscription_plan_id) return null;
       const { data } = await supabase.from("subscription_plans").select("*").eq("id", company.subscription_plan_id).single();
@@ -177,7 +178,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: subscriptionLogs } = useQuery({
-    queryKey: ["subscription-logs", id],
+    queryKey: queryKeys.companyDetail.subscriptionLogs(id),
     queryFn: async () => {
       const { data } = await supabase.from("subscription_logs").select("*, subscription_plans:plan_id(name)").eq("company_id", id!).order("created_at", { ascending: false }).limit(10);
       return data || [];
@@ -187,7 +188,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: currentSubscription } = useQuery({
-    queryKey: ["company-subscription", id],
+    queryKey: queryKeys.companyDetail.subscription(id),
     queryFn: async () => {
       const { data } = await supabase.from("company_subscriptions").select("*, subscription_plans:plan_id(name)").eq("company_id", id!).order("created_at", { ascending: false }).limit(1).maybeSingle();
       return data;
@@ -197,7 +198,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: plans } = useQuery({
-    queryKey: ["subscription-plans-active"],
+    queryKey: queryKeys.companyDetail.plansActive,
     queryFn: async () => {
       const { data } = await supabase.from("subscription_plans").select("*").eq("is_active", true).order("position");
       return data || [];
@@ -205,7 +206,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: recentOrders } = useQuery({
-    queryKey: ["company-recent-orders", id],
+    queryKey: queryKeys.companyDetail.recentOrders(id),
     queryFn: async () => {
       const { data } = await supabase.from("orders").select("id, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color, icon)").eq("company_id", id!).order("created_at", { ascending: false }).limit(5);
       return data || [];
@@ -215,7 +216,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: recentTickets } = useQuery({
-    queryKey: ["company-recent-tickets", id],
+    queryKey: queryKeys.companyDetail.recentTickets(id),
     queryFn: async () => {
       const { data } = await supabase.from("tickets").select("id, subject, status, created_at").eq("company_id", id!).order("created_at", { ascending: false }).limit(5);
       return data || [];
@@ -226,7 +227,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   // Monthly orders for chart (last 6 months)
   const { data: allOrders } = useQuery({
-    queryKey: ["company-all-orders-chart", id],
+    queryKey: queryKeys.companyDetail.allOrdersChart(id),
     queryFn: async () => {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -275,7 +276,7 @@ export function useCompanyDetail(id: string | undefined) {
   // ========== MUTATIONS ==========
 
   const refreshCompany = () => {
-    queryClient.invalidateQueries({ queryKey: ["company-detail", id] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
   };
 
   const assertCanManage = () => {
@@ -310,7 +311,7 @@ export function useCompanyDetail(id: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
       refreshCompany();
       toast.success("Stato aggiornato");
     },
@@ -346,8 +347,8 @@ export function useCompanyDetail(id: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-plan"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.planAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
       setChangePlanDialog(false);
       refreshCompany();
       toast.success("Piano aggiornato");
@@ -380,7 +381,7 @@ export function useCompanyDetail(id: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
       refreshCompany();
       toast.success("Trial esteso");
     },
@@ -407,7 +408,7 @@ export function useCompanyDetail(id: string | undefined) {
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Staff creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
     } catch (err: any) {
@@ -438,7 +439,7 @@ export function useCompanyDetail(id: string | undefined) {
       };
       const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Permessi aggiornati");
     } catch (err: any) {
       toast.error("Errore", { description: err.message });
@@ -458,7 +459,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateSalespersonOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Venditore creato");
     },
     onError: (err: any) => {
@@ -482,7 +483,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateEmployeeOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Dipendente creato");
     },
     onError: (err: any) => {
@@ -505,7 +506,7 @@ export function useCompanyDetail(id: string | undefined) {
         body, headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione account");
-      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
       toast.success("Account creato");
     } catch (err: any) {

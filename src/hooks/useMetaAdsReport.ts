@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import {
   normalizeInsights,
@@ -73,7 +74,7 @@ export function useMetaAdsReport() {
 
   // Get integration
   const { data: integration } = useQuery({
-    queryKey: ["meta-integration", companyId],
+    queryKey: queryKeys.metaAds.integration(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
@@ -124,7 +125,7 @@ export function useMetaAdsReport() {
     data: adAccounts = [],
     isLoading: isLoadingAccounts,
   } = useQuery({
-    queryKey: ["meta-ad-accounts", companyId, integrationId],
+    queryKey: queryKeys.metaAds.adAccounts(companyId, integrationId),
     queryFn: async () => {
       const result = await callProxy("get-ad-accounts");
       return (result.accounts || []) as AdAccount[];
@@ -149,7 +150,7 @@ export function useMetaAdsReport() {
     isLoading: isLoadingInsights,
     error: insightsError,
   } = useQuery({
-    queryKey: ["meta-insights", companyId, selectedAccountId, dateStart, dateEnd, level],
+    queryKey: queryKeys.metaAds.insights(companyId, selectedAccountId, dateStart, dateEnd, level),
     queryFn: async () => {
       const result = await callProxy("get-campaign-insights", {
         ad_account_id: selectedAccountId,
@@ -165,7 +166,7 @@ export function useMetaAdsReport() {
 
   // Fetch daily series for trend charts
   const { data: rawDailyInsights = [] } = useQuery({
-    queryKey: ["meta-insights-daily", companyId, selectedAccountId, dateStart, dateEnd],
+    queryKey: queryKeys.metaAds.insightsDaily(companyId, selectedAccountId, dateStart, dateEnd),
     queryFn: async () => {
       const result = await callProxy("get-campaign-insights", {
         ad_account_id: selectedAccountId,
@@ -182,7 +183,7 @@ export function useMetaAdsReport() {
 
   // Fetch campaign statuses
   const { data: campaignStatuses = {} } = useQuery({
-    queryKey: ["meta-campaign-status", companyId, selectedAccountId],
+    queryKey: queryKeys.metaAds.campaignStatus(companyId, selectedAccountId),
     queryFn: async () => {
       const result = await callProxy("get-campaign-status", {
         ad_account_id: selectedAccountId,

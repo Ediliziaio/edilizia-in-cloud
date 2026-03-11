@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } from "@/types/integrations";
 
@@ -14,7 +15,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch assets (pages)
   const { data: assets = [], refetch: refetchAssets } = useQuery({
-    queryKey: ["meta-assets", companyId, integration?.id],
+    queryKey: queryKeys.metaAds.assets(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
@@ -31,7 +32,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch lead forms
   const { data: forms = [], refetch: refetchForms } = useQuery({
-    queryKey: ["meta-forms", companyId, integration?.id],
+    queryKey: queryKeys.metaForms.forms(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
@@ -48,7 +49,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch field mappings
   const { data: mappings = [], refetch: refetchMappings } = useQuery({
-    queryKey: ["meta-mappings", companyId, integration?.id],
+    queryKey: queryKeys.metaAds.mappings(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
@@ -209,9 +210,9 @@ export function useMetaIntegration(integration: Integration | null) {
       await callProxy("disconnect");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      queryClient.invalidateQueries({ queryKey: ["meta-assets"] });
-      queryClient.invalidateQueries({ queryKey: ["meta-forms"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metaAds.formsAll });
       toast.success("Integrazione disconnessa");
     },
     onError: (err: Error) => {

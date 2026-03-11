@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Plus, Loader2, MoreHorizontal, Trash2, Pencil, ArrowLeft } from "lucide-react";
@@ -56,7 +57,7 @@ export function PipelinesConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: pipelines = [], isLoading } = useQuery({
-    queryKey: ["marketing_pipelines", companyId],
+    queryKey: queryKeys.pipelinesConfig.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
@@ -109,7 +110,7 @@ export function PipelinesConfig() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setCreateOpen(false);
       setNewName("");
       setCreateStages([]);
@@ -124,7 +125,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setEditOpen(false);
       toast.success("Sequenza aggiornata");
     },
@@ -137,7 +138,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setDeleteOpen(false);
       setDeleteId(null);
       toast.success("Sequenza eliminata");
