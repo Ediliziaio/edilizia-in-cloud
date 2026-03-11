@@ -45,7 +45,7 @@ export default function AdminOnboardingConfig() {
   const [newStepAutoKey, setNewStepAutoKey] = useState("");
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["onboarding-templates"],
+    queryKey: queryKeys.admin.onboardingTemplates,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("onboarding_templates" as never)
