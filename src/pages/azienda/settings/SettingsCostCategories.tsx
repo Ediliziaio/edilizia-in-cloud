@@ -115,7 +115,7 @@ export default function SettingsCostCategories() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
       setDeleteId(null);
       toast.success("Categoria eliminata");
     },
