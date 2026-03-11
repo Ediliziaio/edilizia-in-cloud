@@ -19,7 +19,7 @@ export function AnnouncementBanner() {
   const companyStatus = effectiveCompany?.status || "trial";
 
   const { data: announcements = [] } = useQuery({
-    queryKey: ["active-announcements"],
+    queryKey: queryKeys.admin.announcements,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_announcements")
