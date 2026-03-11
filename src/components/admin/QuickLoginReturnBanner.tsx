@@ -68,7 +68,7 @@ export function QuickLoginReturnBanner() {
   };
 
   return (
-    <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-between">
+    <div className="sticky top-0 z-50 bg-primary text-primary-foreground px-4 py-2 flex items-center justify-between">
       <span className="text-sm font-medium">
         Sessione Quick Login attiva
       </span>

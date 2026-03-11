@@ -497,5 +497,26 @@ export default function SubscriptionPlans() {
         </DialogContent>
       </Dialog>
     </div>
+
+      {/* Confirm save for plan with active companies */}
+      <AlertDialog open={confirmSaveOpen} onOpenChange={setConfirmSaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma modifica piano</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questo piano è attualmente usato da{" "}
+              <strong>{editingId ? (companyCounts?.[editingId] ?? 0) : 0} aziende</strong>.
+              Le modifiche ai limiti e ai prezzi avranno effetto immediato su tutte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingSave(null)}>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (pendingSave) saveMutation.mutate(pendingSave); setPendingSave(null); setConfirmSaveOpen(false); }}>
+              Conferma modifica
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

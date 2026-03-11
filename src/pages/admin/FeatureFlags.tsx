@@ -98,10 +98,21 @@ export default function FeatureFlags() {
         );
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async (_, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
       queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
       toast.success("Override aggiornato");
+      // Audit log for feature flag toggle
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: session.user.id,
+          action: "feature_flag_toggle",
+          target_type: "company",
+          target_id: vars.companyId,
+          details: { feature: vars.flagKey, enabled: vars.enabled },
+        });
+      }
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
   });

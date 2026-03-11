@@ -200,7 +200,7 @@ export function useAdminRevenueData() {
         critical: healthScores.filter((h) => h.health === "critical").length,
       };
 
-      const priceOf = (c: any) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
+      const priceOf = (c: typeof companies[number]) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
 
       // ---- REVENUE BY SECTOR ----
       const sectorMap = new Map<string, { mrr: number; count: number }>();

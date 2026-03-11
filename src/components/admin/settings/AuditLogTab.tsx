@@ -126,9 +126,40 @@ export default function AuditLogTab() {
           <ScrollText className="h-5 w-5 text-primary" />
           <CardTitle>Registro Attività</CardTitle>
         </div>
-        <Button variant="outline" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!data?.logs?.length}
+            onClick={() => {
+              if (!data?.logs?.length) return;
+              const headers = ["Data", "Admin", "Azione", "Dettaglio"];
+              const rows = data.logs.map((log) => {
+                const details = log.details as Record<string, unknown> | null;
+                return [
+                  format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it }),
+                  `"${data.profiles[log.user_id] || "—"}"`,
+                  `"${actionLabels[log.action] || log.action}"`,
+                  `"${details?.target_name || details?.company_name || log.target_id || "—"}"`,
+                ].join(",");
+              });
+              const csv = [headers.join(","), ...rows].join("\n");
+              const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            CSV
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-2 mb-4">

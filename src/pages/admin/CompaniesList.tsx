@@ -118,7 +118,7 @@ export default function CompaniesList() {
   // Enforce allowed_company_ids for restricted super admins
   const companies = useMemo(() => {
     if (permissions.allowed_company_ids?.length) {
-      return allCompanies.filter((c: any) => permissions.allowed_company_ids!.includes(c.id));
+      return allCompanies.filter((c) => permissions.allowed_company_ids!.includes(c.id));
     }
     return allCompanies;
   }, [allCompanies, permissions.allowed_company_ids]);

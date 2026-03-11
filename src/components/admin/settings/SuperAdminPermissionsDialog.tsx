@@ -247,7 +247,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Annulla</Button>
-          <Button onClick={handleSave} disabled={mutation.isPending || isLoading}>
+          <Button onClick={handleSave} disabled={mutation.isPending || isLoading || isSelf}>
             {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salva permessi
           </Button>
