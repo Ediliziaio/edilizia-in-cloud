@@ -458,7 +458,7 @@ function MarketingOpportunitiesContent() {
       </div>
       <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
 
-      <div className="flex items-center gap-1 border-b">
+      <div className="flex items-center gap-1 border-b shrink-0">
         <Button
           variant="ghost"
           size="sm"
