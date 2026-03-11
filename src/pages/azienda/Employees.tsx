@@ -4,6 +4,7 @@ import { Users, Building2, Clock, Loader2, Check, Copy, Palmtree } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
