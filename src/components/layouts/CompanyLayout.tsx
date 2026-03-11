@@ -707,6 +707,7 @@ export function CompanyLayout() {
         <div className="flex-1 flex flex-col">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
+          <MultiCompanySwitcher />
           <AnnouncementBanner />
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
