@@ -93,7 +93,7 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
     .from("order-attachments")
     .createSignedUrl(filePath, 3600);
   if (error) {
-    console.error("Signed URL error:", error);
+    logger.error("Signed URL error:", error);
     return null;
   }
   return data.signedUrl;
