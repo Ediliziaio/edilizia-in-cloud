@@ -256,7 +256,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       });
       setUploadDialogOpen(false);
     } catch (error) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({
         title: "Errore durante il caricamento",
         description: "Si è verificato un errore. Riprova.",
