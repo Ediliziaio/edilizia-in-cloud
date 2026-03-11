@@ -3,6 +3,8 @@ import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
+import { AdminLayout } from "@/components/layouts/AdminLayout";
 
 // Admin pages
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
