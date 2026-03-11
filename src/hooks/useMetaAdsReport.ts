@@ -125,7 +125,7 @@ export function useMetaAdsReport() {
     data: adAccounts = [],
     isLoading: isLoadingAccounts,
   } = useQuery({
-    queryKey: ["meta-ad-accounts", companyId, integrationId],
+    queryKey: queryKeys.metaAds.adAccounts(companyId, integrationId),
     queryFn: async () => {
       const result = await callProxy("get-ad-accounts");
       return (result.accounts || []) as AdAccount[];
