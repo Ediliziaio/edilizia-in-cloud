@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
 import { queryKeys } from "@/lib/queryKeys";
-import type { CompanyStatus } from "@/types/auth";
 
 const ALL_MODULES = ["orders", "warehouse", "calendar", "customers", "employees", "tickets", "forecast"] as const;
 export type ModuleKey = (typeof ALL_MODULES)[number];
