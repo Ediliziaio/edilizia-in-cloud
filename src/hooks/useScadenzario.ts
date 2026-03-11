@@ -78,7 +78,7 @@ export function useScadenzario() {
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["scadenzario-summary", companyId],
+    queryKey: queryKeys.scadenzario.summary(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_scadenzario_summary", {
         p_company_id: companyId!,
