@@ -270,7 +270,7 @@ function MarketingOpportunitiesContent() {
     });
 
     return result;
-  }, [opportunities, searchQuery, filters, sortField, sortDir]);
+  }, [opportunities, searchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
 
   const activeFilterCount = countActiveFilters(filters);
 
