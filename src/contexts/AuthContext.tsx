@@ -20,8 +20,10 @@ interface AuthContextType extends AuthState {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Impersonation is now in-memory only (no sessionStorage) to prevent manipulation
+// Impersonation persisted in sessionStorage (tab-scoped), validated server-side on restore
 const SESSION_ID_KEY = "user_session_id";
+const IMP_COMPANY_KEY = "imp_company_id";
+const IMP_TOKEN_KEY = "imp_token";
 
 function getBrowserInfo() {
   const ua = navigator.userAgent;
