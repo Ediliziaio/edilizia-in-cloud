@@ -273,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error || !data?.token) {
-        console.error("Failed to start secure impersonation:", error);
+        logger.error("Failed to start secure impersonation:", error);
         return;
       }
 
