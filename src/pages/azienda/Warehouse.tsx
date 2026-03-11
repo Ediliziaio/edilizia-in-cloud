@@ -252,6 +252,12 @@ export default function Warehouse() {
         <WarehouseAlerts items={items} />
       </div>
 
+      {/* Live panels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
+        <BlockedOrdersPanel />
+        <LowStockAlertsPanel />
+      </div>
+
       {/* Stats */}
       <WarehouseStats items={items} />
 
