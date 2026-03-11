@@ -54,7 +54,7 @@ export function useSuperAdminPermissions() {
       if (error) throw error;
       return data;
     },
-    enabled: isSuperAdmin && !!user?.id,
+    enabled: isAdminPlatformRole && !!user?.id,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -70,7 +70,7 @@ export function useSuperAdminPermissions() {
       if (error) throw error;
       return count ?? 0;
     },
-    enabled: isSuperAdmin && !!user?.id,
+    enabled: isAdminPlatformRole && !!user?.id,
     staleTime: 30 * 60 * 1000,
   });
 
