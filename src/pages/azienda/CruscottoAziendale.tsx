@@ -112,7 +112,7 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 3: FOCUS OGGI */}
       <SectionErrorBoundary sectionName="Focus Oggi">
-        <TodayFocus todayData={todayData} isLoading={isLoading} />
+        <TodayFocus todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />
       </SectionErrorBoundary>
 
       {/* SEZIONE 4: FINANZA & CASH FLOW */}
