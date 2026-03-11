@@ -53,6 +53,39 @@ export const queryKeys = {
       ["marketing-opportunities", "list", companyId, pipelineId] as const,
     detail: (opportunityId: string | undefined) =>
       ["marketing-opportunities", "detail", opportunityId] as const,
+    byContact: (contactId: string | undefined) =>
+      ["marketing-opportunities", "by-contact", contactId] as const,
+  },
+
+  // ── Marketing Custom Fields ────────────────────────────
+  customFields: {
+    all: ["marketing-custom-fields"] as const,
+    byType: (companyId: string | undefined, objectType: string) =>
+      ["marketing-custom-fields", companyId, objectType] as const,
+    contactValues: (contactId: string | null) =>
+      ["marketing-custom-fields", "contact-values", contactId] as const,
+    opportunityValues: (opportunityId: string | null) =>
+      ["marketing-custom-fields", "opportunity-values", opportunityId] as const,
+  },
+
+  // ── Marketing Tags ────────────────────────────────────
+  tags: {
+    all: ["marketing-tags"] as const,
+    list: (companyId: string | undefined) => ["marketing-tags", "list", companyId] as const,
+  },
+
+  // ── Internal Call Logs ─────────────────────────────────
+  internalCallLogs: {
+    all: ["internal-call-logs"] as const,
+    list: (companyId: string | undefined) => ["internal-call-logs", "list", companyId] as const,
+    detail: (id: string | undefined) => ["internal-call-logs", "detail", id] as const,
+    actions: (callId: string | undefined) => ["internal-call-logs", "actions", callId] as const,
+  },
+
+  // ── Internal Campaigns ─────────────────────────────────
+  internalCampaigns: {
+    all: ["internal-campaigns"] as const,
+    stats: ["internal-campaigns", "stats"] as const,
   },
 
   // ── Marketing Pipelines ────────────────────────────────

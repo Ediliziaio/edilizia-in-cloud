@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface InternalCallLog {
   id: string;
@@ -39,7 +40,7 @@ export interface InternalAgentAction {
 
 export function useInternalCallLogs(companyId?: string) {
   return useQuery({
-    queryKey: ["internal-call-logs", companyId],
+    queryKey: queryKeys.internalCallLogs.list(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -56,7 +57,7 @@ export function useInternalCallLogs(companyId?: string) {
 
 export function useInternalCallLog(id?: string) {
   return useQuery({
-    queryKey: ["internal-call-log", id],
+    queryKey: queryKeys.internalCallLogs.detail(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -72,7 +73,7 @@ export function useInternalCallLog(id?: string) {
 
 export function useInternalCallActions(callId?: string) {
   return useQuery({
-    queryKey: ["internal-call-actions", callId],
+    queryKey: queryKeys.internalCallLogs.actions(callId),
     enabled: !!callId,
     queryFn: async () => {
       const { data, error } = await supabase

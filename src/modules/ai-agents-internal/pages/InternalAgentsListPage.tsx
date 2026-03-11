@@ -10,6 +10,7 @@ import { CreateInternalAgentWizard } from "../components/CreateInternalAgentWiza
 import { useInternalAgents, useCreateInternalAgent, useDeleteInternalAgent } from "../hooks/useInternalAgents";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,7 @@ export default function InternalAgentsListPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["internal-ai-agents"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.internalAgents.all });
       toast.success("Agente archiviato");
       setArchiveId(null);
     },

@@ -9,7 +9,7 @@ export function useContactCustomFields() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_custom_fields", "contact", companyId],
+    queryKey: queryKeys.customFields.byType(companyId, "contact"),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
@@ -29,7 +29,7 @@ export function useOpportunityCustomFields() {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["marketing_custom_fields", "opportunity", companyId],
+    queryKey: queryKeys.customFields.byType(companyId, "opportunity"),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
@@ -46,7 +46,7 @@ export function useOpportunityCustomFields() {
 
 export function useContactFieldValues(contactId: string | null) {
   return useQuery({
-    queryKey: ["marketing_contact_field_values", contactId],
+    queryKey: queryKeys.customFields.contactValues(contactId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contact_field_values")
@@ -61,7 +61,7 @@ export function useContactFieldValues(contactId: string | null) {
 
 export function useOpportunityFieldValues(opportunityId: string | null) {
   return useQuery({
-    queryKey: ["marketing_opportunity_field_values", opportunityId],
+    queryKey: queryKeys.customFields.opportunityValues(opportunityId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunity_field_values")
@@ -123,6 +123,7 @@ export function useUpsertContactFieldValues() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -158,6 +159,7 @@ export function useUpsertOpportunityFieldValues() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
     },
     onError: (e: any) => toast.error(e.message),
   });

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import type { InternalCampaign, InternalCampaignInsert, CampaignStatus } from "../types/internalAgent.types";
 
 async function getCompanyId(): Promise<{ companyId: string; userId: string }> {
@@ -18,7 +19,7 @@ async function getCompanyId(): Promise<{ companyId: string; userId: string }> {
 
 export function useInternalCampaigns() {
   const qc = useQueryClient();
-  const key = ["internal-campaigns"];
+  const key = queryKeys.internalCampaigns.all;
 
   const campaignsQuery = useQuery({
     queryKey: key,
@@ -35,7 +36,7 @@ export function useInternalCampaigns() {
   });
 
   const statsQuery = useQuery({
-    queryKey: [...key, "stats"],
+    queryKey: queryKeys.internalCampaigns.stats,
     queryFn: async () => {
       const { companyId } = await getCompanyId();
       const { data, error } = await supabase
