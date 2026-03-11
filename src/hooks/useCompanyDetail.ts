@@ -206,7 +206,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: recentOrders } = useQuery({
-    queryKey: ["company-recent-orders", id],
+    queryKey: queryKeys.companyDetail.recentOrders(id),
     queryFn: async () => {
       const { data } = await supabase.from("orders").select("id, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color, icon)").eq("company_id", id!).order("created_at", { ascending: false }).limit(5);
       return data || [];
