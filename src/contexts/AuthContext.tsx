@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         company,
       };
     } catch (error) {
-      console.error("Error in fetchUserData:", error);
+      logger.error("Error in fetchUserData:", error);
       return { profile: null, role: null, company: null };
     }
   }, []);
