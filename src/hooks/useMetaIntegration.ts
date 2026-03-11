@@ -15,7 +15,7 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Fetch assets (pages)
   const { data: assets = [], refetch: refetchAssets } = useQuery({
-    queryKey: ["meta-assets", companyId, integration?.id],
+    queryKey: queryKeys.metaAds.assets(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
       const { data, error } = await supabase
