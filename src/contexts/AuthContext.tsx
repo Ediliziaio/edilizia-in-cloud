@@ -251,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (permissions) {
       if (!permissions.can_manage_companies) {
-        console.error("Missing can_manage_companies permission for impersonation");
+        logger.error("Missing can_manage_companies permission for impersonation");
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
         });
