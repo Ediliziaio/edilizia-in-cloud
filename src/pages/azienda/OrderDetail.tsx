@@ -178,7 +178,7 @@ export default function OrderDetail() {
 
   // Fetch order details
   const { data: order, isLoading: orderLoading } = useQuery({
-    queryKey: ["order", id],
+    queryKey: queryKeys.orders.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
