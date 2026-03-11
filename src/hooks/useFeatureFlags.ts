@@ -39,7 +39,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
 
   // Fetch all feature flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
-    queryKey: ["platform-feature-flags"],
+    queryKey: queryKeys.featureFlags.platform,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
