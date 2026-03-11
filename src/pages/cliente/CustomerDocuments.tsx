@@ -17,7 +17,7 @@ export default function CustomerDocuments() {
 
   // Order attachments visible to customer
   const { data: attachments = [], isLoading: loadingAtt } = useQuery({
-    queryKey: ["customer-documents", "attachments", user?.id],
+    queryKey: queryKeys.customerDocuments.attachments(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_attachments")
