@@ -5,6 +5,7 @@ import { Trash2, Plus, FolderPlus, Copy, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 import {
   type TriggerFilters,
   type TriggerCondition,

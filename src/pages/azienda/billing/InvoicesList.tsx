@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3 } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {

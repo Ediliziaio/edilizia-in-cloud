@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
+import { logger } from "@/utils/logger";
 import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
