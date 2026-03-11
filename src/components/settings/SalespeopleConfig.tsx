@@ -134,7 +134,7 @@ export function SalespeopleConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
       toast.success("Venditore eliminato");
     },
     onError: (error: Error) => {
