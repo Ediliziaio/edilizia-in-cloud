@@ -107,6 +107,50 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     onSelect?.(opportunity.id, !selected);
   };
 
+  // Mini layout — ultra-compact card
+  if (layout === "mini") {
+    const phoneVal = contact?.phone || "";
+    const valueStr = `€ ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+    const updatedAgo = opportunity.updated_at
+      ? formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })
+      : null;
+
+    return (
+      <div
+        ref={isOverlay ? undefined : setNodeRef}
+        style={style}
+        {...(isOverlay ? {} : { ...attributes, ...listeners })}
+        onClick={handleCardClick}
+        className={cn(
+          "bg-background border rounded-md px-2 py-1.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all border-l-[3px]",
+          opportunity.status === "open" && "border-l-blue-500",
+          opportunity.status === "won" && "border-l-green-500",
+          opportunity.status === "lost" && "border-l-red-500",
+          opportunity.status === "abandoned" && "border-l-gray-400",
+          isDragging && "opacity-30 shadow-lg",
+          isOverlay && "shadow-xl border-primary/40",
+          selected && "ring-2 ring-primary border-primary/50"
+        )}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {!isOverlay && onSelect && (
+            <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="shrink-0">
+              <Checkbox checked={!!selected} className="h-3.5 w-3.5" />
+            </div>
+          )}
+          <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
+          {updatedAgo && (
+            <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap">Agg. {updatedAgo}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] font-semibold text-primary">{valueStr}</span>
+          {phoneVal && <span className="text-[10px] text-muted-foreground truncate">{phoneVal}</span>}
+        </div>
+      </div>
+    );
+  }
+
   const actionIcons = [
     { icon: Phone, tooltip: "Copia telefono", action: handleCopyPhone },
     { icon: Mail, tooltip: "Invia email", action: handleEmail },

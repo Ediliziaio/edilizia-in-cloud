@@ -1,7 +1,7 @@
 import { useState, useCallback, createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type CardLayout = "default" | "compact" | "no-label";
+export type CardLayout = "default" | "compact" | "no-label" | "mini";
 
 export interface FieldDefinition {
   key: string;

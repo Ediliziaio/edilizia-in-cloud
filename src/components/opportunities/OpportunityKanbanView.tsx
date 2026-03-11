@@ -6,10 +6,12 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { OpportunityCard } from "./OpportunityCard";
+import { cn } from "@/lib/utils";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor } from "@/types/opportunities";
+import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
 
 const StageColumn = memo(forwardRef<HTMLDivElement, {
   stage: OpportunityStage;
@@ -20,10 +22,11 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   onSelect: (id: string, selected: boolean) => void;
 }>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
   return (
-    <div className="flex flex-col min-w-[280px] max-w-[300px] shrink-0">
+    <div className={cn("flex flex-col shrink-0", layout === "mini" ? "min-w-[220px] max-w-[260px]" : "min-w-[280px] max-w-[300px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">
