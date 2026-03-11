@@ -17,7 +17,7 @@ export default function AdminGDPR() {
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["admin-gdpr-requests"],
+    queryKey: queryKeys.admin.gdprRequests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "admin_get_requests" },
