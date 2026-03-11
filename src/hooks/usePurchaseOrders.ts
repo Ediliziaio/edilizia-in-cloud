@@ -108,8 +108,8 @@ export function usePurchaseOrders() {
     },
     onSuccess: () => {
       toast.success("Stato aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
