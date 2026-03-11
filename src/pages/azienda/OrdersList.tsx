@@ -6,6 +6,7 @@ import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, Ch
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { exportToCSV } from "@/lib/csvExport";
@@ -428,7 +429,7 @@ export default function OrdersList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Stato aggiornato", description: "L'ordine è stato spostato al nuovo stato" });
     },
     onError: () => {
@@ -440,7 +441,7 @@ export default function OrdersList() {
     mutationFn: deleteOrderCascading,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Ordine eliminato", description: "L'ordine è stato eliminato con successo" });
     },
     onError: () => {
@@ -472,7 +473,7 @@ export default function OrdersList() {
     try {
       await Promise.all(orderIds.map(deleteOrderCascading));
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({
         title: "Ordini eliminati",
         description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,

@@ -10,6 +10,7 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -189,7 +190,7 @@ export function CalendarWeekView({
           .update({ expected_date: pendingDrop.toDate })
           .eq("id", pendingDrop.id);
         if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       }
       toast({ title: "Evento spostato" });
     } catch (e: any) {
@@ -389,7 +390,7 @@ export function CalendarWeekView({
           open={!!editingOrder}
           onOpenChange={(open) => !open && setEditingOrder(null)}
           onSave={() => {
-            queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
             setEditingOrder(null);
           }}
         />

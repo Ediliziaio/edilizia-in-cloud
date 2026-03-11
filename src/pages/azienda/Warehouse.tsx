@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { OrderItemStatus } from "@/types/warehouse";
@@ -108,7 +109,7 @@ export default function Warehouse() {
     return stored !== null ? stored === "true" : true;
   });
   const { data: fullStockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock", effectiveCompany?.id],
+    queryKey: queryKeys.warehouse.stock(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase

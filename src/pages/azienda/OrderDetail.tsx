@@ -5,6 +5,7 @@ import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriang
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -303,7 +304,7 @@ export default function OrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
@@ -330,7 +331,7 @@ export default function OrderDetail() {
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
@@ -457,8 +458,8 @@ export default function OrderDetail() {
       queryClient.invalidateQueries({ queryKey: ["forecast-pending-items"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-supplier-balances"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-installments"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articolo aggiornato");
     },
     onError: () => { toast.error("Errore nell'aggiornamento dell'articolo."); },
@@ -487,8 +488,8 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articolo aggiunto");
     },
     onError: () => { toast.error("Impossibile aggiungere l'articolo."); },

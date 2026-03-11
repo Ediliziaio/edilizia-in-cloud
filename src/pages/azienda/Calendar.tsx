@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
@@ -83,7 +84,7 @@ export default function Calendar() {
   }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({
-    queryKey: ["calendar-orders", effectiveCompany?.id],
+    queryKey: queryKeys.calendarOrders.list(effectiveCompany?.id),
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       
@@ -574,7 +575,7 @@ export default function Calendar() {
             <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
               <AlertTriangle className="h-10 w-10 text-destructive" />
               <p>Errore nel caricamento dei dati del calendario</p>
-              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["calendar-orders"] })}>
+              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all })}>
                 Riprova
               </Button>
             </div>

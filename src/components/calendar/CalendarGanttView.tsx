@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -214,7 +215,7 @@ export function CalendarGanttView({
         .eq("id", order.id);
 
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast.success("Date lavoro aggiornate");
     } catch (error) {
       console.error("Error updating order dates:", error);

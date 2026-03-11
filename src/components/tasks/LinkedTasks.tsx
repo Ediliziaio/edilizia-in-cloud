@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Plus, CheckSquare, CalendarDays, AlertTriangle } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
@@ -39,7 +40,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ["tasks", "linked", filterKey],
+    queryKey: queryKeys.tasks.linked(filterKey),
     queryFn: async () => {
       if (!companyId) return [];
 
@@ -144,7 +145,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     },
   });
 
@@ -268,7 +269,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         onOpenChange={setDialogOpen}
         task={editingTask || (dialogOpen ? getDefaultTask() : null)}
         onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: ["tasks"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
         }}
         defaultCategory={category}
         defaultOrderId={orderId}

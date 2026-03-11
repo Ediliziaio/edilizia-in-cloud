@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ export default function Tasks() {
   };
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", companyId],
+    queryKey: queryKeys.tasks.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -122,13 +123,13 @@ export default function Tasks() {
     if (error) {
       toast.error("Errore", { description: error.message });
     } else {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     }
   };
 
   const isOverdue = (task: any) => task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
 
-  const handleRefresh = () => queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
   return (
     <div className="space-y-6">

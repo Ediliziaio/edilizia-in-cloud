@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck } from "lucide-react";
@@ -58,7 +59,7 @@ export default function WarehouseStockTab() {
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
-    queryKey: ["warehouse-stock", companyId],
+    queryKey: queryKeys.warehouse.stock(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -171,8 +172,8 @@ export default function WarehouseStockTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(companyId) });
       setDialogOpen(false);
       setEditingItem(null);
       toast.success("Salvato", { description: "Articolo di magazzino salvato." });
@@ -220,8 +221,8 @@ export default function WarehouseStockTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(companyId) });
       setMovementDialog({ open: false, type: "carico", item: null });
       toast.success("Movimento registrato");
     },
@@ -241,7 +242,7 @@ export default function WarehouseStockTab() {
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       const count = variables.ids.length;
       setSelectedIds(new Set());
       setBatchTargetSection("");

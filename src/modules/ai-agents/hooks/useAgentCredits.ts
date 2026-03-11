@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface AgentCredits {
   id: string;
@@ -53,7 +54,7 @@ export interface CreditUsage {
 
 export function useAgentCredits() {
   return useQuery({
-    queryKey: ["ai-credits"],
+    queryKey: queryKeys.aiCredits.credits(),
     queryFn: async (): Promise<AgentCredits | null> => {
       const { data, error } = await supabase
         .from("ai_credits" as never)
@@ -68,7 +69,7 @@ export function useAgentCredits() {
 
 export function useCreditTopups() {
   return useQuery({
-    queryKey: ["ai-credit-topups"],
+    queryKey: queryKeys.aiCredits.topups(),
     queryFn: async (): Promise<CreditTopup[]> => {
       const { data, error } = await supabase
         .from("ai_credit_topups" as never)
@@ -83,7 +84,7 @@ export function useCreditTopups() {
 
 export function useCreditUsage(limit = 20) {
   return useQuery({
-    queryKey: ["ai-credit-usage", limit],
+    queryKey: queryKeys.aiCredits.usage(limit),
     queryFn: async (): Promise<CreditUsage[]> => {
       const { data, error } = await supabase
         .from("ai_credit_usage" as never)
@@ -98,7 +99,7 @@ export function useCreditUsage(limit = 20) {
 
 export function useUsageByAgent() {
   return useQuery({
-    queryKey: ["ai-credit-usage-by-agent"],
+    queryKey: queryKeys.aiCredits.usageByAgent(),
     queryFn: async () => {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);

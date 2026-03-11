@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { exportToCSV as exportCsvUtil } from "@/lib/csvExport";
@@ -42,7 +43,7 @@ export function useWarehouseData() {
     isLoading: isLoadingSuppliers,
     isError: isErrorSuppliers,
   } = useQuery({
-    queryKey: ["suppliers", companyId],
+    queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -65,7 +66,7 @@ export function useWarehouseData() {
 
   // Fetch stock items for matching
   const { data: stockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock-names", companyId],
+    queryKey: queryKeys.warehouse.stockNames(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -121,7 +122,7 @@ export function useWarehouseData() {
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: ["warehouse-items", companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page],
+    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page),
     queryFn: async () => {
       if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
 
@@ -210,7 +211,7 @@ export function useWarehouseData() {
 
   // Badge counts - lightweight COUNT queries
   const { data: badgeCounts } = useQuery({
-    queryKey: ["warehouse-badge-counts", companyId, lastStatusId],
+    queryKey: queryKeys.warehouse.badgeCounts(companyId, lastStatusId),
     queryFn: async () => {
       if (!companyId) return { active: 0, urgent: 0, overdue: 0 };
 
@@ -262,7 +263,7 @@ export function useWarehouseData() {
 
   // Unique orders for filter dropdown (lightweight query)
   const { data: uniqueOrders = [] } = useQuery({
-    queryKey: ["warehouse-unique-orders", companyId],
+    queryKey: queryKeys.warehouse.uniqueOrders(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -360,8 +361,8 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Stato aggiornato", { description: "Lo stato dell'articolo è stato aggiornato." });
     },
     onError: () => {
@@ -378,8 +379,8 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
     onError: () => {
@@ -396,7 +397,7 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       toast.success("Nota aggiornata");
     },
     onError: () => {
@@ -413,7 +414,7 @@ export function useWarehouseData() {
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       const count = variables.itemIds.length;
       toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} spostat${count === 1 ? "o" : "i"} nella zona.` });
     },

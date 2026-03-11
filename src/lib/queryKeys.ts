@@ -216,12 +216,47 @@ export const queryKeys = {
     all: ["warehouse"] as const,
     items: (companyId: string | undefined, ...filters: any[]) =>
       ["warehouse", "items", companyId, ...filters] as const,
-    badgeCounts: (companyId: string | undefined) =>
-      ["warehouse", "badge-counts", companyId] as const,
+    itemsAll: ["warehouse", "items"] as const,
+    badgeCounts: (companyId: string | undefined, ...rest: any[]) =>
+      ["warehouse", "badge-counts", companyId, ...rest] as const,
+    badgeCountsAll: ["warehouse", "badge-counts"] as const,
     stockNames: (companyId: string | undefined) =>
       ["warehouse", "stock-names", companyId] as const,
+    stock: (companyId: string | undefined) =>
+      ["warehouse", "stock", companyId] as const,
+    stockAll: ["warehouse", "stock"] as const,
     uniqueOrders: (companyId: string | undefined) =>
       ["warehouse", "unique-orders", companyId] as const,
+    sections: (companyId: string | undefined) =>
+      ["warehouse", "sections", companyId] as const,
+    sectionsAll: ["warehouse", "sections"] as const,
+  },
+
+  // ── Tasks ──────────────────────────────────────────────
+  tasks: {
+    all: ["tasks"] as const,
+    list: (companyId: string | undefined) => ["tasks", "list", companyId] as const,
+    marketing: (companyId: string | undefined) => ["tasks", "marketing", companyId] as const,
+    linked: (filterKey: string) => ["tasks", "linked", filterKey] as const,
+  },
+
+  // ── AI Credits ─────────────────────────────────────────
+  aiCredits: {
+    all: ["ai-credits"] as const,
+    credits: () => ["ai-credits", "balance"] as const,
+    topups: () => ["ai-credits", "topups"] as const,
+    usage: (limit?: number) => ["ai-credits", "usage", limit] as const,
+    usageByAgent: () => ["ai-credits", "usage-by-agent"] as const,
+    subscription: (companyId: string | undefined) => ["ai-credits", "subscription", companyId] as const,
+    settings: (companyId: string | undefined) => ["ai-credits", "settings", companyId] as const,
+    billedRate: (companyId: string | undefined) => ["ai-credits", "billed-rate", companyId] as const,
+    myPlan: (companyId: string | undefined) => ["ai-credits", "myplan", companyId] as const,
+  },
+
+  // ── Calendar Orders ────────────────────────────────────
+  calendarOrders: {
+    all: ["calendar-orders"] as const,
+    list: (companyId: string | undefined) => ["calendar-orders", "list", companyId] as const,
   },
 
   // ── Suppliers ──────────────────────────────────────────
