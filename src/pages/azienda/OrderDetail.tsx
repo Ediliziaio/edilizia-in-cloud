@@ -319,7 +319,7 @@ export default function OrderDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       toast.success("Note salvate");
       setIsEditingNotes(false);
     },
