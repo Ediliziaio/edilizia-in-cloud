@@ -183,6 +183,14 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
 
+        {/* Updated at badge */}
+        {opportunity.updated_at && !isOverlay && (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Clock className="h-2.5 w-2.5" />
+            <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
+          </div>
+        )}
+
         {/* Action bar */}
         {!isOverlay && (
           <div className="flex items-center justify-between pt-1 border-t border-border/50">

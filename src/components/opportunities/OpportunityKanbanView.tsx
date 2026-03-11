@@ -24,7 +24,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[300px] shrink-0">
-      <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg">
+      <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}

@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
+import { OpportunityStatsStrip } from "@/components/opportunities/OpportunityStatsStrip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import {
