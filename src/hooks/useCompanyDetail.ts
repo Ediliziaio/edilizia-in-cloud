@@ -198,7 +198,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: plans } = useQuery({
-    queryKey: ["subscription-plans-active"],
+    queryKey: queryKeys.companyDetail.plansActive,
     queryFn: async () => {
       const { data } = await supabase.from("subscription_plans").select("*").eq("is_active", true).order("position");
       return data || [];
