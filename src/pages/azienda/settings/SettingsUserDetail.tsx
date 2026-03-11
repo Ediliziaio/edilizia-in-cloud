@@ -146,8 +146,8 @@ export default function SettingsUserDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
     onError: () => {
