@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMessagingEnabled() {
   const { effectiveCompany } = useAuth();
