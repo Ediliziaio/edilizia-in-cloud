@@ -1,4 +1,5 @@
 import { Progress } from "@/components/ui/progress";
+import { formatCurrency } from "@/lib/formatters";
 
 interface CreditUsageBarProps {
   spentEur: number;
