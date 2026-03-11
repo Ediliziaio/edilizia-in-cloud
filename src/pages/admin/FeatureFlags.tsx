@@ -99,8 +99,8 @@ export default function FeatureFlags() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
-      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
       toast.success("Override aggiornato");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
