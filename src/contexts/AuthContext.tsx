@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
-        console.error("Company not in allowed_company_ids for impersonation");
+        logger.error("Company not in allowed_company_ids for impersonation");
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
         });
