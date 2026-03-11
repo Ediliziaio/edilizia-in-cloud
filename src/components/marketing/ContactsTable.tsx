@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { LeadTemperatureBadge } from "./LeadTemperatureBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
