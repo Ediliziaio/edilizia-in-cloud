@@ -52,6 +52,24 @@ export interface WeeklyAgendaData {
   appointments: number;
 }
 
+export interface TodayData {
+  leadsToday: number;
+  appointmentsToday: number;
+  overdueAmount: number;
+  overdueCount: number;
+  suppliersDueAmount: number;
+  suppliersDue: Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+}
+
+export interface CashFlowForecastData {
+  incoming30: number;
+  incoming60: number;
+  incoming90: number;
+  monthRevenue: number;
+  quarterRevenue: number;
+  ytdRevenue: number;
+}
+
 export interface CompanyTargets {
   monthly_revenue_target: number | null;
   monthly_orders_target: number | null;
