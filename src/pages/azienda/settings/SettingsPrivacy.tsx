@@ -85,7 +85,7 @@ export default function SettingsPrivacy() {
       return data;
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["gdpr-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.requests });
       if (data?.download_url) {
         window.open(data.download_url, "_blank");
         toast.success("Export completato — download avviato");
