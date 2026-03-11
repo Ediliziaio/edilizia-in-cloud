@@ -145,7 +145,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     },
   });
 
