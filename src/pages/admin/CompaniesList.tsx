@@ -163,7 +163,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_health_data");
       if (error) throw error;
       const map: Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }> = {};
-      (data || []).forEach((h: any) => {
+      ((data || []) as CompanyHealthData[]).forEach((h) => {
         const input = {
           order_count: Number(h.order_count) || 0,
           user_count: Number(h.user_count) || 0,
