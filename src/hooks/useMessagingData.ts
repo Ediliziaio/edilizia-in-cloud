@@ -226,7 +226,7 @@ export function useConfirmAiAction() {
       return createdActions;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
       toast.success("Azione confermata", { description: "L'azione è stata eseguita con successo." });
     },
     onError: (err: any) => {
