@@ -101,6 +101,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lossNotes, setLossNotes] = useState("");
   const [showLossDialog, setShowLossDialog] = useState(false);
   const [pendingLostStatus, setPendingLostStatus] = useState(false);
+  const [nextAction, setNextAction] = useState("");
+  const [nextActionDate, setNextActionDate] = useState("");
+  const [lostReasonCategory, setLostReasonCategory] = useState("");
+  const [competitorWon, setCompetitorWon] = useState("");
 
   // Loss reasons for the company
   const { data: lossReasons = [] } = useQuery({
