@@ -29,67 +29,80 @@ interface Stage {
   name: string;
   position: number;
   auto_status: string | null;
+  // SO6: Sales OS fields
   win_probability: number | null;
   stalled_threshold_days: number | null;
 }
 
-function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange, onFieldChange }: {
+function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange, onSalesOSChange }: {
   stage: Stage;
   onUpdate: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
   onAutoStatusChange: (id: string, status: string | null) => void;
-  onFieldChange: (id: string, field: string, value: any) => void;
+  onSalesOSChange: (id: string, field: 'win_probability' | 'stalled_threshold_days', value: number | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: stage.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 rounded-lg border bg-background">
-      <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <Input
-        value={stage.name}
-        onChange={(e) => onUpdate(stage.id, e.target.value)}
-        className="h-8 text-sm flex-1"
-        maxLength={100}
-      />
-      <Select
-        value={stage.auto_status || "none"}
-        onValueChange={(v) => onAutoStatusChange(stage.id, v === "none" ? null : v)}
-      >
-        <SelectTrigger className="h-8 text-xs w-[130px]">
-          <SelectValue placeholder="Stato auto" />
-        </SelectTrigger>
-        <SelectContent>
-          {AUTO_STATUS_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input
-        type="number"
-        value={stage.win_probability ?? ""}
-        onChange={(e) => onFieldChange(stage.id, "win_probability", e.target.value ? parseInt(e.target.value) : null)}
-        placeholder="Win %"
-        className="h-8 text-xs w-[70px]"
-        min={0}
-        max={100}
-      />
-      <Input
-        type="number"
-        value={stage.stalled_threshold_days ?? ""}
-        onChange={(e) => onFieldChange(stage.id, "stalled_threshold_days", e.target.value ? parseInt(e.target.value) : null)}
-        placeholder="Ferma gg"
-        className="h-8 text-xs w-[80px]"
-        min={1}
-      />
-      {canDelete && (
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      )}
+    <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-2 space-y-1">
+      {/* Riga principale */}
+      <div className="flex items-center gap-2">
+        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <Input
+          value={stage.name}
+          onChange={(e) => onUpdate(stage.id, e.target.value)}
+          className="h-8 text-sm flex-1"
+          maxLength={100}
+        />
+        <Select
+          value={stage.auto_status || "none"}
+          onValueChange={(v) => onAutoStatusChange(stage.id, v === "none" ? null : v)}
+        >
+          <SelectTrigger className="h-8 text-xs w-[130px]">
+            <SelectValue placeholder="Stato auto" />
+          </SelectTrigger>
+          <SelectContent>
+            {AUTO_STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {canDelete && (
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+      {/* Riga Sales OS */}
+      <div className="flex items-center gap-3 pl-8 text-xs text-muted-foreground">
+        <span>Prob. win %</span>
+        <Input
+          type="number"
+          value={stage.win_probability ?? ""}
+          onChange={(e) => onSalesOSChange(stage.id, "win_probability", e.target.value ? parseInt(e.target.value) : null)}
+          className="h-7 text-xs w-[72px]"
+          min={0}
+          max={100}
+        />
+        <span>Alert ferma (gg)</span>
+        <Input
+          type="number"
+          value={stage.stalled_threshold_days ?? ""}
+          onChange={(e) =>
+            onSalesOSChange(
+              stage.id,
+              "stalled_threshold_days",
+              e.target.value ? parseInt(e.target.value) : null
+            )
+          }
+          className="h-7 text-xs w-[72px]"
+          min={1}
+        />
+      </div>
     </div>
   );
 }
@@ -151,7 +164,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     setHasChanges(true);
   }, []);
 
-  const handleFieldChange = useCallback((id: string, field: string, value: any) => {
+  const handleSalesOSChange = useCallback((id: string, field: 'win_probability' | 'stalled_threshold_days', value: number | null) => {
     setStages((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
     setHasChanges(true);
   }, []);
@@ -174,7 +187,14 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleAdd = useCallback(() => {
-    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null, win_probability: null, stalled_threshold_days: 14 }]);
+    setStages((prev) => [...prev, {
+      id: `temp-${Date.now()}`,
+      name: "Nuova fase",
+      position: prev.length,
+      auto_status: null,
+      win_probability: null,
+      stalled_threshold_days: 14,
+    }]);
     setHasChanges(true);
   }, []);
 
@@ -210,7 +230,13 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         if (originalIds.has(stage.id)) {
           const { error } = await supabase
             .from("marketing_pipeline_stages")
-            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status, win_probability: stage.win_probability, stalled_threshold_days: stage.stalled_threshold_days } as any)
+            .update({
+              name: stage.name,
+              position: stage.position,
+              auto_status: stage.auto_status,
+              win_probability: stage.win_probability,
+              stalled_threshold_days: stage.stalled_threshold_days,
+            } as any)
             .eq("id", stage.id)
             .eq("company_id", companyId!);
           if (error) throw error;
@@ -280,7 +306,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                     onDelete={handleDelete}
                     canDelete={stages.length > 1}
                     onAutoStatusChange={handleAutoStatusChange}
-                    onFieldChange={handleFieldChange}
+                    onSalesOSChange={handleSalesOSChange}
                   />
                 ))}
               </div>
