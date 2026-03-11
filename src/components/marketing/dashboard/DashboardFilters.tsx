@@ -1,4 +1,5 @@
 import { CalendarDays, Filter, Users, Layers, Radio } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -18,6 +19,7 @@ interface Props {
   filters: DashboardFiltersState;
   onUpdate: (partial: Partial<DashboardFiltersState>) => void;
   hideUserFilter?: boolean;
+  compact?: boolean;
 }
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
@@ -29,7 +31,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "custom", label: "Personalizzato" },
 ];
 
-export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
+export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -99,7 +101,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-3">
+    <div className={cn("flex flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3")}>
       <Filter className="h-4 w-4 text-muted-foreground" />
 
       {/* Date presets */}

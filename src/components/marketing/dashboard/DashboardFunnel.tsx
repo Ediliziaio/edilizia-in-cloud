@@ -10,9 +10,10 @@ import { fmtCur } from "./utils";
 interface Props {
   funnel: FunnelStage[] | undefined;
   isLoading: boolean;
+  compact?: boolean;
 }
 
-export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading }: Props) {
+export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading, compact }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -42,17 +43,22 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
     }
   });
 
+  const Wrapper = compact ? "div" : Card;
+  const wrapperProps = compact ? { className: "" } : {};
+
   return (
     <TooltipProvider delayDuration={200}>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Funnel Pipeline</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Wrapper {...wrapperProps}>
+        {!compact && (
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Funnel Pipeline</CardTitle>
+          </CardHeader>
+        )}
+        <CardContent className={compact ? "p-0" : ""}>
           {stages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
           ) : (
-            <div className="space-y-2">
+            <div className={cn("space-y-2", compact && "space-y-1")}>
               {stages.map((stage, idx) => {
                 const widthPct = Math.max((stage.count / maxCount) * 100, 8);
                 const prevCount = idx > 0 ? stages[idx - 1].count : null;
@@ -78,7 +84,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                             <span className="font-semibold text-foreground">{stage.count}</span>
                           </div>
                         </div>
-                        <div className="h-7 bg-muted rounded-md overflow-hidden">
+                        <div className={cn("bg-muted rounded-md overflow-hidden", compact ? "h-5" : "h-7")}>
                           <div
                             className={cn(
                               "h-full rounded-md transition-all duration-500 flex items-center px-2",
@@ -112,7 +118,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
             </div>
           )}
         </CardContent>
-      </Card>
+      </Wrapper>
     </TooltipProvider>
   );
 });
