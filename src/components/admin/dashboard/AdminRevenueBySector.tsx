@@ -35,7 +35,7 @@ export function AdminRevenueBySector({ data }: Props) {
               <XAxis
                 type="number"
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                tickFormatter={(v) => `€${v}`}
+                tickFormatter={formatCurrencyCompact}
               />
               <YAxis
                 type="category"
