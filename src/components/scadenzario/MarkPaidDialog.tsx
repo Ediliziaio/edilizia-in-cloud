@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Scadenza } from "@/hooks/useScadenzario";
+import { formatCurrency } from "@/lib/formatters";
 
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+const fmtEur = (n: number) => formatCurrency(n);
 
 interface Props {
   scadenza: Scadenza | null;

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 
 export interface Permissions {
   canViewDashboard: boolean;
@@ -121,7 +122,7 @@ export function usePermissions(): Permissions {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching permissions:", error);
+        logger.error("Error fetching permissions:", error);
         return null;
       }
       return data;

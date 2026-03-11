@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { queryKeys } from "@/lib/queryKeys";
+import { logger } from "@/utils/logger";
 
 export interface CostFormData {
   name: string;
@@ -310,7 +311,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Costo segnato come pagato" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -325,7 +326,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Costo riportato a non pagato" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -345,7 +346,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Articolo segnato come pagato" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -364,7 +365,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Articolo riportato a non pagato" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -380,7 +381,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Squadra esterna segnata come pagata" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -395,7 +396,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Squadra esterna riportata a non pagata" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -411,7 +412,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Provvigione segnata come pagata" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
@@ -426,7 +427,7 @@ export function useCompanyCostsMutations({
       toast({ title: "Provvigione riportata a non pagata" });
     },
     onError: (error) => {
-      console.error("Payment error:", error);
+      logger.error("Payment error:", error);
       toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });

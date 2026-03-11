@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { logger } from "@/utils/logger";
 
 export type ApiServices = {
   whatsapp: boolean;
@@ -28,7 +29,7 @@ export function useApiHealth() {
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("check-api-health");
       if (error) {
-        console.warn("Failed to check API health:", error);
+        logger.warn("Failed to check API health:", error);
         return defaultServices;
       }
       return data as ApiServices;

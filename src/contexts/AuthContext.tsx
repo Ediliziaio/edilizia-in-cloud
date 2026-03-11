@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState } from "@/types/auth";
+import { logger } from "@/utils/logger";
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -91,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError);
+        logger.error("Error fetching profile:", profileError);
         return { profile: null, role: null, company: null };
       }
 
@@ -102,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("user_id", userId);
 
       if (roleError) {
-        console.error("Error fetching roles:", roleError);
+        logger.error("Error fetching roles:", roleError);
       }
 
       // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (companyError) {
-          console.error("Error fetching company:", companyError);
+          logger.error("Error fetching company:", companyError);
         } else {
           company = companyData as Company;
         }
@@ -132,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         company,
       };
     } catch (error) {
-      console.error("Error in fetchUserData:", error);
+      logger.error("Error in fetchUserData:", error);
       return { profile: null, role: null, company: null };
     }
   }, []);
@@ -173,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching impersonated company:", error);
+        logger.error("Error fetching impersonated company:", error);
         setImpersonatedCompany(null);
         setImpersonatedCompanyId(null);
       } else {
@@ -244,13 +245,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
     if (state.role !== "super_admin") {
-      console.error("Only super_admin can impersonate companies");
+      logger.error("Only super_admin can impersonate companies");
       return;
     }
 
     if (permissions) {
       if (!permissions.can_manage_companies) {
-        console.error("Missing can_manage_companies permission for impersonation");
+        logger.error("Missing can_manage_companies permission for impersonation");
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
         });
@@ -258,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
-        console.error("Company not in allowed_company_ids for impersonation");
+        logger.error("Company not in allowed_company_ids for impersonation");
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
         });
@@ -272,14 +273,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error || !data?.token) {
-        console.error("Failed to start secure impersonation:", error);
+        logger.error("Failed to start secure impersonation:", error);
         return;
       }
 
       setImpersonationToken(data.token);
       setImpersonatedCompanyId(companyId);
     } catch (err) {
-      console.error("Impersonation error:", err);
+      logger.error("Impersonation error:", err);
     }
   }, [state.role]);
 

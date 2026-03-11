@@ -5,8 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import { useScadenzario } from "@/hooks/useScadenzario";
+import { formatCurrency } from "@/lib/formatters";
 
-const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+const fmtEur = (n: number) => formatCurrency(n);
 
 export function PrimaNotaScadenzarioWidget() {
   const navigate = useNavigate();

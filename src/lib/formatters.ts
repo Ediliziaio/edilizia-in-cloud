@@ -8,6 +8,13 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+/** Compact currency for chart axes: €1.2M, €45k, €800 */
+export function formatCurrencyCompact(v: number): string {
+  if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(v) >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
+  return `€${Math.round(v)}`;
+}
+
 export function formatDate(date: string | Date): string {
   return format(new Date(date), "d MMMM yyyy", { locale: it });
 }

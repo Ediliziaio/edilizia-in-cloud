@@ -10,7 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Cell, LabelList,
 } from "recharts";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useMarginData } from "@/hooks/useMarginData";
 import { useBreakEvenHistorical } from "@/hooks/useBreakEvenHistorical";
 
@@ -26,14 +26,6 @@ const MONTH_SHORT = [
 function monthLabel(m: number): string {
   if (m <= 0 || m > 12) return "—";
   return MONTH_NAMES[m - 1];
-}
-
-// ─── CalendarioAnno ───────────────────────────────────────────────────────────
-
-function formatCompact(v: number): string {
-  if (v >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
-  return `€${Math.round(v)}`;
 }
 
 function CalendarioAnno({
@@ -93,7 +85,7 @@ function CalendarioAnno({
                   ? "text-red-800 dark:text-red-300"
                   : "text-emerald-800 dark:text-emerald-300"
               }`}>
-                {formatCompact(cumulative)}
+                {formatCurrencyCompact(cumulative)}
               </span>
               <span className={`text-[9px] ${
                 isPaying && !isBreakEvenMonth
@@ -210,7 +202,7 @@ function StoricoAnniChart({
           <XAxis dataKey="anno" tick={{ fontSize: 12 }} />
           <YAxis
             tick={{ fontSize: 11 }}
-            tickFormatter={v => `€${(v / 1000).toFixed(0)}k`}
+            tickFormatter={formatCurrencyCompact}
             width={56}
           />
           <Tooltip

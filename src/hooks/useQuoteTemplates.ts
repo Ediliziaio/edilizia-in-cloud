@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QuoteTemplate } from '@/types/quoteTemplate';
 import { queryKeys } from '@/lib/queryKeys';
+import { logger } from '@/utils/logger';
 
 export function useQuoteTemplates() {
   const { effectiveCompany } = useAuth();
@@ -20,7 +21,7 @@ export function useQuoteTemplates() {
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
       if (error) {
-        console.error('Errore caricamento template:', error);
+        logger.error('Errore caricamento template:', error);
         throw error;
       }
       return (data ?? []) as unknown as QuoteTemplate[];
