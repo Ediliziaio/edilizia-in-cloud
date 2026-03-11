@@ -71,7 +71,7 @@ export default function SuperAdminUsersTab() {
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["super-admins"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setCreateOpen(false);
       toast.success("Super Admin creato con successo");
     },
