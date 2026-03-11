@@ -137,20 +137,20 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
         </div>
       </div>
 
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="font-medium text-foreground">Fatturato:</span>
-          <span className="font-semibold text-foreground">{fmtEur(data.revenueInRange)}</span>
+          <span className="text-base font-bold text-foreground">{fmtEur(data.revenueInRange)}</span>
         </span>
-        <span className="w-px h-3 bg-border" />
+        <span className="w-px h-4 bg-border" />
         <span className="flex items-center gap-1">
           <span className="font-medium text-emerald-600 dark:text-emerald-400">Incassato:</span>
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtEur(data.collectedInRange)}</span>
+          <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtEur(data.collectedInRange)}</span>
         </span>
-        <span className="w-px h-3 bg-border" />
+        <span className="w-px h-4 bg-border" />
         <span className="flex items-center gap-1">
           <span className="font-medium text-destructive">Costi Pagati:</span>
-          <span className="font-semibold text-destructive">{fmtEur(data.costsPaidInRange)}</span>
+          <span className="text-base font-bold text-destructive">{fmtEur(data.costsPaidInRange)}</span>
         </span>
       </div>
 
