@@ -29,6 +29,8 @@ interface Stage {
   name: string;
   position: number;
   auto_status: string | null;
+  win_probability: number | null;
+  stalled_threshold_days: number | null;
 }
 
 function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange }: {
