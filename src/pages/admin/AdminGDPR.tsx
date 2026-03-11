@@ -28,7 +28,7 @@ export default function AdminGDPR() {
   });
 
   const { data: auditLog = [] } = useQuery({
-    queryKey: ["gdpr-audit-log"],
+    queryKey: queryKeys.admin.gdprAuditLog,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_audit_log" },
