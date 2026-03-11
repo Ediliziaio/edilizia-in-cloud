@@ -254,7 +254,7 @@ export function SuppliersConfig() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Impossibile creare il fornitore." });
-      console.error(error);
+      logger.error("Errore creazione fornitore", error);
     },
   });
 
