@@ -191,7 +191,7 @@ export default function GlobalErrors() {
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{fmt(stats.totalLoss)}</div>
+            <div className="text-2xl font-bold text-destructive">{formatCurrency(stats.totalLoss)}</div>
             <p className="text-xs text-muted-foreground">{filtered.length} errori totali</p>
           </CardContent>
         </Card>
