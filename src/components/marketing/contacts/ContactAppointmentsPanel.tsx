@@ -23,7 +23,7 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
   const queryClient = useQueryClient();
 
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["contact_appointments", contactId],
+    queryKey: queryKeys.contactAppointments.byContact(contactId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
