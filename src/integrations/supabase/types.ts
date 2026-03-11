@@ -12683,6 +12683,118 @@ export type Database = {
           },
         ]
       }
+      user_availability: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          timezone: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          timezone?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          timezone?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_availability_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_availability_exceptions: {
+        Row: {
+          availability_id: string
+          end_time: string | null
+          exception_date: string
+          id: string
+          is_day_off: boolean
+          reason: string | null
+          start_time: string | null
+        }
+        Insert: {
+          availability_id: string
+          end_time?: string | null
+          exception_date: string
+          id?: string
+          is_day_off?: boolean
+          reason?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          availability_id?: string
+          end_time?: string | null
+          exception_date?: string
+          id?: string
+          is_day_off?: boolean
+          reason?: string | null
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_availability_exceptions_availability_id_fkey"
+            columns: ["availability_id"]
+            isOneToOne: false
+            referencedRelation: "user_availability"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_availability_slots: {
+        Row: {
+          availability_id: string
+          day_of_week: number
+          end_time: string
+          id: string
+          start_time: string
+        }
+        Insert: {
+          availability_id: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          start_time: string
+        }
+        Update: {
+          availability_id?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_availability_slots_availability_id_fkey"
+            columns: ["availability_id"]
+            isOneToOne: false
+            referencedRelation: "user_availability"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
