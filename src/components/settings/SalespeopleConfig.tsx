@@ -4,6 +4,7 @@ import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt,
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS, type PermissionSectionDef } from "@/components/users/permissionsDefaults";
