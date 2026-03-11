@@ -5,6 +5,30 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 
+export function usePipelines() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: queryKeys.pipelines.list(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_pipelines")
+        .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
+        .eq("company_id", companyId!)
+        .order("position");
+      if (error) throw error;
+      return data.map((p: any) => ({
+        ...p,
+        marketing_pipeline_stages: (p.marketing_pipeline_stages || []).sort((a: any, b: any) => a.position - b.position),
+      }));
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+}
+
 const PAGE_SIZE = 500;
 
 async function enrichPage(data: any[]) {
