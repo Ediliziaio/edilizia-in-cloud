@@ -263,7 +263,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
         <Card><CardContent className="pt-3 pb-2">
           <p className="text-xs text-muted-foreground flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Scadenze aperte</p>
           <p className="text-xl font-bold">{openScadenze.length}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(supplier.scadenze_importo || 0)} residuo</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(supplier.scadenze_importo || 0)} residuo</p>
         </CardContent></Card>
         <Card className={scaduteCount > 0 ? "border-destructive" : ""}>
           <CardContent className="pt-3 pb-2">
