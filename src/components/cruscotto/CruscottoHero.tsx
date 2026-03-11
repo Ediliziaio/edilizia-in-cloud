@@ -7,6 +7,8 @@ import type { KpiData } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { formatCurrencyCompact } from "@/lib/formatters";
 
+const fmtEur = formatCurrencyCompact;
+
 function pctDelta(curr: number, prev: number): number | null {
   if (!prev) return null;
   return ((curr - prev) / prev) * 100;
