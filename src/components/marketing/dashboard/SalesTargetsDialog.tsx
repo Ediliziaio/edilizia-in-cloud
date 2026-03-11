@@ -59,7 +59,7 @@ export function SalesTargetsDialog() {
 
       setRows(result);
     } catch (e) {
-      console.error(e);
+      logger.error("Errore nel caricamento target", e);
       toast.error("Errore nel caricamento target");
     } finally {
       setLoading(false);
