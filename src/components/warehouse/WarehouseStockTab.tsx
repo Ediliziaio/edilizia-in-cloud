@@ -580,11 +580,12 @@ interface DraggableStockRowProps {
   onScarico: () => void;
   onHistory: () => void;
   onTask: () => void;
+  onAudit: () => void;
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `stock-${item.id}`,
