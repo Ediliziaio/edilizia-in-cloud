@@ -190,7 +190,7 @@ export function QuickLoginPopover() {
       const target = REDIRECT_MAP[user.role] || "/";
       navigate(target, { replace: true });
     } catch (err: any) {
-      console.error("Sign in as user error:", err);
+      logger.error("Sign in as user error:", err);
       toast.error(`Errore: ${err.message || "Impossibile accedere come utente"}`);
     } finally {
       setLoading(false);
