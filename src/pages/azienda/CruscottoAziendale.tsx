@@ -25,6 +25,7 @@ export default function CruscottoAziendale() {
   const {
     marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets,
     todayData, cashFlowForecast,
+    todayDateFrom, todayDateTo, updateTodayDateRange,
     isLoading, error, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
