@@ -108,8 +108,8 @@ export default function AgentCreditsPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success(`Ricarica di ${formatEur(topupAmount)} completata! Fattura: ${data.invoice_number}`);
-      queryClient.invalidateQueries({ queryKey: ["ai-credits"] });
-      queryClient.invalidateQueries({ queryKey: ["ai-credit-topups"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.topups() });
       setShowConfirmDialog(false);
     } catch (err) {
       toast.error("Errore durante la ricarica");
