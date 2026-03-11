@@ -60,7 +60,7 @@ export default function LeaveRequests() {
 
   // Get employee record
   const { data: employee } = useQuery({
-    queryKey: ["my-employee-profile", user?.id],
+    queryKey: queryKeys.leave.employeeProfile(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
