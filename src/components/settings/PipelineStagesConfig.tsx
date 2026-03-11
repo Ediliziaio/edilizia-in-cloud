@@ -225,6 +225,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           name: s.name,
           position: s.position,
           auto_status: s.auto_status,
+          win_probability: s.win_probability,
+          stalled_threshold_days: s.stalled_threshold_days,
         }));
 
       if (toInsert.length > 0) {
