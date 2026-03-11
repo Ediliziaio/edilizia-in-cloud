@@ -55,7 +55,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-sessions", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
       toast({ title: "Sessione revocata" });
     },
     onError: () => {
