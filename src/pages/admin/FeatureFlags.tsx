@@ -80,8 +80,8 @@ export default function FeatureFlags() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] });
-      queryClient.invalidateQueries({ queryKey: ["platform-feature-flags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureFlags });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.platform });
       toast.success("Default aggiornato");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
