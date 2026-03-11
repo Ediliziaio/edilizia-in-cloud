@@ -40,11 +40,10 @@ export interface MarginData {
   salariesMonthly: number;
   // Break even
   breakEvenRevenue: number;
+  breakEvenAnnual: number;
+  breakEvenMonthOfYear: number; // 1-12 = mese da cui guadagni per te; >12 = non raggiunto
   currentMonthlyRevenue: number;
   breakEvenDelta: number;
-  breakEvenAnnual: number;
-  yearlyRevenue: number;
-  breakEvenMonthOfYear: number; // 1-12 month where cumulative revenue >= annual fixed costs, 0 if unreachable
   // Company context
   companyId: string | null;
 }
