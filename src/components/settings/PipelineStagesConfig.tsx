@@ -174,7 +174,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleAdd = useCallback(() => {
-    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null }]);
+    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null, win_probability: null, stalled_threshold_days: 14 }]);
     setHasChanges(true);
   }, []);
 
