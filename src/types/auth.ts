@@ -1,6 +1,127 @@
 import type { User } from "@supabase/supabase-js";
 
-export type AppRole = "super_admin" | "company_admin" | "company_staff" | "customer" | "employee" | "salesperson" | "call_center" | "referrer";
+export type AppRole =
+  | "super_admin"
+  | "company_admin"
+  | "company_staff"
+  | "customer"
+  | "employee"
+  | "salesperson"
+  | "call_center"
+  | "referrer"
+  | "platform_manager"
+  | "platform_sales"
+  | "platform_support"
+  | "platform_marketing"
+  | "platform_implementation"
+  | "multi_company_user";
+
+export type PlatformRole =
+  | "platform_manager"
+  | "platform_sales"
+  | "platform_support"
+  | "platform_marketing"
+  | "platform_implementation";
+
+export const PLATFORM_ROLES: PlatformRole[] = [
+  "platform_manager",
+  "platform_sales",
+  "platform_support",
+  "platform_marketing",
+  "platform_implementation",
+];
+
+export const PLATFORM_ROLE_LABELS: Record<PlatformRole, string> = {
+  platform_manager: "Manager",
+  platform_sales: "Sales",
+  platform_support: "Support",
+  platform_marketing: "Marketing",
+  platform_implementation: "Implementation",
+};
+
+export const PLATFORM_ROLE_DESCRIPTIONS: Record<PlatformRole, string> = {
+  platform_manager: "Accesso completo alla piattaforma e gestione team",
+  platform_sales: "Gestione aziende, piani e statistiche",
+  platform_support: "Gestione ticket e assistenza clienti",
+  platform_marketing: "Gestione marketing e campagne piattaforma",
+  platform_implementation: "Onboarding e configurazione aziende",
+};
+
+export const PLATFORM_ROLE_COLORS: Record<PlatformRole, string> = {
+  platform_manager: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200",
+  platform_sales: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  platform_support: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  platform_marketing: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  platform_implementation: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
+};
+
+/** Permission presets per platform role */
+export const PLATFORM_ROLE_PRESETS: Record<PlatformRole, Record<string, boolean>> = {
+  platform_manager: {
+    can_manage_companies: true,
+    can_manage_plans: true,
+    can_manage_tickets: true,
+    can_manage_referrals: true,
+    can_manage_admins: false,
+    can_view_platform_stats: true,
+    can_manage_marketing: true,
+  },
+  platform_sales: {
+    can_manage_companies: true,
+    can_manage_plans: true,
+    can_manage_tickets: false,
+    can_manage_referrals: true,
+    can_manage_admins: false,
+    can_view_platform_stats: true,
+    can_manage_marketing: false,
+  },
+  platform_support: {
+    can_manage_companies: true,
+    can_manage_plans: false,
+    can_manage_tickets: true,
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: true,
+    can_manage_marketing: false,
+  },
+  platform_marketing: {
+    can_manage_companies: false,
+    can_manage_plans: false,
+    can_manage_tickets: false,
+    can_manage_referrals: true,
+    can_manage_admins: false,
+    can_view_platform_stats: true,
+    can_manage_marketing: true,
+  },
+  platform_implementation: {
+    can_manage_companies: true,
+    can_manage_plans: false,
+    can_manage_tickets: true,
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: true,
+    can_manage_marketing: false,
+  },
+};
+
+export interface MultiCompanyAccess {
+  id: string;
+  user_id: string;
+  company_id: string;
+  access_role: string;
+  granted_by: string | null;
+  created_at: string;
+  company?: Company;
+}
+
+export const ADMIN_PLATFORM_ROLES: AppRole[] = [
+  "super_admin",
+  "platform_manager",
+  "platform_sales",
+  "platform_support",
+  "platform_marketing",
+  "platform_implementation",
+];
 
 export type CompanySector = 
   | "serramenti"
