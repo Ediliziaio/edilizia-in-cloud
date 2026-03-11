@@ -196,7 +196,7 @@ export default function CompaniesList() {
 
   // Company tags
   const { data: companyTags = {} } = useQuery({
-    queryKey: ["company-tags"],
+    queryKey: queryKeys.admin.companyTags,
     queryFn: async () => {
       const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
       if (error) throw error;
