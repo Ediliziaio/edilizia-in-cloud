@@ -644,6 +644,9 @@ const DraggableStockRow = memo(function DraggableStockRow({
           <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
             <History className="h-4 w-4 text-muted-foreground" />
           </Button>
+          <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
+            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+          </Button>
           <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
             <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
           </Button>
