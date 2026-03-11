@@ -308,6 +308,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       expected_close_date: expectedCloseDate || null,
       loss_reason: lossReason || null,
       loss_notes: lossNotes || null,
+      next_action: nextAction || null,
+      next_action_date: nextActionDate || null,
+      lost_reason_category: lostReasonCategory || null,
+      competitor_won: competitorWon || null,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
