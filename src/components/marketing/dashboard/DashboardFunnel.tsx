@@ -54,7 +54,7 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
             <CardTitle className="text-base">Funnel Pipeline</CardTitle>
           </CardHeader>
         )}
-        <div className={compact ? "" : ""}>
+        <CardContent className={compact ? "p-0" : ""}>
           {stages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
           ) : (
