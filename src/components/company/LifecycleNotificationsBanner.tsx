@@ -23,7 +23,7 @@ export function LifecycleNotificationsBanner() {
   const queryClient = useQueryClient();
 
   const { data: notifications = [] } = useQuery({
-    queryKey: ["lifecycle-notifications", companyId],
+    queryKey: queryKeys.lifecycleNotifications.byCompany(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
