@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching impersonated company:", error);
+        logger.error("Error fetching impersonated company:", error);
         setImpersonatedCompany(null);
         setImpersonatedCompanyId(null);
       } else {
