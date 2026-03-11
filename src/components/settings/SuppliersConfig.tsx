@@ -5,6 +5,7 @@ import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown } f
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { VAT_RATES, getVatRateLabel } from "@/lib/vatUtils";
+import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
