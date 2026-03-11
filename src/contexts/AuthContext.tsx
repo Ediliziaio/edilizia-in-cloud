@@ -44,6 +44,10 @@ function getBrowserInfo() {
 
 async function startSession() {
   try {
+    // Only track if we have a valid authenticated session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
     const info = getBrowserInfo();
     const { data } = await supabase.functions.invoke("track-user-session", {
       body: { action: "start", ...info },
