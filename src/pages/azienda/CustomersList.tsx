@@ -227,7 +227,7 @@ export default function CustomersList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo" });
     },
     onError: (error) => {
