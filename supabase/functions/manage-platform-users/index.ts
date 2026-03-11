@@ -428,13 +428,53 @@ Deno.serve(async (req) => {
 
     // === UPDATE COMPANY ACCESS ===
     if (action === "update-company-access") {
-      const { userId, companyAccesses } = body;
+      const { userId, companyId, companyAccesses, operation } = body;
       if (!userId) return errorResponse("userId obbligatorio");
 
-      // Remove all existing accesses
+      // Single remove operation
+      if (operation === "remove" && companyId) {
+        const { error } = await supabaseAdmin
+          .from("multi_company_access")
+          .delete()
+          .eq("user_id", userId)
+          .eq("company_id", companyId);
+
+        if (error) throw new Error(error.message);
+
+        const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
+        await logAudit(supabaseAdmin, callerId, "remove_company_access", "user", userId, {
+          target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+          company_id: companyId,
+        });
+
+        return jsonResponse({ success: true });
+      }
+
+      // Single add operation
+      if (operation === "add" && companyId) {
+        const { error } = await supabaseAdmin
+          .from("multi_company_access")
+          .insert({
+            user_id: userId,
+            company_id: companyId,
+            access_role: body.accessRole || "company_staff",
+            granted_by: callerId,
+          });
+
+        if (error) throw new Error(error.message);
+
+        const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
+        await logAudit(supabaseAdmin, callerId, "add_company_access", "user", userId, {
+          target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+          company_id: companyId,
+        });
+
+        return jsonResponse({ success: true });
+      }
+
+      // Bulk replace (original behavior)
       await supabaseAdmin.from("multi_company_access").delete().eq("user_id", userId);
 
-      // Insert new accesses
       if (companyAccesses && Array.isArray(companyAccesses) && companyAccesses.length > 0) {
         const accessRows = companyAccesses.map((ca: any) => ({
           user_id: userId,
