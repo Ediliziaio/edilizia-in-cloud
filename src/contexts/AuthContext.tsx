@@ -361,10 +361,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonatedCompany(null);
   }, []);
 
-  // Fetch multi-company accesses for multi_company_user
+  // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
     async function fetchMultiCompanyAccesses() {
-      if (state.role !== "multi_company_user" || !state.user) {
+      const platformRoles: string[] = [
+        "multi_company_user",
+        "platform_manager",
+        "platform_sales",
+        "platform_support",
+        "platform_marketing",
+        "platform_implementation",
+      ];
+      if (!state.user || !state.role || !platformRoles.includes(state.role)) {
         setMultiCompanyAccesses([]);
         return;
       }
