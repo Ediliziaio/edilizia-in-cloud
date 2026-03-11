@@ -6,6 +6,7 @@ import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle, Clo
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
