@@ -107,7 +107,7 @@ export function AdminSupportChatList() {
   };
 
   const { data: messages = [], isLoading: loadingMessages, isError: isErrorMessages, refetch: refetchMessages } = useQuery({
-    queryKey: ["admin-support-messages"],
+    queryKey: queryKeys.admin.supportMessages,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_messages")
