@@ -85,7 +85,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction("bulk_change_plan", { new_plan_id: planId, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Piano aggiornato per ${count} aziende`);
       onClearSelection();
       setPlanDialog(false);
