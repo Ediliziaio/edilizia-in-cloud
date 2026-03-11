@@ -33,12 +33,13 @@ interface Stage {
   stalled_threshold_days: number | null;
 }
 
-function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange }: {
+function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange, onFieldChange }: {
   stage: Stage;
   onUpdate: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
   onAutoStatusChange: (id: string, status: string | null) => void;
+  onFieldChange: (id: string, field: string, value: any) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: stage.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
