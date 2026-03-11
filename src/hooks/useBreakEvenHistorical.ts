@@ -65,7 +65,7 @@ export function useBreakEvenHistorical() {
   });
 
   const { data: fixedCostsRaw, isLoading: loadingFC } = useQuery({
-    queryKey: ["be-hist-fixed-costs", companyId],
+    queryKey: queryKeys.breakEven.fixedCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
