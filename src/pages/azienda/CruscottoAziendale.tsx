@@ -117,11 +117,11 @@ export default function CruscottoAziendale() {
 
       {/* SEZIONE 4: FINANZA & CASH FLOW */}
       <SectionErrorBoundary sectionName="Finanza">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
           <FinanzaCashFlow finance={finance} isLoading={isLoading} />
         </div>
-        <div className="mt-6">
+        <div className="mt-4">
           <PrimaNotaScadenzarioWidget />
         </div>
       </SectionErrorBoundary>
