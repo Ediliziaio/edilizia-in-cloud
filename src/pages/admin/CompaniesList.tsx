@@ -187,7 +187,7 @@ export default function CompaniesList() {
       const { data, error } = await supabase.rpc("get_company_last_access");
       if (error) throw error;
       const map: Record<string, string | null> = {};
-      (data || []).forEach((row: any) => {
+      ((data || []) as CompanyLastAccess[]).forEach((row) => {
         map[row.company_id] = row.last_access || null;
       });
       return map;
