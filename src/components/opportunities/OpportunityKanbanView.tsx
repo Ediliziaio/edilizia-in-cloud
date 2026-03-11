@@ -41,9 +41,12 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   return (
     <div className={cn("flex flex-col shrink-0 h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[220px] max-w-[260px]" : "min-w-[280px] max-w-[300px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
-        <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
+          <span className="text-[10px] font-semibold bg-muted rounded-full px-1.5 py-0.5 text-muted-foreground">{opportunities.length}</span>
+        </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+          {formatCurrency(totalValue)} tot · {formatCurrency(avgValue)} avg
         </p>
       </div>
       <div
