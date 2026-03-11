@@ -68,7 +68,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
     </div>
   );
 
-  const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [] };
+  const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [], revenueInRange: 0, collectedInRange: 0, costsPaidInRange: 0 };
 
   const tiles = [
     {
@@ -135,6 +135,23 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
             </Button>
           ))}
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="font-medium text-foreground">Fatturato:</span>
+          <span className="font-semibold text-foreground">{fmtEur(data.revenueInRange)}</span>
+        </span>
+        <span className="w-px h-3 bg-border" />
+        <span className="flex items-center gap-1">
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">Incassato:</span>
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtEur(data.collectedInRange)}</span>
+        </span>
+        <span className="w-px h-3 bg-border" />
+        <span className="flex items-center gap-1">
+          <span className="font-medium text-destructive">Costi Pagati:</span>
+          <span className="font-semibold text-destructive">{fmtEur(data.costsPaidInRange)}</span>
+        </span>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

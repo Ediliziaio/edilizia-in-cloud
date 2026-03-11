@@ -59,6 +59,9 @@ export interface TodayData {
   overdueCount: number;
   suppliersDueAmount: number;
   suppliersDue: Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+  revenueInRange: number;
+  collectedInRange: number;
+  costsPaidInRange: number;
 }
 
 export interface CashFlowForecastData {
@@ -397,7 +400,7 @@ export function useCruscottoData() {
       const nowStr = format(new Date(), "yyyy-MM-dd");
       const in7Days = format(addDays(new Date(), 7), "yyyy-MM-dd");
 
-      const [leadsRes, appointmentsRes, overdueRes, suppliersRes] = await Promise.all([
+      const [leadsRes, appointmentsRes, overdueRes, suppliersRes, revenueRes, collectedRes, costsPaidRes] = await Promise.all([
         supabase.from("marketing_contacts").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .gte("created_at", `${todayDateFrom}T00:00:00`)
@@ -419,12 +422,36 @@ export function useCruscottoData() {
           .gte("due_date", nowStr)
           .lte("due_date", in7Days)
           .order("due_date", { ascending: true }),
+        // Revenue: orders created in range
+        supabase.from("orders")
+          .select("total_amount")
+          .eq("company_id", companyId!)
+          .gte("created_at", `${todayDateFrom}T00:00:00`)
+          .lte("created_at", `${todayDateTo}T23:59:59`),
+        // Collected: installments paid in range
+        (supabase as any).from("order_installments")
+          .select("amount, order:orders!inner(company_id)")
+          .eq("order.company_id", companyId!)
+          .eq("is_paid", true)
+          .gte("paid_date", todayDateFrom)
+          .lte("paid_date", todayDateTo),
+        // Costs paid in range
+        supabase.from("company_costs")
+          .select("amount")
+          .eq("company_id", companyId!)
+          .eq("is_paid", true)
+          .gte("paid_date", todayDateFrom)
+          .lte("paid_date", todayDateTo),
       ]);
 
       const overdueCount = overdueRes.data?.length ?? 0;
       const overdueAmount = (overdueRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
       const suppliersDue = (suppliersRes.data ?? []) as Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
       const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
+
+      const revenueInRange = (revenueRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.total_amount), 0);
+      const collectedInRange = (collectedRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
+      const costsPaidInRange = (costsPaidRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
 
       return {
         leadsToday: leadsRes.count ?? 0,
@@ -433,6 +460,9 @@ export function useCruscottoData() {
         overdueCount,
         suppliersDueAmount,
         suppliersDue,
+        revenueInRange,
+        collectedInRange,
+        costsPaidInRange,
       };
     },
   });
