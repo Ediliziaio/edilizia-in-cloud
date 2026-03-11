@@ -1,194 +1,92 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Sales OS — Piano di Implementazione Completo (SO1 → SO6)
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+Ho analizzato il file caricato e lo stato attuale del database/codice. Ecco le differenze chiave e il piano adattato.
 
----
+## Stato attuale del database
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+| Elemento | Stato | Note |
+|---|---|---|
+| `marketing_opportunities.probability` | Esiste | OK |
+| `marketing_opportunities.expected_close_date` | Esiste | OK |
+| `marketing_opportunities.next_action`, `next_action_date`, `lost_reason_category`, `competitor_won`, `stalled_notified_at`, `sales_velocity_snapshot` | Mancanti | Da aggiungere |
+| `marketing_opportunities.loss_reason` / `loss_notes` | Esiste | Il prompt usa `lost_reason` — adatteremo ai nomi esistenti |
+| `marketing_pipeline_stages.win_probability`, `stalled_threshold_days`, `playbook`, `expected_duration_days` | Mancanti | Da aggiungere |
+| `marketing_contacts.lead_score`, `icp_score`, `icp_tier`, `last_score_update` | Mancanti | Da aggiungere |
+| `sales_targets` | Esiste ma schema diverso | Ha `user_id`/`period_type`/`target_revenue` invece di `assigned_to`/`year`/`month`/`target_amount`. Adatteremo gli hook alla struttura esistente |
+| `sales_playbook_completions` | Non esiste | Da creare |
+| RPC functions (4) | Non esistono | Da creare |
+| `useSalesOS.ts` | Non esiste | Da creare |
+| SalesOS Dashboard | Non esiste | Da creare |
 
----
+## Piano esecutivo (6 step sequenziali)
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### Step 1 — Database Migration
 
----
+Una singola migration SQL che:
+- Aggiunge 6 colonne a `marketing_opportunities` (skip `probability` e `expected_close_date` che esistono già, adatta `lost_reason` a `loss_reason` esistente)
+- Aggiunge 4 colonne a `marketing_pipeline_stages`
+- Aggiunge 4 colonne a `marketing_contacts`
+- Crea tabella `sales_playbook_completions` con RLS
+- NON tocca `sales_targets` (esiste già con schema diverso — adatteremo il codice)
+- Crea 4 RPC functions: `get_weighted_pipeline`, `get_sales_forecast`, `get_stalled_opportunities`, `get_sales_velocity`
+- Crea indici per performance
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+Le RPC useranno `loss_reason` invece di `lost_reason` per allinearsi ai nomi colonna esistenti. I CHECK constraint saranno sostituiti da validation trigger come da linee guida.
 
----
+### Step 2 — Hook: `src/hooks/useSalesOS.ts`
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+Crea il hook con tutti i tipi e le query dal prompt, adattando:
+- `useCompanyData()` → `useAuth()` con `effectiveCompany?.id`
+- `useSalesTargets` → adattato allo schema `sales_targets` esistente (usa `user_id` e `target_revenue` invece di `assigned_to`/`target_amount`)
+- `useSellerPerformance` → usa `profiles` con `first_name`/`last_name` (verificato nel progetto)
+- `useUpdateOpportunityMutation` → usa `loss_reason` invece di `lost_reason`
 
----
+Include: 8 query hooks + 2 mutations + `useRecalculateLeadScore`
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+### Step 3 — Utility: `src/utils/leadScoring.ts`
 
----
+Copia esatta dal prompt — logica pura senza dipendenze esterne.
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+### Step 4 — UI: Opportunity Detail Enhancement
 
----
+Modifica `OpportunityDetailDialog.tsx`:
+- Aggiunge sezione "Avanzamento Commerciale" (data chiusura, probabilità, prossima azione)
+- Aggiunge Dialog obbligatorio "Motivo Perdita" quando status → lost/abandoned
+- Aggiunge Badge "Ferma da Xgg"
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+### Step 5 — Pagina: `src/pages/azienda/marketing/SalesOSDashboard.tsx`
 
----
+Crea la pagina con 4 tab (Pipeline, Ferme, Team, Analisi) come dal prompt, con:
+- `SalesVelocityCard` sempre visibile
+- `WeightedPipelineChart` + `SalesForecastChart`
+- `StalledOpportunitiesPanel`
+- `SellerComparisonTable` + `TopLeadsTable`
+- `ConversionBySourceChart`
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+Usa `effectiveCompany?.id` come companyId.
 
----
+### Step 6 — Integrazione: Routing + Sidebar + Stage Config
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+- Aggiunge route `/azienda/marketing/sales-os` in `App.tsx`
+- Aggiunge link "Sales OS" nella sidebar Marketing
+- Aggiunge campi `win_probability` e `stalled_threshold_days` al form stage in `PipelineStagesConfig.tsx`
+- Aggiunge Lead Score al dettaglio contatto `MarketingContactDetail.tsx`
 
----
+## File coinvolti
 
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+| File | Azione |
+|---|---|
+| Migration SQL | Nuovo — via migration tool |
+| `src/hooks/useSalesOS.ts` | Nuovo |
+| `src/utils/leadScoring.ts` | Nuovo |
+| `src/pages/azienda/marketing/SalesOSDashboard.tsx` | Nuovo |
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Modifica |
+| `src/components/settings/PipelineStagesConfig.tsx` | Modifica |
+| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Modifica |
+| `src/App.tsx` (o router) | Modifica |
+| Sidebar/Nav component | Modifica |
 
----
+Data la complessità (6 step, ~2000 righe di codice), implementeremo in 2-3 messaggi sequenziali: prima DB + hooks, poi UI + routing.
 
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
