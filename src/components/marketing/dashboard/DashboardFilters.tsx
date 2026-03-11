@@ -100,7 +100,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }:
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-3">
+    <div className={cn("flex flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3")}>
       <Filter className="h-4 w-4 text-muted-foreground" />
 
       {/* Date presets */}
