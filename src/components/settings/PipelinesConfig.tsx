@@ -125,7 +125,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
       setEditOpen(false);
       toast.success("Sequenza aggiornata");
     },
