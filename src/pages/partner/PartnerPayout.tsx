@@ -32,7 +32,7 @@ export default function PartnerPayout() {
   });
 
   const { data: payouts = [], isLoading } = useQuery({
-    queryKey: ["my-payouts", referrer?.id],
+    queryKey: queryKeys.partnerPayouts.payouts(referrer?.id),
     enabled: !!referrer?.id,
     queryFn: async () => {
       const { data, error } = await supabase
