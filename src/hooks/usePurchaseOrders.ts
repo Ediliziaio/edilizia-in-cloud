@@ -186,8 +186,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-items", poId] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-order-detail", poId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
