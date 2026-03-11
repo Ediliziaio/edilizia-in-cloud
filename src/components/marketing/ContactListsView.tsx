@@ -448,8 +448,8 @@ function ListDetailView({
         listId={listId}
         companyId={companyId}
         onDone={() => {
-          queryClient.invalidateQueries({ queryKey: ["list-members", listId] });
-          queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.listMembers.byList(listId) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
         }}
       />
     </div>
