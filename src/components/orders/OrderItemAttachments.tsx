@@ -174,7 +174,7 @@ export function OrderItemAttachments({
 
       onAttachmentsChange();
     } catch (error: any) {
-      console.error("Upload error:", error);
+      logger.error("Upload error:", error);
       toast({
         title: "Errore caricamento",
         description: error.message || "Impossibile caricare il file",
