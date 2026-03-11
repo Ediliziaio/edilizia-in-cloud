@@ -641,7 +641,7 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Scadenze aperte</p>
           <p className="text-xl font-bold">{scadenze.filter((s: any) => s.status !== "pagata" && s.status !== "annullata").length}</p>
-          <p className="text-xs text-muted-foreground">{fmtEur(supplier.scadenze_importo || 0)} residuo</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(supplier.scadenze_importo || 0)} residuo</p>
         </CardContent></Card>
         <Card className={scaduteCount > 0 ? "border-destructive" : ""}><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Scadute</p>
