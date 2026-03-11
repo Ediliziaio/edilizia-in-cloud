@@ -79,7 +79,7 @@ export default function TicketDetail() {
   });
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: ["admin-ticket-messages", id],
+    queryKey: queryKeys.adminTicketMessages.byTicket(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
