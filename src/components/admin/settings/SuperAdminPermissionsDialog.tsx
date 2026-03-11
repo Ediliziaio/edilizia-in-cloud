@@ -59,7 +59,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
   const [allCompanies, setAllCompanies] = useState(true);
 
   const { data: currentPerms, isLoading: loadingPerms } = useQuery({
-    queryKey: ["super-admin-permissions", adminId],
+    queryKey: queryKeys.admin.superAdminPermissions(adminId),
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
