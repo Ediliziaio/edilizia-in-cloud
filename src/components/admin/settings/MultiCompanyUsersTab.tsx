@@ -230,6 +230,12 @@ export default function MultiCompanyUsersTab() {
                           </div>
                         ))}
                       </div>
+                      {saPermissions.can_manage_admins && (
+                        <AddCompanyAccessForm
+                          userId={activeUser.id}
+                          existingCompanyIds={activeUser.accesses.map((a) => a.company_id)}
+                        />
+                      )}
                     </div>
                   </div>
                 ) : (
