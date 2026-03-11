@@ -82,7 +82,7 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
       toast.success(`Trial esteso di ${days} giorni`);
       setShowWarning(false);
       setShowConfirm(false);
-      queryClient.invalidateQueries({ queryKey: ["admin-revenue-intelligence"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.revenueIntelligence() });
     },
     onError: () => toast.error("Errore nell'estensione del trial"),
   });

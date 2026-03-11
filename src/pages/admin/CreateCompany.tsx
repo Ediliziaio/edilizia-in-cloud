@@ -72,7 +72,7 @@ export default function CreateCompany() {
   const [selectedReferrerId, setSelectedReferrerId] = useState<string>("");
 
   const { data: referrers = [] } = useQuery({
-    queryKey: ["referrers-active"],
+    queryKey: queryKeys.admin.referrersActive,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("referrers")

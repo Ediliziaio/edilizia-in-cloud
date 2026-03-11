@@ -46,8 +46,8 @@ export default function AdminGDPR() {
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-gdpr-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["gdpr-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.gdprRequests });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.gdprAuditLog });
       toast.success(vars.approve ? "Richiesta approvata — account cancellato" : "Richiesta rifiutata");
     },
     onError: (e: Error) => toast.error(e.message),

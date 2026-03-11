@@ -132,8 +132,8 @@ export default function FeatureFlags() {
       }
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
-      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
       toast.success(vars.enabled ? "Attivato per tutte le aziende" : "Override rimossi per tutte le aziende");
     },
     onError: () => toast.error("Errore nell'operazione bulk"),

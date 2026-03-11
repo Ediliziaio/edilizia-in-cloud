@@ -71,7 +71,7 @@ export default function AdminSettingsIPAllowlist() {
     onSuccess: () => {
       toast.success("IP rimosso dalla whitelist");
       setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-ip-allowlist"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.ipAllowlist });
     },
     onError: () => toast.error("Errore nella rimozione"),
   });
