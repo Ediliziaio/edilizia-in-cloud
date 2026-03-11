@@ -68,6 +68,23 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
           ))}
         </SelectContent>
       </Select>
+      <Input
+        type="number"
+        value={stage.win_probability ?? ""}
+        onChange={(e) => onFieldChange(stage.id, "win_probability", e.target.value ? parseInt(e.target.value) : null)}
+        placeholder="Win %"
+        className="h-8 text-xs w-[70px]"
+        min={0}
+        max={100}
+      />
+      <Input
+        type="number"
+        value={stage.stalled_threshold_days ?? ""}
+        onChange={(e) => onFieldChange(stage.id, "stalled_threshold_days", e.target.value ? parseInt(e.target.value) : null)}
+        placeholder="Ferma gg"
+        className="h-8 text-xs w-[80px]"
+        min={1}
+      />
       {canDelete && (
         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
           <Trash2 className="h-3.5 w-3.5" />
