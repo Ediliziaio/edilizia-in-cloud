@@ -28,7 +28,7 @@ export default function SalespersonDashboard() {
 
   // Fetch order commissions
   const { data: commissions = [] } = useQuery({
-    queryKey: ["salesperson-commissions", salesperson?.id],
+    queryKey: queryKeys.salespersonPortal.commissions(salesperson?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")

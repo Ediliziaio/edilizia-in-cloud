@@ -63,7 +63,7 @@ export function TagsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       toast.success("Tag eliminato");
     },
     onError: () => toast.error("Errore nell'eliminazione"),

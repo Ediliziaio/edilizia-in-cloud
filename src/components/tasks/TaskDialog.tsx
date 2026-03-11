@@ -211,7 +211,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   });
 
   const { data: opportunities = [] } = useQuery({
-    queryKey: ["task-opportunities", companyId],
+    queryKey: queryKeys.taskLookups.opportunities(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase

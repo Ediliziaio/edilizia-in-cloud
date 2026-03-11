@@ -39,7 +39,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
   const [actionFilter, setActionFilter] = useState<string>("all");
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["user-audit-log", userId, actionFilter],
+    queryKey: queryKeys.userAuditLog.byUser(userId, actionFilter),
     queryFn: async () => {
       let query = supabase
         .from("user_audit_log")

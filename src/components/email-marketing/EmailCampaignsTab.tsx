@@ -103,7 +103,7 @@ export function EmailCampaignsTab() {
     },
     onSuccess: () => {
       toast.success("Cartella creata");
-      qc.invalidateQueries({ queryKey: ["email-folders"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailFolders.all });
       setFolderDialogOpen(false);
     },
     onError: (e: any) => toast.error(e.message),

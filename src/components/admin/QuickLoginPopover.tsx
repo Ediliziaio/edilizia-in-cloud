@@ -95,7 +95,7 @@ export function QuickLoginPopover() {
   const debouncedSearch = useDebounce(search, 300);
 
   const { data: users = [] } = useQuery({
-    queryKey: ["admin-all-users-for-login", debouncedSearch],
+    queryKey: queryKeys.adminQuickLogin.search(debouncedSearch),
     queryFn: async () => {
       // Build profiles query with server-side filtering + limit
       let profilesQuery = supabase
