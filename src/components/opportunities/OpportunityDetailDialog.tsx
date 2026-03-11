@@ -645,14 +645,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={(newStatus) => {
-                            if (newStatus === "lost" && status !== "lost") {
+                            if ((newStatus === "lost" || newStatus === "abandoned") && status !== newStatus) {
                               setPendingLostStatus(true);
                               setShowLossDialog(true);
                             } else {
                               setStatus(newStatus);
-                              if (newStatus !== "lost") {
+                              if (newStatus !== "lost" && newStatus !== "abandoned") {
                                 setLossReason("");
                                 setLossNotes("");
+                                setLostReasonCategory("");
+                                setCompetitorWon("");
                               }
                             }
                           }}>
