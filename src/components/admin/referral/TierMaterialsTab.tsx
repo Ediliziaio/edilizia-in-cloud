@@ -20,7 +20,7 @@ export function TierMaterialsTab() {
   const [form, setForm] = useState({ name: "", description: "", type: "banner", file_url: "", thumbnail_url: "", min_tier: "bronze", sort_order: 0 });
 
   const { data: tiers = [] } = useQuery({
-    queryKey: ["admin-referral-tiers"],
+    queryKey: queryKeys.admin.referralTiers,
     queryFn: async () => {
       const { data } = await supabase.from("referral_tiers").select("*").order("position");
       return data || [];
