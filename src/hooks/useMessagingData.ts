@@ -247,7 +247,7 @@ export function useIgnoreAiRun() {
         .eq("id", aiRunId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
     },
   });
 }
