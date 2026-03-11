@@ -141,7 +141,7 @@ export default function CompaniesList() {
   });
 
   const { data: userCounts = {} } = useQuery({
-    queryKey: ["admin-companies-user-counts"],
+    queryKey: queryKeys.admin.companiesUserCounts,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_user_counts");
       if (error) throw error;
