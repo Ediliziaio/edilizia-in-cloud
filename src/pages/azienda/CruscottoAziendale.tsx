@@ -39,7 +39,7 @@ export default function CruscottoAziendale() {
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between print:mb-4">
         <div>
