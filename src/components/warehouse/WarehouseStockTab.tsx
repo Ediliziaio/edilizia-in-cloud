@@ -560,6 +560,7 @@ export default function WarehouseStockTab() {
           open={!!auditItem}
           onOpenChange={(v) => { if (!v) setAuditItem(null); }}
           stockItem={auditItem}
+          companyId={companyId!}
         />
       </div>
     </DndContext>

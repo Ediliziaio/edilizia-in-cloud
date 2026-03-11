@@ -1,56 +1,102 @@
-import { AlertTriangle, ExternalLink } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { AlertTriangle, Truck, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useBlockedOrders } from "@/hooks/useMagazzinoLive";
+import { useBlockedOrders, ORDER_ITEM_STATUS_CONFIG } from "@/hooks/useMagazzinoLive";
 import { useNavigate } from "react-router-dom";
 
-export default function BlockedOrdersPanel() {
-  const { data: blockedOrders = [], isLoading } = useBlockedOrders();
+interface Props {
+  companyId: string;
+  compact?: boolean;
+}
+
+const urgencyConfig = {
+  critica: { label: "Critica", className: "bg-red-100 text-red-800 border-red-300" },
+  alta: { label: "Alta", className: "bg-amber-100 text-amber-800 border-amber-300" },
+  normale: { label: "Normale", className: "bg-blue-100 text-blue-800 border-blue-300" },
+};
+
+export default function BlockedOrdersPanel({ companyId, compact = false }: Props) {
+  const { data: blocked = [], isLoading } = useBlockedOrders(companyId);
   const navigate = useNavigate();
 
-  if (isLoading || blockedOrders.length === 0) return null;
+  if (isLoading) return (
+    <Card><CardContent className="py-4 text-center text-sm text-muted-foreground">Analisi blocchi materiali...</CardContent></Card>
+  );
+
+  if (blocked.length === 0) return (
+    <Card><CardContent className="py-4 text-center text-sm text-muted-foreground">Nessun ordine bloccato per mancanza materiali</CardContent></Card>
+  );
+
+  const critici = blocked.filter((o) => o.urgency_level === "critica").length;
+  const alti = blocked.filter((o) => o.urgency_level === "alta").length;
+  const displayed = compact ? blocked.slice(0, 5) : blocked;
 
   return (
     <Card className="border-destructive/30 bg-destructive/5">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-destructive" />
-          Ordini a Rischio Blocco
-          <Badge variant="destructive" className="ml-auto">{blockedOrders.length}</Badge>
+          Ordini Bloccati — Materiali Mancanti
+          <Badge variant="destructive" className="ml-auto">{blocked.length}</Badge>
         </CardTitle>
+        <div className="flex gap-2 text-xs">
+          {critici > 0 && <span className="text-red-700 font-medium">{critici} critici</span>}
+          {alti > 0 && <span className="text-amber-700 font-medium">{alti} urgenti</span>}
+        </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {blockedOrders.slice(0, 5).map((order) => (
+        {displayed.map((order) => (
           <div
             key={order.order_id}
-            className="flex items-center justify-between p-2 rounded-md bg-background/80 border text-sm"
+            className="p-2 rounded-md bg-background/80 border text-sm cursor-pointer hover:bg-accent/50 transition-colors"
+            onClick={() => navigate(`/azienda/ordini/${order.order_id}`)}
           >
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">
-                {order.order_code ?? "Senza codice"} — {order.customer_name}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate flex items-center gap-2">
+                  {order.order_code ?? order.order_id.slice(0, 8)} — {order.customer_name}
+                  <Badge className={`text-[10px] ${urgencyConfig[order.urgency_level].className}`}>
+                    {urgencyConfig[order.urgency_level].label}
+                  </Badge>
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                  {order.work_start_date && (
+                    <span className="flex items-center gap-1">
+                      <Truck className="h-3 w-3" />
+                      Inizio lavori: {new Date(order.work_start_date).toLocaleDateString("it-IT")}
+                    </span>
+                  )}
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {order.blocking_items_count} mancant{order.blocking_items_count === 1 ? "e" : "i"}
+                  </Badge>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Posa: {order.expected_date ? format(new Date(order.expected_date), "d MMM yyyy", { locale: it }) : "N/D"}
-                {" · "}
-                <span className="text-destructive font-medium">{order.missing_items}/{order.total_items} mancanti</span>
-              </div>
+              <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8">
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 h-8 w-8"
-              onClick={() => navigate(`/azienda/ordini/${order.order_id}`)}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
+
+            {!compact && order.missing_items.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {order.missing_items.slice(0, 4).map((item) => {
+                  const cfg = ORDER_ITEM_STATUS_CONFIG[item.status];
+                  return (
+                    <span key={item.item_id} className={`text-[10px] px-1.5 py-0.5 rounded ${cfg?.bgColor} ${cfg?.color}`}>
+                      {item.name.length > 20 ? item.name.slice(0, 20) + "…" : item.name} — {cfg?.label}
+                    </span>
+                  );
+                })}
+                {order.missing_items.length > 4 && (
+                  <span className="text-[10px] text-muted-foreground">+{order.missing_items.length - 4} altri</span>
+                )}
+              </div>
+            )}
           </div>
         ))}
-        {blockedOrders.length > 5 && (
+        {compact && blocked.length > 5 && (
           <p className="text-xs text-muted-foreground text-center pt-1">
-            +{blockedOrders.length - 5} altri ordini a rischio
+            +{blocked.length - 5} ordini bloccati
           </p>
         )}
       </CardContent>

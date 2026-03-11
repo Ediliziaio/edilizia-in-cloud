@@ -254,8 +254,8 @@ export default function Warehouse() {
 
       {/* Live panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
-        <BlockedOrdersPanel />
-        <LowStockAlertsPanel />
+        <BlockedOrdersPanel companyId={effectiveCompany.id} compact />
+        <LowStockAlertsPanel companyId={effectiveCompany.id} compact />
       </div>
 
       {/* Stats */}

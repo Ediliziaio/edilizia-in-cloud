@@ -12891,9 +12891,12 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          last_delivery_date: string | null
+          last_lot_number: string | null
           min_stock_level: number
           name: string
           quantity: number
+          quantity_available: number | null
           quantity_reserved: number
           reorder_quantity: number
           section_id: string | null
@@ -12907,9 +12910,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_delivery_date?: string | null
+          last_lot_number?: string | null
           min_stock_level?: number
           name: string
           quantity?: number
+          quantity_available?: number | null
           quantity_reserved?: number
           reorder_quantity?: number
           section_id?: string | null
@@ -12923,9 +12929,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_delivery_date?: string | null
+          last_lot_number?: string | null
           min_stock_level?: number
           name?: string
           quantity?: number
+          quantity_available?: number | null
           quantity_reserved?: number
           reorder_quantity?: number
           section_id?: string | null
@@ -13441,12 +13450,14 @@ export type Database = {
       get_blocked_orders: {
         Args: { p_company_id: string }
         Returns: {
+          blocking_items_count: number
           customer_name: string
           expected_date: string
-          missing_items: number
+          missing_items: Json
           order_code: string
           order_id: string
-          total_items: number
+          urgency_level: string
+          work_start_date: string
         }[]
       }
       get_cash_flow_by_month: {
@@ -13599,14 +13610,15 @@ export type Database = {
       get_low_stock_alerts: {
         Args: { p_company_id: string }
         Returns: {
-          available: number
-          current_quantity: number
-          item_name: string
-          min_level: number
-          reorder_qty: number
-          reserved: number
+          deficit: number
+          min_stock_level: number
+          name: string
+          quantity: number
+          quantity_available: number
+          quantity_reserved: number
+          section_name: string
           stock_item_id: string
-          supplier_id: string
+          supplier_name: string
         }[]
       }
       get_marketing_dashboard_stats: {
@@ -13622,16 +13634,18 @@ export type Database = {
       }
       get_my_company_id: { Args: never; Returns: string }
       get_order_materials_history: {
-        Args: { p_order_id: string }
+        Args: { p_company_id: string; p_order_id: string }
         Returns: {
           created_at: string
           lot_number: string
           movement_id: string
           movement_type: string
           notes: string
-          performed_by: string
+          order_item_name: string
+          performed_by_name: string
           quantity: number
           stock_item_name: string
+          unit_cost: number
         }[]
       }
       get_plan_company_counts: {

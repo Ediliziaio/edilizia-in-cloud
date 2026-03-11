@@ -1,81 +1,194 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-# Magazzino Live v2 — Allineamento al Documento Completo
+---
 
-## Situazione Attuale
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
-L'implementazione MG1-MG5 precedente ha creato le basi, ma in versione **semplificata** rispetto a quanto specificato nel documento. Ecco le differenze concrete:
+---
 
-### Database — Gap
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-| Elemento | Documento | Attuale |
-|----------|-----------|---------|
-| `warehouse_stock.quantity_available` (GENERATED) | Colonna calcolata | Manca |
-| `warehouse_stock.last_delivery_date`, `last_lot_number` | Presenti | Mancano |
-| Trigger prenotazione/rilascio | `update_reservation_on_status_change` | Manca |
-| `warehouse_lot_batches` schema | `quantity_received`, `quantity_remaining`, `delivery_date`, `updated_at` | Ha `quantity`, `received_date`, `expiry_date` |
-| `inventory_audits` schema | `system_quantity`, `actual_quantity`, `difference` GENERATED, `audited_by`, `audited_at`, `applied_at` | Ha `expected_quantity`, `counted_quantity`, `difference` non-generated |
-| `get_blocked_orders` RPC | Ritorna `work_start_date`, `blocking_items_count`, `missing_items` (JSONB dettagliato), `urgency_level` | Ritorna solo `total_items`, `missing_items` (conteggio) |
-| `get_low_stock_alerts` RPC | Ritorna `name`, `deficit`, `supplier_name`, `section_name` | Ritorna `item_name`, `reorder_qty`, `supplier_id` |
-| `get_order_materials_history` RPC | Accetta `p_company_id` + `p_order_id`, ritorna `order_item_name`, `unit_cost`, `performed_by_name` | Accetta solo `p_order_id` |
+---
 
-### Codice — Gap
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-| Elemento | Documento | Attuale |
-|----------|-----------|---------|
-| `ORDER_ITEM_STATUS_CONFIG` con `borderColor`, `description` | Esportato dal hook | Manca nel hook |
-| `useWarehouseStats` hook | Presente con stats aggregate | Manca |
-| `useUpdateOrderItemStatusMutation` | Con `deliveryDate`, `lotNumber`, `stockItemId` | Manca |
-| `useApplyAuditAdjustmentMutation` | Crea movimento rettifica + aggiorna stock + segna audit | Solo aggiorna stock + audit |
-| `useAddLotBatchMutation` | Aggiorna `last_lot_number`/`last_delivery_date` su warehouse_stock | Solo inserisce lotto |
-| `BlockedOrdersPanel` | Urgency badges (critica/alta/normale), lista materiali mancanti, compact mode, navigazione | Versione semplificata |
-| `LowStockAlertsPanel` | Esauriti vs sotto soglia, supplier name, deficit, compact mode | Versione semplificata |
-| `OrderMaterialsHistory` | Timeline con icone per tipo, costo, lotto, performer | Solo lista base |
-| `InventoryAuditDialog` | Con `InventoryAuditsList` separato, applica rettifica con movimento | Versione semplificata |
-| Query keys strutturati (`magazzinoKeys`) | Pattern organizzato | Query keys sparse |
+---
 
-## Piano di Implementazione
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
 
-### Step 1 — Migration DB: Allineare schema e RPCs
+---
 
-Una singola migration che:
-1. Aggiunge `quantity_available` (GENERATED), `last_delivery_date`, `last_lot_number` a `warehouse_stock`
-2. Allinea `warehouse_lot_batches`: rinomina colonne (`quantity` → `quantity_received`, add `quantity_remaining`, `received_date` → `delivery_date`, add `updated_at`, rimuovi `expiry_date`)
-3. Allinea `inventory_audits`: rinomina colonne (`expected_quantity` → `system_quantity`, `counted_quantity` → `actual_quantity`), rendi `difference` GENERATED, aggiungi `audited_by`, `audited_at`, `applied_at`
-4. Crea trigger `update_reservation_on_status_change` per gestire prenotazioni/rilasci automaticamente
-5. Ricrea le 3 RPC con le signature complete del documento (urgency_level, missing_items JSONB, etc.)
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
 
-### Step 2 — Riscrivere `useMagazzinoLive.ts`
+---
 
-Sostituire completamente il file con la versione completa dal documento:
-- Tipi allineati (BlockedOrder con urgency_level e missing_items array, LowStockAlert con deficit/supplier_name/section_name, etc.)
-- `ORDER_ITEM_STATUS_CONFIG` con tutti i campi (borderColor, description)
-- `magazzinoKeys` per query keys strutturati
-- Tutti gli hooks: `useBlockedOrders(companyId)`, `useLowStockAlerts(companyId)`, `useOrderMaterialsHistory(companyId, orderId)`, `useLotBatches(companyId, stockItemId?)`, `useInventoryAudits(companyId)`, `useWarehouseStats(companyId)`
-- Mutations complete: `useUpdateOrderItemStatusMutation`, `useAddLotBatchMutation` (con update warehouse_stock), `useCreateInventoryAuditMutation`, `useApplyAuditAdjustmentMutation` (con movimento rettifica)
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
 
-### Step 3 — Riscrivere i 4 componenti UI
+---
 
-Sostituire i componenti semplificati con le versioni complete del documento:
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
 
-1. **`BlockedOrdersPanel.tsx`** — Accetta `companyId` + `compact`, urgency badges (critica/alta/normale), lista materiali mancanti con status badges, navigazione ordine
-2. **`LowStockAlertsPanel.tsx`** — Accetta `companyId` + `compact`, sezione esauriti (rosso) e sotto soglia (giallo), deficit, supplier name
-3. **`OrderMaterialsHistory.tsx`** — Accetta `companyId` + `orderId`, timeline con icone per tipo movimento, costo totale, lotto, performer
-4. **`InventoryAuditDialog.tsx`** + `InventoryAuditsList` — Dialog con form inventario, lista audit separata con pulsante "Applica rettifica"
+---
 
-### Step 4 — Aggiornare i consumatori
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
 
-- **`Warehouse.tsx`**: passare `companyId` ai pannelli, aggiungere stats card con `useWarehouseStats`
-- **`WarehouseStockTab.tsx`**: aggiornare per passare `companyId` al dialog inventario
-- Aggiornare qualsiasi altro file che importa i vecchi tipi dal hook
+---
 
-### File da modificare
-1. Nuova migration SQL
-2. `src/hooks/useMagazzinoLive.ts` (riscrittura)
-3. `src/components/warehouse/BlockedOrdersPanel.tsx` (riscrittura)
-4. `src/components/warehouse/LowStockAlertsPanel.tsx` (riscrittura)
-5. `src/components/warehouse/OrderMaterialsHistory.tsx` (riscrittura)
-6. `src/components/warehouse/InventoryAuditDialog.tsx` (riscrittura)
-7. `src/pages/azienda/Warehouse.tsx` (aggiornare props)
-8. `src/components/warehouse/WarehouseStockTab.tsx` (aggiornare props)
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
 
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+
+---
+
+## UTM Attribution Tracking ✅
+- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
+- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
+- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
+- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
+- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
+- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
+- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
+- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
+- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
+- ✅ **useContactAttribution** + **useAttributionReport** hooks
+
+---
+
+## Form Builder + Lead Capture ✅
+- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
+- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
+- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
+- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
+- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
+- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
+- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
+- ✅ **useFormBuilder** hook: CRUD form con mutations
+- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
+- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
+- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
