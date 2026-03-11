@@ -1003,8 +1003,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             disabled={!lostReasonCategory}
             onClick={() => {
               if (!lostReasonCategory) return;
-              // Set to "lost" or "abandoned" depending on what was selected
-              setStatus(pendingLostStatus ? "lost" : "abandoned");
+              setStatus(pendingLostStatus as string);
               setPendingLostStatus(false);
               setShowLossDialog(false);
             }}
