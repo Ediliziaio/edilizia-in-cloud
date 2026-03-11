@@ -220,7 +220,7 @@ export default function MyEarnings() {
                 />
                 <YAxis 
                   tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value) => `€${value}`}
+                  tickFormatter={formatCurrencyCompact}
                 />
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
