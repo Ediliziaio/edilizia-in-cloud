@@ -70,6 +70,14 @@ export interface CashFlowForecastData {
   ytdRevenue: number;
 }
 
+export interface CompanyTargets {
+  monthly_revenue_target: number | null;
+  monthly_orders_target: number | null;
+  alert_late_orders_threshold: number;
+  alert_open_tickets_threshold: number;
+  alert_margin_min_pct: number;
+  alert_runway_days_warning: number;
+}
 
 interface InstallmentRow {
   amount: number;
