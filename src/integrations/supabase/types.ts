@@ -12795,6 +12795,66 @@ export type Database = {
           },
         ]
       }
+      user_calendar_preferences: {
+        Row: {
+          block_busy_slots: boolean
+          buffer_after_min: number
+          buffer_before_min: number
+          company_id: string
+          created_at: string | null
+          default_calendar_id: string | null
+          default_calendar_name: string | null
+          id: string
+          sync_direction: string
+          sync_enabled: boolean
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          block_busy_slots?: boolean
+          buffer_after_min?: number
+          buffer_before_min?: number
+          company_id: string
+          created_at?: string | null
+          default_calendar_id?: string | null
+          default_calendar_name?: string | null
+          id?: string
+          sync_direction?: string
+          sync_enabled?: boolean
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          block_busy_slots?: boolean
+          buffer_after_min?: number
+          buffer_before_min?: number
+          company_id?: string
+          created_at?: string | null
+          default_calendar_id?: string | null
+          default_calendar_name?: string | null
+          id?: string
+          sync_direction?: string
+          sync_enabled?: boolean
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_calendar_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_calendar_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
