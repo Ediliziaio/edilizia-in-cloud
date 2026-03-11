@@ -71,7 +71,7 @@ export default function Employees() {
   });
 
   const { data: externalTeams = [], isLoading: loadingTeams } = useQuery({
-    queryKey: ["external-teams", effectiveCompanyId],
+    queryKey: queryKeys.externalTeams.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("external_teams").select("*")
         .eq("company_id", effectiveCompanyId!).order("name");
