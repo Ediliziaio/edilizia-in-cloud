@@ -60,7 +60,7 @@ export default function DragDropEmailBuilder() {
   }, []);
 
   const { data: campaign, isLoading } = useQuery({
-    queryKey: ["campaign-builder", id],
+    queryKey: queryKeys.campaignEditor.builder(id),
     enabled: !!id && !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
