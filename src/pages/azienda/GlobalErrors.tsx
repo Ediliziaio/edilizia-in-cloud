@@ -210,7 +210,7 @@ export default function GlobalErrors() {
             <HardHat className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmt(stats.manodoperaTotal)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.manodoperaTotal)}</div>
           </CardContent>
         </Card>
         <Card>
