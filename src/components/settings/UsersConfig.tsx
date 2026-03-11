@@ -357,7 +357,18 @@ export function UsersConfig() {
         },
       });
 
-      if (response.error) throw new Error(response.error.message || "Errore durante la creazione");
+      if (response.error) {
+        let errorMessage = "Errore durante la creazione dell'utente";
+        try {
+          const errorBody = await response.error.context?.json?.();
+          if (errorBody?.error) errorMessage = errorBody.error;
+        } catch {
+          if (response.error.message && !response.error.message.includes("non-2xx")) {
+            errorMessage = response.error.message;
+          }
+        }
+        throw new Error(errorMessage);
+      }
       if (response.data?.error) throw new Error(response.data.error);
 
       // Update permissions for roles that use staff_permissions
