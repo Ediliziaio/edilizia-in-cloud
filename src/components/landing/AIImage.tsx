@@ -45,7 +45,7 @@ export default function AIImage({ prompt, alt, className = "" }: AIImageProps) {
         if (cancelled) return;
 
         if (fnError || !data?.imageUrl) {
-          console.error("AI image error:", fnError);
+          logger.error("AI image error:", fnError);
           setError(true);
           setLoading(false);
           return;
