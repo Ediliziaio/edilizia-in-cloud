@@ -54,7 +54,7 @@ export default function SettingsCostCategories() {
 
   // Usage count per category name
   const { data: usageCounts = {} } = useQuery({
-    queryKey: ["cost-category-usage", companyId],
+    queryKey: queryKeys.costCategories.usage(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
