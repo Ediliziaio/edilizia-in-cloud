@@ -263,7 +263,7 @@ export default function PlatformInfoTab() {
   const queryClient = useQueryClient();
 
   const { data: stats, isLoading } = useQuery({
-    queryKey: ["platform-stats"],
+    queryKey: queryKeys.admin.platformStats,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
