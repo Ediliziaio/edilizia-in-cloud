@@ -125,7 +125,7 @@ export function SalespeopleConfig() {
       const { error } = await supabase.from("salespeople").update({ is_active }).eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["salespeople"] }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all }); },
   });
 
   const deleteMutation = useMutation({
