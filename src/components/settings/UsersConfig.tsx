@@ -309,8 +309,8 @@ export function UsersConfig() {
       });
 
       // Permissions map
-      const permissionsMap: Record<string, any> = {};
-      permsRes.data?.forEach((p) => { permissionsMap[p.user_id] = p; });
+      const permissionsMap: Record<string, StaffPermissions> = {};
+      permsRes.data?.forEach((p) => { permissionsMap[p.user_id] = p as unknown as StaffPermissions; });
 
       // Filter to only company-relevant users
       const companyUserIds = Object.entries(rolesByUser)

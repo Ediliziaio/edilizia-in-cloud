@@ -277,7 +277,7 @@ export default function CustomersList() {
         ...rpcParams,
         p_offset: 0,
         p_limit: 100000,
-      } as any);
+      } as never);
       if (error) throw error;
       const result = data as unknown as PaginatedResult;
       const csvRows = [["Nome", "Cognome", "Email", "Telefono", "Codice Fiscale", "Indirizzo", "Indirizzo Cantiere", "Note", "N. Ordini", "Data Inserimento", "Venditore"]];

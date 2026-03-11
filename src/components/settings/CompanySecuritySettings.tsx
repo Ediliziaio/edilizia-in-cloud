@@ -106,7 +106,7 @@ export function CompanySecuritySettings() {
           password_require_numbers: passwordRequireNumbers,
           password_require_special: passwordRequireSpecial,
           security_notifications: notifications,
-        } as any)
+        } as never)
         .eq("id", effectiveCompany!.id);
       if (error) throw error;
     },
