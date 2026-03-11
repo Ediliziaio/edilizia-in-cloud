@@ -30,7 +30,21 @@ function monthLabel(m: number): string {
 
 // ─── CalendarioAnno ───────────────────────────────────────────────────────────
 
-function CalendarioAnno({ breakEvenMonth }: { breakEvenMonth: number }) {
+function formatCompact(v: number): string {
+  if (v >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
+  return `€${Math.round(v)}`;
+}
+
+function CalendarioAnno({
+  breakEvenMonth,
+  monthlyContribution,
+  fixedCostsAnnual,
+}: {
+  breakEvenMonth: number;
+  monthlyContribution: number;
+  fixedCostsAnnual: number;
+}) {
   const notReached = breakEvenMonth > 12;
 
   return (
@@ -43,6 +57,10 @@ function CalendarioAnno({ breakEvenMonth }: { breakEvenMonth: number }) {
       <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-12">
         {MONTH_SHORT.map((name, idx) => {
           const monthNum = idx + 1;
+          const cumulative = monthlyContribution * monthNum;
+          const coveragePercent = fixedCostsAnnual > 0
+            ? Math.min(Math.round((cumulative / fixedCostsAnnual) * 100), 999)
+            : 0;
           const isPaying = notReached || monthNum <= breakEvenMonth;
           const isBreakEvenMonth = !notReached && monthNum === breakEvenMonth;
 
@@ -68,8 +86,23 @@ function CalendarioAnno({ breakEvenMonth }: { breakEvenMonth: number }) {
               }`}>
                 {name}
               </span>
-              <span className="mt-0.5 text-sm">
-                {isBreakEvenMonth ? "🎯" : isPaying ? "💸" : "💰"}
+              <span className={`mt-0.5 text-[11px] font-semibold ${
+                isBreakEvenMonth
+                  ? "text-primary"
+                  : isPaying
+                  ? "text-red-800 dark:text-red-300"
+                  : "text-emerald-800 dark:text-emerald-300"
+              }`}>
+                {formatCompact(cumulative)}
+              </span>
+              <span className={`text-[9px] ${
+                isPaying && !isBreakEvenMonth
+                  ? "text-red-600 dark:text-red-400"
+                  : isBreakEvenMonth
+                  ? "text-primary/80"
+                  : "text-emerald-600 dark:text-emerald-400"
+              }`}>
+                {coveragePercent}%
               </span>
             </div>
           );
@@ -88,6 +121,7 @@ function CalendarioAnno({ breakEvenMonth }: { breakEvenMonth: number }) {
           <span className="inline-block w-3 h-3 rounded-sm bg-emerald-200 dark:bg-emerald-950 border border-emerald-300" />
           Guadagni per te
         </span>
+        <span className="text-[11px]">Valori = contributo cumulato al margine · % = copertura costi fissi annuali</span>
       </div>
     </div>
   );
@@ -398,7 +432,11 @@ export function PuntoDiPareggio() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CalendarioAnno breakEvenMonth={breakEvenMonthOfYear} />
+              <CalendarioAnno
+                breakEvenMonth={breakEvenMonthOfYear}
+                monthlyContribution={currentMonthlyRevenue * (avgMarginPercent / 100)}
+                fixedCostsAnnual={totalFixedCostsMonthly * 12}
+              />
             </CardContent>
           </Card>
 
