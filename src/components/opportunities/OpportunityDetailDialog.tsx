@@ -956,35 +956,49 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3 py-2">
-          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Nessuno —</SelectItem>
-              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
-              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
-              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
-              <SelectItem value="non_risponde">Non risponde</SelectItem>
-              <SelectItem value="non_interessato">Non più interessato</SelectItem>
-              <SelectItem value="budget">Budget insufficiente</SelectItem>
-              <SelectItem value="altro">Altro</SelectItem>
-              {lossReasons.map((r: any) => (
-                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Textarea
-            value={lossNotes}
-            onChange={(e) => setLossNotes(e.target.value)}
-            placeholder="Note opzionali..."
-            rows={2}
-            className="text-sm"
-          />
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Categoria motivo *</Label>
+            <Select value={lostReasonCategory || "none"} onValueChange={(v) => setLostReasonCategory(v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona categoria..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Seleziona —</SelectItem>
+                <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+                <SelectItem value="concorrente">Scelta concorrente</SelectItem>
+                <SelectItem value="budget_non_disponibile">Budget non disponibile</SelectItem>
+                <SelectItem value="timing">Timing non giusto</SelectItem>
+                <SelectItem value="prodotto_non_adatto">Prodotto non adatto</SelectItem>
+                <SelectItem value="nessuna_risposta">Nessuna risposta del cliente</SelectItem>
+                <SelectItem value="altro">Altro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Dettaglio (opzionale)</Label>
+            <Textarea
+              value={lossNotes}
+              onChange={(e) => setLossNotes(e.target.value)}
+              placeholder="Note opzionali..."
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Concorrente che ha vinto (opzionale)</Label>
+            <Input
+              value={competitorWon}
+              onChange={(e) => setCompetitorWon(e.target.value)}
+              placeholder="Es: Competitor SpA, nessuno..."
+              className="h-8 text-sm"
+            />
+          </div>
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setPendingLostStatus(false)}>Annulla</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={!lostReasonCategory}
             onClick={() => {
+              if (!lostReasonCategory) return;
               setStatus("lost");
               setPendingLostStatus(false);
               setShowLossDialog(false);
