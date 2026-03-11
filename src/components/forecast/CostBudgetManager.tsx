@@ -72,7 +72,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-budgets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.budgets(companyId) });
       setNewCategory("");
       setNewAmount("");
       toast.success("Budget salvato");
