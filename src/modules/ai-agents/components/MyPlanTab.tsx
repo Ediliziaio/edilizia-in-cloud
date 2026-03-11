@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ export default function MyPlanTab() {
   const navigate = useNavigate();
 
   const { data: subscription, isLoading: subLoading } = useQuery({
-    queryKey: ["ai-subscription-plan", companyId],
+    queryKey: queryKeys.aiSubscription.plan(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -29,7 +30,7 @@ export default function MyPlanTab() {
   });
 
   const { data: credits, isLoading: creditsLoading } = useQuery({
-    queryKey: ["ai-credits-myplan", companyId],
+    queryKey: queryKeys.aiSubscription.creditsMyPlan(companyId),
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase

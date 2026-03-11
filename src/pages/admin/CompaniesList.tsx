@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -100,7 +101,7 @@ export default function CompaniesList() {
   }, [sortKey, sortDir]);
 
   const { data: allCompanies = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-companies-full"],
+    queryKey: queryKeys.admin.companiesFull,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -122,7 +123,7 @@ export default function CompaniesList() {
   }, [allCompanies, permissions.allowed_company_ids]);
 
   const { data: orderStats = {} } = useQuery({
-    queryKey: ["admin-companies-order-stats"],
+    queryKey: queryKeys.admin.companiesOrderStats,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_order_stats");
       if (error) throw error;
@@ -140,7 +141,7 @@ export default function CompaniesList() {
   });
 
   const { data: userCounts = {} } = useQuery({
-    queryKey: ["admin-companies-user-counts"],
+    queryKey: queryKeys.admin.companiesUserCounts,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_user_counts");
       if (error) throw error;
@@ -156,7 +157,7 @@ export default function CompaniesList() {
   });
 
   const { data: healthData = {} } = useQuery({
-    queryKey: ["admin-companies-health"],
+    queryKey: queryKeys.admin.companiesHealth,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_health_data");
       if (error) throw error;
@@ -180,7 +181,7 @@ export default function CompaniesList() {
 
   // Last access per company
   const { data: lastAccessData = {} } = useQuery({
-    queryKey: ["admin-companies-last-access"],
+    queryKey: queryKeys.admin.companiesLastAccess,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_last_access");
       if (error) throw error;
@@ -195,7 +196,7 @@ export default function CompaniesList() {
 
   // Company tags
   const { data: companyTags = {} } = useQuery({
-    queryKey: ["company-tags"],
+    queryKey: queryKeys.admin.companyTags,
     queryFn: async () => {
       const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
       if (error) throw error;
@@ -213,7 +214,7 @@ export default function CompaniesList() {
 
   // Latest CRM notes per company
   const { data: latestNotes = {} } = useQuery({
-    queryKey: ["admin-companies-latest-notes"],
+    queryKey: queryKeys.admin.companiesLatestNotes,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_notes")

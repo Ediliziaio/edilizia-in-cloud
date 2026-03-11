@@ -427,6 +427,28 @@ export const queryKeys = {
     revenueIntelligence: () => ["admin", "revenue-intelligence"] as const,
     companyDetail: (id: string | undefined) => ["admin", "company-detail", id] as const,
     companyTeam: (id: string | undefined) => ["admin", "company-team", id] as const,
+    companiesFull: ["admin-companies-full"] as const,
+    companiesOrderStats: ["admin-companies-order-stats"] as const,
+    companiesUserCounts: ["admin-companies-user-counts"] as const,
+    companiesHealth: ["admin-companies-health"] as const,
+    companiesLastAccess: ["admin-companies-last-access"] as const,
+    companiesLatestNotes: ["admin-companies-latest-notes"] as const,
+    companyTags: ["company-tags"] as const,
+    announcements: ["admin-announcements"] as const,
+    planUsage: ["admin-plan-usage"] as const,
+    subscriptionPlans: ["admin-subscription-plans"] as const,
+    emailCredits: (companyId: string) => ["admin-email-credits", companyId] as const,
+    aiCreditsAdmin: (companyId: string) => ["admin-ai-credits", companyId] as const,
+    waCredits: (companyId: string) => ["admin-wa-credits", companyId] as const,
+    creditAdjustments: (companyId: string) => ["admin-credit-adjustments", companyId] as const,
+  },
+
+  // ── AI Subscription ────────────────────────────────────
+  aiSubscription: {
+    all: ["ai-subscription"] as const,
+    byCompany: (companyId: string | undefined) => ["ai-subscription", companyId] as const,
+    plan: (companyId: string | undefined) => ["ai-subscription-plan", companyId] as const,
+    creditsMyPlan: (companyId: string | undefined) => ["ai-credits-myplan", companyId] as const,
   },
 
   // ── Prima Nota ─────────────────────────────────────────

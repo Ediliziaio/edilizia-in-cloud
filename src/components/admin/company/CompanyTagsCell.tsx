@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-tags"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags });
       setNewTag("");
       setOpen(false);
     },
@@ -49,7 +50,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
       const { error } = await supabase.from("company_tags").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["company-tags"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags }),
   });
 
   return (

@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface QuickActionsProps {
   company: { id: string; name: string; email: string; status: string; trial_ends_at: string | null };
@@ -39,7 +40,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       if (error) throw error;
     },
     onSuccess: (_, newStatus) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Stato aggiornato a "${statusLabels[newStatus] || newStatus}"`);
       setConfirmDialog(null);
     },
@@ -61,7 +62,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       if (error) throw error;
     },
     onSuccess: (_, days) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Trial esteso di ${days} giorni`);
       setConfirmExtend(null);
     },

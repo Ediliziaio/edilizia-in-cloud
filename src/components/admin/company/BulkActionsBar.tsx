@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, X, RefreshCw, Pause, Play, CalendarPlus, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
@@ -32,7 +33,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
 
   // Fetch plans for plan change dialog
   const { data: plans = [] } = useQuery({
-    queryKey: ["subscription-plans-bulk"],
+    queryKey: queryKeys.admin.subscriptionPlans,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_plans")
@@ -65,7 +66,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction(`bulk_${status}`, { new_status: status, count: ids.length });
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       const labels: Record<string, string> = { suspended: "sospese", active: "riattivate" };
       toast.success(`${count} aziende ${labels[vars.status] || "aggiornate"}`);
       onClearSelection();
@@ -84,7 +85,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction("bulk_change_plan", { new_plan_id: planId, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Piano aggiornato per ${count} aziende`);
       onClearSelection();
       setPlanDialog(false);
@@ -121,7 +122,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction("bulk_extend_trial", { days, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-companies-full"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       toast.success(`Trial esteso di ${trialDays} giorni per ${count} aziende`);
       onClearSelection();
       setTrialDialog(false);

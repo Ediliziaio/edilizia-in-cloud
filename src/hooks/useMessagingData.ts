@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMessagingEnabled() {
   const { effectiveCompany } = useAuth();
@@ -14,7 +15,7 @@ export function useConversations(filter?: string) {
   const companyId = effectiveCompany?.id;
 
   return useQuery({
-    queryKey: ["messaging-conversations", companyId, filter],
+    queryKey: queryKeys.messaging.conversations(companyId, filter),
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase
@@ -40,7 +41,7 @@ export function useConversations(filter?: string) {
 
 export function useMessages(conversationId: string | null) {
   return useQuery({
-    queryKey: ["messaging-messages", conversationId],
+    queryKey: queryKeys.messaging.messages(conversationId),
     queryFn: async () => {
       if (!conversationId) return [];
       const { data, error } = await supabase
@@ -58,7 +59,7 @@ export function useMessages(conversationId: string | null) {
 
 export function useAiRuns(messageId: string | null) {
   return useQuery({
-    queryKey: ["messaging-ai-runs", messageId],
+    queryKey: queryKeys.messaging.aiRuns(messageId),
     queryFn: async () => {
       if (!messageId) return [];
       const { data, error } = await supabase
@@ -142,8 +143,8 @@ export function useSimulateMessage() {
       return { conversationId, messageId: msg.id, companyId };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["messaging-messages"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messagesAll });
     },
   });
 }
@@ -160,8 +161,8 @@ export function useAnalyzeMessage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["messaging-messages"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messagesAll });
     },
     onError: (err: any) => {
       toast.error("Errore analisi AI", { description: err?.message || "Errore durante l'analisi del messaggio" });
@@ -226,7 +227,7 @@ export function useConfirmAiAction() {
       return createdActions;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
       toast.success("Azione confermata", { description: "L'azione è stata eseguita con successo." });
     },
     onError: (err: any) => {
@@ -247,7 +248,7 @@ export function useIgnoreAiRun() {
         .eq("id", aiRunId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.aiRunsAll });
     },
   });
 }
@@ -264,9 +265,9 @@ export function useMessagingRealtime(conversationId: string | null) {
         "postgres_changes",
         { event: "*", schema: "public", table: "messaging_messages", filter: `conversation_id=eq.${conversationId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messaging-messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.messages(conversationId) });
           // Also refresh conversations list (last_message_at, status changes)
-          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
         }
       )
       .subscribe();
@@ -290,7 +291,7 @@ export function useConversationsRealtime(companyId: string | undefined) {
         "postgres_changes",
         { event: "*", schema: "public", table: "messaging_conversations", filter: `company_id=eq.${companyId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messaging-conversations"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.messaging.conversationsAll });
         }
       )
       .subscribe();

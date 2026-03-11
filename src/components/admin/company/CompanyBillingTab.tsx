@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +77,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch credit balances
   const { data: emailCredits } = useQuery({
-    queryKey: ["admin-email-credits", companyId],
+    queryKey: queryKeys.admin.emailCredits(companyId),
     queryFn: async () => {
       const { data } = await supabase.from("email_credits").select("balance_eur").eq("company_id", companyId).maybeSingle();
       return data;
@@ -84,7 +85,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   });
 
   const { data: aiCredits } = useQuery({
-    queryKey: ["admin-ai-credits", companyId],
+    queryKey: queryKeys.admin.aiCreditsAdmin(companyId),
     queryFn: async () => {
       const { data } = await supabase.from("ai_credits" as never).select("balance_eur").eq("company_id", companyId).maybeSingle();
       return data as { balance_eur: number } | null;
@@ -92,7 +93,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   });
 
   const { data: waCredits } = useQuery({
-    queryKey: ["admin-wa-credits", companyId],
+    queryKey: queryKeys.admin.waCredits(companyId),
     queryFn: async () => {
       const { data } = await supabase.from("whatsapp_credits" as never).select("balance_eur").eq("company_id", companyId).maybeSingle();
       return data as { balance_eur: number } | null;
@@ -101,7 +102,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch adjustments history
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: ["admin-credit-adjustments", companyId],
+    queryKey: queryKeys.admin.creditAdjustments(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_credit_adjustments" as never)
@@ -160,10 +161,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       setAdjustDialog({ open: false, service: "", direction: "add" });
       setAdjustAmount("");
       setAdjustReason("");
-      queryClient.invalidateQueries({ queryKey: ["admin-email-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-ai-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-wa-credits", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-credit-adjustments", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.emailCredits(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.aiCreditsAdmin(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.waCredits(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
     },
     onError: (e) => toast.error(e.message),
   });

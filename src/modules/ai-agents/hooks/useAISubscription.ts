@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface AISubscription {
   id: string;
@@ -17,7 +18,7 @@ export function useAISubscription() {
   const companyId = effectiveCompany?.id;
 
   const query = useQuery({
-    queryKey: ["ai-subscription", companyId],
+    queryKey: queryKeys.aiSubscription.byCompany(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<AISubscription | null> => {
       const { data, error } = await supabase

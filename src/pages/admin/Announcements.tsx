@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -119,7 +120,7 @@ export default function Announcements() {
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const { data: announcements = [], isLoading } = useQuery({
-    queryKey: ["admin-announcements"],
+    queryKey: queryKeys.admin.announcements,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_announcements")
@@ -141,7 +142,7 @@ export default function Announcements() {
     onSuccess: () => {
       toast.success("Annuncio creato");
       setCreateOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["admin-announcements"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
     onError: () => toast.error("Errore nella creazione"),
   });
@@ -157,7 +158,7 @@ export default function Announcements() {
     onSuccess: () => {
       toast.success("Annuncio aggiornato");
       setEditingAnnouncement(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-announcements"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
   });
@@ -172,7 +173,7 @@ export default function Announcements() {
     },
     onSuccess: () => {
       toast.success("Annuncio eliminato");
-      queryClient.invalidateQueries({ queryKey: ["admin-announcements"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.announcements });
     },
     onError: () => toast.error("Errore nell'eliminazione"),
   });
