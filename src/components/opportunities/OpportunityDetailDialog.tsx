@@ -402,7 +402,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-5 pb-3">
-          <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+            {(() => {
+              const daysSinceActivity = opportunity.updated_at
+                ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
+                : 0;
+              const stalledThreshold = 14;
+              return daysSinceActivity >= stalledThreshold && status === "open" ? (
+                <Badge variant="destructive" className="text-xs">⚠ Ferma da {daysSinceActivity}gg</Badge>
+              ) : null;
+            })()}
+          </div>
           <DialogDescription className="text-xs text-muted-foreground mt-0.5">
             Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
           </DialogDescription>
