@@ -79,6 +79,42 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
   const avgCloseRate = rows.length > 0 ? rows.reduce((s, r) => s + (r.appointments_done > 0 ? (r.contracts_won / r.appointments_done) * 100 : 0), 0) / rows.length : 0;
   const avgShowRate = rows.length > 0 ? rows.reduce((s, r) => s + r.show_rate, 0) / rows.length : 0;
 
+  if (compact) {
+    return (
+      <div className="overflow-x-auto">
+        {rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">Nessun dato</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Commerciale</TableHead>
+                <TableHead className="text-xs text-right">App. Svolti</TableHead>
+                <TableHead className="text-xs text-right">Vinti</TableHead>
+                <TableHead className="text-xs text-right">Fatturato</TableHead>
+                <TableHead className="text-xs text-right">Chiusura %</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => {
+                const closeRate = r.appointments_done > 0 ? Math.round((r.contracts_won / r.appointments_done) * 100) : 0;
+                return (
+                  <TableRow key={r.user_id}>
+                    <TableCell className="text-xs font-medium py-1.5">{r.name}</TableCell>
+                    <TableCell className="text-xs text-right py-1.5">{fmt(r.appointments_done)}</TableCell>
+                    <TableCell className="text-xs text-right font-semibold py-1.5">{fmt(r.contracts_won)}</TableCell>
+                    <TableCell className="text-xs text-right font-semibold py-1.5">{fmtCur(r.revenue)}</TableCell>
+                    <TableCell className="text-xs text-right py-1.5">{closeRate}%</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
