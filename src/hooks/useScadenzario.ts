@@ -57,7 +57,7 @@ export function useScadenzario() {
   const companyId = effectiveCompany?.id;
 
   const scadenzeQuery = useQuery({
-    queryKey: ["scadenze", companyId],
+    queryKey: queryKeys.scadenzario.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
@@ -78,7 +78,7 @@ export function useScadenzario() {
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["scadenzario-summary", companyId],
+    queryKey: queryKeys.scadenzario.summary(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_scadenzario_summary", {
         p_company_id: companyId!,
@@ -113,11 +113,9 @@ export function useScadenzario() {
     },
     onSuccess: () => {
       toast.success("Pagamento registrato");
-      queryClient.invalidateQueries({ queryKey: ["scadenze"] });
-      queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -158,9 +156,8 @@ export function useScadenzario() {
     },
     onSuccess: () => {
       toast.success("Scadenza creata");
-      queryClient.invalidateQueries({ queryKey: ["scadenze"] });
-      queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -176,9 +173,8 @@ export function useScadenzario() {
     },
     onSuccess: () => {
       toast.success("Scadenza annullata");
-      queryClient.invalidateQueries({ queryKey: ["scadenze"] });
-      queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["cashflow", "scadenze"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),

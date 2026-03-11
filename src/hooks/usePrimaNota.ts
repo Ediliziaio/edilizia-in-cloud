@@ -54,7 +54,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
   const companyId = effectiveCompany?.id;
 
   const entriesQuery = useQuery({
-    queryKey: ["prima-nota", companyId, filters],
+    queryKey: queryKeys.primaNota.list(companyId, filters),
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
@@ -88,7 +88,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
   });
 
   const saldoQuery = useQuery({
-    queryKey: ["prima-nota-saldo", companyId, filters.fromDate, filters.toDate],
+    queryKey: queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
         p_company_id: companyId!,
@@ -133,8 +133,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     },
     onSuccess: () => {
       toast.success("Registrazione creata");
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -147,8 +146,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     },
     onSuccess: () => {
       toast.success("Registrazione eliminata");
-      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
-      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),

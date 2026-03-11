@@ -4,6 +4,7 @@ import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   Plus, Check, Clock, Calculator, Filter, Info, Repeat,
 } from "lucide-react";
@@ -172,7 +173,7 @@ export function CostFormDialog({
                                     { company_id: effectiveCompany.id, name: catName },
                                     { onConflict: "company_id,name" }
                                   );
-                                  queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+                                  queryClient.invalidateQueries({ queryKey: queryKeys.costs.categories(effectiveCompany?.id) });
                                 }
                               }}
                             >

@@ -169,6 +169,24 @@ export const queryKeys = {
       ["cashflow", "company-costs", companyId] as const,
     commissions: (companyId: string | undefined) =>
       ["cashflow", "commissions", companyId] as const,
+    pendingItems: (companyId: string | undefined) =>
+      ["cashflow", "pending-items", companyId] as const,
+    supplierBalances: (companyId: string | undefined) =>
+      ["cashflow", "supplier-balances", companyId] as const,
+    scadenze: (companyId: string | undefined) =>
+      ["cashflow", "scadenze", companyId] as const,
+    treasuryPaidCosts: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-costs"] as const,
+    treasuryPaidTeams: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-teams"] as const,
+    treasuryPaidCommissions: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-commissions"] as const,
+    treasuryPaidSuppliers: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "paid-suppliers"] as const,
+    treasuryEmployees: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "employees"] as const,
+    treasuryCategories: (companyId: string | undefined) =>
+      ["cashflow", "treasury", companyId, "categories"] as const,
     bankBalance: (companyId: string | undefined) =>
       ["cashflow", "bank-balance", companyId] as const,
     treasury: (companyId: string | undefined) =>
@@ -190,6 +208,7 @@ export const queryKeys = {
     commissions: (companyId: string | undefined) => ["costs", "commissions", companyId] as const,
     ordersForCosts: (companyId: string | undefined) => ["costs", "orders-for-costs", companyId] as const,
     categories: (companyId: string | undefined) => ["costs", "categories", companyId] as const,
+    budgets: (companyId: string | undefined) => ["costs", "budgets", companyId] as const,
   },
 
   // ── Warehouse ──────────────────────────────────────────
@@ -378,13 +397,16 @@ export const queryKeys = {
   // ── Prima Nota ─────────────────────────────────────────
   primaNota: {
     all: ["prima-nota"] as const,
-    list: (companyId: string | undefined) => ["prima-nota", "list", companyId] as const,
+    list: (companyId: string | undefined, filters?: any) => ["prima-nota", "list", companyId, filters] as const,
+    saldo: (companyId: string | undefined, fromDate?: string, toDate?: string) =>
+      ["prima-nota", "saldo", companyId, fromDate, toDate] as const,
   },
 
   // ── Scadenzario ────────────────────────────────────────
   scadenzario: {
     all: ["scadenzario"] as const,
     list: (companyId: string | undefined) => ["scadenzario", "list", companyId] as const,
+    summary: (companyId: string | undefined) => ["scadenzario", "summary", companyId] as const,
   },
 
   // ── Attribution ────────────────────────────────────────

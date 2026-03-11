@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { Plus, Trash2, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
   }, []);
 
   const { data: budgets = [], isLoading } = useQuery({
-    queryKey: ["cost-budgets", companyId],
+    queryKey: queryKeys.costs.budgets(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_budgets")
@@ -71,7 +72,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-budgets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.budgets(companyId) });
       setNewCategory("");
       setNewAmount("");
       toast.success("Budget salvato");
@@ -85,7 +86,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-budgets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.budgets(companyId) });
       toast.success("Budget rimosso");
     },
   });
