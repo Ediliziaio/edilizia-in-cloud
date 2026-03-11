@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError);
+        logger.error("Error fetching profile:", profileError);
         return { profile: null, role: null, company: null };
       }
 
