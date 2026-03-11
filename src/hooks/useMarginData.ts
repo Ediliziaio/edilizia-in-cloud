@@ -117,7 +117,7 @@ export function useMarginData(): MarginData {
 
   // 5. Fixed company costs
   const { data: fixedCostsRaw, isLoading: loadingFixedCosts } = useQuery({
-    queryKey: ["margin-fixed-costs", companyId],
+    queryKey: queryKeys.margin.fixedCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
