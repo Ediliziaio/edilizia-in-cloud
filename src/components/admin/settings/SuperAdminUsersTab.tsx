@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ export default function SuperAdminUsersTab() {
   const [permsTarget, setPermsTarget] = useState<AdminUser | null>(null);
 
   const { data: admins = [], isLoading } = useQuery({
-    queryKey: ["super-admins"],
+    queryKey: queryKeys.admin.superAdmins,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
@@ -70,7 +71,7 @@ export default function SuperAdminUsersTab() {
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["super-admins"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setCreateOpen(false);
       toast.success("Super Admin creato con successo");
     },
@@ -89,7 +90,7 @@ export default function SuperAdminUsersTab() {
       if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["super-admins"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setDeleteTarget(null);
       toast.success("Super Admin rimosso");
     },

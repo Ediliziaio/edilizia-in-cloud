@@ -908,4 +908,33 @@ export const queryKeys = {
     searchContacts: (companyId: string | undefined, search: string) =>
       ["add-to-list-contacts", companyId, search] as const,
   },
+
+  // ── Cost Categories ───────────────────────────────────
+  costCategories: {
+    all: ["cost-categories"] as const,
+    list: (companyId: string | undefined) => ["cost-categories", companyId] as const,
+    usage: (companyId: string | undefined) => ["cost-category-usage", companyId] as const,
+  },
+
+  // ── Company Costs (invalidation alias) ────────────────
+  companyCosts: {
+    all: ["company-costs"] as const,
+  },
+
+  // ── User Sessions ─────────────────────────────────────
+  userSessions: {
+    all: ["user-sessions"] as const,
+    byUser: (userId: string | undefined) => ["user-sessions", userId] as const,
+  },
+
+  // ── External Teams ────────────────────────────────────
+  externalTeams: {
+    all: ["external-teams"] as const,
+    list: (companyId: string | undefined) => ["external-teams", companyId] as const,
+  },
+
+  // ── Staff Users ───────────────────────────────────────
+  staffUsers: {
+    all: ["staff-users"] as const,
+  },
 } as const;

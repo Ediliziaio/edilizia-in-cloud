@@ -4,6 +4,7 @@ import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt,
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS, type PermissionSectionDef } from "@/components/users/permissionsDefaults";
@@ -78,7 +79,7 @@ export function SalespeopleConfig() {
   });
 
   const { data: salespeople = [], isLoading } = useQuery({
-    queryKey: ["salespeople", companyId],
+    queryKey: queryKeys.salespeople.active(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople").select("*").eq("company_id", companyId!)
@@ -110,7 +111,7 @@ export function SalespeopleConfig() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
       toast.success(editingSalesperson ? "Venditore aggiornato" : "Venditore creato");
       setDialogOpen(false); setEditingSalesperson(null);
     },
@@ -124,7 +125,7 @@ export function SalespeopleConfig() {
       const { error } = await supabase.from("salespeople").update({ is_active }).eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["salespeople"] }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all }); },
   });
 
   const deleteMutation = useMutation({
@@ -133,7 +134,7 @@ export function SalespeopleConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
       toast.success("Venditore eliminato");
     },
     onError: (error: Error) => {
@@ -154,8 +155,8 @@ export function SalespeopleConfig() {
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staffUsers.all });
       const sp = createAccountDialog.salesperson;
       setCreateAccountDialog({ open: false, salesperson: null });
       resetAccountForm();

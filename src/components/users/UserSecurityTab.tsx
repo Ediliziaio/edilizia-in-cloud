@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { queryKeys } from "@/lib/queryKeys";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Shield, Key, Lock, LockOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -51,7 +52,7 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       toast({ title: "Account sbloccato" });
     },
     onError: () => {
@@ -69,7 +70,7 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
     },
     onSuccess: (_, value) => {
       setRequire2fa(value);
-      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       toast({ title: value ? "2FA richiesta attivata" : "2FA richiesta disattivata" });
     },
     onError: () => {

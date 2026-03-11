@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatDistanceToNow, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Loader2, Monitor, Smartphone, Tablet, Wifi, WifiOff, XCircle } from "lucide-react";
@@ -33,7 +34,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
   const [showAll, setShowAll] = useState(false);
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ["user-sessions", userId],
+    queryKey: queryKeys.userSessions.byUser(userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_sessions")
@@ -54,7 +55,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-sessions", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
       toast({ title: "Sessione revocata" });
     },
     onError: () => {
@@ -70,7 +71,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-sessions", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
       toast({ title: "Tutte le sessioni revocate" });
     },
     onError: () => {

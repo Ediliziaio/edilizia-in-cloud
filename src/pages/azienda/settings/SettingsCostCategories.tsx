@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { Plus, Pencil, Trash2, Download, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ export default function SettingsCostCategories() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ["cost-categories", companyId],
+    queryKey: queryKeys.costCategories.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_categories")
@@ -53,7 +54,7 @@ export default function SettingsCostCategories() {
 
   // Usage count per category name
   const { data: usageCounts = {} } = useQuery({
-    queryKey: ["cost-category-usage", companyId],
+    queryKey: queryKeys.costCategories.usage(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
@@ -83,8 +84,8 @@ export default function SettingsCostCategories() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
       setNewName("");
       toast.success("Categoria aggiunta");
     },
@@ -100,8 +101,8 @@ export default function SettingsCostCategories() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
       setEditingId(null);
       toast.success("Categoria aggiornata");
     },
@@ -114,7 +115,7 @@ export default function SettingsCostCategories() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
       setDeleteId(null);
       toast.success("Categoria eliminata");
     },
@@ -160,7 +161,7 @@ export default function SettingsCostCategories() {
       return toInsert.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
       if (count) toast.success(`${count} categorie importate`);
     },
     onError: () => toast.error("Errore nell'importazione"),

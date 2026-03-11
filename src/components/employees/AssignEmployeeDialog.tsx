@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { queryKeys } from "@/lib/queryKeys";
 
 import {
   Dialog,
@@ -56,7 +57,7 @@ export function AssignEmployeeDialog({
 
   // Fetch available employees
   const { data: employees = [] } = useQuery({
-    queryKey: ["employees", effectiveCompanyId],
+    queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

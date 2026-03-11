@@ -4,6 +4,7 @@ import { Users, Building2, Clock, Loader2, Check, Copy, Palmtree } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
@@ -58,7 +59,7 @@ export default function Employees() {
   const [activeRoleType, setActiveRoleType] = useState<'operaio' | 'staff_interno'>('operaio');
 
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
-    queryKey: ["employees", effectiveCompanyId],
+    queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("employees").select("*")
         .eq("company_id", effectiveCompanyId!).order("last_name");
@@ -70,7 +71,7 @@ export default function Employees() {
   });
 
   const { data: externalTeams = [], isLoading: loadingTeams } = useQuery({
-    queryKey: ["external-teams", effectiveCompanyId],
+    queryKey: queryKeys.externalTeams.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("external_teams").select("*")
         .eq("company_id", effectiveCompanyId!).order("name");
@@ -104,7 +105,7 @@ export default function Employees() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
       toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati con successo." });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
@@ -119,7 +120,7 @@ export default function Employees() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
       toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
     },
     onError: () => {
@@ -147,7 +148,7 @@ export default function Employees() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["external-teams"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
       toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati con successo." });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
@@ -162,7 +163,7 @@ export default function Employees() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["external-teams"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
       toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
     },
     onError: () => {
@@ -182,8 +183,8 @@ export default function Employees() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staffUsers.all });
       if (data.temp_password) {
         setCreatedPassword(data.temp_password);
       } else {

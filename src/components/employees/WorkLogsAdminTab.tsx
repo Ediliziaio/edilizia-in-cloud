@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { 
@@ -104,7 +105,7 @@ export function WorkLogsAdminTab() {
 
   // Fetch employees
   const { data: employees = [] } = useQuery({
-    queryKey: ["employees", companyId],
+    queryKey: queryKeys.employees.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
