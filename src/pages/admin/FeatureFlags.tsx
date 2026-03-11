@@ -60,7 +60,7 @@ export default function FeatureFlags() {
 
   // Fetch all overrides
   const { data: allOverrides = [] } = useQuery({
-    queryKey: ["admin-all-overrides"],
+    queryKey: queryKeys.admin.featureOverrides,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")
