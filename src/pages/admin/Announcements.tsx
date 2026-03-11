@@ -120,7 +120,7 @@ export default function Announcements() {
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const { data: announcements = [], isLoading } = useQuery({
-    queryKey: ["admin-announcements"],
+    queryKey: queryKeys.admin.announcements,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_announcements")
