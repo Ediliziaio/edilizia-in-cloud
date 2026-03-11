@@ -45,7 +45,7 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
           }));
           allForms.push(...pageForms);
         } catch (e: any) {
-          console.error(`Error loading forms for page ${page.asset_name}:`, e);
+          logger.error(`Error loading forms for page ${page.asset_name}:`, e);
         }
       }
       setMetaForms(allForms);
