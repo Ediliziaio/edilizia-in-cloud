@@ -62,7 +62,7 @@ export default function SettingsUserDetail() {
   });
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ["user-detail", userId],
+    queryKey: queryKeys.users.detail(userId),
     queryFn: async () => {
       const { data: profile, error } = await supabase
         .from("profiles")
