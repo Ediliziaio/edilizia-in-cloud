@@ -243,67 +243,6 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
         ))}
       </div>
 
-      {/* Sparkline chart */}
-      {dailyTrend && dailyTrend.length > 0 && (
-        <div className="rounded-xl border bg-card p-3">
-          <p className="text-[11px] font-medium text-muted-foreground mb-1">Trend ultimi 7 giorni</p>
-          <div className="h-[72px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyTrend} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
-                <defs>
-                  <linearGradient id="sparkRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="sparkCollected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Tooltip
-                  {...sparkTooltipStyle}
-                  formatter={(value: number, name: string) => [
-                    fmtEur(value),
-                    name === "revenue" ? "Fatturato" : "Incassato",
-                  ]}
-                  labelFormatter={(label: string) => {
-                    try {
-                      return new Date(label).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
-                    } catch { return label; }
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  fill="url(#sparkRevenue)"
-                  dot={false}
-                  animationDuration={600}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="collected"
-                  stroke="hsl(142 71% 45%)"
-                  strokeWidth={2}
-                  fill="url(#sparkCollected)"
-                  dot={false}
-                  animationDuration={600}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex items-center gap-4 mt-1">
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-primary" /> Fatturato
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(142 71% 45%)" }} /> Incassato
-            </span>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((t) => (
           <button
