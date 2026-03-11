@@ -283,9 +283,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.role]);
 
-  const exitImpersonation = async () => {
+  const exitImpersonation = useCallback(async () => {
     try {
-      // End impersonation on server
       await supabase.functions.invoke("secure-impersonation", {
         body: { action: "end" },
       });
@@ -295,7 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonationToken(null);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
-  };
+  }, []);
 
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
