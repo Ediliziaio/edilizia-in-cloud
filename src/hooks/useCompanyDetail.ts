@@ -168,7 +168,7 @@ export function useCompanyDetail(id: string | undefined) {
   });
 
   const { data: currentPlan } = useQuery({
-    queryKey: ["company-plan", company?.subscription_plan_id],
+    queryKey: queryKeys.companyDetail.plan(company?.subscription_plan_id),
     queryFn: async () => {
       if (!company?.subscription_plan_id) return null;
       const { data } = await supabase.from("subscription_plans").select("*").eq("id", company.subscription_plan_id).single();
