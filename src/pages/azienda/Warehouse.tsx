@@ -252,10 +252,10 @@ export default function Warehouse() {
         <WarehouseAlerts items={items} />
       </div>
 
-      {/* Live panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
-        <BlockedOrdersPanel companyId={effectiveCompany.id} compact />
-        <LowStockAlertsPanel companyId={effectiveCompany.id} compact />
+      {/* Live panels - minimal mode */}
+      <div className="flex items-center gap-3 print:hidden">
+        <BlockedOrdersPanel companyId={effectiveCompany.id} minimal />
+        <LowStockAlertsPanel companyId={effectiveCompany.id} minimal />
       </div>
 
       {/* Stats */}
