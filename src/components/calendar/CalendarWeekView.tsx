@@ -182,7 +182,7 @@ export function CalendarWeekView({
           .update({ appointment_date: pendingDrop.toDate })
           .eq("id", pendingDrop.id);
         if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
       } else {
         // Order — shift expected_date
         const { error } = await supabase
