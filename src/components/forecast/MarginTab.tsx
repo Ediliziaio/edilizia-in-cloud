@@ -397,7 +397,7 @@ export function MarginTab() {
                       dataKey="x"
                       name="Fatturato"
                       tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                      tickFormatter={(v: number) => `€${(v / 1000).toFixed(0)}k`}
+                      tickFormatter={formatCurrencyCompact}
                       label={{ value: "Fatturato", position: "insideBottom", offset: -5, fontSize: 11 }}
                     />
                     <YAxis
