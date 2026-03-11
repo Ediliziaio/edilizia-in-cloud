@@ -133,7 +133,7 @@ export function useMarginData(): MarginData {
 
   // 6. Active employees (salaries)
   const { data: employees, isLoading: loadingEmployees } = useQuery({
-    queryKey: ["margin-employees", companyId],
+    queryKey: queryKeys.margin.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

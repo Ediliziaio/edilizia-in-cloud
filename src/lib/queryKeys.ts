@@ -417,4 +417,25 @@ export const queryKeys = {
     pages: (companyId: string | undefined, integrationId: string | undefined) =>
       ["meta-forms", "pages", companyId, integrationId] as const,
   },
+
+  // ── Margin Analysis ────────────────────────────────────
+  margin: {
+    all: ["margin"] as const,
+    orders: (companyId: string | null) => ["margin", "orders", companyId] as const,
+    items: (companyId: string | null, orderCount?: number) => ["margin", "items", companyId, orderCount] as const,
+    teams: (companyId: string | null, orderCount?: number) => ["margin", "teams", companyId, orderCount] as const,
+    salespeople: (companyId: string | null, orderCount?: number) => ["margin", "salespeople", companyId, orderCount] as const,
+    fixedCosts: (companyId: string | null) => ["margin", "fixed-costs", companyId] as const,
+    employees: (companyId: string | null) => ["margin", "employees", companyId] as const,
+  },
+
+  // ── Break-Even Historical ──────────────────────────────
+  breakEven: {
+    all: ["break-even"] as const,
+    orders: (companyId: string | null) => ["break-even", "orders", companyId] as const,
+    items: (companyId: string | null, orderCount?: number) => ["break-even", "items", companyId, orderCount] as const,
+    teams: (companyId: string | null, orderCount?: number) => ["break-even", "teams", companyId, orderCount] as const,
+    fixedCosts: (companyId: string | null) => ["break-even", "fixed-costs", companyId] as const,
+    employees: (companyId: string | null) => ["break-even", "employees", companyId] as const,
+  },
 } as const;
