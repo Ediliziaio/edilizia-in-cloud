@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComingSoonPlaceholder } from "@/components/users/ComingSoonPlaceholder";
 import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
+import { TabTimbrature } from "./tabs/TabTimbrature";
 
 export default function PersonalePage() {
   return (
@@ -48,12 +49,7 @@ export default function PersonalePage() {
           />
         </TabsContent>
         <TabsContent value="timbrature">
-          <ComingSoonPlaceholder
-            icon={Clock}
-            title="Timbrature"
-            description="Registrazione entrate, uscite e pause"
-            comingSoonText="Il sistema timbrature sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabTimbrature />
         </TabsContent>
         <TabsContent value="presenze">
           <ComingSoonPlaceholder
