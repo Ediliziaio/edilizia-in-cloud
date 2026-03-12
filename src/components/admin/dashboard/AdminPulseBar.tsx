@@ -22,7 +22,7 @@ export function AdminPulseBar() {
         supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
-          .gte("last_login", last24h),
+          .gte("last_login_at", last24h),
         supabase
           .from("orders")
           .select("id, total_amount", { count: "exact" })
