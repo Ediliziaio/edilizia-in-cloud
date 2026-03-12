@@ -35,6 +35,7 @@ const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWeb
 const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
+const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
 const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/SettingsFormBuilder"));
 const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/SettingsPhoneNumbers"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
