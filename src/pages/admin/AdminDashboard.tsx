@@ -22,6 +22,7 @@ import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueF
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
 import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
+import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
 import {
   useDashboardLayout,
   SortableWidget,
@@ -146,35 +147,38 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header with controls */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard Super Admin</h1>
-          <p className="text-muted-foreground">Panoramica globale della piattaforma</p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Dashboard Super Admin</h1>
+            <p className="text-muted-foreground">Panoramica globale della piattaforma</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <DashboardDateFilter value={dateRange} onChange={setDateRange} />
+            <DashboardExport
+              data={{
+                stats,
+                mrrStats,
+                revenueData: revenueData
+                  ? {
+                      currentMrr: revenueData.currentMrr,
+                      arr: revenueData.arr,
+                      nrr: revenueData.nrr,
+                      avgLtv: revenueData.avgLtv,
+                      healthSummary: revenueData.healthSummary,
+                    }
+                  : null,
+              }}
+            />
+            <WidgetConfigurator widgets={widgets} onToggle={toggleVisibility} onReset={resetLayout} />
+            <Button asChild size="sm">
+              <Link to="/admin/aziende/nuova">
+                <Plus className="h-4 w-4 mr-2" /> Nuova Azienda
+              </Link>
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <DashboardDateFilter value={dateRange} onChange={setDateRange} />
-          <DashboardExport
-            data={{
-              stats,
-              mrrStats,
-              revenueData: revenueData
-                ? {
-                    currentMrr: revenueData.currentMrr,
-                    arr: revenueData.arr,
-                    nrr: revenueData.nrr,
-                    avgLtv: revenueData.avgLtv,
-                    healthSummary: revenueData.healthSummary,
-                  }
-                : null,
-            }}
-          />
-          <WidgetConfigurator widgets={widgets} onToggle={toggleVisibility} onReset={resetLayout} />
-          <Button asChild size="sm">
-            <Link to="/admin/aziende/nuova">
-              <Plus className="h-4 w-4 mr-2" /> Nuova Azienda
-            </Link>
-          </Button>
-        </div>
+        <AdminPulseBar />
       </div>
 
       {/* Draggable Widget Grid */}
