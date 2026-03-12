@@ -5999,6 +5999,432 @@ export type Database = {
         }
         Relationships: []
       }
+      hr_festivita: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          data: string
+          descrizione: string
+          id: string
+          ricorrente: boolean | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          data: string
+          descrizione: string
+          id?: string
+          ricorrente?: boolean | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          data?: string
+          descrizione?: string
+          id?: string
+          ricorrente?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_festivita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_giornate: {
+        Row: {
+          anomalia: boolean | null
+          anomalia_motivo: string | null
+          bloccata: boolean | null
+          company_id: string
+          created_at: string | null
+          data: string
+          id: string
+          note: string | null
+          ore_lavorate: number | null
+          ore_mancanti: number | null
+          ore_pausa: number | null
+          ore_previste: number | null
+          ore_straordinario: number | null
+          prima_entrata: string | null
+          profilo_id: string
+          stato: string | null
+          ultima_uscita: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          anomalia?: boolean | null
+          anomalia_motivo?: string | null
+          bloccata?: boolean | null
+          company_id: string
+          created_at?: string | null
+          data: string
+          id?: string
+          note?: string | null
+          ore_lavorate?: number | null
+          ore_mancanti?: number | null
+          ore_pausa?: number | null
+          ore_previste?: number | null
+          ore_straordinario?: number | null
+          prima_entrata?: string | null
+          profilo_id: string
+          stato?: string | null
+          ultima_uscita?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          anomalia?: boolean | null
+          anomalia_motivo?: string | null
+          bloccata?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          data?: string
+          id?: string
+          note?: string | null
+          ore_lavorate?: number | null
+          ore_mancanti?: number | null
+          ore_pausa?: number | null
+          ore_previste?: number | null
+          ore_straordinario?: number | null
+          prima_entrata?: string | null
+          profilo_id?: string
+          stato?: string | null
+          ultima_uscita?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_giornate_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_giornate_profilo_id_fkey"
+            columns: ["profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_profili: {
+        Row: {
+          attivo: boolean | null
+          codice_fiscale: string | null
+          cognome: string
+          company_id: string
+          created_at: string | null
+          data_assunzione: string | null
+          data_cessazione: string | null
+          data_nascita: string | null
+          email: string | null
+          employee_id: string | null
+          foto_url: string | null
+          iban: string | null
+          id: string
+          indirizzo: string | null
+          livello_ccnl: string | null
+          matricola: string | null
+          nome: string
+          note: string | null
+          orario_tipo: string | null
+          ore_giornaliere: number | null
+          ore_settimanali: number | null
+          sede_id: string | null
+          sesso: string | null
+          telefono: string | null
+          tipo_contratto: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attivo?: boolean | null
+          codice_fiscale?: string | null
+          cognome: string
+          company_id: string
+          created_at?: string | null
+          data_assunzione?: string | null
+          data_cessazione?: string | null
+          data_nascita?: string | null
+          email?: string | null
+          employee_id?: string | null
+          foto_url?: string | null
+          iban?: string | null
+          id?: string
+          indirizzo?: string | null
+          livello_ccnl?: string | null
+          matricola?: string | null
+          nome: string
+          note?: string | null
+          orario_tipo?: string | null
+          ore_giornaliere?: number | null
+          ore_settimanali?: number | null
+          sede_id?: string | null
+          sesso?: string | null
+          telefono?: string | null
+          tipo_contratto?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attivo?: boolean | null
+          codice_fiscale?: string | null
+          cognome?: string
+          company_id?: string
+          created_at?: string | null
+          data_assunzione?: string | null
+          data_cessazione?: string | null
+          data_nascita?: string | null
+          email?: string | null
+          employee_id?: string | null
+          foto_url?: string | null
+          iban?: string | null
+          id?: string
+          indirizzo?: string | null
+          livello_ccnl?: string | null
+          matricola?: string | null
+          nome?: string
+          note?: string | null
+          orario_tipo?: string | null
+          ore_giornaliere?: number | null
+          ore_settimanali?: number | null
+          sede_id?: string | null
+          sesso?: string | null
+          telefono?: string | null
+          tipo_contratto?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_profili_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_profili_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_profili_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "hr_sedi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_richieste: {
+        Row: {
+          allegato_url: string | null
+          approvata_da: string | null
+          approvata_il: string | null
+          company_id: string
+          created_at: string | null
+          data_fine: string
+          data_inizio: string
+          id: string
+          motivo: string | null
+          note_risposta: string | null
+          ore_richieste: number | null
+          profilo_id: string
+          stato: string | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          allegato_url?: string | null
+          approvata_da?: string | null
+          approvata_il?: string | null
+          company_id: string
+          created_at?: string | null
+          data_fine: string
+          data_inizio: string
+          id?: string
+          motivo?: string | null
+          note_risposta?: string | null
+          ore_richieste?: number | null
+          profilo_id: string
+          stato?: string | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          allegato_url?: string | null
+          approvata_da?: string | null
+          approvata_il?: string | null
+          company_id?: string
+          created_at?: string | null
+          data_fine?: string
+          data_inizio?: string
+          id?: string
+          motivo?: string | null
+          note_risposta?: string | null
+          ore_richieste?: number | null
+          profilo_id?: string
+          stato?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_richieste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_richieste_profilo_id_fkey"
+            columns: ["profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_sedi: {
+        Row: {
+          attiva: boolean | null
+          cap: string | null
+          citta: string | null
+          company_id: string
+          created_at: string | null
+          id: string
+          indirizzo: string | null
+          lat: number | null
+          lng: number | null
+          nome: string
+          provincia: string | null
+          raggio_mt: number | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          lat?: number | null
+          lng?: number | null
+          nome: string
+          provincia?: string | null
+          raggio_mt?: number | null
+        }
+        Update: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          lat?: number | null
+          lng?: number | null
+          nome?: string
+          provincia?: string | null
+          raggio_mt?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_sedi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_timbrature: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          data_evento: string | null
+          fonte: string | null
+          id: string
+          ip_address: string | null
+          lat: number | null
+          lng: number | null
+          note: string | null
+          ora_evento: string | null
+          profilo_id: string
+          sede_id: string | null
+          timestamp: string
+          tipo: string
+          validata: boolean | null
+          validata_da: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          data_evento?: string | null
+          fonte?: string | null
+          id?: string
+          ip_address?: string | null
+          lat?: number | null
+          lng?: number | null
+          note?: string | null
+          ora_evento?: string | null
+          profilo_id: string
+          sede_id?: string | null
+          timestamp?: string
+          tipo: string
+          validata?: boolean | null
+          validata_da?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          data_evento?: string | null
+          fonte?: string | null
+          id?: string
+          ip_address?: string | null
+          lat?: number | null
+          lng?: number | null
+          note?: string | null
+          ora_evento?: string | null
+          profilo_id?: string
+          sede_id?: string | null
+          timestamp?: string
+          tipo?: string
+          validata?: boolean | null
+          validata_da?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_timbrature_profilo_id_fkey"
+            columns: ["profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_timbrature_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "hr_sedi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_audit_log: {
         Row: {
           action: string

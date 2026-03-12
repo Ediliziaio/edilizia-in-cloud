@@ -74,6 +74,7 @@ const PipelinePreventivi = lazy(() => import("@/pages/azienda/fatturazione/Pipel
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
+const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
@@ -163,6 +164,7 @@ export function companyRoutes() {
         <Route path="errori" element={<GlobalErrors />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
+        <Route path="personale" element={<PersonalePage />} />
         <Route path="tesoreria" element={<Tesoreria />} />
         <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
         <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
