@@ -252,6 +252,10 @@ export default function CompanyDetail() {
             onCreateEmployee={() => h.setCreateEmployeeOpen(true)}
             onEditPermissions={h.setPermissionsUser}
             onCreateAccount={h.handleCreateAccount} creatingAccountFor={h.creatingAccountFor}
+            onDeleteUser={handleDeleteUser}
+            onResetPassword={handleResetPassword}
+            isDeletingUser={isDeletingUser}
+            isResettingPassword={isResettingPassword}
           />
         </TabsContent>
 
