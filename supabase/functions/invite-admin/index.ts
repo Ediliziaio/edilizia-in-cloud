@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     if (insertError) throw insertError;
 
     // Build invite URL
-    const siteUrl = Deno.env.get("SITE_URL") ?? supabaseUrl.replace(".supabase.co", ".lovable.app");
+    const siteUrl = Deno.env.get("SITE_URL") ?? "https://edilizia-in-cloud.lovable.app";
     const inviteUrl = `${siteUrl}/admin/accept-invite?token=${token}`;
 
     // Log audit

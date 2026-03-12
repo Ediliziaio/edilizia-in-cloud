@@ -228,26 +228,6 @@ function PasswordCard() {
         )}
 
         <div className="space-y-2">
-          <Label>Password attuale</Label>
-          <div className="relative">
-            <Input
-              type={showCurrent ? "text" : "password"}
-              value={currentPwd}
-              onChange={(e) => setCurrentPwd(e.target.value)}
-              placeholder="La tua password attuale"
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowCurrent(!showCurrent)}
-              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-            >
-              {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
           <Label>Nuova password</Label>
           <div className="relative">
             <Input
