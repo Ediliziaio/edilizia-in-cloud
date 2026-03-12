@@ -5,6 +5,7 @@ import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
+import { TabSedi } from "./tabs/TabSedi";
 
 export default function PersonalePage() {
   return (
