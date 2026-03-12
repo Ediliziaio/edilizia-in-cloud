@@ -134,10 +134,12 @@ function ImpersonationBanner() {
 }
 
 // Macro-area collapsible section component
-function MacroAreaCollapsible({ area, visibleItems, pathname }: {
+function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange }: {
   area: MacroArea;
   visibleItems: NavItem[];
   pathname: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
@@ -145,29 +147,10 @@ function MacroAreaCollapsible({ area, visibleItems, pathname }: {
     return pathname === url || pathname.startsWith(url + "/");
   };
 
-  const hasActiveChild = visibleItems.some(item => isActive(item.url));
-  const storageKey = `sidebar_area_${area.id}`;
-
-  const [open, setOpen] = useState(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored !== null) return stored === "true";
-    } catch {}
-    return hasActiveChild;
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(storageKey, String(open)); } catch {}
-  }, [open, storageKey]);
-
-  useEffect(() => {
-    if (hasActiveChild && !open) setOpen(true);
-  }, [hasActiveChild]);
-
   const AreaIcon = area.icon;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <SidebarGroup className="py-0">
         <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
           <span className="flex items-center gap-2">
