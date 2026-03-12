@@ -199,7 +199,6 @@ function PasswordCard() {
       }
 
       toast.success("Password aggiornata con successo");
-      setCurrentPwd("");
       setNewPwd("");
       setConfirmPwd("");
     } catch (err: any) {
