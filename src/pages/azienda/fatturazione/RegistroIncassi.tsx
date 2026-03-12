@@ -61,7 +61,8 @@ export default function RegistroIncassi() {
     const scaduto = allInvoices
       .filter((d) => d.data_scadenza && isPast(new Date(d.data_scadenza)) && d.importo_pagato < d.totale_da_pagare)
       .reduce((sum, d) => sum + (d.totale_da_pagare - d.importo_pagato), 0);
-    return { incassatoMese, daIncassare, scaduto, saldo: daIncassare - scaduto };
+    const nonScaduto = daIncassare - scaduto;
+    return { incassatoMese, daIncassare, scaduto, saldo: nonScaduto };
   }, [movimenti, unpaidInvoices, allInvoices, monthStart, monthEnd]);
 
   // Form state
