@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useAdminSidebarBadges, getBadgeForNavItem } from "@/hooks/useAdminSidebarBadges";
 import { 
   LayoutDashboard, 
   Building, 
