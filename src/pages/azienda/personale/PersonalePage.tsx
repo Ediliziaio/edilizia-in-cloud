@@ -4,6 +4,7 @@ import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } 
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
+import { TabRichieste } from "./tabs/TabRichieste";
 
 export default function PersonalePage() {
   return (
