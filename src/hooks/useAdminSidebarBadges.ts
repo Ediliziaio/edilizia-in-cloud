@@ -39,7 +39,7 @@ export function useAdminSidebarBadges() {
         supabase
           .from("platform_announcements")
           .select("id", { count: "exact", head: true })
-          .eq("status", "draft"),
+          .eq("status", "draft" as any),
       ]);
 
       return {
