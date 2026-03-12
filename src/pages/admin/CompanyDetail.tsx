@@ -1,10 +1,15 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
@@ -31,6 +36,10 @@ export default function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const h = useCompanyDetail(id);
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("panoramica");
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
@@ -91,9 +100,71 @@ export default function CompanyDetail() {
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
+
   const handleImpersonate = async () => {
     await h.handleImpersonate();
     navigate("/azienda");
+  };
+
+  // Delete company user
+  const handleDeleteUser = async (userId: string, name: string) => {
+    setIsDeletingUser(true);
+    try {
+      const { error } = await supabase.functions.invoke("delete-company-user", { body: { userId } });
+      if (error) throw error;
+      toast.success(`${name} eliminato`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
+    } catch (err: any) {
+      toast.error("Errore eliminazione utente", { description: err.message });
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Reset password
+  const handleResetPassword = async (userId: string, name: string) => {
+    setIsResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "reset-password", userId },
+      });
+      if (error) throw error;
+      toast.success(`Password resettata per ${name}`, { description: "La nuova password è stata inviata via email." });
+    } catch (err: any) {
+      toast.error("Errore reset password", { description: err.message });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  // Delete company
+  const handleDeleteCompany = async () => {
+    try {
+      const { error } = await supabase.from("companies").delete().eq("id", h.company!.id);
+      if (error) throw error;
+      toast.success("Azienda eliminata");
+      navigate("/admin/aziende");
+    } catch (err: any) {
+      toast.error("Errore eliminazione azienda", { description: err.message });
+    }
+  };
+
+  // Export company data
+  const handleExportCompany = () => {
+    if (!h.company) return;
+    const data = {
+      ...h.company,
+      stats: h.stats,
+      team: h.teamData,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${h.company.name.replace(/\s+/g, "_")}_export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Dati esportati");
   };
 
   return (
@@ -102,6 +173,12 @@ export default function CompanyDetail() {
         company={h.company}
         onBack={() => navigate("/admin/aziende")}
         onImpersonate={handleImpersonate}
+        onEdit={() => setActiveTab("dettagli")}
+        onSuspend={() => h.updateStatusMutation.mutate({ newStatus: "suspended", notes: "Sospeso manualmente" })}
+        onReactivate={() => h.updateStatusMutation.mutate({ newStatus: "active", notes: "Riattivato manualmente" })}
+        onDelete={handleDeleteCompany}
+        onExport={handleExportCompany}
+        isUpdatingStatus={h.updateStatusMutation.isPending}
       />
 
       {/* Next Best Actions */}
@@ -113,7 +190,7 @@ export default function CompanyDetail() {
         paymentMethod={h.company.payment_method || "none"}
       />
 
-      <Tabs defaultValue="panoramica" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="panoramica" className="gap-1.5">
             <Eye className="h-3.5 w-3.5" /> Panoramica
@@ -175,6 +252,10 @@ export default function CompanyDetail() {
             onCreateEmployee={() => h.setCreateEmployeeOpen(true)}
             onEditPermissions={h.setPermissionsUser}
             onCreateAccount={h.handleCreateAccount} creatingAccountFor={h.creatingAccountFor}
+            onDeleteUser={handleDeleteUser}
+            onResetPassword={handleResetPassword}
+            isDeletingUser={isDeletingUser}
+            isResettingPassword={isResettingPassword}
           />
         </TabsContent>
 
