@@ -218,31 +218,11 @@ export default function AuditLogTab() {
           <Button
             variant="outline"
             size="sm"
-            disabled={!data?.logs?.length}
-            onClick={() => {
-              if (!data?.logs?.length) return;
-              const headers = ["Data", "Admin", "Azione", "Dettaglio"];
-              const rows = data.logs.map((log) => {
-                const details = log.details as Record<string, unknown> | null;
-                return [
-                  format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it }),
-                  `"${data.profiles[log.user_id] || "—"}"`,
-                  `"${actionLabels[log.action] || log.action}"`,
-                  `"${details?.target_name || details?.company_name || log.target_id || "—"}"`,
-                ].join(",");
-              });
-              const csv = [headers.join(","), ...rows].join("\n");
-              const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
+            disabled={!data?.total || isExporting}
+            onClick={exportFullCsv}
           >
-            <Download className="h-4 w-4 mr-1" />
-            CSV
+            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+            CSV {data?.total ? `(${data.total})` : ""}
           </Button>
           <Button variant="outline" size="icon" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
