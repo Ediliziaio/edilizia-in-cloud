@@ -110,15 +110,31 @@ All colors MUST be HSL.
   }
 }
 
+/* Sidebar collapsible smooth animation */
+[data-state="open"] > [data-radix-collapsible-content] {
+  animation: sidebar-slide-down 200ms ease-out;
+}
+[data-state="closed"] > [data-radix-collapsible-content] {
+  animation: sidebar-slide-up 200ms ease-out;
+}
+@keyframes sidebar-slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes sidebar-slide-up {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
 @media print {
   body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .print\\:hidden {
+  .print\:hidden {
     display: none !important;
   }
-  .print\\:break-before-page {
+  .print\:break-before-page {
     break-before: page;
   }
   nav, aside, header {
