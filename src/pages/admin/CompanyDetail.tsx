@@ -122,7 +122,6 @@ export default function CompanyDetail() {
   };
 
   // Reset password
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const handleResetPassword = async (userId: string, name: string) => {
     setIsResettingPassword(true);
     try {
