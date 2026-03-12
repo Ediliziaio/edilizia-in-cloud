@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Info } from "lucide-react";
 import type { MrrMovement } from "@/hooks/useAdminRevenueData";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Props {
   data: MrrMovement[];
