@@ -218,11 +218,15 @@ export function useInviteAdmin() {
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
-      toast.success("Invito inviato", {
-        description: "Il link di accesso è stato inviato via email.",
-      });
+      if (data?.inviteUrl) {
+        toast.success("Link invito generato", {
+          description: "Copia il link e condividilo con l'admin invitato.",
+        });
+      } else {
+        toast.success("Invito creato");
+      }
     },
     onError: (err: Error) =>
       toast.error("Errore invito", { description: err.message }),
