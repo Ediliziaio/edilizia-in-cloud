@@ -6,6 +6,7 @@ import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
 import { TabSedi } from "./tabs/TabSedi";
+import { TabFestivita } from "./tabs/TabFestivita";
 
 export default function PersonalePage() {
   return (
