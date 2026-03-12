@@ -614,7 +614,7 @@ export default function CompaniesList() {
         <Card>
           <CardContent className="p-0">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead className="w-10 px-2">
                     <Checkbox
