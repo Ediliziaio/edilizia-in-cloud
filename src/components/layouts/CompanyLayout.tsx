@@ -289,7 +289,7 @@ function CompanySidebar() {
   };
 
   return (
-    <Sidebar className="border-r">
+    <Sidebar className="border-r" collapsible="icon">
       <div
         className="flex h-14 items-center border-b px-4"
         style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
