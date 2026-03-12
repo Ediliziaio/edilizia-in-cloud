@@ -36,6 +36,10 @@ export default function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const h = useCompanyDetail(id);
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("panoramica");
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
