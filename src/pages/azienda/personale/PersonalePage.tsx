@@ -53,12 +53,7 @@ export default function PersonalePage() {
           <TabTimbrature />
         </TabsContent>
         <TabsContent value="presenze">
-          <ComingSoonPlaceholder
-            icon={CalendarDays}
-            title="Presenze & Foglio Ore"
-            description="Riepilogo giornaliero delle presenze"
-            comingSoonText="Il foglio presenze sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabPresenze />
         </TabsContent>
         <TabsContent value="richieste">
           <ComingSoonPlaceholder
