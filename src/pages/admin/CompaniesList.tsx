@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -27,6 +27,8 @@ import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
 import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
 import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRow";
 import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
+import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/company/CompanyFilterPresets";
+import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
