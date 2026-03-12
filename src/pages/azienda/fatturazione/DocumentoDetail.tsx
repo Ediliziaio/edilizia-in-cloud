@@ -3,7 +3,7 @@ import { useDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
-import { downloadPDF } from "@/lib/fatturazione/generatePDF";
+import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
