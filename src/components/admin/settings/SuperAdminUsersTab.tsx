@@ -264,7 +264,7 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <Button variant="outline" onClick={onClose}>Annulla</Button>
               <Button onClick={handleInvite} disabled={isPending} className="gap-2">
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                Invia invito
+                Genera invito
               </Button>
             </>
           )}
