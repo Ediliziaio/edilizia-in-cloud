@@ -64,6 +64,9 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
+import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
+import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
+import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 
 interface AdminNavItem {
   title: string;
@@ -557,8 +560,12 @@ export function AdminLayout() {
         <div className="flex-1 flex flex-col">
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
-            <span className="text-sm text-muted-foreground">Super Admin</span>
-            <div className="ml-auto">
+            <Separator orientation="vertical" className="h-5" />
+            <AdminBreadcrumb />
+            <div className="ml-auto flex items-center gap-2">
+              <AdminQuickActions />
+              <AdminNotificationCenter />
+              <Separator orientation="vertical" className="h-5" />
               <QuickLoginPopover />
             </div>
           </header>
