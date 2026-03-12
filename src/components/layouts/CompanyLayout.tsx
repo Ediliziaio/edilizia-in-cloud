@@ -58,7 +58,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
@@ -68,10 +68,8 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { internalNavItems, marketingNavItems, cruscottoNavItem, internalSubcategories, marketingSubcategories, type NavItem } from "@/lib/sidebarConfig";
+import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { useBillingMode } from "@/contexts/BillingModeContext";
-import { useSidebarSections } from "@/hooks/useSidebarSections";
-import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 
