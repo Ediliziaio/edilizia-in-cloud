@@ -2751,6 +2751,9 @@ export type Database = {
           bank_account_holder: string | null
           bank_iban: string | null
           bank_name: string | null
+          billing_mode: string
+          billing_mode_set_at: string | null
+          billing_mode_set_by: string | null
           brand_accent_color: string | null
           brand_favicon_url: string | null
           brand_hide_powered_by: boolean | null
@@ -2826,6 +2829,9 @@ export type Database = {
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          billing_mode?: string
+          billing_mode_set_at?: string | null
+          billing_mode_set_by?: string | null
           brand_accent_color?: string | null
           brand_favicon_url?: string | null
           brand_hide_powered_by?: boolean | null
@@ -2901,6 +2907,9 @@ export type Database = {
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          billing_mode?: string
+          billing_mode_set_at?: string | null
+          billing_mode_set_by?: string | null
           brand_accent_color?: string | null
           brand_favicon_url?: string | null
           brand_hide_powered_by?: boolean | null
