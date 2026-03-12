@@ -107,7 +107,7 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         query = query.lte("data_emissione", filters.data_a);
       }
       if (filters.search) {
-        query = query.or(`numero.ilike.%${filters.search}%,note_documento.ilike.%${filters.search}%`);
+        query = query.or(`numero.ilike.%${filters.search}%,note_documento.ilike.%${filters.search}%,cliente_snapshot->>ragione_sociale.ilike.%${filters.search}%`);
       }
 
       const { data, error, count } = await query;

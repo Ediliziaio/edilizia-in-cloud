@@ -1,7 +1,11 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAnagraficaNative } from "@/hooks/useAnagraficheNative";
 import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
-import { useMovimentiCassa } from "@/hooks/useMovimentiCassa";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import type { MovimentoCassa } from "@/hooks/useMovimentiCassa";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +13,24 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, FileText, Loader2 } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
+
+function useMovimentiCassaByDocIds(docIds: string[]) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["movimenti-cassa-by-docs", companyId, docIds],
+    enabled: !!companyId && docIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimenti_cassa_native" as never)
+        .select("*")
+        .eq("company_id", companyId!)
+        .in("documento_id", docIds)
+        .order("data_movimento", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as MovimentoCassa[]) ?? [];
+    },
+  });
+}
 
 function getInitials(name?: string | null): string {
   if (!name) return "?";
@@ -26,10 +48,10 @@ export default function AnagraficaDetail() {
   const fatture = documenti.filter((d) => d.tipo !== "ddt");
   const ddts = documenti.filter((d) => d.tipo === "ddt");
 
-  const { data: movimenti } = useMovimentiCassa({ documento_id: undefined });
-  // Filter movimenti for documents of this anagrafica
-  const docIds = new Set(documenti.map((d) => d.id));
-  const movimentiFiltered = (movimenti ?? []).filter((m) => m.documento_id && docIds.has(m.documento_id));
+  // Only fetch movimenti once we have document IDs to filter by
+  const docIds = useMemo(() => documenti.map((d) => d.id), [documenti]);
+  const { data: movimentiData } = useMovimentiCassaByDocIds(docIds);
+  const movimentiFiltered = movimentiData ?? [];
 
   if (isLoading || !anagrafica) {
     return (

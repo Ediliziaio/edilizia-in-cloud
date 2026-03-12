@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
   useDocumentoFiscale,
@@ -20,7 +20,7 @@ import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
 import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { TipoDocumento } from "@/types/fatturazione";
+import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
 
 export default function EditorDocumento() {
   const { id } = useParams();
@@ -29,6 +29,8 @@ export default function EditorDocumento() {
   const isCreate = !id;
   const createdRef = useRef(false);
 
+  const location = useLocation();
+  const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
   const createMutation = useCreateDocumento();
   const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
@@ -40,7 +42,7 @@ export default function EditorDocumento() {
     if (isCreate && !createdRef.current) {
       createdRef.current = true;
       createMutation.mutate(
-        { tipo: tipoParam },
+        { tipo: tipoParam, ...prefilled },
         {
           onSuccess: (doc) => {
             navigate(`/azienda/documenti/${doc.id}`, { replace: true });

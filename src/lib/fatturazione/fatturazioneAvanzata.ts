@@ -40,8 +40,8 @@ export async function creaFatturaDaDDT(
   );
 
   const riferimenti_ddt = ddts.map((ddt) => ({
-    numero: ddt.numero,
-    data: ddt.data_emissione,
+    NumeroDDT: ddt.numero,
+    DataDDT: ddt.data_emissione,
     id: ddt.id,
   }));
 

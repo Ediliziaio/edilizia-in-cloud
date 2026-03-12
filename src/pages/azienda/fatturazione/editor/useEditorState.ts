@@ -195,6 +195,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       causale: state.causale,
       cig: state.cig,
       cup: state.cup,
+      arrotondamento: state.arrotondamento,
     });
 
     if (serialized === prevStateRef.current) return;
@@ -238,8 +239,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           scadenze_pagamento: state.scadenze_pagamento,
           serie: state.serie,
           causale: state.causale,
-          cig: state.cig,
+           cig: state.cig,
           cup: state.cup,
+          arrotondamento: state.arrotondamento,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
