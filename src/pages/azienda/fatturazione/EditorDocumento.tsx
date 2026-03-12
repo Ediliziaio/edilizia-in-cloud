@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import {
   useDocumentoFiscale,
   useCreateDocumento,
@@ -17,7 +17,9 @@ import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
+import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TipoDocumento } from "@/types/fatturazione";
 
 export default function EditorDocumento() {
@@ -87,8 +89,47 @@ export default function EditorDocumento() {
         {/* Left panel: continuous scroll form */}
         <ScrollArea className="w-1/2 border-r">
           <div className="p-4 space-y-4 pb-8">
+            {/* NC banner */}
+            {state.tipo === "nota_credito" && state.documento_correlato_id && (
+              <div className="flex items-start gap-3 p-3 rounded-md bg-amber-50 border border-amber-200 text-sm">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-800">
+                    Nota di Credito
+                  </p>
+                  <p className="text-amber-700 text-xs mt-0.5">
+                    {state.note_documento}
+                  </p>
+                  <div className="mt-2">
+                    <Select
+                      value={(state as any)._motivo_nc ?? ""}
+                      onValueChange={(v) => dispatch({ type: "SET_FIELD", field: "_motivo_nc" as any, value: v })}
+                      disabled={!isBozza}
+                    >
+                      <SelectTrigger className="h-8 w-48">
+                        <SelectValue placeholder="Motivo storno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="reso">Reso</SelectItem>
+                        <SelectItem value="annullamento">Annullamento</SelectItem>
+                        <SelectItem value="errore">Errore</SelectItem>
+                        <SelectItem value="sconto_postvendita">Sconto post-vendita</SelectItem>
+                        <SelectItem value="altro">Altro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+
+            {/* DDT-specific sections */}
+            {state.tipo === "ddt" && (
+              <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            )}
+
             <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />

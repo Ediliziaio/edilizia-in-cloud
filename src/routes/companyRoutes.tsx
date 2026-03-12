@@ -64,7 +64,12 @@ const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
+const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 const CassettoSDI = lazy(() => import("@/pages/azienda/fatturazione/CassettoSDI"));
+const DDTList = lazy(() => import("@/pages/azienda/fatturazione/DDTList"));
+const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/RegistroIncassi"));
+const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
+const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -163,8 +168,13 @@ export function companyRoutes() {
         {/* Native billing routes */}
         <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
         <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
-        <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         <Route path="documenti/cassetto-sdi" element={<BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard>} />
+        <Route path="documenti/ddt" element={<BillingModeGuard requiredMode="native"><DDTList /></BillingModeGuard>} />
+        <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
+        <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />
+        <Route path="documenti/anagrafiche/:id" element={<BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard>} />
+        <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
+        <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
