@@ -34,6 +34,7 @@ export function TabOrganigramma() {
   const [filterReparto, setFilterReparto] = useState<string>("__all__");
   const [editingProfilo, setEditingProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   const profili = data?.profili || [];
   const reparti = data?.reparti || [];
