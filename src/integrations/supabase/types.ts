@@ -9578,6 +9578,57 @@ export type Database = {
           },
         ]
       }
+      phone_number_sms_usage: {
+        Row: {
+          company_id: string
+          cost_eur: number | null
+          created_at: string | null
+          id: string
+          period_end: string
+          period_start: string
+          phone_number_id: string
+          sms_received: number | null
+          sms_sent: number | null
+        }
+        Insert: {
+          company_id: string
+          cost_eur?: number | null
+          created_at?: string | null
+          id?: string
+          period_end: string
+          period_start: string
+          phone_number_id: string
+          sms_received?: number | null
+          sms_sent?: number | null
+        }
+        Update: {
+          company_id?: string
+          cost_eur?: number | null
+          created_at?: string | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          phone_number_id?: string
+          sms_received?: number | null
+          sms_sent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phone_number_sms_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phone_number_sms_usage_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "virtual_phone_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_announcements: {
         Row: {
           content: string
@@ -13156,6 +13207,75 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "user_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      virtual_phone_numbers: {
+        Row: {
+          assigned_to: string | null
+          capabilities: Json | null
+          company_id: string
+          country_code: string | null
+          created_at: string | null
+          friendly_name: string | null
+          id: string
+          is_active: boolean | null
+          monthly_cost_eur: number | null
+          number_type: string | null
+          phone_number: string
+          purchased_at: string | null
+          released_at: string | null
+          telnyx_phone_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          capabilities?: Json | null
+          company_id: string
+          country_code?: string | null
+          created_at?: string | null
+          friendly_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_cost_eur?: number | null
+          number_type?: string | null
+          phone_number: string
+          purchased_at?: string | null
+          released_at?: string | null
+          telnyx_phone_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          capabilities?: Json | null
+          company_id?: string
+          country_code?: string | null
+          created_at?: string | null
+          friendly_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_cost_eur?: number | null
+          number_type?: string | null
+          phone_number?: string
+          purchased_at?: string | null
+          released_at?: string | null
+          telnyx_phone_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "virtual_phone_numbers_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "virtual_phone_numbers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
