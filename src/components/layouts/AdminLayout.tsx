@@ -325,10 +325,15 @@ function AdminMainSidebar() {
   return (
     <Sidebar className="border-r">
       <div className="flex flex-col border-b">
-        <div className="flex h-14 items-center px-4">
+        <div className="flex h-14 items-center px-4 justify-between">
           <Link to="/admin" className="flex items-center">
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           </Link>
+          {sidebarBadges?.maintenanceActive && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:text-orange-400" title="Manutenzione attiva">
+              🔧
+            </span>
+          )}
         </div>
         {permissions.can_manage_companies && (
           <div className="px-3 pb-3">
