@@ -462,6 +462,9 @@ Deno.serve(async (req) => {
         case "customer.subscription.updated":
           await handleSubscriptionUpdated(supabase, obj);
           break;
+        case "invoice.created":
+          await handleInvoiceCreated(supabase, obj);
+          break;
       }
 
       await logStripeEvent(supabase, event.id, event.type, companyId, event.data);
