@@ -46,7 +46,7 @@ export default function AcceptInvite() {
       });
 
       if (fnError) {
-        const msg = await fnError?.context?.json?.().catch(() => null);
+        const msg = await fnError?.context?.json?.().catch((): null => null);
         throw new Error(msg?.error || fnError.message);
       }
       if (data?.error) throw new Error(data.error);
