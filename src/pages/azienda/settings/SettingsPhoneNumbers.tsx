@@ -254,10 +254,10 @@ export default function SettingsPhoneNumbers() {
       </div>
 
       {/* Info box */}
-      <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+      <Card className="border-primary/20 bg-primary/5">
         <CardContent className="flex items-start gap-3 pt-4">
-          <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-          <div className="text-sm text-blue-800 dark:text-blue-300">
+          <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="text-sm text-foreground/80">
             <p>I numeri virtuali sono gestiti tramite Telnyx, configurato dalla piattaforma.</p>
             <p className="mt-1">
               Per gestire il credito SMS, vai alla sezione{" "}

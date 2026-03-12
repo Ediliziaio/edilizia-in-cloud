@@ -213,6 +213,7 @@ export function companyRoutes() {
           <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
           <Route path="fatturazione" element={<SettingsBilling />} />
           <Route path="form-builder" element={<SettingsFormBuilder />} />
+          <Route path="numeri-telefono" element={<SettingsPhoneNumbers />} />
         </Route>
       </Route>
     </>
