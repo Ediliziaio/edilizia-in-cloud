@@ -735,6 +735,18 @@ export function CompanyLayout() {
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
+            {area && (
+              <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                {AreaIcon && <AreaIcon className="h-3.5 w-3.5" />}
+                <span className="text-xs font-medium">{area}</span>
+                {page && (
+                  <>
+                    <ChevronRight className="h-3 w-3" />
+                    <span className="text-xs font-medium text-foreground">{page}</span>
+                  </>
+                )}
+              </nav>
+            )}
             <div className="flex-1" />
             <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
               <Search className="h-4 w-4" />
