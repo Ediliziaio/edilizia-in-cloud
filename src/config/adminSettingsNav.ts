@@ -1,6 +1,6 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
-  ScrollText, Bot, Globe, Zap,
+  ScrollText, Bot, Globe, Zap, Plug, Landmark,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
