@@ -134,10 +134,12 @@ function ImpersonationBanner() {
 }
 
 // Macro-area collapsible section component
-function MacroAreaCollapsible({ area, visibleItems, pathname }: {
+function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange }: {
   area: MacroArea;
   visibleItems: NavItem[];
   pathname: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
@@ -145,29 +147,10 @@ function MacroAreaCollapsible({ area, visibleItems, pathname }: {
     return pathname === url || pathname.startsWith(url + "/");
   };
 
-  const hasActiveChild = visibleItems.some(item => isActive(item.url));
-  const storageKey = `sidebar_area_${area.id}`;
-
-  const [open, setOpen] = useState(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored !== null) return stored === "true";
-    } catch {}
-    return hasActiveChild;
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(storageKey, String(open)); } catch {}
-  }, [open, storageKey]);
-
-  useEffect(() => {
-    if (hasActiveChild && !open) setOpen(true);
-  }, [hasActiveChild]);
-
   const AreaIcon = area.icon;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <SidebarGroup className="py-0">
         <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
           <span className="flex items-center gap-2">
@@ -221,6 +204,33 @@ function CompanySidebar() {
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // Exclusive accordion: only one macro-area open at a time
+  const findActiveAreaId = useCallback((path: string): string | null => {
+    for (const area of macroAreas) {
+      if (area.id === "area_cruscotto") continue;
+      for (const item of area.items) {
+        if (path === item.url || path.startsWith(item.url + "/")) return area.id;
+      }
+    }
+    return null;
+  }, []);
+
+  const [openAreaId, setOpenAreaId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem("sidebar_open_area");
+      if (stored) return stored;
+    } catch {}
+    return findActiveAreaId(location.pathname);
+  });
+
+  useEffect(() => {
+    const active = findActiveAreaId(location.pathname);
+    if (active && active !== openAreaId) {
+      setOpenAreaId(active);
+      try { localStorage.setItem("sidebar_open_area", active); } catch {}
+    }
+  }, [location.pathname]);
 
   // Apply CSS variables for brand colors
   useEffect(() => {
@@ -610,7 +620,7 @@ function CompanySidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* 5 collapsible macro-areas */}
+            {/* 5 collapsible macro-areas — exclusive accordion */}
             {macroAreas
               .filter(a => a.id !== "area_cruscotto")
               .map(area => {
@@ -622,6 +632,12 @@ function CompanySidebar() {
                     area={area}
                     visibleItems={visibleItems}
                     pathname={location.pathname}
+                    open={openAreaId === area.id}
+                    onOpenChange={(isOpen) => {
+                      const newId = isOpen ? area.id : null;
+                      setOpenAreaId(newId);
+                      try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch {}
+                    }}
                   />
                 );
               })}

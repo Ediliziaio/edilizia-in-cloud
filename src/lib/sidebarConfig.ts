@@ -138,9 +138,6 @@ export const macroAreas: MacroArea[] = [
     title: "Persone",
     icon: Users2,
     items: [
-      { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
-      { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
-      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewDashboard" },
       { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true },
       { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare },
@@ -154,6 +151,9 @@ export const macroAreas: MacroArea[] = [
     icon: Megaphone,
     items: [
       { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard" },
+      { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
+      { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
+      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail" },
       { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp" },
       { title: "Attività CRM", url: "/azienda/marketing/attivita", icon: ListTodo, permissionKey: "canViewMarketingActivities" },
