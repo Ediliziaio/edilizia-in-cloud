@@ -668,7 +668,7 @@ function CompanySidebar() {
                 <SidebarMenu>
                   {filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []).map((item) => (
                     <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild tooltip={item.title}>
                         <NavLink
                           to={item.url}
                           end={item.url === "/azienda"}
