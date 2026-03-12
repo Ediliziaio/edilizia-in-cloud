@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminSessions, useRevokeSession } from "@/hooks/useAdminSessions";
 import { toast } from "sonner";
 import {
   Lock, Eye, EyeOff, Shield, Monitor, Trash2, Loader2,
-  RefreshCw, AlertTriangle, CheckCircle2,
+  RefreshCw, AlertTriangle, CheckCircle2, Smartphone, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
