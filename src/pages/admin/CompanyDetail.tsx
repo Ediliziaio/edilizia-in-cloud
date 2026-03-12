@@ -96,9 +96,75 @@ export default function CompanyDetail() {
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("panoramica");
+
   const handleImpersonate = async () => {
     await h.handleImpersonate();
     navigate("/azienda");
+  };
+
+  // Delete company user
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const handleDeleteUser = async (userId: string, name: string) => {
+    setIsDeletingUser(true);
+    try {
+      const { error } = await supabase.functions.invoke("delete-company-user", { body: { userId } });
+      if (error) throw error;
+      toast.success(`${name} eliminato`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
+    } catch (err: any) {
+      toast.error("Errore eliminazione utente", { description: err.message });
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Reset password
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const handleResetPassword = async (userId: string, name: string) => {
+    setIsResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "reset-password", userId },
+      });
+      if (error) throw error;
+      toast.success(`Password resettata per ${name}`, { description: "La nuova password è stata inviata via email." });
+    } catch (err: any) {
+      toast.error("Errore reset password", { description: err.message });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  // Delete company
+  const handleDeleteCompany = async () => {
+    try {
+      const { error } = await supabase.from("companies").delete().eq("id", h.company!.id);
+      if (error) throw error;
+      toast.success("Azienda eliminata");
+      navigate("/admin/aziende");
+    } catch (err: any) {
+      toast.error("Errore eliminazione azienda", { description: err.message });
+    }
+  };
+
+  // Export company data
+  const handleExportCompany = () => {
+    if (!h.company) return;
+    const data = {
+      ...h.company,
+      stats: h.stats,
+      team: h.teamData,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${h.company.name.replace(/\s+/g, "_")}_export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Dati esportati");
   };
 
   return (
@@ -107,6 +173,12 @@ export default function CompanyDetail() {
         company={h.company}
         onBack={() => navigate("/admin/aziende")}
         onImpersonate={handleImpersonate}
+        onEdit={() => setActiveTab("dettagli")}
+        onSuspend={() => h.updateStatusMutation.mutate({ newStatus: "suspended", notes: "Sospeso manualmente" })}
+        onReactivate={() => h.updateStatusMutation.mutate({ newStatus: "active", notes: "Riattivato manualmente" })}
+        onDelete={handleDeleteCompany}
+        onExport={handleExportCompany}
+        isUpdatingStatus={h.updateStatusMutation.isPending}
       />
 
       {/* Next Best Actions */}
