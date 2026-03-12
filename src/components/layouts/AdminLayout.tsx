@@ -64,6 +64,9 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
+import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
+import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
+import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 
 interface AdminNavItem {
   title: string;
