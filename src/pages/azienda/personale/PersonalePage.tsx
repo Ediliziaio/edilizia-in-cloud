@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComingSoonPlaceholder } from "@/components/users/ComingSoonPlaceholder";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
+import { TabOrganigramma } from "./tabs/TabOrganigramma";
 
 export default function PersonalePage() {
   return (
@@ -10,8 +11,11 @@ export default function PersonalePage() {
         <p className="text-muted-foreground">Gestione presenze, ferie, timbrature e anagrafiche del personale.</p>
       </div>
 
-      <Tabs defaultValue="profili" className="w-full">
+      <Tabs defaultValue="organigramma" className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="organigramma" className="gap-1.5">
+            <Network className="h-4 w-4" /> Organigramma
+          </TabsTrigger>
           <TabsTrigger value="profili" className="gap-1.5">
             <Users className="h-4 w-4" /> Profili
           </TabsTrigger>
@@ -32,6 +36,9 @@ export default function PersonalePage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="organigramma">
+          <TabOrganigramma />
+        </TabsContent>
         <TabsContent value="profili">
           <ComingSoonPlaceholder
             icon={Users}
