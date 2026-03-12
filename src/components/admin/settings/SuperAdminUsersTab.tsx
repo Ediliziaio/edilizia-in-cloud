@@ -205,7 +205,7 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
         <DialogHeader>
           <DialogTitle>Invita Super Admin</DialogTitle>
           <DialogDescription>
-            Invia un link di invito via email. Il link è valido per 7 giorni.
+            Genera un link di invito da condividere. Il link è valido per 7 giorni.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -249,7 +249,7 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Condividi questo link con l'admin invitato. L'email potrebbe non essere stata inviata.
+                Copia e condividi questo link con l'admin invitato. Il link scade tra 7 giorni.
               </p>
             </div>
           )}
@@ -264,7 +264,7 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <Button variant="outline" onClick={onClose}>Annulla</Button>
               <Button onClick={handleInvite} disabled={isPending} className="gap-2">
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                Invia invito
+                Genera invito
               </Button>
             </>
           )}
