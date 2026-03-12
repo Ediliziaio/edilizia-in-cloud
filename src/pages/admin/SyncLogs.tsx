@@ -35,7 +35,7 @@ function SyncLogs() {
   const [dateRange, setDateRange] = useState<DateRange>("week");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: logs = [], isLoading, refetch, isFetching } = useQuery({
+  const { data: logs = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["sync-logs", statusFilter, dateRange],
     queryFn: async () => {
       let query = supabase
