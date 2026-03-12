@@ -224,3 +224,6 @@ verify_jwt = false
 
 [functions.verify-custom-domain]
 verify_jwt = false
+
+[functions.authenticate-api-key]
+verify_jwt = false
