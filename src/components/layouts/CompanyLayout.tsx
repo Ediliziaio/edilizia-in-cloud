@@ -205,6 +205,33 @@ function CompanySidebar() {
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
 
+  // Exclusive accordion: only one macro-area open at a time
+  const findActiveAreaId = useCallback((path: string): string | null => {
+    for (const area of macroAreas) {
+      if (area.id === "area_cruscotto") continue;
+      for (const item of area.items) {
+        if (path === item.url || path.startsWith(item.url + "/")) return area.id;
+      }
+    }
+    return null;
+  }, []);
+
+  const [openAreaId, setOpenAreaId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem("sidebar_open_area");
+      if (stored) return stored;
+    } catch {}
+    return findActiveAreaId(location.pathname);
+  });
+
+  useEffect(() => {
+    const active = findActiveAreaId(location.pathname);
+    if (active && active !== openAreaId) {
+      setOpenAreaId(active);
+      try { localStorage.setItem("sidebar_open_area", active); } catch {}
+    }
+  }, [location.pathname]);
+
   // Apply CSS variables for brand colors
   useEffect(() => {
     const root = document.documentElement;
