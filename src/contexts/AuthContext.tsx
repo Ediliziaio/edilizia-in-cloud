@@ -273,6 +273,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 body: {
                   device_hint: `${info.browser} su ${info.os}`,
                 },
+              }).then((res) => {
+                if (res.data?.session_token) {
+                  sessionStorage.setItem("admin_session_token", res.data.session_token);
+                }
               }).catch(() => {});
             }
           }, 0);
