@@ -190,7 +190,7 @@ export default function CompanyDetail() {
         paymentMethod={h.company.payment_method || "none"}
       />
 
-      <Tabs defaultValue="panoramica" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="panoramica" className="gap-1.5">
             <Eye className="h-3.5 w-3.5" /> Panoramica
