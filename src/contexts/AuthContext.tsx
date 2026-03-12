@@ -168,8 +168,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logger.error("Error fetching roles:", roleError);
       }
 
-      // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
-      const rolePriority: AppRole[] = ["salesperson", "call_center", "company_admin", "company_staff"];
+      // Determine effective role with priority: highest privilege first
+      const rolePriority: AppRole[] = [
+        "super_admin",
+        "platform_manager",
+        "platform_sales",
+        "platform_support",
+        "platform_marketing",
+        "platform_implementation",
+        "multi_company_user",
+        "referrer",
+        "salesperson",
+        "call_center",
+        "company_admin",
+        "company_staff",
+        "employee",
+        "customer",
+      ];
       const userRoles = (rolesData || []).map(r => r.role as AppRole);
       const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
 
@@ -431,10 +446,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
-  // Effective company: impersonation > multi-company > real company
+  // Effective company: impersonation > multi-company (including platform_* roles) > real company
+  const isPlatformRole = state.role?.startsWith("platform_") ?? false;
   const effectiveCompany = isImpersonating
     ? impersonatedCompany
-    : state.role === "multi_company_user" && multiCompanyObj
+    : (state.role === "multi_company_user" || isPlatformRole) && multiCompanyObj
       ? multiCompanyObj
       : state.company;
 
