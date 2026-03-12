@@ -168,12 +168,7 @@ export default function DocumentiFiscaliList() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Documenti totali</p><p className="text-lg font-semibold">{total}</p></CardContent></Card>
-        <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">In questa pagina</p><p className="text-lg font-semibold">{docs.length}</p></CardContent></Card>
-        <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Pagina</p><p className="text-lg font-semibold">{page + 1} / {Math.max(totalPages, 1)}</p></CardContent></Card>
-        <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Per pagina</p><p className="text-lg font-semibold">{PER_PAGE}</p></CardContent></Card>
-      </div>
+      <KPICards />
 
       {/* Filter bar */}
       <div className="flex items-center gap-3 flex-wrap">
