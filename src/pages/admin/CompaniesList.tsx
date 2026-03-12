@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -27,6 +27,8 @@ import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
 import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
 import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRow";
 import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
+import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/company/CompanyFilterPresets";
+import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -68,6 +70,7 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
 
 type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
 type SortDir = "asc" | "desc";
+type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
 
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
@@ -75,11 +78,13 @@ export default function CompaniesList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activePreset, setActivePreset] = useState<string | null>(null);
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -267,7 +272,8 @@ export default function CompaniesList() {
       const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
       const plan = company.subscription_plans as { id: string; name: string } | null;
       const matchesPlan = planFilter === "all" || plan?.id === planFilter;
-      return matchesSearch && matchesStatus && matchesSector && matchesPlan;
+      const matchesHealth = healthFilter === "all" || (healthData[company.id]?.health === healthFilter);
+      return matchesSearch && matchesStatus && matchesSector && matchesPlan && matchesHealth;
     });
 
     if (sortKey) {
@@ -299,9 +305,101 @@ export default function CompaniesList() {
     }
 
     return result;
-  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData]);
+  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData, healthData]);
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
+  const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all";
+
+  // Smart filter presets
+  const filterPresets: FilterPreset[] = useMemo(() => {
+    const trialExpiring = companies.filter((c) => {
+      if (c.status !== "trial" || !c.trial_ends_at) return false;
+      const days = differenceInDays(new Date(c.trial_ends_at), new Date());
+      return days >= 0 && days <= 7;
+    }).length;
+
+    const atRiskCount = companies.filter((c) => {
+      const h = healthData[c.id];
+      return h && (h.health === "at_risk" || h.health === "critical");
+    }).length;
+
+    const noPayment = companies.filter((c) =>
+      (c.status === "active" || c.status === "trial") &&
+      (!c.payment_method || c.payment_method === "none" || c.payment_method === "")
+    ).length;
+
+    const inactive = companies.filter((c) => {
+      const la = lastAccessData[c.id];
+      if (!la || c.status !== "active") return false;
+      return differenceInDays(new Date(), new Date(la)) > 14;
+    }).length;
+
+    const clearFilters = () => {
+      setSearchQuery("");
+      setStatusFilter("all");
+      setSectorFilter("all");
+      setPlanFilter("all");
+      setHealthFilter("all");
+    };
+
+    return [
+      {
+        key: "trial_expiring",
+        label: "Trial in scadenza",
+        icon: Clock,
+        description: "Trial che scadono entro 7 giorni",
+        color: "amber",
+        count: trialExpiring,
+        apply: () => { clearFilters(); setStatusFilter("trial"); setSortKey("trial"); setSortDir("asc"); setActivePreset("trial_expiring"); },
+      },
+      {
+        key: "at_risk",
+        label: "A rischio",
+        icon: AlertTriangle,
+        description: "Aziende con health score basso",
+        color: "red",
+        count: atRiskCount,
+        apply: () => { clearFilters(); setHealthFilter("at_risk"); setActivePreset("at_risk"); },
+      },
+      {
+        key: "no_payment",
+        label: "Senza pagamento",
+        icon: CreditCard,
+        description: "Aziende attive/trial senza metodo di pagamento",
+        color: "orange",
+        count: noPayment,
+        apply: () => { clearFilters(); setActivePreset("no_payment"); /* custom filter handled below */ },
+      },
+      {
+        key: "inactive",
+        label: "Inattive",
+        icon: UserX,
+        description: "Aziende attive senza accesso da 14+ giorni",
+        color: "gray",
+        count: inactive,
+        apply: () => { clearFilters(); setStatusFilter("active"); setSortKey("lastAccess"); setSortDir("asc"); setActivePreset("inactive"); },
+      },
+    ];
+  }, [companies, healthData, lastAccessData]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSectorFilter("all");
+    setPlanFilter("all");
+    setHealthFilter("all");
+    setActivePreset(null);
+  }, []);
+
+  // Active filter labels
+  const statusLabelsMap: Record<string, string> = { trial: "Trial", active: "Attivo", suspended: "Sospeso", expired: "Scaduto" };
+  const healthLabelsMap: Record<string, string> = { healthy: "Healthy", at_risk: "A rischio", critical: "Critico" };
+  const activeFiltersList = useMemo(() => [
+    { key: "search", label: "Cerca", value: searchQuery, onClear: () => setSearchQuery("") },
+    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (statusLabelsMap[statusFilter] || statusFilter), onClear: () => setStatusFilter("all") },
+    { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setSectorFilter("all") },
+    { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setPlanFilter("all") },
+    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (healthLabelsMap[healthFilter] || healthFilter), onClear: () => setHealthFilter("all") },
+  ], [searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, uniquePlans]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -406,17 +504,24 @@ export default function CompaniesList() {
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
+      {/* Smart Filter Presets */}
+      <CompanyFilterPresets
+        activePreset={activePreset}
+        onClearPreset={clearAllFilters}
+        presets={filterPresets}
+      />
+
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cerca per nome o email..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setActivePreset(null); }}
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti gli stati</SelectItem>
@@ -426,7 +531,7 @@ export default function CompaniesList() {
             <SelectItem value="expired">Scaduto</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={sectorFilter} onValueChange={setSectorFilter}>
+        <Select value={sectorFilter} onValueChange={(v) => { setSectorFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="Settore" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i settori</SelectItem>
@@ -435,13 +540,22 @@ export default function CompaniesList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={planFilter} onValueChange={setPlanFilter}>
+        <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Piano" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i piani</SelectItem>
             {uniquePlans.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={healthFilter} onValueChange={(v) => { setHealthFilter(v as HealthFilter); setActivePreset(null); }}>
+          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti</SelectItem>
+            <SelectItem value="healthy">Healthy</SelectItem>
+            <SelectItem value="at_risk">A rischio</SelectItem>
+            <SelectItem value="critical">Critico</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
@@ -457,10 +571,14 @@ export default function CompaniesList() {
         </div>
       </div>
 
+      {/* Active Filter Chips */}
       {hasActiveFilters && !isLoading && (
-        <p className="text-sm text-muted-foreground">
-          Visualizzando {filteredCompanies.length} di {companies.length} aziende
-        </p>
+        <CompanyActiveFilters
+          filters={activeFiltersList}
+          totalCount={companies.length}
+          filteredCount={filteredCompanies.length}
+          onClearAll={clearAllFilters}
+        />
       )}
 
       {isLoading ? (
@@ -496,7 +614,7 @@ export default function CompaniesList() {
         <Card>
           <CardContent className="p-0">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead className="w-10 px-2">
                     <Checkbox
