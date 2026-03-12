@@ -142,6 +142,8 @@ export default {
         "slide-in-right": "slide-in-right 0.7s ease-out forwards",
         "shimmer": "shimmer 3s linear infinite",
         "marquee": "marquee 25s linear infinite",
+        "sidebar-slide-down": "sidebar-slide-down 200ms ease-out forwards",
+        "sidebar-slide-up": "sidebar-slide-up 200ms ease-out forwards",
       },
     },
   },
