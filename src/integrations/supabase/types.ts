@@ -1215,6 +1215,13 @@ export type Database = {
             referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointment_reminders_sent_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "public_appointment_slots"
+            referencedColumns: ["id"]
+          },
         ]
       }
       appointments: {
@@ -5234,6 +5241,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_event_map_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "public_appointment_slots"
             referencedColumns: ["id"]
           },
           {
@@ -14174,6 +14188,51 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_appointment_slots: {
+        Row: {
+          appointment_date: string | null
+          appointment_end_time: string | null
+          appointment_time: string | null
+          calendar_id: string | null
+          company_id: string | null
+          id: string | null
+          is_blocked_slot: boolean | null
+        }
+        Insert: {
+          appointment_date?: string | null
+          appointment_end_time?: string | null
+          appointment_time?: string | null
+          calendar_id?: string | null
+          company_id?: string | null
+          id?: string | null
+          is_blocked_slot?: boolean | null
+        }
+        Update: {
+          appointment_date?: string | null
+          appointment_end_time?: string | null
+          appointment_time?: string | null
+          calendar_id?: string | null
+          company_id?: string | null
+          id?: string | null
+          is_blocked_slot?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_calendars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

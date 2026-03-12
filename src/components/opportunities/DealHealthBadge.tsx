@@ -35,7 +35,7 @@ export const DealHealthBadge = memo(function DealHealthBadge({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
+        <div
           className={cn(
             "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium cursor-default",
             health.color,
@@ -45,7 +45,7 @@ export const DealHealthBadge = memo(function DealHealthBadge({
         >
           <span className={cn("h-2 w-2 rounded-full shrink-0", dotColor)} />
           {!compact && <span>{health.score}</span>}
-        </span>
+        </div>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[240px] space-y-1">
         <p className="font-semibold text-xs">
