@@ -417,21 +417,37 @@ function AdminMainSidebar() {
                       onToggle={() => toggle(sub.id)}
                     >
                       <SidebarMenu className="divide-y divide-dashed divide-border/40">
-                        {items.map((item) => (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild>
-                              <NavLink 
-                                to={item.url} 
-                                end={item.url === "/admin"}
-                                className={navLinkClass}
-                                activeClassName={activeClass}
-                              >
-                                <item.icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {items.map((item) => {
+                          const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                          return (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink 
+                                  to={item.url} 
+                                  end={item.url === "/admin"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span className="flex-1">{item.title}</span>
+                                  {badge && badge.count != null && badge.count > 0 && (
+                                    <span
+                                      className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-[10px] font-bold leading-none ${
+                                        badge.variant === "destructive"
+                                          ? "bg-destructive text-destructive-foreground"
+                                          : badge.variant === "warning"
+                                          ? "bg-orange-500 text-white dark:bg-orange-600"
+                                          : "bg-primary/15 text-primary"
+                                      }`}
+                                    >
+                                      {badge.count > 99 ? "99+" : badge.count}
+                                    </span>
+                                  )}
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
                       </SidebarMenu>
                     </SidebarSubcategory>
                   );
