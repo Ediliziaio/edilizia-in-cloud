@@ -42,7 +42,7 @@ export default function EditorDocumento() {
     if (isCreate && !createdRef.current) {
       createdRef.current = true;
       createMutation.mutate(
-        { tipo: tipoParam },
+        { tipo: tipoParam, ...prefilled },
         {
           onSuccess: (doc) => {
             navigate(`/azienda/documenti/${doc.id}`, { replace: true });
