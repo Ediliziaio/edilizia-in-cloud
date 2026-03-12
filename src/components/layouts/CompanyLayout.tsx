@@ -150,7 +150,15 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
-    return pathname === url || pathname.startsWith(url + "/");
+    if (pathname === url) return true;
+    if (pathname.startsWith(url + "/")) {
+      const hasMoreSpecific = visibleItems.some(
+        other => other.url !== url && other.url.startsWith(url + "/") &&
+          (pathname === other.url || pathname.startsWith(other.url + "/"))
+      );
+      return !hasMoreSpecific;
+    }
+    return false;
   };
 
   const hasActiveChild = visibleItems.some(item => isActive(item.url));
