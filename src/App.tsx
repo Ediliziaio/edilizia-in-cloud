@@ -73,6 +73,7 @@ const App = () => (
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
+              <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
