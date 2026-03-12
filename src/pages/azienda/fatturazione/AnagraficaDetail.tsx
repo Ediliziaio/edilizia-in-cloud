@@ -1,7 +1,11 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAnagraficaNative } from "@/hooks/useAnagraficheNative";
 import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
-import { useMovimentiCassa } from "@/hooks/useMovimentiCassa";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import type { MovimentoCassa } from "@/hooks/useMovimentiCassa";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
