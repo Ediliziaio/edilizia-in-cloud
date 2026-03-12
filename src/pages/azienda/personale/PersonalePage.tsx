@@ -1,5 +1,4 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ComingSoonPlaceholder } from "@/components/users/ComingSoonPlaceholder";
 import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
@@ -7,6 +6,7 @@ import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
 import { TabSedi } from "./tabs/TabSedi";
 import { TabFestivita } from "./tabs/TabFestivita";
+import { TabProfili } from "./tabs/TabProfili";
 
 export default function PersonalePage() {
   return (
