@@ -305,6 +305,38 @@ function PasswordCard() {
   );
 }
 
+// ─── 2FA PLACEHOLDER ──────────────────────────────────────────────────────────
+
+function TwoFactorCard() {
+  const navigate = useNavigate();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Smartphone className="h-4 w-4" />
+          Autenticazione a due fattori (2FA)
+          <Badge variant="outline" className="ml-auto text-xs">Disponibile</Badge>
+        </CardTitle>
+        <CardDescription>
+          Aggiungi un ulteriore livello di sicurezza al tuo account con un'app di autenticazione (es. Google Authenticator).
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            <p className="text-sm">
+              La verifica in due passaggi (TOTP) è disponibile per il tuo account.
+              Puoi configurarla dalle impostazioni di sicurezza del tuo profilo utente.
+            </p>
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── PAGINA SICUREZZA ─────────────────────────────────────────────────────────
 
 export default function SecurityTab() {
@@ -313,11 +345,12 @@ export default function SecurityTab() {
       <div>
         <h1 className="text-2xl font-bold">Sicurezza</h1>
         <p className="text-muted-foreground">
-          Gestisci la tua password e controlla i dispositivi connessi al tuo account.
+          Gestisci la tua password, 2FA e controlla i dispositivi connessi al tuo account.
         </p>
       </div>
 
       <PasswordCard />
+      <TwoFactorCard />
       <SessionsCard />
     </div>
   );
