@@ -202,6 +202,9 @@ export function AdminSystemHealth() {
               </div>
             </div>
 
+            {/* RLS Monitor */}
+            <RlsMonitorSection />
+
             {/* Total calls summary */}
             <div className="text-xs text-muted-foreground text-center">
               {data?.totalCalls} chiamate API · {data?.errorCalls} errori (ultime 24h)
