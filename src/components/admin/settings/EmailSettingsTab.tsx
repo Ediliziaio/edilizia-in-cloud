@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, DollarSign, BarChart3 } from "lucide-react";
+import { Mail, DollarSign, BarChart3, ScrollText } from "lucide-react";
 import { EmailProviderConfig } from "./email/EmailProviderConfig";
 import { EmailPricingConfig } from "./email/EmailPricingConfig";
 import { EmailDashboard } from "./email/EmailDashboard";
+import { EmailDeliveryLog } from "./email/EmailDeliveryLog";
 
 export default function EmailSettingsTab() {
   return (
@@ -19,6 +18,9 @@ export default function EmailSettingsTab() {
         <TabsTrigger value="dashboard" className="gap-2">
           <BarChart3 className="h-4 w-4" /> Dashboard
         </TabsTrigger>
+        <TabsTrigger value="delivery-log" className="gap-2">
+          <ScrollText className="h-4 w-4" /> Delivery Log
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="providers" className="space-y-6">
@@ -32,6 +34,10 @@ export default function EmailSettingsTab() {
 
       <TabsContent value="dashboard">
         <EmailDashboard />
+      </TabsContent>
+
+      <TabsContent value="delivery-log">
+        <EmailDeliveryLog />
       </TabsContent>
     </Tabs>
   );

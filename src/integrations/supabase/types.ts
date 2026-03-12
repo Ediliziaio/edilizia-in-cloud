@@ -4301,6 +4301,53 @@ export type Database = {
           },
         ]
       }
+      email_delivery_log: {
+        Row: {
+          company_id: string | null
+          error_message: string | null
+          id: string
+          provider: string | null
+          provider_id: string | null
+          recipient: string
+          sent_at: string
+          status: string
+          subject: string | null
+          template_type: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          error_message?: string | null
+          id?: string
+          provider?: string | null
+          provider_id?: string | null
+          recipient: string
+          sent_at?: string
+          status?: string
+          subject?: string | null
+          template_type?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          error_message?: string | null
+          id?: string
+          provider?: string | null
+          provider_id?: string | null
+          recipient?: string
+          sent_at?: string
+          status?: string
+          subject?: string | null
+          template_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_delivery_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_folders: {
         Row: {
           company_id: string
@@ -11938,6 +11985,7 @@ export type Database = {
           old_status: string | null
           performed_by: string | null
           plan_id: string | null
+          previous_plan_id: string | null
         }
         Insert: {
           company_id: string
@@ -11949,6 +11997,7 @@ export type Database = {
           old_status?: string | null
           performed_by?: string | null
           plan_id?: string | null
+          previous_plan_id?: string | null
         }
         Update: {
           company_id?: string
@@ -11960,6 +12009,7 @@ export type Database = {
           old_status?: string | null
           performed_by?: string | null
           plan_id?: string | null
+          previous_plan_id?: string | null
         }
         Relationships: [
           {
@@ -11972,6 +12022,13 @@ export type Database = {
           {
             foreignKeyName: "subscription_logs_plan_id_fkey"
             columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_logs_previous_plan_id_fkey"
+            columns: ["previous_plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
@@ -14464,6 +14521,16 @@ export type Database = {
           p_sources?: string[]
         }
         Returns: Json
+      }
+      get_mrr_movements_monthly: {
+        Args: { p_months?: number }
+        Returns: {
+          churn_mrr: number
+          contraction_mrr: number
+          expansion_mrr: number
+          month: string
+          new_mrr: number
+        }[]
       }
       get_my_company_id: { Args: never; Returns: string }
       get_order_materials_history: {
