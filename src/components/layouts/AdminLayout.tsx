@@ -144,8 +144,8 @@ function AdminSettingsSidebar() {
 
   const canAccess = (item: { permission?: string }): boolean => {
     if (!item.permission) return true;
-    const key = item.permission as keyof typeof permissions;
-    return permissions?.[key] ?? true;
+    const val = permissions?.[item.permission as keyof Omit<typeof permissions, 'allowed_company_ids'>];
+    return val === true;
   };
 
   const filteredNav = ADMIN_SETTINGS_NAV

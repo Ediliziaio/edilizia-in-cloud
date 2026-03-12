@@ -91,6 +91,8 @@ export function adminRoutes() {
         <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
         <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
         <Route path="impostazioni/ip-allowlist" element={<AdminSettingsIPAllowlist />} />
+        <Route path="impostazioni/sicurezza" element={<AdminSettingsSecurity />} />
+        <Route path="impostazioni/feature-flags" element={<AdminSettingsFeatureFlags />} />
         <Route path="piani" element={<SubscriptionPlans />} />
         <Route path="referral" element={<ReferralDashboard />} />
         <Route path="feature-flags" element={<FeatureFlags />} />
