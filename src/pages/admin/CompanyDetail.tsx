@@ -100,8 +100,6 @@ export default function CompanyDetail() {
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("panoramica");
 
   const handleImpersonate = async () => {
     await h.handleImpersonate();
@@ -109,7 +107,6 @@ export default function CompanyDetail() {
   };
 
   // Delete company user
-  const [isDeletingUser, setIsDeletingUser] = useState(false);
   const handleDeleteUser = async (userId: string, name: string) => {
     setIsDeletingUser(true);
     try {
