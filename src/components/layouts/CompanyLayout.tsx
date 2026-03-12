@@ -199,7 +199,10 @@ function CompanySidebar() {
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
-      if (item.featureKey && !isFeatureEnabled(item.featureKey)) {
+      // Handle billing mode-specific feature keys
+      if (item.featureKey === "billing_external" && billingMode !== "external") return false;
+      if (item.featureKey === "billing_native" && billingMode !== "native") return false;
+      if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) {
         return false;
       }
       return true;
