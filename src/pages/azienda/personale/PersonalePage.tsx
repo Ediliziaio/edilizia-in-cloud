@@ -65,12 +65,7 @@ export default function PersonalePage() {
           <TabSedi />
         </TabsContent>
         <TabsContent value="festivita">
-          <ComingSoonPlaceholder
-            icon={CalendarCheck}
-            title="Festività"
-            description="Calendario festività aziendali"
-            comingSoonText="Il calendario festività sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabFestivita />
         </TabsContent>
       </Tabs>
     </div>
