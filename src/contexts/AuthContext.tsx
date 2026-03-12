@@ -446,10 +446,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
-  // Effective company: impersonation > multi-company > real company
+  // Effective company: impersonation > multi-company (including platform_* roles) > real company
+  const isPlatformRole = state.role?.startsWith("platform_") ?? false;
   const effectiveCompany = isImpersonating
     ? impersonatedCompany
-    : state.role === "multi_company_user" && multiCompanyObj
+    : (state.role === "multi_company_user" || isPlatformRole) && multiCompanyObj
       ? multiCompanyObj
       : state.company;
 
