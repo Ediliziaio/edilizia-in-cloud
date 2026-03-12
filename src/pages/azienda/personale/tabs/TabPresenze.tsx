@@ -83,7 +83,8 @@ export function TabPresenze() {
     setDrawerOpen(true);
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date();
+  const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
   const selectedDayGiornate = selectedDay ? giornateByDate.get(selectedDay) || [] : [];
 
   return (
@@ -181,7 +182,7 @@ export function TabPresenze() {
                 if (!date) {
                   return <div key={`empty-${i}`} className="bg-background min-h-[80px]" />;
                 }
-                const dateStr = date.toISOString().slice(0, 10);
+                const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
                 const isToday = dateStr === today;
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const dayGiornate = giornateByDate.get(dateStr) || [];

@@ -148,9 +148,17 @@ export function useUpdateHrProfilo() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<HrProfilo> & { id: string }) => {
+      // Remove immutable and non-DB fields
+      const {
+        created_at, company_id, employee_id, user_id,
+        children, depth, sede, responsabile,
+        employee_first_name, employee_last_name, employee_email, employee_phone,
+        ...safeUpdates
+      } = updates as any;
+
       const { error } = await supabase
         .from("hr_profili")
-        .update({ ...updates, updated_at: new Date().toISOString() } as any)
+        .update({ ...safeUpdates, updated_at: new Date().toISOString() } as any)
         .eq("id", id);
 
       if (error) throw error;

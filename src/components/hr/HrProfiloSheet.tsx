@@ -82,6 +82,21 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
       ...sanitized
     } = data as any;
 
+    // Convert empty strings to null for nullable fields (prevents FK/date/UUID errors)
+    const NULLABLE_FIELDS = [
+      "responsabile_id", "sede_id", "data_nascita", "data_assunzione", "data_cessazione",
+      "codice_fiscale", "email", "telefono", "telefono_privato", "email_privata",
+      "indirizzo", "iban", "foto_url", "matricola", "livello_ccnl", "note", "note_interne",
+      "badge_id", "pin_timbratura", "luogo_nascita", "citta_residenza", "cap_residenza",
+      "contatto_emergenza_nome", "contatto_emergenza_telefono", "stato_civile",
+      "orario_inizio", "orario_fine", "mansione", "reparto", "sesso",
+    ];
+    for (const field of NULLABLE_FIELDS) {
+      if (field in sanitized && sanitized[field] === "") {
+        sanitized[field] = null;
+      }
+    }
+
     if (isEditing && profilo) {
       await updateMutation.mutateAsync({ id: profilo.id, ...sanitized });
     } else {
