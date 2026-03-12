@@ -70,6 +70,7 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
 
 type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
 type SortDir = "asc" | "desc";
+type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
 
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
@@ -77,11 +78,13 @@ export default function CompaniesList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activePreset, setActivePreset] = useState<string | null>(null);
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
