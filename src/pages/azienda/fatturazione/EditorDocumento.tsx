@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import {
   useDocumentoFiscale,
   useCreateDocumento,
@@ -17,7 +17,9 @@ import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
+import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TipoDocumento } from "@/types/fatturazione";
 
 export default function EditorDocumento() {
