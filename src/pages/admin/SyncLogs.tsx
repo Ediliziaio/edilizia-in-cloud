@@ -71,6 +71,28 @@ function SyncLogs() {
   };
 
   // Stats summary
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Sync Logs</h1>
+          <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Errore caricamento log</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Impossibile caricare i log di sincronizzazione. {error instanceof Error ? error.message : "Riprova tra qualche secondo."}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   const stats = {
     total: logs.length,
     completed: logs.filter((l: any) => l.status === "completed").length,

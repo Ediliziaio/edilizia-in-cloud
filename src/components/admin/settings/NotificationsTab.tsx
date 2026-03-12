@@ -37,8 +37,8 @@ export default function NotificationsTab() {
   const mutation = useMutation({
     mutationFn: async (updated: Prefs) => {
       const { error } = await supabase
-        .from("admin_notification_prefs" as any)
-        .upsert({ user_id: user!.id, ...updated } as any, { onConflict: "user_id" });
+        .from("admin_notification_prefs")
+        .upsert({ user_id: user!.id, ...updated }, { onConflict: "user_id" });
       if (error) throw error;
     },
     onSuccess: () => {

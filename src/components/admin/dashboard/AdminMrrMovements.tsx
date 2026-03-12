@@ -19,6 +19,12 @@ export function AdminMrrMovements({ data }: Props) {
         </div>
       </CardHeader>
       <CardContent>
+        <Alert className="mb-4">
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Expansion e contraction MRR richiedono lo storico cambi piano (in sviluppo).
+          </AlertDescription>
+        </Alert>
         {data.length > 0 ? (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
