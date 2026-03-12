@@ -79,7 +79,7 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
   const perPage = filters.perPage ?? 50;
 
   return useQuery({
-    queryKey: queryKeys.documentiFiscali.list(companyId ?? undefined, filters),
+    queryKey: queryKeys.documentiFiscali.list(companyId ?? undefined, filters as unknown as Record<string, unknown>),
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase

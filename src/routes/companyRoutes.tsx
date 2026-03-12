@@ -158,6 +158,11 @@ export function companyRoutes() {
         <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
         <Route path="scadenzario" element={<BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard>} />
         
+        {/* Native billing routes */}
+        <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
+        <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
+        <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
+        
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
