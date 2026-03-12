@@ -168,8 +168,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logger.error("Error fetching roles:", roleError);
       }
 
-      // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
-      const rolePriority: AppRole[] = ["salesperson", "call_center", "company_admin", "company_staff"];
+      // Determine effective role with priority: highest privilege first
+      const rolePriority: AppRole[] = [
+        "super_admin",
+        "platform_manager",
+        "platform_sales",
+        "platform_support",
+        "platform_marketing",
+        "platform_implementation",
+        "multi_company_user",
+        "referrer",
+        "salesperson",
+        "call_center",
+        "company_admin",
+        "company_staff",
+        "employee",
+        "customer",
+      ];
       const userRoles = (rolesData || []).map(r => r.role as AppRole);
       const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
 
