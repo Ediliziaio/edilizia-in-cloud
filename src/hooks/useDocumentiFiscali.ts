@@ -166,6 +166,32 @@ export function useCreateDocumento() {
     mutationFn: async (input: CreateDocumentoInput) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
 
+      // Ensure anagrafica_azienda exists for this company
+      const { data: anaExists } = await supabase
+        .from("anagrafica_azienda" as never)
+        .select("id")
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      if (!anaExists) {
+        const { error: anaError } = await supabase
+          .from("anagrafica_azienda" as never)
+          .insert({
+            company_id: companyId,
+            ragione_sociale: "Da configurare",
+            partita_iva: "00000000000",
+            codice_fiscale: "00000000000",
+            regime_fiscale: "RF01",
+            forma_giuridica: "SRL",
+            indirizzo_via: "Da configurare",
+            indirizzo_cap: "00000",
+            indirizzo_comune: "Da configurare",
+            indirizzo_provincia: "XX",
+            indirizzo_nazione: "IT",
+          } as never);
+        if (anaError) throw new Error("Impossibile creare il profilo di fatturazione: " + anaError.message);
+      }
+
       // Generate progressive number via RPC
       const { data: numero, error: rpcError } = await supabase.rpc(
         "genera_numero_documento_native" as never,
