@@ -210,8 +210,8 @@ function CompanySidebar() {
   };
 
   const companyId = effectiveCompany?.id;
-  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
-  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
+  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, isFeatureEnabled, billingMode, companyId]);
+  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, isFeatureEnabled, billingMode, companyId]);
   const showCruscotto = permissions.canViewCruscotto;
 
   return (
