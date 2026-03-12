@@ -238,7 +238,7 @@ export function TabOrganigramma() {
       {/* Tree View */}
       {viewMode === "tree" && data?.tree && (
         <OrgTreeView
-          tree={data.tree}
+          tree={filterTree(data.tree, search, filterReparto)}
           onNodeClick={(node) => handleEdit(node as HrProfilo)}
         />
       )}
