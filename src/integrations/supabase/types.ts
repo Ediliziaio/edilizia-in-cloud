@@ -186,37 +186,55 @@ export type Database = {
       admin_notification_prefs: {
         Row: {
           company_suspended_alert: boolean
+          company_suspended_alert_email: boolean
           created_at: string
           id: string
           new_company: boolean
+          new_company_email: boolean
           new_referral_signup: boolean
+          new_referral_signup_email: boolean
           new_ticket: boolean
+          new_ticket_email: boolean
           payment_failed_alert: boolean
+          payment_failed_alert_email: boolean
           trial_expiring: boolean
+          trial_expiring_email: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           company_suspended_alert?: boolean
+          company_suspended_alert_email?: boolean
           created_at?: string
           id?: string
           new_company?: boolean
+          new_company_email?: boolean
           new_referral_signup?: boolean
+          new_referral_signup_email?: boolean
           new_ticket?: boolean
+          new_ticket_email?: boolean
           payment_failed_alert?: boolean
+          payment_failed_alert_email?: boolean
           trial_expiring?: boolean
+          trial_expiring_email?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           company_suspended_alert?: boolean
+          company_suspended_alert_email?: boolean
           created_at?: string
           id?: string
           new_company?: boolean
+          new_company_email?: boolean
           new_referral_signup?: boolean
+          new_referral_signup_email?: boolean
           new_ticket?: boolean
+          new_ticket_email?: boolean
           payment_failed_alert?: boolean
+          payment_failed_alert_email?: boolean
           trial_expiring?: boolean
+          trial_expiring_email?: boolean
           updated_at?: string
           user_id?: string
         }
