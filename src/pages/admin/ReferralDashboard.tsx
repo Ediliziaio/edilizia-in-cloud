@@ -193,7 +193,7 @@ export default function ReferralDashboard() {
           <Gift className="h-6 w-6 text-primary" />
           <div>
             <h1 className="text-2xl font-bold">Programma Referral</h1>
-            <p className="text-muted-foreground">Gestisci affiliati, commissioni e payout</p>
+            <p className="text-muted-foreground">Gestisci affiliati, commissioni e payout · <span className="text-xs italic">Commissioni calcolate sul prezzo di listino</span></p>
           </div>
         </div>
         <Button onClick={() => setReferrerDialogOpen(true)}>

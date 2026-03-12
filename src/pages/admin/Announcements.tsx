@@ -31,6 +31,32 @@ interface Announcement {
   expires_at: string | null;
 }
 
+function AnnouncementPreview({ title, content, type }: { title: string; content: string; type: string }) {
+  if (!title && !content) {
+    return (
+      <div className="rounded-lg border border-dashed border-muted-foreground/30 p-8 text-center text-sm text-muted-foreground">
+        Compila titolo e contenuto per vedere l'anteprima
+      </div>
+    );
+  }
+
+  const bgClass = type === "maintenance"
+    ? "bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-300"
+    : type === "changelog"
+    ? "bg-blue-500/10 border-blue-500/40 text-blue-800 dark:text-blue-300"
+    : "bg-primary/10 border-primary/40 text-primary";
+
+  return (
+    <div className={`rounded-lg border p-4 space-y-1 ${bgClass}`}>
+      <div className="flex items-center gap-2">
+        <Megaphone className="h-4 w-4" />
+        <span className="font-semibold text-sm">{title || "Titolo"}</span>
+      </div>
+      {content && <p className="text-sm opacity-90">{content}</p>}
+    </div>
+  );
+}
+
 function AnnouncementForm({ 
   initial, 
   onSave, 
@@ -46,6 +72,7 @@ function AnnouncementForm({
   const [targetStatus, setTargetStatus] = useState(initial?.target_status || "all");
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
   const [expiresAt, setExpiresAt] = useState(initial?.expires_at?.slice(0, 16) || "");
+  const [showPreview, setShowPreview] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,46 +89,60 @@ function AnnouncementForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label>Titolo</Label>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titolo annuncio" />
+      <div className="flex gap-2 mb-2">
+        <Button type="button" variant={showPreview ? "outline" : "default"} size="sm" onClick={() => setShowPreview(false)}>Modifica</Button>
+        <Button type="button" variant={showPreview ? "default" : "outline"} size="sm" onClick={() => setShowPreview(true)}>Anteprima</Button>
       </div>
-      <div>
-        <Label>Contenuto</Label>
-        <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Testo dell'annuncio..." rows={3} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Tipo</Label>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="banner">Banner</SelectItem>
-              <SelectItem value="changelog">Changelog</SelectItem>
-              <SelectItem value="maintenance">Manutenzione</SelectItem>
-            </SelectContent>
-          </Select>
+
+      {showPreview ? (
+        <div className="space-y-2">
+          <Label className="text-muted-foreground text-xs">Come apparirà agli utenti:</Label>
+          <AnnouncementPreview title={title} content={content} type={type} />
         </div>
-        <div>
-          <Label>Destinatari</Label>
-          <Select value={targetStatus} onValueChange={setTargetStatus}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti</SelectItem>
-              <SelectItem value="trial">Solo trial</SelectItem>
-              <SelectItem value="active">Solo attivi</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div>
-        <Label>Scadenza (opzionale)</Label>
-        <Input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
-      </div>
-      <div className="flex items-center gap-2">
-        <Switch checked={isActive} onCheckedChange={setIsActive} />
-        <Label>Attivo</Label>
-      </div>
+      ) : (
+        <>
+          <div>
+            <Label>Titolo</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titolo annuncio" />
+          </div>
+          <div>
+            <Label>Contenuto</Label>
+            <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Testo dell'annuncio..." rows={3} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Tipo</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="banner">Banner</SelectItem>
+                  <SelectItem value="changelog">Changelog</SelectItem>
+                  <SelectItem value="maintenance">Manutenzione</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Destinatari</Label>
+              <Select value={targetStatus} onValueChange={setTargetStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="trial">Solo trial</SelectItem>
+                  <SelectItem value="active">Solo attivi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Scadenza (opzionale)</Label>
+            <Input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={isActive} onCheckedChange={setIsActive} />
+            <Label>Attivo</Label>
+          </div>
+        </>
+      )}
       <Button type="submit" disabled={isPending} className="w-full">
         {isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
         {initial ? "Aggiorna" : "Crea annuncio"}

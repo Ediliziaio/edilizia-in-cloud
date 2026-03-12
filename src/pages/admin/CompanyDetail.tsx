@@ -247,13 +247,17 @@ export default function CompanyDetail() {
               <div className="text-sm"><span className="text-muted-foreground">Email:</span> {h.passwordDialog?.email}</div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Password:</span>
-                <code className="px-2 py-1 bg-background rounded text-sm font-mono">{h.passwordDialog?.password}</code>
-                <Button variant="ghost" size="icon" onClick={h.handleCopyPassword} className="h-8 w-8">
+                <code className="px-2 py-1 bg-background rounded text-sm font-mono select-all">{h.passwordDialog?.password}</code>
+                <Button variant="ghost" size="icon" onClick={h.handleCopyPassword} className="h-8 w-8" title="Copia password">
                   {h.copiedPassword ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">⚠️ Questa password viene mostrata solo una volta. L'utente potrà cambiarla dopo il primo accesso.</p>
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertDescription className="text-sm text-amber-700 dark:text-amber-400">
+                ⚠️ Questa password viene mostrata solo una volta. Copiala e salvala prima di chiudere.
+              </AlertDescription>
+            </Alert>
           </div>
           <DialogFooter>
             <Button onClick={() => { h.setPasswordDialog(null); h.setCopiedPassword(false); }}>Chiudi</Button>
