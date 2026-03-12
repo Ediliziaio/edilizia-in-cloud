@@ -3081,20 +3081,26 @@ export type Database = {
           company_id: string
           created_at: string
           custom_domain: string | null
+          custom_domain_cname: string | null
+          custom_domain_verified: boolean
+          custom_domain_verified_at: string | null
           email_footer_text: string | null
           email_header_logo_url: string | null
           favicon_url: string | null
           hide_platform_branding: boolean | null
           id: string
+          is_active: boolean
           login_bg_color: string | null
           login_logo_url: string | null
           login_subtitle: string | null
           login_title: string | null
           logo_url: string | null
+          platform_name: string | null
           primary_color: string | null
           secondary_color: string | null
           sidebar_bg_color: string | null
           sidebar_text_color: string | null
+          subdomain: string | null
           updated_at: string
         }
         Insert: {
@@ -3102,20 +3108,26 @@ export type Database = {
           company_id: string
           created_at?: string
           custom_domain?: string | null
+          custom_domain_cname?: string | null
+          custom_domain_verified?: boolean
+          custom_domain_verified_at?: string | null
           email_footer_text?: string | null
           email_header_logo_url?: string | null
           favicon_url?: string | null
           hide_platform_branding?: boolean | null
           id?: string
+          is_active?: boolean
           login_bg_color?: string | null
           login_logo_url?: string | null
           login_subtitle?: string | null
           login_title?: string | null
           logo_url?: string | null
+          platform_name?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           sidebar_bg_color?: string | null
           sidebar_text_color?: string | null
+          subdomain?: string | null
           updated_at?: string
         }
         Update: {
@@ -3123,20 +3135,26 @@ export type Database = {
           company_id?: string
           created_at?: string
           custom_domain?: string | null
+          custom_domain_cname?: string | null
+          custom_domain_verified?: boolean
+          custom_domain_verified_at?: string | null
           email_footer_text?: string | null
           email_header_logo_url?: string | null
           favicon_url?: string | null
           hide_platform_branding?: boolean | null
           id?: string
+          is_active?: boolean
           login_bg_color?: string | null
           login_logo_url?: string | null
           login_subtitle?: string | null
           login_title?: string | null
           logo_url?: string | null
+          platform_name?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           sidebar_bg_color?: string | null
           sidebar_text_color?: string | null
+          subdomain?: string | null
           updated_at?: string
         }
         Relationships: [
