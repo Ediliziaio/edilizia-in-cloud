@@ -286,7 +286,6 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
 }
 
 function toast_missing() {
-  const { toast } = require("sonner");
   toast.error("Compila tutti i campi obbligatori");
 }
 
