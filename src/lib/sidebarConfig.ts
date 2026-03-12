@@ -29,7 +29,32 @@ import {
   Shield,
   KanbanSquare,
   Settings,
+  HardHat,
+  Euro,
+  Users2,
+  Megaphone,
+  LifeBuoy,
+  CalendarClock,
+  FileStack,
+  FileSearch,
+  BookUser,
+  Coins,
+  Archive,
+  TrendingDown,
+  ContactRound,
+  UserCheck,
+  Clock,
+  MessagesSquare,
+  FormInput,
+  ListTodo,
+  PieChart,
+  Workflow,
+  GitBranch,
+  BrainCircuit,
+  LayoutGrid,
+  Home,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
 export interface NavItem {
@@ -40,7 +65,7 @@ export interface NavItem {
   moduleKey?: ModuleKey;
   featureKey?: string;
   isBeta?: boolean;
-  category: "internal" | "marketing";
+  category?: "internal" | "marketing";
   subcategory?: string;
 }
 
@@ -49,6 +74,110 @@ export interface SubcategoryConfig {
   label: string;
 }
 
+export interface MacroArea {
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  items: NavItem[];
+}
+
+export const macroAreas: MacroArea[] = [
+  // 1. Cruscotto — standalone top items
+  {
+    id: "area_cruscotto",
+    title: "Cruscotto",
+    icon: LayoutGrid,
+    items: [
+      { title: "Cruscotto Aziendale", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
+      { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
+    ],
+  },
+
+  // 2. Cantieri & Lavori
+  {
+    id: "area_cantieri",
+    title: "Cantieri & Lavori",
+    icon: HardHat,
+    items: [
+      { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
+      { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
+      { title: "Ticket Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets" },
+      { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
+      { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast" },
+      { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },
+    ],
+  },
+
+  // 3. Finanza
+  {
+    id: "area_finanza",
+    title: "Finanza",
+    icon: Euro,
+    items: [
+      { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewForecast", featureKey: "billing_external" },
+      { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewForecast", featureKey: "billing_external" },
+      { title: "Documenti Fiscali", url: "/azienda/documenti", icon: FileStack, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "DDT", url: "/azienda/documenti/ddt", icon: Truck, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Preventivi Fiscali", url: "/azienda/documenti/preventivi/pipeline", icon: KanbanSquare, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Anagrafica Fiscale", url: "/azienda/documenti/anagrafiche", icon: BookUser, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Coins, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Archive, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Report Fiscali", url: "/azienda/documenti/report", icon: BarChart3, permissionKey: "canViewForecast", featureKey: "billing_native" },
+      { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast" },
+      { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewDashboard", featureKey: "tesoreria" },
+      { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewForecast", moduleKey: "forecast" },
+      { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
+    ],
+  },
+
+  // 4. Persone
+  {
+    id: "area_persone",
+    title: "Persone",
+    icon: Users2,
+    items: [
+      { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
+      { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
+      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
+      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewDashboard" },
+      { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true },
+      { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare },
+    ],
+  },
+
+  // 5. Marketing & Vendita
+  {
+    id: "area_marketing",
+    title: "Marketing & Vendita",
+    icon: Megaphone,
+    items: [
+      { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard" },
+      { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail" },
+      { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp" },
+      { title: "Attività CRM", url: "/azienda/marketing/attivita", icon: ListTodo, permissionKey: "canViewMarketingActivities" },
+      { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
+      { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewMarketingOpportunities" },
+      { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
+    ],
+  },
+
+  // 6. Automazioni & AI
+  {
+    id: "area_automazioni",
+    title: "Automazioni & AI",
+    icon: Zap,
+    items: [
+      { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewSettings" },
+      { title: "Automazioni Marketing", url: "/azienda/marketing/automazioni", icon: GitBranch, permissionKey: "canViewMarketingAutomations" },
+      { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
+      { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: BrainCircuit, permissionKey: "canViewSettings", featureKey: "ai_agents_internal" },
+    ],
+  },
+];
+
+/** @deprecated Use macroAreas instead */
 export const internalSubcategories: SubcategoryConfig[] = [
   { id: "gi_operazioni", label: "Operazioni" },
   { id: "gi_supporto", label: "Clienti & Supporto" },
@@ -57,6 +186,7 @@ export const internalSubcategories: SubcategoryConfig[] = [
   { id: "gi_automation", label: "Automazione & AI" },
 ];
 
+/** @deprecated Use macroAreas instead */
 export const marketingSubcategories: SubcategoryConfig[] = [
   { id: "mkt_crm", label: "CRM" },
   { id: "mkt_comunicazione", label: "Comunicazione" },
@@ -64,6 +194,7 @@ export const marketingSubcategories: SubcategoryConfig[] = [
   { id: "mkt_analisi", label: "Analisi" },
 ];
 
+/** @deprecated Use macroAreas instead */
 export const internalNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_operazioni" },
   { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
@@ -76,8 +207,6 @@ export const internalNavItems: NavItem[] = [
   { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewDashboard", featureKey: "tesoreria", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewForecast", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
   { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewForecast", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
-  
-  // Native billing items (shown when billing_mode = 'native')
   { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   { title: "DDT", url: "/azienda/documenti/ddt", icon: Truck, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   { title: "Preventivi", url: "/azienda/documenti/preventivi/pipeline", icon: KanbanSquare, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
@@ -85,9 +214,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Wallet, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Shield, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   { title: "Report", url: "/azienda/documenti/report", icon: BarChart3, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
-  
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
-  
   { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_team" },
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
@@ -98,6 +225,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];
 
+/** @deprecated Use macroAreas instead */
 export const cruscottoNavItem: NavItem = {
   title: "Cruscotto Aziendale",
   url: "/azienda/cruscotto",
@@ -106,6 +234,7 @@ export const cruscottoNavItem: NavItem = {
   category: "internal",
 };
 
+/** @deprecated Use macroAreas instead */
 export const marketingNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_crm" },
   { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketingContacts", category: "marketing", subcategory: "mkt_crm" },
