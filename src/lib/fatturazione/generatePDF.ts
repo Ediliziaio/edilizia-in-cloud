@@ -13,7 +13,7 @@ export async function downloadNativePDF(documentoId: string, filename?: string):
 
   if (error) {
     // Extract detailed error from response context
-    const detail = error.context ? await error.context.json?.().catch(() => null) : null;
+    const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
     throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
   }
 
