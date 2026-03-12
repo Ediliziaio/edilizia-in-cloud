@@ -146,11 +146,9 @@ function SessionsCard() {
                   variant="outline"
                   size="sm"
                   className="w-full text-destructive hover:text-destructive"
-                  onClick={async () => {
+                  onClick={() => {
                     const others = sessions.filter((s) => !s.isCurrent);
-                    for (const s of others) {
-                      await revoke(s.id);
-                    }
+                    others.forEach((s) => revoke(s.id));
                   }}
                   disabled={isRevoking}
                 >
