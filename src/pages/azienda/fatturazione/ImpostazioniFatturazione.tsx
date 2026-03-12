@@ -26,7 +26,7 @@ export default function ImpostazioniFatturazione() {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const current = { ...azienda, ...form };
+  const current: Record<string, any> = { ...azienda, ...form };
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
