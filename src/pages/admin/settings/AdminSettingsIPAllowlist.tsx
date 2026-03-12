@@ -21,6 +21,7 @@ export default function AdminSettingsIPAllowlist() {
   const [newIp, setNewIp] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [detectingIp, setDetectingIp] = useState(false);
 
   const { data: allowlist = [], isLoading } = useQuery({
     queryKey: queryKeys.admin.ipAllowlist,
