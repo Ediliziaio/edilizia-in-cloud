@@ -681,7 +681,7 @@ function CompanySidebar() {
                           to={item.url}
                           end={item.url === "/azienda"}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                          activeClassName="bg-primary/10 text-primary font-medium"
                         >
                           <item.icon className="h-4 w-4" />
                           <span className="font-medium">{item.title}</span>
