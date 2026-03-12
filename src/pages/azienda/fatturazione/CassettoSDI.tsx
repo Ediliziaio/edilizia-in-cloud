@@ -81,7 +81,7 @@ export default function CassettoSDI() {
         body: { documento_id: docId },
       });
       if (error) {
-        const detail = error.context ? await (error.context as any).json?.().catch(() => null) : null;
+        const detail = error.context ? await (error.context as any).json?.().catch((): null => null) : null;
         throw new Error(detail?.error || error.message);
       }
       toast.success("Documento reinviato a SDI");
