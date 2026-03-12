@@ -4,6 +4,7 @@ import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } 
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
+import { TabRichieste } from "./tabs/TabRichieste";
 
 export default function PersonalePage() {
   return (
@@ -56,12 +57,7 @@ export default function PersonalePage() {
           <TabPresenze />
         </TabsContent>
         <TabsContent value="richieste">
-          <ComingSoonPlaceholder
-            icon={FileText}
-            title="Richieste Ferie & Permessi"
-            description="Gestione richieste assenze"
-            comingSoonText="Le richieste ferie/permessi saranno disponibili nel prossimo aggiornamento."
-          />
+          <TabRichieste />
         </TabsContent>
         <TabsContent value="sedi">
           <ComingSoonPlaceholder
