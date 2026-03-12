@@ -182,7 +182,7 @@ export function TabPresenze() {
                 if (!date) {
                   return <div key={`empty-${i}`} className="bg-background min-h-[80px]" />;
                 }
-                const dateStr = date.toISOString().slice(0, 10);
+                const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
                 const isToday = dateStr === today;
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const dayGiornate = giornateByDate.get(dateStr) || [];
