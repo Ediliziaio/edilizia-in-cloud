@@ -132,8 +132,8 @@ export function TabTimbrature() {
                 </TableRow>
               ) : (
                 filtered.map((t: any) => {
-                  const tipoInfo = TIPO_ICONS[t.tipo] || { label: t.tipo, color: "text-foreground" };
-                  const TipoIcon = tipoInfo.icon || Clock;
+                    const tipoInfo = TIPO_ICONS[t.tipo] || { icon: Clock, label: t.tipo, color: "text-foreground" };
+                  const TipoIcon = tipoInfo.icon;
                   return (
                     <TableRow key={t.id}>
                       <TableCell className="text-sm">
