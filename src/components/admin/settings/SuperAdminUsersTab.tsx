@@ -172,13 +172,31 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [email, setEmail] = useState("");
   const [selectedPreset, setSelectedPreset] = useState(0);
 
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
   const handleInvite = () => {
     if (!email.trim()) { toast.error("Inserisci l'email"); return; }
     const preset = PERMISSION_PRESETS[selectedPreset];
     invite(
       { email: email.trim(), permissions: { ...DEFAULT_PERMISSIONS, ...preset.value } },
-      { onSuccess: () => { onClose(); setEmail(""); } }
+      {
+        onSuccess: (data: any) => {
+          // Show invite URL if returned
+          if (data?.inviteUrl) {
+            setInviteUrl(data.inviteUrl);
+          } else {
+            onClose(); setEmail("");
+          }
+        },
+      }
     );
+  };
+
+  const handleCopyUrl = () => {
+    if (inviteUrl) {
+      navigator.clipboard.writeText(inviteUrl);
+      toast.success("Link copiato negli appunti");
+    }
   };
 
   return (
