@@ -25,6 +25,7 @@ import {
   Key,
   ScrollText,
   ChevronDown,
+  ChevronRight,
   Plug,
   Briefcase,
   Megaphone,
