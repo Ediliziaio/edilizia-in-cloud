@@ -712,7 +712,7 @@ function CompanySidebar() {
                 <div className="px-2 pt-3">
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild tooltip="Impostazioni">
                         <NavLink
                           to="/azienda/impostazioni"
                           className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
