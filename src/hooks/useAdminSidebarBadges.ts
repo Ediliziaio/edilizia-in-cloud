@@ -24,7 +24,7 @@ export function useAdminSidebarBadges() {
         supabase
           .from("support_conversations")
           .select("id", { count: "exact", head: true })
-          .in("status", ["open", "pending", "waiting"]),
+          .in("status", ["open", "pending", "waiting"] as any),
         supabase
           .from("companies")
           .select("id", { count: "exact", head: true })
@@ -37,9 +37,9 @@ export function useAdminSidebarBadges() {
           .eq("key", "maintenance_mode")
           .maybeSingle(),
         supabase
-          .from("platform_announcements")
+          .from("platform_announcements" as any)
           .select("id", { count: "exact", head: true })
-          .eq("status", "draft" as any),
+          .eq("status", "draft"),
       ]);
 
       return {
