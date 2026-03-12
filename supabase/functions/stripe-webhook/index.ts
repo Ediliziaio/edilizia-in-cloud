@@ -240,6 +240,9 @@ async function handleInvoicePaymentFailed(
   const company = await getCompanyByStripeCustomer(supabase, stripeCustomerId);
   if (!company) return;
 
+  // Sync failed invoice to subscription_invoices
+  await upsertSubscriptionInvoice(supabase, company.id, invoice, stripeCustomerId);
+
   // Increment failure count
   const { data: current } = await supabase
     .from("companies")
