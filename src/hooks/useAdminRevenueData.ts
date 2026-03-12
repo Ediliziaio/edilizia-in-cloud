@@ -252,38 +252,59 @@ export function useAdminRevenueData() {
         ? Math.round((currentMrrFromExisting / mrrSixMonthsAgo) * 100)
         : 100;
 
-      // ---- MRR MOVEMENTS (last 6 months) ----
-      const mrrMovements: MrrMovement[] = [];
-      for (let i = 5; i >= 0; i--) {
-        const monthDate = subMonths(now, i);
-        const mStart = startOfMonth(monthDate);
-        const mEnd = endOfMonth(monthDate);
+      // ---- MRR MOVEMENTS (last 6 months) — use RPC for real data ----
+      let mrrMovements: MrrMovement[] = [];
+      try {
+        const { data: mrrMovData } = await supabase
+          .rpc("get_mrr_movements_monthly", { p_months: 6 });
 
-        // New companies created this month that became active
-        const newThisMonth = companies.filter((c) => {
-          const created = new Date(c.created_at);
-          return created >= mStart && created <= mEnd && c.status === "active";
-        });
-        const newMrr = newThisMonth.reduce((s, c) => s + priceOf(c), 0);
+        if (mrrMovData && mrrMovData.length > 0) {
+          mrrMovements = (mrrMovData as any[]).map((row) => ({
+            month:          String(row.month),
+            newMrr:         Number(row.new_mrr)         / 100,
+            expansionMrr:   Number(row.expansion_mrr)   / 100,
+            contractionMrr: Number(row.contraction_mrr) / 100,
+            churnMrr:       Number(row.churn_mrr)       / 100,
+            netNew: (
+              Number(row.new_mrr) + Number(row.expansion_mrr) -
+              Number(row.contraction_mrr) - Number(row.churn_mrr)
+            ) / 100,
+          }));
+        }
+      } catch (rpcErr) {
+        console.warn("get_mrr_movements_monthly RPC failed, falling back to client calc", rpcErr);
+      }
 
-        // Churned: companies that expired this month (approximation)
-        const churnedThisMonth = companies.filter((c) => {
-          if (c.status !== "expired") return false;
-          // Use trial_ends_at as proxy for churn date
-          if (!c.trial_ends_at) return false;
-          const churnDate = new Date(c.trial_ends_at);
-          return churnDate >= mStart && churnDate <= mEnd;
-        });
-        const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
+      // Fallback: client-side calculation if RPC returned nothing
+      if (mrrMovements.length === 0) {
+        for (let i = 5; i >= 0; i--) {
+          const monthDate = subMonths(now, i);
+          const mStart = startOfMonth(monthDate);
+          const mEnd = endOfMonth(monthDate);
 
-        mrrMovements.push({
-          month: format(monthDate, "MMM yy", { locale: it }),
-          newMrr,
-          expansionMrr: 0, // Would need plan change history
-          contractionMrr: 0,
-          churnMrr,
-          netNew: newMrr - churnMrr,
-        });
+          const newThisMonth = companies.filter((c) => {
+            const created = new Date(c.created_at);
+            return created >= mStart && created <= mEnd && c.status === "active";
+          });
+          const newMrr = newThisMonth.reduce((s, c) => s + priceOf(c), 0);
+
+          const churnedThisMonth = companies.filter((c) => {
+            if (c.status !== "expired") return false;
+            if (!c.trial_ends_at) return false;
+            const churnDate = new Date(c.trial_ends_at);
+            return churnDate >= mStart && churnDate <= mEnd;
+          });
+          const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
+
+          mrrMovements.push({
+            month: format(monthDate, "MMM yy", { locale: it }),
+            newMrr,
+            expansionMrr: 0,
+            contractionMrr: 0,
+            churnMrr,
+            netNew: newMrr - churnMrr,
+          });
+        }
       }
 
       // ---- TRIAL INTELLIGENCE ----
