@@ -1,169 +1,473 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Shield, Eye, EyeOff, Info, MapPin, MessageSquare, CalendarDays,
+  CreditCard, Loader2, CheckCircle2, XCircle, Plug,
+} from "lucide-react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Copy, CheckCircle2, Loader2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
+// ─── TYPES ────────────────────────────────────────────────────────────────────
 
-const META_KEYS = ["meta_app_id", "meta_app_secret", "meta_webhook_verify_token"] as const;
+type SettingsMap = Record<string, { value: string; masked?: string; updated_at?: string }>;
 
-export default function AdminSettingsIntegrations() {
-  const [values, setValues] = useState<Record<string, string>>({
-    meta_app_id: "",
-    meta_app_secret: "",
-    meta_webhook_verify_token: "",
-  });
-  const [showSecret, setShowSecret] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+interface ApiKeyField {
+  key: string;
+  label: string;
+  isSecret: boolean;
+}
 
-  const webhookUrl = `${SUPABASE_URL}/functions/v1/meta-webhook`;
+// ─── CONNECTION TEST ──────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("platform_settings")
-        .select("key, value")
-        .in("key", [...META_KEYS]);
-
-      const map: Record<string, string> = {};
-      for (const row of data || []) {
-        map[row.key] = row.value || "";
-      }
-      setValues((prev) => ({ ...prev, ...map }));
-      setLoaded(true);
-    })();
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      for (const key of META_KEYS) {
-        await supabase.from("platform_settings").upsert(
-          { key, value: values[key] || "" },
-          { onConflict: "key" }
-        );
-      }
-      toast.success("Credenziali Meta salvate");
-    } catch (e: any) {
-      toast.error("Errore nel salvataggio: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+function ConnectionTestButton({ integrationKey }: { integrationKey: string }) {
+  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [message, setMessage] = useState("");
 
   const handleTest = async () => {
-    setTesting(true);
+    setStatus("testing");
+    setMessage("");
     try {
-      const appId = values.meta_app_id;
-      if (!appId) {
-        toast.error("Inserisci un App ID prima di testare");
-        return;
-      }
-      const res = await fetch(`https://graph.facebook.com/v21.0/${appId}?fields=id,name&access_token=${appId}|${values.meta_app_secret}`);
-      const data = await res.json();
-      if (data.error) {
-        toast.error(`Errore Meta: ${data.error.message}`);
-      } else {
-        toast.success(`Connessione riuscita! App: ${data.name || data.id}`);
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("test-integration", {
+        body: { integration: integrationKey },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      const result = res.data;
+      setStatus(result?.ok ? "ok" : "error");
+      setMessage(result?.message || "");
     } catch (e: any) {
-      toast.error("Errore di connessione: " + e.message);
-    } finally {
-      setTesting(false);
+      setStatus("error");
+      setMessage(e.message);
     }
+    setTimeout(() => { setStatus("idle"); setMessage(""); }, 5000);
   };
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    toast.success("URL copiato negli appunti");
+  return (
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={handleTest} disabled={status === "testing"} className="gap-2">
+        {status === "testing" && <Loader2 className="h-3 w-3 animate-spin" />}
+        {status === "ok" && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+        {status === "error" && <XCircle className="h-3 w-3 text-destructive" />}
+        {status === "idle" && <Plug className="h-3 w-3" />}
+        {status === "testing" ? "Test..." : status === "ok" ? "Connesso" : status === "error" ? "Errore" : "Testa connessione"}
+      </Button>
+      {message && (
+        <span className={`text-xs ${status === "ok" ? "text-green-600" : "text-destructive"}`}>{message}</span>
+      )}
+    </div>
+  );
+}
+
+// ─── API KEY CARD ─────────────────────────────────────────────────────────────
+
+function ApiKeyCard({
+  icon: Icon, title, description, tooltipText, fields, settings, isLoading, onSave, isSaving, integrationKey,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  tooltipText: string;
+  fields: ApiKeyField[];
+  settings: SettingsMap | undefined;
+  isLoading: boolean;
+  onSave: (updates: Record<string, string>) => void;
+  isSaving: boolean;
+  integrationKey?: string;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+
+  const isConfigured = fields.some(f => {
+    const s = settings?.[f.key];
+    return !!(s?.value || s?.masked);
+  });
+  const hasInput = fields.some(f => values[f.key]?.trim());
+
+  const handleSave = () => {
+    const updates: Record<string, string> = {};
+    fields.forEach(f => { if (values[f.key]?.trim()) updates[f.key] = values[f.key].trim(); });
+    if (Object.keys(updates).length === 0) return;
+    onSave(updates);
+    setValues({});
   };
 
-  if (!loaded) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Icon className="h-5 w-5 text-primary" />
+            <CardTitle>{title}</CardTitle>
+          </div>
+          <Badge variant={isConfigured ? "default" : "secondary"}>
+            {isLoading ? "..." : isConfigured ? "Configurato" : "Non configurato"}
+          </Badge>
+        </div>
+        <CardDescription className="flex items-center gap-1">
+          {description}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">{tooltipText}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {fields.map(field => {
+          const current = settings?.[field.key];
+          const displayValue = current?.masked || current?.value;
+          const isSecret = field.isSecret;
+          const show = showSecrets[field.key];
+
+          return (
+            <div key={field.key} className="space-y-2">
+              <label className="text-sm font-medium">{field.label}</label>
+              <div className="relative">
+                <Input
+                  type={isSecret && !show ? "password" : "text"}
+                  placeholder={displayValue || `Inserisci ${field.label}`}
+                  value={values[field.key] || ""}
+                  onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  className={isSecret ? "pr-10" : ""}
+                />
+                {isSecret && (
+                  <Button
+                    variant="ghost" size="icon"
+                    className="absolute right-0 top-0 h-10 w-10"
+                    onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                    type="button"
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
+              {displayValue && !values[field.key] && (
+                <p className="text-xs text-muted-foreground">Valore attuale: {displayValue}</p>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={isSaving || !hasInput} className="flex-1">
+            {isSaving ? "Salvataggio..." : "Salva configurazione"}
+          </Button>
+          {integrationKey && <ConnectionTestButton integrationKey={integrationKey} />}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          I valori esistenti restano invariati se il campo è vuoto. Le credenziali di ambiente vengono usate come fallback.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── API CARDS CONFIG ─────────────────────────────────────────────────────────
+
+const API_CARDS = [
+  {
+    icon: Shield,
+    title: "Integrazioni Meta",
+    description: "Credenziali Meta App per OAuth (Lead Ads)",
+    tooltipText: "Queste credenziali vengono usate da tutte le aziende per il collegamento OAuth Meta.",
+    integrationKey: "meta",
+    fields: [
+      { key: "meta_app_id", label: "Meta App ID", isSecret: false },
+      { key: "meta_app_secret", label: "Meta App Secret", isSecret: true },
+    ],
+  },
+  {
+    icon: CalendarDays,
+    title: "Google Calendar",
+    description: "Credenziali OAuth per sincronizzazione calendari",
+    tooltipText: "Client ID e Client Secret per il collegamento OAuth Google Calendar.",
+    integrationKey: "google_calendar",
+    fields: [
+      { key: "google_calendar_client_id", label: "Google Client ID", isSecret: false },
+      { key: "google_calendar_client_secret", label: "Google Client Secret", isSecret: true },
+    ],
+  },
+  {
+    icon: MapPin,
+    title: "Google Maps",
+    description: "API Key per geocoding e autocompletamento indirizzi",
+    tooltipText: "La chiave viene usata dal proxy server-side per le API Places, Geocoding e Directions.",
+    integrationKey: "google_maps",
+    fields: [
+      { key: "google_maps_api_key", label: "Google Maps API Key", isSecret: true },
+    ],
+  },
+  {
+    icon: MessageSquare,
+    title: "WhatsApp",
+    description: "Verify Token per il webhook WhatsApp Business API",
+    tooltipText: "Il Verify Token viene usato per la validazione iniziale del webhook Meta/WhatsApp.",
+    fields: [
+      { key: "whatsapp_verify_token", label: "Verify Token", isSecret: true },
+    ],
+  },
+] as const;
+
+// ─── GOOGLE CALENDAR POLICIES ─────────────────────────────────────────────────
+
+const GOOGLE_POLICY_TOGGLES = [
+  {
+    key: "google_calendar_allow_two_way",
+    label: "Sincronizzazione bidirezionale (Two-Way)",
+    description: "Permette agli utenti di abilitare la sincronizzazione bidirezionale tra CRM e Google Calendar.",
+  },
+  {
+    key: "google_calendar_allow_guest_contact_create",
+    label: "Crea contatti da invitati",
+    description: "Permette di creare automaticamente contatti CRM dai partecipanti degli eventi Google.",
+  },
+  {
+    key: "google_calendar_allow_google_to_crm_import",
+    label: "Importa eventi Google come appuntamenti CRM",
+    description: "Permette di trasformare eventi Google (con regole di import) in appuntamenti CRM.",
+  },
+] as const;
+
+function GoogleCalendarPoliciesCard({
+  settings, isLoading, onToggle, isSaving,
+}: {
+  settings: SettingsMap | undefined;
+  isLoading: boolean;
+  onToggle: (key: string, value: boolean) => void;
+  isSaving: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-primary" />
+          <CardTitle>Policy Google Calendar</CardTitle>
+        </div>
+        <CardDescription>
+          Abilita o disabilita le funzionalità avanzate di sincronizzazione Google Calendar per tutte le aziende.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {GOOGLE_POLICY_TOGGLES.map((toggle) => {
+          const currentValue = settings?.[toggle.key]?.value === "true";
+          return (
+            <div key={toggle.key} className="flex items-center justify-between gap-4 py-2">
+              <div className="flex-1">
+                <p className="text-sm font-medium">{toggle.label}</p>
+                <p className="text-xs text-muted-foreground">{toggle.description}</p>
+              </div>
+              <Switch
+                checked={currentValue}
+                onCheckedChange={(checked) => onToggle(toggle.key, checked)}
+                disabled={isSaving || isLoading}
+              />
+            </div>
+          );
+        })}
+        <p className="text-xs text-muted-foreground pt-2 border-t">
+          Queste policy controllano le opzioni disponibili nella modale "Preferenze di sincronizzazione" di ogni utente.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── STRIPE SETTINGS ──────────────────────────────────────────────────────────
+
+function StripeSettingsCard({
+  settings, isLoading, onSave, isSaving,
+}: {
+  settings: SettingsMap | undefined;
+  isLoading: boolean;
+  onSave: (updates: Record<string, string>) => void;
+  isSaving: boolean;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+
+  const stripeMode = settings?.["stripe_mode"]?.value || "live";
+  const isTest = stripeMode === "test";
+  const isConfigured = !!(settings?.["stripe_secret_key"]?.value || settings?.["stripe_secret_key"]?.masked);
+  const hasInput = Object.values(values).some(v => v?.trim());
+
+  const handleSave = () => {
+    const updates: Record<string, string> = {};
+    Object.entries(values).forEach(([k, v]) => { if (v?.trim()) updates[k] = v.trim(); });
+    if (Object.keys(updates).length === 0) return;
+    onSave(updates);
+    setValues({});
+  };
+
+  const toggleMode = () => {
+    onSave({ stripe_mode: isTest ? "live" : "test" });
+  };
+
+  const stripeFields = [
+    { key: "stripe_publishable_key", label: "Publishable Key", isSecret: false, placeholder: isTest ? "pk_test_..." : "pk_live_..." },
+    { key: "stripe_secret_key", label: "Secret Key", isSecret: true, placeholder: isTest ? "sk_test_..." : "sk_live_..." },
+    { key: "stripe_webhook_secret", label: "Webhook Secret", isSecret: true, placeholder: "whsec_..." },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <CardTitle>Stripe</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant={isConfigured ? "default" : "secondary"}>
+              {isLoading ? "..." : isConfigured ? "Configurato" : "Non configurato"}
+            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={isTest ? "outline" : "default"} className="text-xs">
+                {isTest ? "Test" : "Live"}
+              </Badge>
+              <Switch checked={!isTest} onCheckedChange={() => toggleMode()} disabled={isSaving || isLoading} />
+            </div>
+          </div>
+        </div>
+        <CardDescription>Pagamenti e abbonamenti</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isTest && (
+          <Alert>
+            <AlertDescription>
+              ⚠️ Modalità test: i pagamenti non sono reali. Usa le chiavi live per la produzione.
+            </AlertDescription>
+          </Alert>
+        )}
+        {stripeFields.map(field => {
+          const current = settings?.[field.key];
+          const displayValue = current?.masked || current?.value;
+          const show = showSecrets[field.key];
+          return (
+            <div key={field.key} className="space-y-2">
+              <label className="text-sm font-medium">{field.label}</label>
+              <div className="relative">
+                <Input
+                  type={field.isSecret && !show ? "password" : "text"}
+                  placeholder={displayValue || field.placeholder}
+                  value={values[field.key] || ""}
+                  onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  className={`font-mono text-sm ${field.isSecret ? "pr-10" : ""}`}
+                />
+                {field.isSecret && (
+                  <Button
+                    variant="ghost" size="icon"
+                    className="absolute right-0 top-0 h-10 w-10"
+                    onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                    type="button"
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
+              {displayValue && !values[field.key] && (
+                <p className="text-xs text-muted-foreground">Valore attuale: {displayValue}</p>
+              )}
+            </div>
+          );
+        })}
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={isSaving || !hasInput} className="flex-1">
+            {isSaving ? "Salvataggio..." : "Salva configurazione"}
+          </Button>
+          <ConnectionTestButton integrationKey="stripe" />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Trovi il webhook secret in Stripe Dashboard → Webhooks. Le chiavi test e live vanno configurate separatamente.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+
+export default function AdminSettingsIntegrations() {
+  const queryClient = useQueryClient();
+
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: queryKeys.admin.platformSettings,
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "get-settings" },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      return res.data?.settings as SettingsMap | undefined;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (updates: Record<string, string>) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "update-settings", settings: updates },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Configurazione salvata");
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettings });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Meta (Facebook & Instagram)</CardTitle>
-          <CardDescription>
-            Configura le credenziali della Meta App per abilitare OAuth, Lead Ads webhook e API Ads nelle aziende.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="meta_app_id">App ID</Label>
-            <Input
-              id="meta_app_id"
-              value={values.meta_app_id}
-              onChange={(e) => setValues((v) => ({ ...v, meta_app_id: e.target.value }))}
-              placeholder="1234567890"
-            />
-          </div>
+      {/* Stripe */}
+      <StripeSettingsCard
+        settings={settings}
+        isLoading={settingsLoading}
+        onSave={(updates) => saveMutation.mutate(updates)}
+        isSaving={saveMutation.isPending}
+      />
 
-          <div className="space-y-2">
-            <Label htmlFor="meta_app_secret">App Secret</Label>
-            <div className="relative">
-              <Input
-                id="meta_app_secret"
-                type={showSecret ? "text" : "password"}
-                value={values.meta_app_secret}
-                onChange={(e) => setValues((v) => ({ ...v, meta_app_secret: e.target.value }))}
-                placeholder="••••••••"
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                onClick={() => setShowSecret(!showSecret)}
-              >
-                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
+      {/* API Cards */}
+      {API_CARDS.map(card => (
+        <ApiKeyCard
+          key={card.title}
+          icon={card.icon}
+          title={card.title}
+          description={card.description}
+          tooltipText={card.tooltipText}
+          fields={[...card.fields]}
+          settings={settings}
+          isLoading={settingsLoading}
+          onSave={(updates) => saveMutation.mutate(updates)}
+          isSaving={saveMutation.isPending}
+          integrationKey={"integrationKey" in card ? card.integrationKey : undefined}
+        />
+      ))}
 
-          <div className="space-y-2">
-            <Label htmlFor="meta_webhook_verify_token">Webhook Verify Token</Label>
-            <Input
-              id="meta_webhook_verify_token"
-              value={values.meta_webhook_verify_token}
-              onChange={(e) => setValues((v) => ({ ...v, meta_webhook_verify_token: e.target.value }))}
-              placeholder="my-verify-token"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Webhook Callback URL</Label>
-            <div className="flex items-center gap-2">
-              <Input value={webhookUrl} readOnly className="bg-muted text-xs font-mono" />
-              <Button variant="outline" size="icon" onClick={copyWebhookUrl} className="shrink-0">
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Inserisci questo URL nella sezione Webhooks della tua Meta App.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 pt-2">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salva credenziali
-            </Button>
-            <Button variant="outline" onClick={handleTest} disabled={testing || !values.meta_app_id}>
-              {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-              Verifica connessione
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Google Calendar Policies */}
+      <GoogleCalendarPoliciesCard
+        settings={settings}
+        isLoading={settingsLoading}
+        onToggle={(key, value) => saveMutation.mutate({ [key]: value ? "true" : "false" })}
+        isSaving={saveMutation.isPending}
+      />
     </div>
   );
 }
