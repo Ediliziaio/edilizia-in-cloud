@@ -1,122 +1,303 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useApiKeys";
+import { API_SCOPE_GROUPS, ALL_SCOPE_IDS } from "@/types/apiKeys";
+import type { ExpiryOption } from "@/lib/apiKeyUtils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Plus, Key, Copy, CheckCircle2, Trash2, Clock, Loader2, AlertTriangle, Activity, Book, ShieldAlert,
+} from "lucide-react";
+import { formatRelativeTime, formatDate } from "@/lib/formatters";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { Key, Plus, Copy, Trash2, Activity, Shield, Book, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { ApiDocsTab } from "@/components/api/ApiDocsTab";
 import { ApiUsageChart } from "@/components/api/ApiUsageChart";
 
-interface ApiKey {
-  id: string;
-  name: string;
-  key_prefix: string;
-  scopes: string[];
-  rate_limit_per_minute: number;
-  rate_limit_per_day: number;
-  is_active: boolean;
-  last_used_at: string | null;
-  expires_at: string | null;
-  created_at: string;
-  raw_key?: string;
-}
-
-const SCOPE_OPTIONS = [
-  { value: "read", label: "Lettura", desc: "Accesso in sola lettura" },
-  { value: "write", label: "Scrittura", desc: "Creazione e modifica dati" },
-  { value: "orders", label: "Ordini", desc: "Gestione ordini" },
-  { value: "contacts", label: "Contatti", desc: "Gestione contatti CRM" },
-  { value: "webhooks", label: "Webhooks", desc: "Ricezione eventi" },
+const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
+  { value: "never", label: "Non scade mai" },
+  { value: "30d", label: "30 giorni" },
+  { value: "90d", label: "90 giorni" },
+  { value: "1y", label: "1 anno" },
 ];
 
+// ---- CreateApiKeyDialog ----
+function CreateApiKeyDialog({
+  open,
+  onOpenChange,
+  companyId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  companyId: string;
+}) {
+  const createMutation = useCreateApiKey(companyId);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [name, setName] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  const [expiry, setExpiry] = useState<ExpiryOption>("never");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const resetForm = () => {
+    setStep(1);
+    setName("");
+    setSelectedScopes([]);
+    setExpiry("never");
+    setGeneratedKey(null);
+    setCopied(false);
+  };
+
+  const handleClose = (v: boolean) => {
+    if (!v) resetForm();
+    onOpenChange(v);
+  };
+
+  const toggleScope = (scopeId: string) => {
+    setSelectedScopes((prev) =>
+      prev.includes(scopeId) ? prev.filter((s) => s !== scopeId) : [...prev, scopeId]
+    );
+  };
+
+  const toggleGroup = (groupScopeIds: string[], enable: boolean) => {
+    setSelectedScopes((prev) => {
+      const filtered = prev.filter((s) => !groupScopeIds.includes(s));
+      return enable ? [...filtered, ...groupScopeIds] : filtered;
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!name || selectedScopes.length === 0) {
+      toast.error("Inserisci nome e seleziona almeno uno scope.");
+      return;
+    }
+    try {
+      const key = await createMutation.mutateAsync({ name, scopes: selectedScopes, expiryOption: expiry });
+      setGeneratedKey(key);
+      setStep(2);
+    } catch {
+      toast.error("Impossibile creare la chiave API.");
+    }
+  };
+
+  const copyKey = async () => {
+    if (!generatedKey) return;
+    await navigator.clipboard.writeText(generatedKey);
+    setCopied(true);
+    toast.success("Chiave copiata negli appunti");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{step === 1 ? "Crea API Key" : "Chiave API creata"}</DialogTitle>
+          <DialogDescription>
+            {step === 1
+              ? "Configura nome, permessi e scadenza della nuova chiave."
+              : "Copia la chiave ora — non sarà più visibile."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 1 ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome chiave *</Label>
+              <Input placeholder="Es. Integrazione ERP" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Scadenza</Label>
+              <Select value={expiry} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPIRY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Permessi (scopes) *</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const allSelected = ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s));
+                    setSelectedScopes(allSelected ? [] : [...ALL_SCOPE_IDS]);
+                  }}
+                >
+                  {ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s)) ? "Deseleziona tutti" : "Seleziona tutti"}
+                </Button>
+              </div>
+
+              {API_SCOPE_GROUPS.map((group) => {
+                const groupIds = group.scopes.map((s) => s.id);
+                const selectedCount = groupIds.filter((id) => selectedScopes.includes(id)).length;
+                const allGroupSelected = selectedCount === groupIds.length;
+
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allGroupSelected}
+                        onCheckedChange={(v) => toggleGroup(groupIds, !!v)}
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium">{group.label}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{group.description}</span>
+                      </div>
+                      {selectedCount > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedCount}/{groupIds.length}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="ml-6 grid grid-cols-1 gap-1.5">
+                      {group.scopes.map((scope) => (
+                        <div key={scope.id} className="flex items-start gap-2">
+                          <Checkbox
+                            checked={selectedScopes.includes(scope.id)}
+                            onCheckedChange={() => toggleScope(scope.id)}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="text-sm">{scope.label}</span>
+                            <p className="text-xs text-muted-foreground">{scope.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Salva questa chiave adesso. Per sicurezza non viene mai memorizzata
+                in chiaro — non potrai più vederla dopo aver chiuso questa finestra.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label>Chiave API</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted p-3 rounded-lg font-mono break-all select-all">
+                  {generatedKey}
+                </code>
+                <Button size="icon" variant="outline" onClick={copyKey}>
+                  {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-sm font-medium">Riepilogo</p>
+              <div className="text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nome:</span>
+                  <span className="font-medium">{name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Scadenza:</span>
+                  <span>{expiry === "never" ? "Mai" : EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Permessi:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedScopes.map((s) => (
+                      <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === 1 ? (
+            <>
+              <Button variant="outline" onClick={() => handleClose(false)}>Annulla</Button>
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Crea chiave
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => handleClose(false)} className="w-full">
+              Ho salvato la chiave — Chiudi
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- ScopeBadges ----
+function ScopeBadges({ scopes }: { scopes: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {scopes.slice(0, 4).map((s) => (
+        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+      ))}
+      {scopes.length > 4 && (
+        <Badge variant="outline" className="text-xs">+{scopes.length - 4}</Badge>
+      )}
+    </div>
+  );
+}
+
+// ---- PAGINA PRINCIPALE ----
 export default function SettingsApiKeys() {
   const { effectiveCompany } = useAuth();
-  const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newKeyName, setNewKeyName] = useState("Chiave API");
-  const [newKeyScopes, setNewKeyScopes] = useState<string[]>(["read"]);
-  const [newKeyRateMin, setNewKeyRateMin] = useState(60);
-  const [newKeyRateDay, setNewKeyRateDay] = useState(10000);
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [showKey, setShowKey] = useState(false);
+  const companyId = (effectiveCompany as any)?.id as string;
+  const revokeMutation = useRevokeApiKey(companyId);
+  const { data: apiKeys = [], isLoading } = useApiKeys(companyId);
+  const [formOpen, setFormOpen] = useState(false);
+  const [revokedOpen, setRevokedOpen] = useState(false);
 
-  const { data: keys = [], isLoading } = useQuery({
-    queryKey: ["api-keys", effectiveCompany?.id],
-    enabled: !!effectiveCompany?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("api-gateway", {
-        body: { action: "list_keys" },
-      });
-      if (error) throw error;
-      return data as ApiKey[];
-    },
-  });
+  const activeKeys = apiKeys.filter((k) => k.is_active && !k.revoked_at);
+  const revokedKeys = apiKeys.filter((k) => !k.is_active || !!k.revoked_at);
 
-  const createKey = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("api-gateway", {
-        body: {
-          action: "generate_key",
-          name: newKeyName,
-          scopes: newKeyScopes,
-          rate_limit_per_minute: newKeyRateMin,
-          rate_limit_per_day: newKeyRateDay,
-        },
-      });
-      if (error) throw error;
-      return data as ApiKey;
-    },
-    onSuccess: (data) => {
-      setGeneratedKey(data.raw_key || null);
-      setShowKey(true);
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
-      toast.success("Chiave API creata");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const isExpired = (key: typeof apiKeys[0]) =>
+    key.expires_at ? new Date(key.expires_at) < new Date() : false;
 
-  const revokeKey = useMutation({
-    mutationFn: async (keyId: string) => {
-      const { error } = await supabase.functions.invoke("api-gateway", {
-        body: { action: "revoke_key", key_id: keyId },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+  const handleRevoke = async (keyId: string) => {
+    try {
+      await revokeMutation.mutateAsync(keyId);
       toast.success("Chiave revocata");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const handleCopyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast.success("Copiata negli appunti");
-  };
-
-  const handleCreate = () => {
-    setGeneratedKey(null);
-    setShowKey(false);
-    createKey.mutate();
-  };
-
-  const toggleScope = (scope: string) => {
-    setNewKeyScopes((prev) =>
-      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
-    );
+    } catch {
+      toast.error("Impossibile revocare la chiave.");
+    }
   };
 
   return (
@@ -133,182 +314,168 @@ export default function SettingsApiKeys() {
           <TabsTrigger value="docs" className="gap-2"><Book className="h-4 w-4" /> Documentazione</TabsTrigger>
         </TabsList>
 
-        {/* KEYS TAB */}
         <TabsContent value="keys" className="space-y-4">
+          {/* Security info */}
+          <Alert>
+            <ShieldAlert className="h-4 w-4" />
+            <AlertDescription>
+              <p className="font-medium">Le chiavi API danno accesso ai dati della tua azienda.</p>
+              <ul className="text-xs text-muted-foreground mt-1 list-disc list-inside space-y-0.5">
+                <li>Non condividere mai una chiave in pubblico o inserirla nel codice sorgente.</li>
+                <li>Usa variabili d'ambiente o un secret manager.</li>
+                <li>Limite: 100 richieste/minuto per chiave.</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+
+          {/* Header */}
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {keys.filter(k => k.is_active).length} chiav{keys.filter(k => k.is_active).length === 1 ? "e" : "i"} attiv{keys.filter(k => k.is_active).length === 1 ? "a" : "e"}
+              {activeKeys.length} chiav{activeKeys.length === 1 ? "e attiva" : "i attive"}
             </p>
-            <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setGeneratedKey(null); setShowKey(false); } }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="h-4 w-4" /> Nuova chiave</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Crea nuova chiave API</DialogTitle>
-                </DialogHeader>
-
-                {generatedKey ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm font-medium text-destructive mb-2">⚠️ Copia questa chiave ora — non sarà più visibile!</p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-xs bg-muted p-2 rounded font-mono break-all">
-                          {showKey ? generatedKey : "••••••••••••••••••••••••••••••••"}
-                        </code>
-                        <Button size="icon" variant="ghost" onClick={() => setShowKey(!showKey)}>
-                          {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleCopyKey(generatedKey)}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={() => { setCreateOpen(false); setGeneratedKey(null); }}>Chiudi</Button>
-                    </DialogFooter>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Nome</Label>
-                      <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="Es. Integrazione ERP" />
-                    </div>
-                    <div>
-                      <Label>Permessi (Scopes)</Label>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {SCOPE_OPTIONS.map((s) => (
-                          <label key={s.value} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted/50">
-                            <Switch checked={newKeyScopes.includes(s.value)} onCheckedChange={() => toggleScope(s.value)} />
-                            <div>
-                              <p className="text-sm font-medium">{s.label}</p>
-                              <p className="text-xs text-muted-foreground">{s.desc}</p>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Rate limit / minuto</Label>
-                        <Select value={String(newKeyRateMin)} onValueChange={(v) => setNewKeyRateMin(Number(v))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="30">30</SelectItem>
-                            <SelectItem value="60">60</SelectItem>
-                            <SelectItem value="120">120</SelectItem>
-                            <SelectItem value="300">300</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Rate limit / giorno</Label>
-                        <Select value={String(newKeyRateDay)} onValueChange={(v) => setNewKeyRateDay(Number(v))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1000">1.000</SelectItem>
-                            <SelectItem value="5000">5.000</SelectItem>
-                            <SelectItem value="10000">10.000</SelectItem>
-                            <SelectItem value="50000">50.000</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setCreateOpen(false)}>Annulla</Button>
-                      <Button onClick={handleCreate} disabled={createKey.isPending}>
-                        {createKey.isPending ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Genera chiave
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setFormOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuova API Key
+            </Button>
           </div>
 
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Prefisso</TableHead>
-                    <TableHead>Permessi</TableHead>
-                    <TableHead>Rate Limit</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Ultimo uso</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Caricamento...</TableCell></TableRow>
-                  ) : keys.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nessuna chiave API creata</TableCell></TableRow>
-                  ) : keys.map((key) => (
-                    <TableRow key={key.id} className={!key.is_active ? "opacity-50" : ""}>
-                      <TableCell className="font-medium">{key.name}</TableCell>
-                      <TableCell><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{key.key_prefix}...</code></TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {key.scopes.map((s) => (
-                            <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{key.rate_limit_per_minute}/min · {key.rate_limit_per_day.toLocaleString()}/day</TableCell>
-                      <TableCell>
-                        <Badge variant={key.is_active ? "default" : "destructive"}>
-                          {key.is_active ? "Attiva" : "Revocata"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {key.last_used_at ? format(new Date(key.last_used_at), "dd MMM yyyy HH:mm", { locale: it }) : "Mai"}
-                      </TableCell>
-                      <TableCell>
-                        {key.is_active && (
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* Active keys */}
+              {activeKeys.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="flex flex-col items-center text-center gap-3">
+                      <div className="p-3 rounded-full bg-muted">
+                        <Key className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Nessuna chiave attiva</p>
+                        <p className="text-sm text-muted-foreground">Crea la tua prima API key per iniziare ad integrare.</p>
+                      </div>
+                      <Button onClick={() => setFormOpen(true)} className="gap-2">
+                        <Plus className="h-4 w-4" /> Crea API Key
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {activeKeys.map((key) => (
+                    <Card key={key.id}>
+                      <CardContent className="py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{key.name}</p>
+                              {isExpired(key) && (
+                                <Badge variant="destructive" className="text-xs">Scaduta</Badge>
+                              )}
+                            </div>
+                            <code className="text-xs text-muted-foreground font-mono">
+                              {key.key_prefix}{"•".repeat(44)}
+                            </code>
+                            <ScopeBadges scopes={key.scopes} />
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              {key.last_used_at ? (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  Usata {formatRelativeTime(key.last_used_at)}
+                                </span>
+                              ) : (
+                                <span>Mai usata</span>
+                              )}
+                              {key.expires_at && (
+                                <span>Scade: {formatDate(key.expires_at)}</span>
+                              )}
+                              <span>Creata {formatRelativeTime(key.created_at)}</span>
+                            </div>
+                          </div>
+
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
+                              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive gap-1.5">
+                                <Trash2 className="h-3.5 w-3.5" /> Revoca
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Revocare la chiave "{key.name}"?</AlertDialogTitle>
+                                <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Questa azione è irreversibile. Tutte le integrazioni che usano questa chiave smetteranno di funzionare.
+                                  La chiave {key.name} ({key.key_prefix}...) cesserà immediatamente di funzionare.
+                                  Questa azione è irreversibile.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => revokeKey.mutate(key.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                  Revoca
+                                <AlertDialogAction
+                                  onClick={() => handleRevoke(key.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Sì, revoca
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                </div>
+              )}
+
+              {/* Revoked keys */}
+              {revokedKeys.length > 0 && (
+                <div className="mt-6">
+                  <button
+                    onClick={() => setRevokedOpen(!revokedOpen)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Chiavi revocate ({revokedKeys.length}) {revokedOpen ? "▾" : "▸"}
+                  </button>
+                  {revokedOpen && (
+                    <div className="mt-2 space-y-2">
+                      {revokedKeys.map((key) => (
+                        <Card key={key.id} className="opacity-60">
+                          <CardContent className="py-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">{key.name}</p>
+                                  <Badge variant="outline" className="text-xs">Revocata</Badge>
+                                </div>
+                                <code className="text-xs text-muted-foreground font-mono">{key.key_prefix}...</code>
+                                {key.revoked_at && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Revocata {formatRelativeTime(key.revoked_at)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
 
-        {/* USAGE TAB */}
         <TabsContent value="usage">
-          <ApiUsageChart keys={keys} />
+          <ApiUsageChart keys={apiKeys} />
         </TabsContent>
 
-        {/* DOCS TAB */}
         <TabsContent value="docs">
           <ApiDocsTab />
         </TabsContent>
       </Tabs>
+
+      <CreateApiKeyDialog open={formOpen} onOpenChange={setFormOpen} companyId={companyId} />
     </div>
   );
 }
