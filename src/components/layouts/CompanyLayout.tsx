@@ -230,7 +230,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
             <AreaIcon className="h-3.5 w-3.5" />
             {area.title}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
           <SidebarGroupContent>
