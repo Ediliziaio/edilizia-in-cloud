@@ -585,126 +585,44 @@ function CompanySidebar() {
           </>
         ) : (
           <>
-            {/* Cruscotto Aziendale - standalone item above sections */}
-            {showCruscotto && (
-              <SidebarGroup className="pb-0">
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
+            {/* Cruscotto — standalone items */}
+            <SidebarGroup className="pb-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []).map((item) => (
+                    <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild>
                         <NavLink
-                          to={cruscottoNavItem.url}
+                          to={item.url}
+                          end={item.url === "/azienda"}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
                         >
-                          <cruscottoNavItem.icon className="h-4 w-4" />
-                          <span className="font-medium">{cruscottoNavItem.title}</span>
+                          <item.icon className="h-4 w-4" />
+                          <span className="font-medium">{item.title}</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-            {/* Gestione Interna */}
-            <Collapsible defaultOpen={false}>
-              <SidebarGroup>
-                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
-                  <span className="flex items-center gap-2">
-                    <Briefcase className="h-3.5 w-3.5" />
-                    Gestione Interna
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    {internalSubcategories.map((sub) => {
-                      const items = visibleInternalItems.filter((i) => i.subcategory === sub.id);
-                      if (items.length === 0) return null;
-                      return (
-                        <SidebarSubcategory
-                          key={sub.id}
-                          label={sub.label}
-                          isOpen={isOpen(sub.id)}
-                          onToggle={() => toggle(sub.id)}
-                        >
-                          <SidebarMenu className="divide-y divide-dashed divide-border/40">
-                            {items.map((item) => (
-                              <SidebarMenuItem key={item.title}>
-                                <SidebarMenuButton asChild>
-                                  <NavLink 
-                                    to={item.url} 
-                                    end={item.url === "/azienda"}
-                                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                    activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
-                                  >
-                                    <item.icon className="h-4 w-4" />
-                                    <span>{item.title}</span>
-                                    {item.isBeta && (
-                                      <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                                    )}
-                                  </NavLink>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            ))}
-                          </SidebarMenu>
-                        </SidebarSubcategory>
-                      );
-                    })}
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </SidebarGroup>
-            </Collapsible>
-
-            {/* Marketing e Vendita */}
-            {visibleMarketingItems.length > 0 && (
-              <Collapsible defaultOpen={false}>
-                <SidebarGroup className="pt-0">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
-                    <span className="flex items-center gap-2">
-                      <Megaphone className="h-3.5 w-3.5" />
-                      Marketing e Vendita
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarGroupContent>
-                      {marketingSubcategories.map((sub) => {
-                        const items = visibleMarketingItems.filter((i) => i.subcategory === sub.id);
-                        if (items.length === 0) return null;
-                        return (
-                          <SidebarSubcategory
-                            key={sub.id}
-                            label={sub.label}
-                            isOpen={isOpen(sub.id)}
-                            onToggle={() => toggle(sub.id)}
-                          >
-                            <SidebarMenu className="divide-y divide-dashed divide-border/40">
-                              {items.map((item) => (
-                                <SidebarMenuItem key={item.title}>
-                                  <SidebarMenuButton asChild>
-                                    <NavLink 
-                                      to={item.url} 
-                                      end={item.url === "/azienda/marketing"}
-                                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
-                                    >
-                                      <item.icon className="h-4 w-4" />
-                                      <span>{item.title}</span>
-                                    </NavLink>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
-                              ))}
-                            </SidebarMenu>
-                          </SidebarSubcategory>
-                        );
-                      })}
-                    </SidebarGroupContent>
-                  </CollapsibleContent>
-                </SidebarGroup>
-              </Collapsible>
-            )}
+            {/* 5 collapsible macro-areas */}
+            {macroAreas
+              .filter(a => a.id !== "area_cruscotto")
+              .map(area => {
+                const visibleItems = filterNavItems(area.items);
+                if (visibleItems.length === 0) return null;
+                return (
+                  <MacroAreaCollapsible
+                    key={area.id}
+                    area={area}
+                    visibleItems={visibleItems}
+                    pathname={location.pathname}
+                  />
+                );
+              })}
             
             <div className="mt-auto border-t">
               {permissions.canViewSettings && (
