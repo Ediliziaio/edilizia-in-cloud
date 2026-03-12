@@ -690,6 +690,19 @@ export function CompanyLayout() {
   const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
   const { unreadCount: notifUnreadCount } = useNotifications();
+  const { area, areaIcon: AreaIcon, page } = useBreadcrumb();
+
+  // Update document title
+  useEffect(() => {
+    const companyName = effectiveCompany?.name;
+    if (page) {
+      document.title = `${page} · ${companyName || "Edilizia in Cloud"}`;
+    } else if (area) {
+      document.title = `${area} · ${companyName || "Edilizia in Cloud"}`;
+    } else {
+      document.title = companyName || "Edilizia in Cloud";
+    }
+  }, [page, area, effectiveCompany?.name]);
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
