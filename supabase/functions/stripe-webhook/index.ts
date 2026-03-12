@@ -189,6 +189,9 @@ async function handleInvoicePaid(
   const company = await getCompanyByStripeCustomer(supabase, stripeCustomerId);
   if (!company) return;
 
+  // Sync invoice to subscription_invoices
+  await upsertSubscriptionInvoice(supabase, company.id, invoice, stripeCustomerId);
+
   const subRes = await fetch(
     `https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`,
     { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
