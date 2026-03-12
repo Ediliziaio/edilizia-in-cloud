@@ -41,27 +41,66 @@ Deno.serve(async (req) => {
     }
     if (!integration) return json({ error: "No active integration found" }, 400);
 
-    // Refresh token FIC se scaduto
+    // Refresh token FIC se scaduto (con advisory lock anti-race-condition)
     if (integration.provider === "fattureincloud" && integration.token_expires_at) {
       const exp = new Date(integration.token_expires_at as string);
-      if (exp < new Date(Date.now() + 5 * 60 * 1000)) {
-        const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            client_id: Deno.env.get("FIC_CLIENT_ID") || "",
-            client_secret: Deno.env.get("FIC_CLIENT_SECRET") || "",
-            refresh_token: integration.refresh_token as string,
-          }),
+      // Buffer 30 minuti invece di 5
+      if (exp < new Date(Date.now() + 30 * 60 * 1000)) {
+        // Tentare advisory lock
+        const { data: lockAcquired } = await supabase.rpc("try_acquire_token_refresh_lock", {
+          p_integration_id: integration.id,
         });
-        if (r.ok) {
-          const td = await r.json();
-          integration.access_token = td.access_token;
-          await supabase.from("billing_integrations").update({
-            access_token: td.access_token,
-            token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
-          }).eq("id", integration.id);
+
+        if (lockAcquired) {
+          try {
+            // Double-check: ri-leggere token dal DB dopo lock
+            const { data: freshIntegration } = await supabase
+              .from("billing_integrations").select("access_token, token_expires_at")
+              .eq("id", integration.id).single();
+
+            const freshExp = freshIntegration?.token_expires_at
+              ? new Date(freshIntegration.token_expires_at as string)
+              : exp;
+
+            // Se un altro worker ha già refreshato, skip
+            if (freshExp >= new Date(Date.now() + 30 * 60 * 1000)) {
+              integration.access_token = freshIntegration!.access_token as string;
+            } else {
+              // Eseguire il refresh
+              const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                  grant_type: "refresh_token",
+                  client_id: Deno.env.get("FIC_CLIENT_ID") || "",
+                  client_secret: Deno.env.get("FIC_CLIENT_SECRET") || "",
+                  refresh_token: integration.refresh_token as string,
+                }),
+              });
+              if (r.ok) {
+                const td = await r.json();
+                integration.access_token = td.access_token;
+                await supabase.from("billing_integrations").update({
+                  access_token: td.access_token,
+                  token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
+                }).eq("id", integration.id);
+              }
+            }
+          } finally {
+            // Rilasciare il lock sempre
+            await supabase.rpc("release_token_refresh_lock", {
+              p_integration_id: integration.id,
+            });
+          }
+        } else {
+          // Lock non disponibile: attendere e ri-leggere token aggiornato
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const { data: refreshed } = await supabase
+            .from("billing_integrations").select("access_token")
+            .eq("id", integration.id).single();
+          if (refreshed?.access_token) {
+            integration.access_token = refreshed.access_token as string;
+          }
         }
       }
     }
