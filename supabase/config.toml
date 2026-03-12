@@ -239,3 +239,12 @@ verify_jwt = false
 
 [functions.upsert-admin-session]
 verify_jwt = false
+
+[functions.generate-native-pdf]
+verify_jwt = false
+
+[functions.invia-sdi]
+verify_jwt = false
+
+[functions.sdi-webhook]
+verify_jwt = false
