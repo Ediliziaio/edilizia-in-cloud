@@ -272,7 +272,8 @@ export default function CompaniesList() {
       const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
       const plan = company.subscription_plans as { id: string; name: string } | null;
       const matchesPlan = planFilter === "all" || plan?.id === planFilter;
-      return matchesSearch && matchesStatus && matchesSector && matchesPlan;
+      const matchesHealth = healthFilter === "all" || (healthData[company.id]?.health === healthFilter);
+      return matchesSearch && matchesStatus && matchesSector && matchesPlan && matchesHealth;
     });
 
     if (sortKey) {
@@ -304,9 +305,101 @@ export default function CompaniesList() {
     }
 
     return result;
-  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData]);
+  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData, healthData]);
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
+  const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all";
+
+  // Smart filter presets
+  const filterPresets: FilterPreset[] = useMemo(() => {
+    const trialExpiring = companies.filter((c) => {
+      if (c.status !== "trial" || !c.trial_ends_at) return false;
+      const days = differenceInDays(new Date(c.trial_ends_at), new Date());
+      return days >= 0 && days <= 7;
+    }).length;
+
+    const atRiskCount = companies.filter((c) => {
+      const h = healthData[c.id];
+      return h && (h.health === "at_risk" || h.health === "critical");
+    }).length;
+
+    const noPayment = companies.filter((c) =>
+      (c.status === "active" || c.status === "trial") &&
+      (!c.payment_method || c.payment_method === "none" || c.payment_method === "")
+    ).length;
+
+    const inactive = companies.filter((c) => {
+      const la = lastAccessData[c.id];
+      if (!la || c.status !== "active") return false;
+      return differenceInDays(new Date(), new Date(la)) > 14;
+    }).length;
+
+    const clearFilters = () => {
+      setSearchQuery("");
+      setStatusFilter("all");
+      setSectorFilter("all");
+      setPlanFilter("all");
+      setHealthFilter("all");
+    };
+
+    return [
+      {
+        key: "trial_expiring",
+        label: "Trial in scadenza",
+        icon: Clock,
+        description: "Trial che scadono entro 7 giorni",
+        color: "amber",
+        count: trialExpiring,
+        apply: () => { clearFilters(); setStatusFilter("trial"); setSortKey("trial"); setSortDir("asc"); setActivePreset("trial_expiring"); },
+      },
+      {
+        key: "at_risk",
+        label: "A rischio",
+        icon: AlertTriangle,
+        description: "Aziende con health score basso",
+        color: "red",
+        count: atRiskCount,
+        apply: () => { clearFilters(); setHealthFilter("at_risk"); setActivePreset("at_risk"); },
+      },
+      {
+        key: "no_payment",
+        label: "Senza pagamento",
+        icon: CreditCard,
+        description: "Aziende attive/trial senza metodo di pagamento",
+        color: "orange",
+        count: noPayment,
+        apply: () => { clearFilters(); setActivePreset("no_payment"); /* custom filter handled below */ },
+      },
+      {
+        key: "inactive",
+        label: "Inattive",
+        icon: UserX,
+        description: "Aziende attive senza accesso da 14+ giorni",
+        color: "gray",
+        count: inactive,
+        apply: () => { clearFilters(); setStatusFilter("active"); setSortKey("lastAccess"); setSortDir("asc"); setActivePreset("inactive"); },
+      },
+    ];
+  }, [companies, healthData, lastAccessData]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSectorFilter("all");
+    setPlanFilter("all");
+    setHealthFilter("all");
+    setActivePreset(null);
+  }, []);
+
+  // Active filter labels
+  const statusLabelsMap: Record<string, string> = { trial: "Trial", active: "Attivo", suspended: "Sospeso", expired: "Scaduto" };
+  const healthLabelsMap: Record<string, string> = { healthy: "Healthy", at_risk: "A rischio", critical: "Critico" };
+  const activeFiltersList = useMemo(() => [
+    { key: "search", label: "Cerca", value: searchQuery, onClear: () => setSearchQuery("") },
+    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (statusLabelsMap[statusFilter] || statusFilter), onClear: () => setStatusFilter("all") },
+    { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setSectorFilter("all") },
+    { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setPlanFilter("all") },
+    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (healthLabelsMap[healthFilter] || healthFilter), onClear: () => setHealthFilter("all") },
+  ], [searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, uniquePlans]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
