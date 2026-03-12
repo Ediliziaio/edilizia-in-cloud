@@ -51,11 +51,34 @@ const actionColors: Record<string, "default" | "secondary" | "destructive" | "ou
 export default function AuditLogTab() {
   const [page, setPage] = useState(0);
   const [actionFilter, setActionFilter] = useState("all");
+  const [adminFilter, setAdminFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const debouncedSearch = useDebounce(searchQuery, 350);
+
+  // Fetch admin list for filter dropdown
+  const { data: adminList = [] } = useQuery({
+    queryKey: ["audit-admin-list"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("admin_audit_log")
+        .select("user_id");
+      const uniqueIds = [...new Set((data || []).map((r) => r.user_id))];
+      if (uniqueIds.length === 0) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", uniqueIds);
+      return (profiles || []).map((p) => ({
+        id: p.id,
+        name: `${p.first_name} ${p.last_name}`,
+      }));
+    },
+    staleTime: 60_000,
+  });
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-audit-log", page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString(), debouncedSearch],
+    queryKey: ["admin-audit-log", page, actionFilter, adminFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString(), debouncedSearch],
     queryFn: async () => {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -78,6 +101,9 @@ export default function AuditLogTab() {
 
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
+      }
+      if (adminFilter !== "all") {
+        query = query.eq("user_id", adminFilter);
       }
       if (dateRange.from) {
         query = query.gte("created_at", dateRange.from.toISOString());
@@ -186,6 +212,17 @@ export default function AuditLogTab() {
               <SelectItem value="all">Tutte le azioni</SelectItem>
               {Object.entries(actionLabels).map(([key, label]) => (
                 <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={adminFilter} onValueChange={(v) => { setAdminFilter(v); setPage(0); }}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filtra admin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli admin</SelectItem>
+              {adminList.map((admin) => (
+                <SelectItem key={admin.id} value={admin.id}>{admin.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
