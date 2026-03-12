@@ -25,6 +25,10 @@ import {
   BookOpen,
   Truck,
   Package,
+  Wallet,
+  Shield,
+  KanbanSquare,
+  Settings,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
