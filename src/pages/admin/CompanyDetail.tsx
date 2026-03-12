@@ -113,16 +113,35 @@ export default function CompanyDetail() {
         paymentMethod={h.company.payment_method || "none"}
       />
 
-      <Tabs defaultValue="panoramica">
-        <TabsList>
-          <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
-          <TabsTrigger value="dettagli">Dettagli</TabsTrigger>
-          <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
-          <TabsTrigger value="saas">SaaS</TabsTrigger>
-          <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
-          <TabsTrigger value="billing">Billing & Servizi</TabsTrigger>
-          <TabsTrigger value="attivita">Attività</TabsTrigger>
-          <TabsTrigger value="note">Note</TabsTrigger>
+      <Tabs defaultValue="panoramica" className="space-y-4">
+        <TabsList className="flex-wrap h-auto gap-1 p-1">
+          <TabsTrigger value="panoramica" className="gap-1.5">
+            <Eye className="h-3.5 w-3.5" /> Panoramica
+          </TabsTrigger>
+          <TabsTrigger value="dettagli" className="gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Dettagli
+          </TabsTrigger>
+          <TabsTrigger value="team" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" /> Team
+            {totalTeam > 0 && (
+              <span className="ml-0.5 text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded-full">{totalTeam}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="saas" className="gap-1.5">
+            <Blocks className="h-3.5 w-3.5" /> SaaS
+          </TabsTrigger>
+          <TabsTrigger value="abbonamento" className="gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" /> Abbonamento
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" /> Billing
+          </TabsTrigger>
+          <TabsTrigger value="attivita" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" /> Attività
+          </TabsTrigger>
+          <TabsTrigger value="note" className="gap-1.5">
+            <StickyNote className="h-3.5 w-3.5" /> Note
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica">
