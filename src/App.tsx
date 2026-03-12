@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
