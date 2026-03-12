@@ -345,6 +345,144 @@ export default function SettingsBranding() {
             </CardContent>
           </Card>
 
+          <Separator />
+
+          {/* Subdomain */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" /> Subdomain</CardTitle>
+              <CardDescription>Accedi alla piattaforma da un indirizzo personalizzato</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Il tuo subdomain</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={subdomain}
+                    onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                    placeholder="la-mia-azienda"
+                    className="max-w-48"
+                  />
+                  <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Solo lettere minuscole, numeri e trattini</p>
+              </div>
+              <Button
+                size="sm"
+                disabled={saveSubdomainMut.isPending || !subdomain}
+                onClick={async () => {
+                  try {
+                    await saveSubdomainMut.mutateAsync(subdomain);
+                    toast.success("Subdomain salvato");
+                  } catch (err: any) {
+                    toast.error(err.message || "Subdomain già in uso");
+                  }
+                }}
+              >
+                {saveSubdomainMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Salva subdomain
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Custom Domain */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" /> Dominio Personalizzato</CardTitle>
+              <CardDescription>Usa il tuo dominio (es. crm.tuaazienda.it). Richiede configurazione DNS.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(companyBranding as any)?.custom_domain_verified ? (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <AlertDescription className="flex items-center justify-between">
+                    <span><strong>{customDomain}</strong> è verificato e attivo.</span>
+                    <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank")}>
+                      Apri ↗
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Dominio</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={customDomain}
+                        onChange={(e) => setCustomDomain(e.target.value.toLowerCase())}
+                        placeholder="crm.tuaazienda.it"
+                        className="max-w-64"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={requestVerifMut.isPending || !customDomain}
+                        onClick={async () => {
+                          try {
+                            await requestVerifMut.mutateAsync(customDomain);
+                            toast.success("Configurazione avviata — segui le istruzioni DNS");
+                          } catch (err: any) {
+                            toast.error(err.message || "Errore");
+                          }
+                        }}
+                      >
+                        {requestVerifMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Configura"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(companyBranding as any)?.custom_domain_cname && !(companyBranding as any)?.custom_domain_verified && (
+                    <Alert>
+                      <AlertDescription className="space-y-3">
+                        <p className="font-medium">Aggiungi questo record CNAME al tuo DNS:</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground w-16">Tipo:</span>
+                            <Badge variant="secondary">CNAME</Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground w-16">Nome:</span>
+                            <code className="bg-muted px-2 py-0.5 rounded text-xs">{customDomain}</code>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(customDomain); toast.success("Copiato"); }}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground w-16">Valore:</span>
+                            <code className="bg-muted px-2 py-0.5 rounded text-xs">{(companyBranding as any).custom_domain_cname}</code>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText((companyBranding as any).custom_domain_cname); toast.success("Copiato"); }}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">La propagazione DNS può richiedere da 5 minuti a 48 ore.</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={verifyMut.isPending}
+                          onClick={async () => {
+                            try {
+                              const result = await verifyMut.mutateAsync();
+                              if (result.verified) {
+                                toast.success("Dominio verificato! ✓");
+                              } else {
+                                toast.error(result.error || "CNAME non ancora propagato. Riprova più tardi.");
+                              }
+                            } catch {
+                              toast.error("Errore durante la verifica");
+                            }
+                          }}
+                        >
+                          {verifyMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                          Verifica ora
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Save */}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setInitialized(false)}>
