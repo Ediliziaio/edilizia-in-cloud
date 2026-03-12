@@ -1,5 +1,4 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ComingSoonPlaceholder } from "@/components/users/ComingSoonPlaceholder";
 import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
@@ -7,6 +6,7 @@ import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
 import { TabSedi } from "./tabs/TabSedi";
 import { TabFestivita } from "./tabs/TabFestivita";
+import { TabProfili } from "./tabs/TabProfili";
 
 export default function PersonalePage() {
   return (
@@ -45,12 +45,7 @@ export default function PersonalePage() {
           <TabOrganigramma />
         </TabsContent>
         <TabsContent value="profili">
-          <ComingSoonPlaceholder
-            icon={Users}
-            title="Profili Dipendenti"
-            description="Anagrafica completa del personale"
-            comingSoonText="La gestione profili sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabProfili />
         </TabsContent>
         <TabsContent value="timbrature">
           <TabTimbrature />
