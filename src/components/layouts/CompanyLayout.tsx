@@ -224,7 +224,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   // Expanded mode: collapsible section
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent/50")}>
+      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent")}>
         <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
           <span className="flex items-center gap-2">
             <AreaIcon className="h-3.5 w-3.5" />
