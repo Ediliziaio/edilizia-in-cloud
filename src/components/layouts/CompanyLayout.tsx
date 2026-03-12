@@ -140,6 +140,7 @@ function CompanySidebar() {
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
+  const { mode: billingMode } = useBillingMode();
   const navigate = useNavigate();
   const location = useLocation();
   const { toggle, isOpen } = useSidebarSections();
