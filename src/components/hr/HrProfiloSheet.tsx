@@ -75,10 +75,17 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
   }, [profilo, reset]);
 
   const onSubmit = async (data: Partial<HrProfilo>) => {
+    // Remove non-DB fields that come from OrgTreeNode or joined data
+    const {
+      children, depth, sede, responsabile,
+      employee_first_name, employee_last_name, employee_email, employee_phone,
+      ...sanitized
+    } = data as any;
+
     if (isEditing && profilo) {
-      await updateMutation.mutateAsync({ id: profilo.id, ...data });
+      await updateMutation.mutateAsync({ id: profilo.id, ...sanitized });
     } else {
-      await createMutation.mutateAsync(data);
+      await createMutation.mutateAsync(sanitized);
     }
     onOpenChange(false);
   };
