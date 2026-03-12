@@ -7,10 +7,11 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDraggable,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useDroppable } from "@dnd-kit/core";
 import { useDocumentiFiscali, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,22 +29,26 @@ const COLUMNS: { id: StatoDocumento; label: string; color: string }[] = [
 ];
 
 function DroppableColumn({
-  col,
-  children,
+  colId,
+  color,
+  label,
   count,
+  children,
 }: {
-  col: (typeof COLUMNS)[number];
-  children: React.ReactNode;
+  colId: string;
+  color: string;
+  label: string;
   count: number;
+  children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const { setNodeRef, isOver } = useDroppable({ id: colId });
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-lg p-3 ${col.color} transition-colors ${isOver ? "ring-2 ring-primary/50" : ""}`}
+      className={`rounded-lg p-3 ${color} transition-colors ${isOver ? "ring-2 ring-primary/50" : ""}`}
     >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">{col.label}</h3>
+        <h3 className="text-sm font-semibold">{label}</h3>
         <Badge variant="outline" className="text-xs">{count}</Badge>
       </div>
       <div className="space-y-2">{children}</div>
@@ -52,23 +57,35 @@ function DroppableColumn({
 }
 
 function DraggableCard({ doc, onClick }: { doc: DocumentoFiscale; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: doc.id });
+
   return (
-    <Card
-      className="cursor-grab active:cursor-grabbing"
-      onClick={onClick}
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={isDragging ? "opacity-30" : ""}
     >
-      <CardContent className="p-3 space-y-1">
-        <div className="flex items-center gap-1">
-          <GripVertical className="h-3 w-3 text-muted-foreground" />
-          <span className="text-sm font-medium truncate">{doc.cliente_snapshot?.ragione_sociale || "—"}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{doc.numero}</span>
-          <span className="text-sm font-semibold">€ {doc.totale_documento.toFixed(2)}</span>
-        </div>
-        <div className="text-xs text-muted-foreground">{doc.data_emissione}</div>
-      </CardContent>
-    </Card>
+      <Card
+        className="cursor-grab active:cursor-grabbing"
+        onClick={(e) => {
+          // Only navigate if not dragging
+          if (!isDragging) onClick();
+        }}
+      >
+        <CardContent className="p-3 space-y-1">
+          <div className="flex items-center gap-1">
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+            <span className="text-sm font-medium truncate">{doc.cliente_snapshot?.ragione_sociale || "—"}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{doc.numero}</span>
+            <span className="text-sm font-semibold">€ {doc.totale_documento.toFixed(2)}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">{doc.data_emissione}</div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -156,14 +173,13 @@ export default function PipelinePreventivi() {
       >
         <div className="grid grid-cols-5 gap-4 min-h-[400px]">
           {COLUMNS.map((col) => (
-            <DroppableColumn key={col.id} col={col} count={grouped[col.id]?.length ?? 0}>
+            <DroppableColumn key={col.id} colId={col.id} color={col.color} label={col.label} count={grouped[col.id]?.length ?? 0}>
               {(grouped[col.id] ?? []).map((doc) => (
-                <div
+                <DraggableCard
                   key={doc.id}
-                  data-dnd-id={doc.id}
-                >
-                  <DraggableCardWrapper doc={doc} navigate={navigate} />
-                </div>
+                  doc={doc}
+                  onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
+                />
               ))}
             </DroppableColumn>
           ))}
@@ -188,18 +204,4 @@ export default function PipelinePreventivi() {
       </DndContext>
     </div>
   );
-}
-
-function DraggableCardWrapper({ doc, navigate }: { doc: DocumentoFiscale; navigate: ReturnType<typeof useNavigate> }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable(doc.id);
-  return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className={isDragging ? "opacity-30" : ""}>
-      <DraggableCard doc={doc} onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)} />
-    </div>
-  );
-}
-
-function useDraggable(id: string) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = require("@dnd-kit/core").useDraggable({ id });
-  return { attributes, listeners, setNodeRef, transform, isDragging };
 }
