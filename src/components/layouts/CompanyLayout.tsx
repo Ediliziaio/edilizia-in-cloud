@@ -5,6 +5,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { 
@@ -24,6 +25,7 @@ import {
   Key,
   ScrollText,
   ChevronDown,
+  ChevronRight,
   Plug,
   Briefcase,
   Megaphone,
@@ -688,6 +690,19 @@ export function CompanyLayout() {
   const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
   const { unreadCount: notifUnreadCount } = useNotifications();
+  const { area, areaIcon: AreaIcon, page } = useBreadcrumb();
+
+  // Update document title
+  useEffect(() => {
+    const companyName = effectiveCompany?.name;
+    if (page) {
+      document.title = `${page} · ${companyName || "Edilizia in Cloud"}`;
+    } else if (area) {
+      document.title = `${area} · ${companyName || "Edilizia in Cloud"}`;
+    } else {
+      document.title = companyName || "Edilizia in Cloud";
+    }
+  }, [page, area, effectiveCompany?.name]);
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -720,6 +735,18 @@ export function CompanyLayout() {
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
+            {area && (
+              <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                {AreaIcon && <AreaIcon className="h-3.5 w-3.5" />}
+                <span className="text-xs font-medium">{area}</span>
+                {page && (
+                  <>
+                    <ChevronRight className="h-3 w-3" />
+                    <span className="text-xs font-medium text-foreground">{page}</span>
+                  </>
+                )}
+              </nav>
+            )}
             <div className="flex-1" />
             <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
               <Search className="h-4 w-4" />
