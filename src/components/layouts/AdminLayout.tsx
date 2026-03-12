@@ -139,9 +139,28 @@ function AdminSettingsSidebar() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const { permissions } = useSuperAdminPermissions();
+  const [search, setSearch] = useState("");
 
-  const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
-  const activeClass = "bg-muted text-foreground font-medium";
+  const canAccess = (item: { permission?: string }): boolean => {
+    if (!item.permission) return true;
+    return (permissions as Record<string, boolean>)?.[item.permission] ?? true;
+  };
+
+  const filteredNav = ADMIN_SETTINGS_NAV
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          canAccess(item) &&
+          (search === "" ||
+            item.label.toLowerCase().includes(search.toLowerCase()) ||
+            item.description.toLowerCase().includes(search.toLowerCase()))
+      ),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const navLinkClass = "flex items-start gap-3 rounded-lg px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground group";
+  const activeClass = "bg-primary/10 text-primary font-medium";
 
   return (
     <Sidebar className="border-r">
@@ -161,90 +180,64 @@ function AdminSettingsSidebar() {
             <ArrowLeft className="h-4 w-4" />
             Torna indietro
           </Button>
-          <h2 className="text-lg font-semibold px-3 mb-4">Impostazioni</h2>
+          <h2 className="text-lg font-semibold px-3 mb-3">Impostazioni</h2>
+          <div className="relative mb-3 px-1">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cerca impostazioni..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
         </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/admin/impostazioni/profilo" className={navLinkClass} activeClassName={activeClass}>
-                    <User className="h-4 w-4" /><span>Profilo</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Piattaforma</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/admin/impostazioni/piattaforma" className={navLinkClass} activeClassName={activeClass}>
-                    <Server className="h-4 w-4" /><span>Piattaforma</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                   <NavLink to="/admin/impostazioni/notifiche" className={navLinkClass} activeClassName={activeClass}>
-                    <Bell className="h-4 w-4" /><span>Notifiche</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/admin/impostazioni/email" className={navLinkClass} activeClassName={activeClass}>
-                    <Mail className="h-4 w-4" /><span>Email</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/admin/impostazioni/agenti-ai" className={navLinkClass} activeClassName={activeClass}>
-                    <Bot className="h-4 w-4" /><span>Agenti AI</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {permissions.can_manage_admins && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Amministrazione</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink to="/admin/impostazioni/super-admin" className={navLinkClass} activeClassName={activeClass}>
-                      <ShieldCheck className="h-4 w-4" /><span>Super Admin</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink to="/admin/impostazioni/audit" className={navLinkClass} activeClassName={activeClass}>
-                      <ScrollText className="h-4 w-4" /><span>Registro Attività</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink to="/admin/impostazioni/ip-allowlist" className={navLinkClass} activeClassName={activeClass}>
-                      <ShieldCheck className="h-4 w-4" /><span>IP Allowlist</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <ScrollArea className="flex-1">
+          {filteredNav.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-6 py-8 text-center">
+              Nessun risultato per &quot;{search}&quot;
+            </p>
+          ) : (
+            filteredNav.map((group) => (
+              <SidebarGroup key={group.group}>
+                <SidebarGroupLabel>{group.group}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton asChild>
+                            <NavLink
+                              to={item.url}
+                              className={navLinkClass}
+                              activeClassName={activeClass}
+                            >
+                              <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm">{item.label}</span>
+                                  {item.badge && (
+                                    <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                      {item.badge}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate mt-0.5 group-hover:text-muted-foreground/80">
+                                  {item.description}
+                                </p>
+                              </div>
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))
+          )}
+        </ScrollArea>
 
         <div className="mt-auto p-4">
           <Button 
