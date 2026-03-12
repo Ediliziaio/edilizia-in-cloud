@@ -22,8 +22,74 @@ import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento, AnagraficaAzienda } from "@/types/fatturazione";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 const PER_PAGE = 25;
+
+function KPICards() {
+  const companyId = useEffectiveCompanyId();
+  const { data } = useQuery({
+    queryKey: ["documenti-kpi", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const now = new Date();
+      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+
+      // Fatturato mese (emesse nel mese corrente, escluse bozze/annullate)
+      const { data: meseDocs } = await supabase
+        .from("documenti_fiscali" as never)
+        .select("totale_documento, stato, tipo")
+        .eq("company_id", companyId!)
+        .gte("data_emissione", monthStart)
+        .lte("data_emissione", monthEnd)
+        .in("tipo", ["fattura", "fattura_pa"])
+        .not("stato", "in", '("bozza","annullata","stornata")');
+      const fatturatoMese = ((meseDocs as unknown as { totale_documento: number }[]) ?? [])
+        .reduce((s, d) => s + d.totale_documento, 0);
+
+      // Da incassare
+      const { data: daIncDocs } = await supabase
+        .from("documenti_fiscali" as never)
+        .select("totale_da_pagare, importo_pagato")
+        .eq("company_id", companyId!)
+        .in("tipo", ["fattura", "fattura_pa"])
+        .in("stato", ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"]);
+      const daIncassare = ((daIncDocs as unknown as { totale_da_pagare: number; importo_pagato: number }[]) ?? [])
+        .reduce((s, d) => s + (d.totale_da_pagare - d.importo_pagato), 0);
+
+      // Scadute
+      const { count: scaduteCount } = await supabase
+        .from("documenti_fiscali" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("tipo", ["fattura", "fattura_pa"])
+        .in("stato", ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"])
+        .lt("data_scadenza", format(now, "yyyy-MM-dd"));
+
+      // Bozze
+      const { count: bozzeCount } = await supabase
+        .from("documenti_fiscali" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .eq("stato", "bozza");
+
+      return { fatturatoMese, daIncassare, scadute: scaduteCount ?? 0, bozze: bozzeCount ?? 0 };
+    },
+    staleTime: 30_000,
+  });
+
+  const kpi = data ?? { fatturatoMese: 0, daIncassare: 0, scadute: 0, bozze: 0 };
+
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Fatturato (mese)</p><p className="text-lg font-semibold">€ {kpi.fatturatoMese.toFixed(2)}</p></CardContent></Card>
+      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Da incassare</p><p className="text-lg font-semibold">€ {kpi.daIncassare.toFixed(2)}</p></CardContent></Card>
+      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Scadute</p><p className="text-lg font-semibold text-destructive">{kpi.scadute}</p></CardContent></Card>
+      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Bozze</p><p className="text-lg font-semibold">{kpi.bozze}</p></CardContent></Card>
+    </div>
+  );
+}
 
 const TIPO_TABS: { label: string; value: TipoDocumento[] | null }[] = [
   { label: "Tutte", value: null },
