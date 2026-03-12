@@ -65,9 +65,25 @@ function HexColorInput({ label, value, onChange }: { label: string; value: strin
 export default function SettingsBranding() {
   const { effectiveCompany, user } = useAuth();
   const { brand, effectiveBrand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
+  const { branding: companyBranding } = useBranding();
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [subdomain, setSubdomain] = useState("");
+  const [customDomain, setCustomDomain] = useState("");
+
+  const saveSubdomainMut = useSaveSubdomain(companyId);
+  const requestVerifMut = useRequestDomainVerification(companyId);
+  const verifyMut = useVerifyCustomDomain(companyId);
+
+  // Sync subdomain/domain from DB
+  useEffect(() => {
+    if (companyBranding) {
+      setSubdomain((companyBranding as any).subdomain || "");
+      setCustomDomain((companyBranding as any).custom_domain || "");
+    }
+  }, [companyBranding]);
 
   const [form, setForm] = useState({
     brand_primary_color: "#1E40AF",
