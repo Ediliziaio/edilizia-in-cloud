@@ -1027,6 +1027,301 @@ export type Database = {
           },
         ]
       }
+      anagrafica_azienda: {
+        Row: {
+          anno_corrente: number | null
+          bic_swift: string | null
+          capitale_sociale: number | null
+          codice_fiscale: string
+          codice_rea: string | null
+          codice_sdi: string | null
+          colore_primario: string | null
+          company_id: string
+          condizioni_pagamento_default: string | null
+          created_at: string | null
+          email: string | null
+          font_fattura: string | null
+          forma_giuridica: string
+          iban_principale: string | null
+          id: string
+          indirizzo_cap: string
+          indirizzo_comune: string
+          indirizzo_nazione: string
+          indirizzo_numero_civico: string | null
+          indirizzo_provincia: string
+          indirizzo_via: string
+          intestatario_conto: string | null
+          logo_url: string | null
+          nome_banca: string | null
+          note_fattura_default: string | null
+          numero_iscr_registro_imprese: string | null
+          partita_iva: string
+          pec: string | null
+          prefisso_ddt: string | null
+          prefisso_fattura: string | null
+          prefisso_nc: string | null
+          prefisso_preventivo: string | null
+          ragione_sociale: string
+          regime_fiscale: string
+          reset_numeratore_annuale: boolean | null
+          sdi_api_key: string | null
+          sdi_configurato: boolean | null
+          sdi_provider: string | null
+          sito_web: string | null
+          telefono: string | null
+          ultimo_numero_ddt: number | null
+          ultimo_numero_fattura: number | null
+          ultimo_numero_nc: number | null
+          ultimo_numero_preventivo: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          anno_corrente?: number | null
+          bic_swift?: string | null
+          capitale_sociale?: number | null
+          codice_fiscale: string
+          codice_rea?: string | null
+          codice_sdi?: string | null
+          colore_primario?: string | null
+          company_id: string
+          condizioni_pagamento_default?: string | null
+          created_at?: string | null
+          email?: string | null
+          font_fattura?: string | null
+          forma_giuridica?: string
+          iban_principale?: string | null
+          id?: string
+          indirizzo_cap: string
+          indirizzo_comune: string
+          indirizzo_nazione?: string
+          indirizzo_numero_civico?: string | null
+          indirizzo_provincia: string
+          indirizzo_via: string
+          intestatario_conto?: string | null
+          logo_url?: string | null
+          nome_banca?: string | null
+          note_fattura_default?: string | null
+          numero_iscr_registro_imprese?: string | null
+          partita_iva: string
+          pec?: string | null
+          prefisso_ddt?: string | null
+          prefisso_fattura?: string | null
+          prefisso_nc?: string | null
+          prefisso_preventivo?: string | null
+          ragione_sociale: string
+          regime_fiscale?: string
+          reset_numeratore_annuale?: boolean | null
+          sdi_api_key?: string | null
+          sdi_configurato?: boolean | null
+          sdi_provider?: string | null
+          sito_web?: string | null
+          telefono?: string | null
+          ultimo_numero_ddt?: number | null
+          ultimo_numero_fattura?: number | null
+          ultimo_numero_nc?: number | null
+          ultimo_numero_preventivo?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          anno_corrente?: number | null
+          bic_swift?: string | null
+          capitale_sociale?: number | null
+          codice_fiscale?: string
+          codice_rea?: string | null
+          codice_sdi?: string | null
+          colore_primario?: string | null
+          company_id?: string
+          condizioni_pagamento_default?: string | null
+          created_at?: string | null
+          email?: string | null
+          font_fattura?: string | null
+          forma_giuridica?: string
+          iban_principale?: string | null
+          id?: string
+          indirizzo_cap?: string
+          indirizzo_comune?: string
+          indirizzo_nazione?: string
+          indirizzo_numero_civico?: string | null
+          indirizzo_provincia?: string
+          indirizzo_via?: string
+          intestatario_conto?: string | null
+          logo_url?: string | null
+          nome_banca?: string | null
+          note_fattura_default?: string | null
+          numero_iscr_registro_imprese?: string | null
+          partita_iva?: string
+          pec?: string | null
+          prefisso_ddt?: string | null
+          prefisso_fattura?: string | null
+          prefisso_nc?: string | null
+          prefisso_preventivo?: string | null
+          ragione_sociale?: string
+          regime_fiscale?: string
+          reset_numeratore_annuale?: boolean | null
+          sdi_api_key?: string | null
+          sdi_configurato?: boolean | null
+          sdi_provider?: string | null
+          sito_web?: string | null
+          telefono?: string | null
+          ultimo_numero_ddt?: number | null
+          ultimo_numero_fattura?: number | null
+          ultimo_numero_nc?: number | null
+          ultimo_numero_preventivo?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafica_azienda_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anagrafiche_native: {
+        Row: {
+          aliquota_iva_default: string | null
+          attivo: boolean | null
+          bic_cliente: string | null
+          cellulare: string | null
+          cig: string | null
+          codice_fiscale: string | null
+          codice_sdi: string | null
+          cognome: string | null
+          company_id: string
+          condizioni_pagamento_default: string | null
+          created_at: string | null
+          cup: string | null
+          email: string | null
+          email_fatture: string | null
+          fatturato_totale: number | null
+          forma_giuridica: string | null
+          giorni_pagamento_default: number | null
+          iban_cliente: string | null
+          id: string
+          indirizzi_consegna: Json | null
+          indirizzo_cap: string | null
+          indirizzo_comune: string | null
+          indirizzo_nazione: string | null
+          indirizzo_numero_civico: string | null
+          indirizzo_provincia: string | null
+          indirizzo_via: string | null
+          metodo_pagamento_default: string | null
+          nome: string | null
+          note: string | null
+          numero_fatture: number | null
+          partita_iva: string | null
+          pec: string | null
+          ragione_sociale: string | null
+          sconto_default: number | null
+          sito_web: string | null
+          tags: string[] | null
+          telefono: string | null
+          tipo: string
+          tipo_cliente: string | null
+          tipo_soggetto: string
+          ultima_fattura_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          aliquota_iva_default?: string | null
+          attivo?: boolean | null
+          bic_cliente?: string | null
+          cellulare?: string | null
+          cig?: string | null
+          codice_fiscale?: string | null
+          codice_sdi?: string | null
+          cognome?: string | null
+          company_id: string
+          condizioni_pagamento_default?: string | null
+          created_at?: string | null
+          cup?: string | null
+          email?: string | null
+          email_fatture?: string | null
+          fatturato_totale?: number | null
+          forma_giuridica?: string | null
+          giorni_pagamento_default?: number | null
+          iban_cliente?: string | null
+          id?: string
+          indirizzi_consegna?: Json | null
+          indirizzo_cap?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string | null
+          indirizzo_numero_civico?: string | null
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
+          metodo_pagamento_default?: string | null
+          nome?: string | null
+          note?: string | null
+          numero_fatture?: number | null
+          partita_iva?: string | null
+          pec?: string | null
+          ragione_sociale?: string | null
+          sconto_default?: number | null
+          sito_web?: string | null
+          tags?: string[] | null
+          telefono?: string | null
+          tipo?: string
+          tipo_cliente?: string | null
+          tipo_soggetto?: string
+          ultima_fattura_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          aliquota_iva_default?: string | null
+          attivo?: boolean | null
+          bic_cliente?: string | null
+          cellulare?: string | null
+          cig?: string | null
+          codice_fiscale?: string | null
+          codice_sdi?: string | null
+          cognome?: string | null
+          company_id?: string
+          condizioni_pagamento_default?: string | null
+          created_at?: string | null
+          cup?: string | null
+          email?: string | null
+          email_fatture?: string | null
+          fatturato_totale?: number | null
+          forma_giuridica?: string | null
+          giorni_pagamento_default?: number | null
+          iban_cliente?: string | null
+          id?: string
+          indirizzi_consegna?: Json | null
+          indirizzo_cap?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string | null
+          indirizzo_numero_civico?: string | null
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
+          metodo_pagamento_default?: string | null
+          nome?: string | null
+          note?: string | null
+          numero_fatture?: number | null
+          partita_iva?: string | null
+          pec?: string | null
+          ragione_sociale?: string | null
+          sconto_default?: number | null
+          sito_web?: string | null
+          tags?: string[] | null
+          telefono?: string | null
+          tipo?: string
+          tipo_cliente?: string | null
+          tipo_soggetto?: string
+          ultima_fattura_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           company_id: string
@@ -1411,6 +1706,65 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      articoli_native: {
+        Row: {
+          aliquota_iva: string
+          attivo: boolean | null
+          categoria: string | null
+          codice: string | null
+          company_id: string
+          created_at: string | null
+          descrizione: string
+          descrizione_estesa: string | null
+          id: string
+          natura_iva: string | null
+          prezzo_acquisto: number | null
+          prezzo_vendita: number
+          unita_misura: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          aliquota_iva?: string
+          attivo?: boolean | null
+          categoria?: string | null
+          codice?: string | null
+          company_id: string
+          created_at?: string | null
+          descrizione: string
+          descrizione_estesa?: string | null
+          id?: string
+          natura_iva?: string | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number
+          unita_misura?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          aliquota_iva?: string
+          attivo?: boolean | null
+          categoria?: string | null
+          codice?: string | null
+          company_id?: string
+          created_at?: string | null
+          descrizione?: string
+          descrizione_estesa?: string | null
+          id?: string
+          natura_iva?: string | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number
+          unita_misura?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articoli_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -4013,6 +4367,290 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documenti_fiscali: {
+        Row: {
+          allegati: Json | null
+          anagrafica_id: string | null
+          anno: number
+          arrotondamento: number | null
+          bic_pagamento: string | null
+          bollo_importo: number | null
+          bollo_virtuale: boolean | null
+          cassa_aliquota: number | null
+          cassa_aliquota_iva: string | null
+          cassa_imponibile: number | null
+          cassa_importo: number | null
+          cassa_previdenziale: boolean | null
+          cassa_ritenuta: boolean | null
+          cassa_tipo: string | null
+          causale: Json | null
+          cig: string | null
+          cliente_snapshot: Json
+          codice_commessa_convenzione: string | null
+          company_id: string
+          created_at: string | null
+          cup: string | null
+          data_consegna: string | null
+          data_emissione: string
+          data_scadenza: string | null
+          data_validita: string | null
+          ddt_aspetto_beni: string | null
+          ddt_causale_trasporto: string | null
+          ddt_data_ora_consegna: string | null
+          ddt_fattura_id: string | null
+          ddt_fatturato: boolean | null
+          ddt_indirizzo_consegna: Json | null
+          ddt_mezzo_trasporto: string | null
+          ddt_numero_colli: number | null
+          ddt_peso: string | null
+          ddt_porto: string | null
+          ddt_vettore: Json | null
+          documento_correlato_id: string | null
+          iban_pagamento: string | null
+          id: string
+          imponibile_totale: number
+          importo_pagato: number | null
+          intestatario_conto: string | null
+          iva_totale: number
+          metodo_pagamento_codice: string | null
+          metodo_pagamento_nome: string | null
+          nome_banca: string | null
+          note_documento: string | null
+          note_interne: string | null
+          numero: string
+          numero_progressivo: number
+          pagato_at: string | null
+          pdf_url: string | null
+          probabilita_chiusura: number | null
+          riepilogo_iva: Json
+          riferimenti_ddt: Json | null
+          riferimenti_ordine: Json | null
+          righe: Json
+          ritenuta_acconto: boolean | null
+          ritenuta_aliquota: number | null
+          ritenuta_causale: string | null
+          ritenuta_importo: number | null
+          ritenuta_tipo: string | null
+          scadenze_pagamento: Json | null
+          sconto_globale_percentuale: number | null
+          sconto_globale_valore: number | null
+          sdi_data_consegna: string | null
+          sdi_errori: Json | null
+          sdi_file_xml_url: string | null
+          sdi_id_trasmissione: string | null
+          sdi_notifica_tipo: string | null
+          sdi_ricevuta_url: string | null
+          sdi_stato: string | null
+          serie: string | null
+          stato: string
+          subtotale: number
+          testo_conclusivo: string | null
+          testo_intro: string | null
+          tipo: string
+          totale_da_pagare: number
+          totale_documento: number
+          trasmissione: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          allegati?: Json | null
+          anagrafica_id?: string | null
+          anno?: number
+          arrotondamento?: number | null
+          bic_pagamento?: string | null
+          bollo_importo?: number | null
+          bollo_virtuale?: boolean | null
+          cassa_aliquota?: number | null
+          cassa_aliquota_iva?: string | null
+          cassa_imponibile?: number | null
+          cassa_importo?: number | null
+          cassa_previdenziale?: boolean | null
+          cassa_ritenuta?: boolean | null
+          cassa_tipo?: string | null
+          causale?: Json | null
+          cig?: string | null
+          cliente_snapshot?: Json
+          codice_commessa_convenzione?: string | null
+          company_id: string
+          created_at?: string | null
+          cup?: string | null
+          data_consegna?: string | null
+          data_emissione?: string
+          data_scadenza?: string | null
+          data_validita?: string | null
+          ddt_aspetto_beni?: string | null
+          ddt_causale_trasporto?: string | null
+          ddt_data_ora_consegna?: string | null
+          ddt_fattura_id?: string | null
+          ddt_fatturato?: boolean | null
+          ddt_indirizzo_consegna?: Json | null
+          ddt_mezzo_trasporto?: string | null
+          ddt_numero_colli?: number | null
+          ddt_peso?: string | null
+          ddt_porto?: string | null
+          ddt_vettore?: Json | null
+          documento_correlato_id?: string | null
+          iban_pagamento?: string | null
+          id?: string
+          imponibile_totale?: number
+          importo_pagato?: number | null
+          intestatario_conto?: string | null
+          iva_totale?: number
+          metodo_pagamento_codice?: string | null
+          metodo_pagamento_nome?: string | null
+          nome_banca?: string | null
+          note_documento?: string | null
+          note_interne?: string | null
+          numero: string
+          numero_progressivo: number
+          pagato_at?: string | null
+          pdf_url?: string | null
+          probabilita_chiusura?: number | null
+          riepilogo_iva?: Json
+          riferimenti_ddt?: Json | null
+          riferimenti_ordine?: Json | null
+          righe?: Json
+          ritenuta_acconto?: boolean | null
+          ritenuta_aliquota?: number | null
+          ritenuta_causale?: string | null
+          ritenuta_importo?: number | null
+          ritenuta_tipo?: string | null
+          scadenze_pagamento?: Json | null
+          sconto_globale_percentuale?: number | null
+          sconto_globale_valore?: number | null
+          sdi_data_consegna?: string | null
+          sdi_errori?: Json | null
+          sdi_file_xml_url?: string | null
+          sdi_id_trasmissione?: string | null
+          sdi_notifica_tipo?: string | null
+          sdi_ricevuta_url?: string | null
+          sdi_stato?: string | null
+          serie?: string | null
+          stato?: string
+          subtotale?: number
+          testo_conclusivo?: string | null
+          testo_intro?: string | null
+          tipo: string
+          totale_da_pagare?: number
+          totale_documento?: number
+          trasmissione?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          allegati?: Json | null
+          anagrafica_id?: string | null
+          anno?: number
+          arrotondamento?: number | null
+          bic_pagamento?: string | null
+          bollo_importo?: number | null
+          bollo_virtuale?: boolean | null
+          cassa_aliquota?: number | null
+          cassa_aliquota_iva?: string | null
+          cassa_imponibile?: number | null
+          cassa_importo?: number | null
+          cassa_previdenziale?: boolean | null
+          cassa_ritenuta?: boolean | null
+          cassa_tipo?: string | null
+          causale?: Json | null
+          cig?: string | null
+          cliente_snapshot?: Json
+          codice_commessa_convenzione?: string | null
+          company_id?: string
+          created_at?: string | null
+          cup?: string | null
+          data_consegna?: string | null
+          data_emissione?: string
+          data_scadenza?: string | null
+          data_validita?: string | null
+          ddt_aspetto_beni?: string | null
+          ddt_causale_trasporto?: string | null
+          ddt_data_ora_consegna?: string | null
+          ddt_fattura_id?: string | null
+          ddt_fatturato?: boolean | null
+          ddt_indirizzo_consegna?: Json | null
+          ddt_mezzo_trasporto?: string | null
+          ddt_numero_colli?: number | null
+          ddt_peso?: string | null
+          ddt_porto?: string | null
+          ddt_vettore?: Json | null
+          documento_correlato_id?: string | null
+          iban_pagamento?: string | null
+          id?: string
+          imponibile_totale?: number
+          importo_pagato?: number | null
+          intestatario_conto?: string | null
+          iva_totale?: number
+          metodo_pagamento_codice?: string | null
+          metodo_pagamento_nome?: string | null
+          nome_banca?: string | null
+          note_documento?: string | null
+          note_interne?: string | null
+          numero?: string
+          numero_progressivo?: number
+          pagato_at?: string | null
+          pdf_url?: string | null
+          probabilita_chiusura?: number | null
+          riepilogo_iva?: Json
+          riferimenti_ddt?: Json | null
+          riferimenti_ordine?: Json | null
+          righe?: Json
+          ritenuta_acconto?: boolean | null
+          ritenuta_aliquota?: number | null
+          ritenuta_causale?: string | null
+          ritenuta_importo?: number | null
+          ritenuta_tipo?: string | null
+          scadenze_pagamento?: Json | null
+          sconto_globale_percentuale?: number | null
+          sconto_globale_valore?: number | null
+          sdi_data_consegna?: string | null
+          sdi_errori?: Json | null
+          sdi_file_xml_url?: string | null
+          sdi_id_trasmissione?: string | null
+          sdi_notifica_tipo?: string | null
+          sdi_ricevuta_url?: string | null
+          sdi_stato?: string | null
+          serie?: string | null
+          stato?: string
+          subtotale?: number
+          testo_conclusivo?: string | null
+          testo_intro?: string | null
+          tipo?: string
+          totale_da_pagare?: number
+          totale_documento?: number
+          trasmissione?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documenti_fiscali_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_ddt_fattura_id_fkey"
+            columns: ["ddt_fattura_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_documento_correlato_id_fkey"
+            columns: ["documento_correlato_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
             referencedColumns: ["id"]
           },
         ]
@@ -8747,6 +9385,60 @@ export type Database = {
           },
         ]
       }
+      movimenti_cassa_native: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          data_movimento: string
+          documento_id: string | null
+          id: string
+          importo: number
+          metodo: string | null
+          note: string | null
+          riferimento: string | null
+          tipo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          data_movimento?: string
+          documento_id?: string | null
+          id?: string
+          importo: number
+          metodo?: string | null
+          note?: string | null
+          riferimento?: string | null
+          tipo: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          data_movimento?: string
+          documento_id?: string | null
+          id?: string
+          importo?: number
+          metodo?: string | null
+          note?: string | null
+          riferimento?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimenti_cassa_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimenti_cassa_native_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       multi_company_access: {
         Row: {
           access_role: string
@@ -11625,6 +12317,60 @@ export type Database = {
           },
         ]
       }
+      sdi_log: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          documento_id: string | null
+          errori: Json | null
+          evento: string
+          id: string
+          messaggio: string | null
+          sdi_id: string | null
+          tipo_notifica: string | null
+          xml_content: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          documento_id?: string | null
+          errori?: Json | null
+          evento: string
+          id?: string
+          messaggio?: string | null
+          sdi_id?: string | null
+          tipo_notifica?: string | null
+          xml_content?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          documento_id?: string | null
+          errori?: Json | null
+          evento?: string
+          id?: string
+          messaggio?: string | null
+          sdi_id?: string | null
+          tipo_notifica?: string | null
+          xml_content?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdi_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdi_log_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signature_requests: {
         Row: {
           company_id: string
@@ -14381,6 +15127,10 @@ export type Database = {
           p_trigger_type: string
         }
         Returns: undefined
+      }
+      genera_numero_documento_native: {
+        Args: { p_anno?: number; p_company_id: string; p_tipo: string }
+        Returns: string
       }
       generate_invoice_number: {
         Args: { p_company_id: string; p_year?: number }
