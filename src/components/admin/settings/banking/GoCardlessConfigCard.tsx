@@ -218,7 +218,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             {testing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : testResult === "success" ? (
-              <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" />
             ) : testResult === "error" ? (
               <XCircle className="h-4 w-4 mr-2 text-destructive" />
             ) : null}
