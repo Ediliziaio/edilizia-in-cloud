@@ -5,6 +5,7 @@ import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
+import { TabSedi } from "./tabs/TabSedi";
 
 export default function PersonalePage() {
   return (
@@ -60,12 +61,7 @@ export default function PersonalePage() {
           <TabRichieste />
         </TabsContent>
         <TabsContent value="sedi">
-          <ComingSoonPlaceholder
-            icon={MapPin}
-            title="Sedi"
-            description="Gestione sedi operative per la timbratura"
-            comingSoonText="La gestione sedi sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabSedi />
         </TabsContent>
         <TabsContent value="festivita">
           <ComingSoonPlaceholder
