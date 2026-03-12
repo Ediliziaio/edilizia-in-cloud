@@ -1,5 +1,9 @@
+import { useState, KeyboardEvent } from "react";
+import { X } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import type { EditorState } from "./useEditorState";
 
 interface Props {
@@ -9,14 +13,63 @@ interface Props {
 }
 
 export function EditorNoteSection({ state, dispatch, disabled }: Props) {
-  function setField(field: string, value: string) {
+  const [causaleInput, setCausaleInput] = useState("");
+
+  function setField(field: string, value: unknown) {
     dispatch({ type: "SET_FIELD", field, value });
   }
 
-  return (
-    <div className="space-y-3">
-      <Label className="text-sm font-semibold">Note</Label>
+  const causali = (state.causale as string[] | undefined) ?? [];
 
+  function addCausale() {
+    const trimmed = causaleInput.trim();
+    if (!trimmed) return;
+    setField("causale", [...causali, trimmed]);
+    setCausaleInput("");
+  }
+
+  function removeCausale(index: number) {
+    setField("causale", causali.filter((_, i) => i !== index));
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCausale();
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border p-4 bg-card">
+      <Label className="text-sm font-semibold">Note e riferimenti</Label>
+
+      {/* Causali */}
+      <div>
+        <Label className="text-xs text-muted-foreground">Causali</Label>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {causali.map((c, i) => (
+            <Badge key={i} variant="secondary" className="text-xs gap-1">
+              {c}
+              {!disabled && (
+                <button onClick={() => removeCausale(i)} className="hover:text-destructive">
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </Badge>
+          ))}
+        </div>
+        {!disabled && (
+          <Input
+            placeholder="Scrivi una causale e premi Invio..."
+            value={causaleInput}
+            onChange={(e) => setCausaleInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="h-8 text-sm"
+          />
+        )}
+      </div>
+
+      {/* Note documento */}
       <div>
         <Label className="text-xs text-muted-foreground">Note documento (visibili in fattura)</Label>
         <Textarea
@@ -28,6 +81,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
         />
       </div>
 
+      {/* Note interne */}
       <div>
         <Label className="text-xs text-muted-foreground">Note interne (non stampate)</Label>
         <Textarea
