@@ -248,15 +248,24 @@ export default function ImpostazioniFatturazione() {
             <CardContent className="pt-6 space-y-6">
               <div className="flex items-center justify-between">
                 <div><Label>IVA per cassa</Label><p className="text-sm text-muted-foreground">Esigibilità IVA differita al pagamento</p></div>
-                <Switch checked={false} disabled />
+                <Switch
+                  checked={current.iva_per_cassa ?? false}
+                  onCheckedChange={(v) => updateField("iva_per_cassa", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div><Label>Split payment PA</Label><p className="text-sm text-muted-foreground">Applicazione automatica per enti pubblici</p></div>
-                <Switch checked={true} disabled />
+                <Switch
+                  checked={current.split_payment_pa ?? true}
+                  onCheckedChange={(v) => updateField("split_payment_pa", v)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div><Label>Bollo virtuale automatico</Label><p className="text-sm text-muted-foreground">Applica automaticamente per importi sopra soglia (€ 77,47)</p></div>
-                <Switch checked={true} disabled />
+                <Switch
+                  checked={current.bollo_virtuale_auto ?? true}
+                  onCheckedChange={(v) => updateField("bollo_virtuale_auto", v)}
+                />
               </div>
             </CardContent>
           </Card>

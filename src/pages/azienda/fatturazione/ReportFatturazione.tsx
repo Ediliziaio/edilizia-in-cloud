@@ -1,16 +1,59 @@
 import { useMemo } from "react";
-import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, FileText, BarChart3 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { format, parseISO, startOfMonth, subMonths } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import type { DocumentoFiscale } from "@/types/fatturazione";
+
+/**
+ * Fetches ALL invoices for reporting by paginating through results.
+ * Overcomes the 1000-row Supabase default limit.
+ */
+function useAllDocumentiForReport() {
+  const companyId = useEffectiveCompanyId();
+
+  return useQuery({
+    queryKey: ["documenti-report-all", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const PAGE_SIZE = 1000;
+      let allDocs: Record<string, unknown>[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data, error } = await supabase
+          .from("documenti_fiscali" as never)
+          .select("numero, data_emissione, tipo, stato, cliente_snapshot, imponibile_totale, iva_totale, totale_documento, importo_pagato")
+          .eq("company_id", companyId!)
+          .order("data_emissione", { ascending: false })
+          .range(from, to);
+
+        if (error) throw error;
+
+        const rows = (data as unknown as Record<string, unknown>[]) ?? [];
+        allDocs = allDocs.concat(rows);
+        hasMore = rows.length === PAGE_SIZE;
+        page++;
+      }
+
+      return allDocs as unknown as Pick<DocumentoFiscale, "numero" | "data_emissione" | "tipo" | "stato" | "cliente_snapshot" | "imponibile_totale" | "iva_totale" | "totale_documento" | "importo_pagato">[];
+    },
+  });
+}
 
 export default function ReportFatturazione() {
-  const { data, isLoading } = useDocumentiFiscali({ perPage: 1000 });
-  const docs = data?.documenti ?? [];
+  const { data: docs = [], isLoading } = useAllDocumentiForReport();
 
   // Monthly revenue last 12 months
   const monthlyData = useMemo(() => {
@@ -86,7 +129,7 @@ export default function ReportFatturazione() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Report Fatturazione</h1>
-          <p className="text-muted-foreground">Analisi finanziaria e export dati.</p>
+          <p className="text-muted-foreground">Analisi finanziaria e export dati ({docs.length} documenti).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
