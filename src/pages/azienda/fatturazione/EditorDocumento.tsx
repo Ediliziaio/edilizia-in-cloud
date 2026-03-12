@@ -29,6 +29,8 @@ export default function EditorDocumento() {
   const isCreate = !id;
   const createdRef = useRef(false);
 
+  const location = useLocation();
+  const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
   const createMutation = useCreateDocumento();
   const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
