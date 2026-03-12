@@ -1,194 +1,99 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Analisi Bug e Criticita — Stato Attuale
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## BUG CRITICI (bloccano funzionalita)
 
----
+### 1. AcceptInvite.tsx: query su `admin_invites` fallisce sempre (RLS)
+La tabella `admin_invites` ha **solo** la policy `service_role_admin_invites` (`auth.role() = 'service_role'`). Il componente `AcceptInvite.tsx` (linea 30-36) esegue una query client-side con l'anon key, che viene **sempre rifiutata** da RLS. L'invitato vede sempre "Invito non valido".
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+Anche le operazioni `update` (linee 78, 97) per marcare `accepted_at` falliranno per lo stesso motivo.
 
----
+**Fix**: Aggiungere una policy SELECT per utenti anonimi/autenticati filtrata per token, oppure spostare la validazione in una edge function dedicata `accept-invite`.
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### 2. AcceptInvite.tsx: signUp non assegna il ruolo super_admin
+Quando l'utente si registra (linea 68-71), viene creato un account auth ma **nessuno assegna il ruolo `super_admin`** ne crea il record in `super_admin_permissions`. L'utente si registra come utente senza ruolo. Il campo `accepted_at` viene aggiornato ma senza effetto pratico.
+
+**Fix**: L'accettazione dell'invito deve passare per una edge function server-side che, con service_role: 1) valida il token, 2) crea/trova l'utente, 3) inserisce il ruolo `super_admin` in `user_roles`, 4) copia i permessi dall'invito in `super_admin_permissions`, 5) marca l'invito come accettato.
+
+### 3. `upsert-admin-session` usa `getClaims()` — metodo inesistente
+La edge function (linea 22) chiama `supabase.auth.getClaims(token)` che **non esiste** nel SDK Supabase JS v2. Questo causa un errore silenzioso e la sessione non viene mai creata. Confermato: `admin_sessions` ha **0 righe** e nessun log recente per questa funzione.
+
+**Fix**: Sostituire `getClaims` con `supabase.auth.getUser()`.
+
+### 4. `email_delivery_log` mai popolata
+Nessuna edge function scrive in questa tabella (0 match in `supabase/functions`). Il tab "Delivery Log" nell'email dashboard sara sempre vuoto.
+
+**Fix**: Aggiungere insert in `email_delivery_log` nelle edge function che inviano email (invite-admin, send-email-campaign, ecc.) o creare un helper condiviso `logEmailDelivery()`.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## BUG MEDI (funzionalita degradata)
+
+### 5. `invite-admin` non invia email
+La edge function crea il record e ritorna `inviteUrl`, ma **non invia email**. Il codice originale con Resend e stato rimosso. L'unica via per l'invitato e che l'admin copi manualmente l'URL dal dialog (funzionalita presente ma il toast dice "inviato via email" — fuorviante).
+
+**Fix**: Integrare l'invio email con il provider configurato, oppure cambiare i messaggi UI per riflettere che l'URL va copiato manualmente.
+
+### 6. `test-integration` usa `(supabase.auth as any).getClaims()` 
+Stesso problema del punto 3: `getClaims` non esiste. Il fallback a `getUser()` funziona ma il cast `as any` nasconde l'errore.
+
+**Fix**: Rimuovere il blocco `getClaims` e usare direttamente `getUser()`.
+
+### 7. Fallback MRR expansion/contraction ancora a 0
+In `useAdminRevenueData.ts` (linee 301-302), quando la RPC `get_mrr_movements_monthly` non ritorna dati (probabile: `previous_plan_id` e stato aggiunto ma nessun dato storico lo popola), il fallback client-side imposta `expansionMrr: 0` e `contractionMrr: 0`.
+
+**Fix**: Accettabile come stato attuale (dati storici non disponibili). Documentare che i valori reali appariranno man mano che i plan change vengono tracciati.
+
+### 8. SecurityTab: `signInWithPassword` per verifica password
+Linea 191: la ri-autenticazione tramite `signInWithPassword` potrebbe generare un nuovo refresh token, invalidando potenzialmente la sessione corrente in scenari edge (multi-tab).
+
+**Fix**: Sostituire con `supabase.auth.updateUser({ password: newPwd })` direttamente — il metodo richiede gia una sessione valida e gestisce la verifica internamente. Oppure usare `reauthenticate()` se disponibile nella versione SDK.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## BUG MINORI
+
+### 9. NotificationsTab: nomi colonne OK
+Verificato: le colonne DB sono `new_company`, `trial_expiring`, `new_ticket`, `payment_failed_alert`, `company_suspended_alert`, `new_referral_signup`. Corrispondono al codice. **Non e un bug.**
+
+### 10. `admin_sessions` RLS: DELETE senza INSERT
+Le policy permettono SELECT e DELETE per `user_id = auth.uid()`, ma non c'e policy INSERT. L'insert avviene via service_role nella edge function — corretto. Ma se la edge function fallisce (punto 3), il frontend non puo popolare la tabella.
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## Piano di Fix (in ordine di priorita)
 
----
+### Step 1 — Fix `upsert-admin-session`: sostituire `getClaims` con `getUser`
+- File: `supabase/functions/upsert-admin-session/index.ts`
+- Sostituire linee 21-24 con chiamata a `getUser()`
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+### Step 2 — Creare edge function `accept-admin-invite`
+- Nuovo file: `supabase/functions/accept-admin-invite/index.ts`
+- Valida token, crea utente (o trova esistente), assegna ruolo `super_admin`, copia permessi, marca invito accettato
+- Aggiornare `AcceptInvite.tsx` per usare questa edge function invece di query dirette
 
----
+### Step 3 — Fix `test-integration`: rimuovere `getClaims`
+- File: `supabase/functions/test-integration/index.ts`
+- Rimuovere blocco try/catch `getClaims`, usare solo `getUser()`
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+### Step 4 — Aggiungere invio email in `invite-admin` o aggiornare UI
+- Aggiungere helper `logEmailDelivery` condiviso
+- Integrare in `invite-admin` (tentativo invio + log)
+- Aggiornare toast in `useAdminTeam.ts` per indicare "Link generato" invece di "inviato via email"
 
----
+### Step 5 — Fix SecurityTab: rimuovere `signInWithPassword` per verifica
+- Usare direttamente `updateUser` (richiede sessione valida, sufficiente)
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+### File impattati
+| File | Azione |
+|---|---|
+| `supabase/functions/upsert-admin-session/index.ts` | Fix getClaims → getUser |
+| `supabase/functions/accept-admin-invite/index.ts` | Nuovo |
+| `src/pages/admin/AcceptInvite.tsx` | Riscrittura per usare edge function |
+| `supabase/functions/test-integration/index.ts` | Rimuovere getClaims |
+| `supabase/functions/invite-admin/index.ts` | Aggiungere email + log delivery |
+| `src/hooks/useAdminTeam.ts` | Fix toast message |
+| `src/components/admin/settings/SecurityTab.tsx` | Fix password change |
+| `supabase/functions/_shared/email-log.ts` | Helper condiviso per log email |
 
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
