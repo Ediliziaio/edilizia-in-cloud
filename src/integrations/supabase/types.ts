@@ -126,6 +126,39 @@ export type Database = {
           },
         ]
       }
+      admin_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          permissions: Json
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          permissions?: Json
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          permissions?: Json
+          token?: string
+        }
+        Relationships: []
+      }
       admin_ip_allowlist: {
         Row: {
           created_at: string
@@ -152,28 +185,37 @@ export type Database = {
       }
       admin_notification_prefs: {
         Row: {
+          company_suspended_alert: boolean
           created_at: string
           id: string
           new_company: boolean
+          new_referral_signup: boolean
           new_ticket: boolean
+          payment_failed_alert: boolean
           trial_expiring: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
+          company_suspended_alert?: boolean
           created_at?: string
           id?: string
           new_company?: boolean
+          new_referral_signup?: boolean
           new_ticket?: boolean
+          payment_failed_alert?: boolean
           trial_expiring?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
+          company_suspended_alert?: boolean
           created_at?: string
           id?: string
           new_company?: boolean
+          new_referral_signup?: boolean
           new_ticket?: boolean
+          payment_failed_alert?: boolean
           trial_expiring?: boolean
           updated_at?: string
           user_id?: string
