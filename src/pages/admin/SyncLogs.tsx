@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceStrict } from "date-fns";
 import { it } from "date-fns/locale";
-import { RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,7 +36,7 @@ function SyncLogs() {
   const [dateRange, setDateRange] = useState<DateRange>("week");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: logs = [], isLoading, refetch, isFetching } = useQuery({
+  const { data: logs = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["sync-logs", statusFilter, dateRange],
     queryFn: async () => {
       let query = supabase
@@ -70,6 +71,28 @@ function SyncLogs() {
   };
 
   // Stats summary
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Sync Logs</h1>
+          <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Errore caricamento log</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Impossibile caricare i log di sincronizzazione. {error instanceof Error ? error.message : "Riprova tra qualche secondo."}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   const stats = {
     total: logs.length,
     completed: logs.filter((l: any) => l.status === "completed").length,

@@ -23,13 +23,13 @@ export default function NotificationsTab() {
     queryKey: ["admin-notification-prefs"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("admin_notification_prefs" as any)
+        .from("admin_notification_prefs")
         .select("new_company, trial_expiring, new_ticket")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
       if (!data) return defaults;
-      return data as unknown as Prefs;
+      return { new_company: data.new_company, trial_expiring: data.trial_expiring, new_ticket: data.new_ticket } as Prefs;
     },
     enabled: !!user,
   });
@@ -37,8 +37,8 @@ export default function NotificationsTab() {
   const mutation = useMutation({
     mutationFn: async (updated: Prefs) => {
       const { error } = await supabase
-        .from("admin_notification_prefs" as any)
-        .upsert({ user_id: user!.id, ...updated } as any, { onConflict: "user_id" });
+        .from("admin_notification_prefs")
+        .upsert({ user_id: user!.id, ...updated }, { onConflict: "user_id" });
       if (error) throw error;
     },
     onSuccess: () => {
