@@ -987,4 +987,25 @@ export const queryKeys = {
       ["documenti-fiscali", "list", companyId, filters] as const,
     detail: (id: string | undefined) => ["documenti-fiscali", "detail", id] as const,
   },
+
+  // ── Anagrafiche Native ─────────────────────────────────
+  anagraficheNative: {
+    all: ["anagrafiche-native"] as const,
+    list: (companyId: string | undefined, search?: string) =>
+      ["anagrafiche-native", "list", companyId, search] as const,
+    detail: (id: string | undefined) => ["anagrafiche-native", "detail", id] as const,
+  },
+
+  // ── Anagrafica Azienda ─────────────────────────────────
+  anagraficaAzienda: {
+    all: ["anagrafica-azienda"] as const,
+    detail: (companyId: string | undefined) => ["anagrafica-azienda", "detail", companyId] as const,
+  },
+
+  // ── Articoli Native ────────────────────────────────────
+  articoliNative: {
+    all: ["articoli-native"] as const,
+    list: (companyId: string | undefined, search?: string) =>
+      ["articoli-native", "list", companyId, search] as const,
+  },
 } as const;
