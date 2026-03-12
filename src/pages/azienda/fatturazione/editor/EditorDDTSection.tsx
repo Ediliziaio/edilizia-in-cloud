@@ -207,7 +207,7 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
             <Label className="text-xs mb-2 block">Vettore</Label>
             <RadioGroup
               value={vettoreTipo}
-              onValueChange={setVettoreTipo}
+              onValueChange={(v: string) => setVettoreTipo(v)}
               className="flex gap-4"
               disabled={disabled}
             >
