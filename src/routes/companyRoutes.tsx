@@ -164,6 +164,7 @@ export function companyRoutes() {
         <Route path="errori" element={<GlobalErrors />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
+        <Route path="personale" element={<PersonalePage />} />
         <Route path="tesoreria" element={<Tesoreria />} />
         <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
         <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
