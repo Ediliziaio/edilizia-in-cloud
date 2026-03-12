@@ -215,6 +215,17 @@ export default function AuditLogTab() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={adminFilter} onValueChange={(v) => { setAdminFilter(v); setPage(0); }}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filtra admin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli admin</SelectItem>
+              {adminList.map((admin) => (
+                <SelectItem key={admin.id} value={admin.id}>{admin.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {isLoading ? (
