@@ -323,28 +323,15 @@ export function useCompanyDetail(id: string | undefined) {
   const changePlanMutation = useMutation({
     mutationFn: async (planId: string) => {
       assertCanManage();
-      if (!id || !company) return;
-      const { error } = await supabase.from("companies").update({ subscription_plan_id: planId }).eq("id", id);
-      if (error) throw error;
-      await supabase.from("subscription_logs").insert({
-        company_id: id, event_type: "plan_changed", old_status: company.status,
-        new_status: company.status, plan_id: planId, notes: "Piano cambiato manualmente", performed_by: user?.id,
+      if (!id) return;
+      const { data, error } = await supabase.functions.invoke("admin-change-plan", {
+        body: { company_id: id, new_plan_id: planId },
       });
-      if (user?.id) {
-        const newPlan = plans?.find((p: any) => p.id === planId);
-        const oldPlan = plans?.find((p: any) => p.id === company.subscription_plan_id);
-        await supabase.from("admin_audit_log").insert({
-          user_id: user.id,
-          action: "change_plan",
-          target_type: "company",
-          target_id: id,
-          details: {
-            company_name: company.name,
-            old_plan: oldPlan?.name || "Nessuno",
-            new_plan: newPlan?.name || planId,
-          },
-        });
+      if (error) {
+        const msg = await error?.context?.json?.().catch(() => null);
+        throw new Error(msg?.error || "Errore cambio piano");
       }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.planAll });
