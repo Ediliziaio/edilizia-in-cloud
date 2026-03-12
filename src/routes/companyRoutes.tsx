@@ -75,6 +75,7 @@ const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/Repor
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
+const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
