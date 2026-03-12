@@ -1,11 +1,11 @@
 export type Sesso = "M" | "F" | "altro";
-export type TipoContratto = "indeterminato" | "determinato" | "apprendistato" | "collaborazione" | "partita_iva" | "stagionale";
-export type OrarioTipo = "fisso" | "turnista" | "flessibile";
-export type TimbraturaTipo = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
-export type TimbrataFonte = "web" | "app" | "nfc" | "qr" | "manuale";
-export type GiornataStato = "presente" | "assente" | "ferie" | "permesso" | "malattia" | "smart_working" | "trasferta" | "festivita";
-export type RichiestaTipo = "ferie" | "permesso" | "malattia" | "straordinario" | "cambio_turno" | "rimborso" | "altro";
-export type RichiestaStato = "in_attesa" | "approvata" | "rifiutata" | "annullata";
+export type TipoContratto = "indeterminato" | "determinato" | "apprendistato" | "collaborazione" | "partita_iva" | "stagionale" | "tirocinio" | "consulenza" | "part_time" | "interinale";
+export type OrarioTipo = "fisso" | "flessibile" | "turnista" | "standard" | "turni" | "part_time";
+export type TimbraturaTipo = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine" | "inizio_pausa" | "fine_pausa" | "missione_start" | "missione_end";
+export type TimbrataFonte = "web" | "app" | "nfc" | "qr" | "manuale" | "badge" | "admin";
+export type GiornataStato = "presente" | "assente" | "ferie" | "permesso" | "malattia" | "smart_working" | "trasferta" | "festivita" | "infortunio" | "maternita" | "paternita" | "lutto" | "rol" | "non_lavorativo" | "missione";
+export type RichiestaTipo = "ferie" | "permesso" | "malattia" | "straordinario" | "cambio_turno" | "rimborso" | "altro" | "rol" | "infortunio" | "maternita" | "paternita" | "lutto" | "smart_working" | "trasferta" | "formazione";
+export type RichiestaStato = "in_attesa" | "approvata" | "rifiutata" | "annullata" | "revocata";
 
 export interface HrSede {
   id: string;
@@ -59,8 +59,48 @@ export interface HrProfilo {
   attivo: boolean;
   created_at: string;
   updated_at: string;
+  // Organigramma fields
+  responsabile_id: string | null;
+  mansione: string | null;
+  reparto: string | null;
+  posizione_organigramma: number;
+  orario_inizio: string | null;
+  orario_fine: string | null;
+  pausa_pranzo_minuti: number;
+  giorni_lavorativi: string[];
+  ferie_anno_giorni: number;
+  permessi_anno_ore: number;
+  rol_anno_ore: number;
+  ferie_residue: number;
+  permessi_residui_ore: number;
+  rol_residuo_ore: number;
+  badge_id: string | null;
+  pin_timbratura: string | null;
+  colore_avatar: string;
+  nazionalita: string;
+  stato_civile: string | null;
+  luogo_nascita: string | null;
+  citta_residenza: string | null;
+  cap_residenza: string | null;
+  telefono_privato: string | null;
+  email_privata: string | null;
+  contatto_emergenza_nome: string | null;
+  contatto_emergenza_telefono: string | null;
+  ccnl: string;
+  note_interne: string | null;
   // joined
   sede?: HrSede;
+  responsabile?: HrProfilo;
+  // from employees join
+  employee_first_name?: string;
+  employee_last_name?: string;
+  employee_email?: string;
+  employee_phone?: string;
+}
+
+export interface OrgTreeNode extends HrProfilo {
+  children: OrgTreeNode[];
+  depth: number;
 }
 
 export interface HrTimbratura {
