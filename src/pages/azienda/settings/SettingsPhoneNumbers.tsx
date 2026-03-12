@@ -54,8 +54,8 @@ import { Link } from "react-router-dom";
 type PurchaseStep = "search" | "results" | "confirm";
 
 export default function SettingsPhoneNumbers() {
-  const { profile } = useAuth();
-  const companyId = profile?.company_id || null;
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id || null;
 
   const { data: numbers, isLoading } = usePhoneNumbers(companyId);
   const { data: profiles } = useCompanyProfiles(companyId);
