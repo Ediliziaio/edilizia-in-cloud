@@ -106,8 +106,8 @@ export default function AdminSettingsIPAllowlist() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">IP Allowlist - Admin Panel</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-bold">IP Allowlist</h1>
+        <p className="text-muted-foreground">
           Limita l'accesso al pannello di amministrazione solo agli IP autorizzati
         </p>
       </div>

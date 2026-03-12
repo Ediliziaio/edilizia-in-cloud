@@ -5,7 +5,7 @@ export default function AdminSettingsPlatform() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Piattaforma</h1>
-        <p className="text-muted-foreground">Informazioni sulla piattaforma</p>
+        <p className="text-muted-foreground">Configurazione generale e informazioni sulla piattaforma</p>
       </div>
       <PlatformInfoTab />
     </div>
