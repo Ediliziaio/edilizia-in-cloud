@@ -30,6 +30,8 @@ const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
+const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
+const AdminSettingsBanking = lazy(() => import("@/pages/admin/settings/AdminSettingsBanking"));
 const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
 const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
 const AdminMarketingOpportunities = lazy(() => import("@/pages/admin/marketing/AdminMarketingOpportunities"));
@@ -93,6 +95,8 @@ export function adminRoutes() {
         <Route path="impostazioni/ip-allowlist" element={<AdminSettingsIPAllowlist />} />
         <Route path="impostazioni/sicurezza" element={<AdminSettingsSecurity />} />
         <Route path="impostazioni/feature-flags" element={<AdminSettingsFeatureFlags />} />
+        <Route path="impostazioni/integrazioni" element={<AdminSettingsIntegrations />} />
+        <Route path="impostazioni/banking" element={<AdminSettingsBanking />} />
         <Route path="piani" element={<SubscriptionPlans />} />
         <Route path="referral" element={<ReferralDashboard />} />
         <Route path="feature-flags" element={<FeatureFlags />} />

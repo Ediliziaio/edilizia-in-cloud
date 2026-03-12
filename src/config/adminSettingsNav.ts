@@ -1,6 +1,6 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
-  ScrollText, Bot, Globe, Zap,
+  ScrollText, Bot, Globe, Zap, Plug, Landmark,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -61,6 +61,22 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Configurazione generale della piattaforma",
         icon: Server,
         url: "/admin/impostazioni/piattaforma",
+      },
+      {
+        id: "integrazioni",
+        label: "Integrazioni",
+        description: "API esterne, webhook e connettori",
+        icon: Plug,
+        url: "/admin/impostazioni/integrazioni",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "banking",
+        label: "Banking",
+        description: "Conti bancari e impostazioni pagamenti",
+        icon: Landmark,
+        url: "/admin/impostazioni/banking",
+        permission: "can_manage_admins",
       },
       {
         id: "agenti-ai",
