@@ -3,6 +3,7 @@ import { ComingSoonPlaceholder } from "@/components/users/ComingSoonPlaceholder"
 import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
+import { TabPresenze } from "./tabs/TabPresenze";
 
 export default function PersonalePage() {
   return (
@@ -52,12 +53,7 @@ export default function PersonalePage() {
           <TabTimbrature />
         </TabsContent>
         <TabsContent value="presenze">
-          <ComingSoonPlaceholder
-            icon={CalendarDays}
-            title="Presenze & Foglio Ore"
-            description="Riepilogo giornaliero delle presenze"
-            comingSoonText="Il foglio presenze sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabPresenze />
         </TabsContent>
         <TabsContent value="richieste">
           <ComingSoonPlaceholder
