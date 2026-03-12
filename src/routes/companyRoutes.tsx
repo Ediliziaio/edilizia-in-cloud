@@ -153,9 +153,9 @@ export function companyRoutes() {
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
         <Route path="tesoreria" element={<Tesoreria />} />
-        <Route path="fatturazione" element={<InvoicesList />} />
-        <Route path="fatturazione/:id" element={<InvoiceDetail />} />
-        <Route path="scadenzario" element={<Scadenzario />} />
+        <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
+        <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
+        <Route path="scadenzario" element={<BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard>} />
         
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
