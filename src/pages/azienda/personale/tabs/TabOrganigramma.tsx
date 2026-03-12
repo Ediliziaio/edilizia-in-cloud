@@ -170,6 +170,26 @@ export function TabOrganigramma() {
           </Select>
         </div>
         <div className="flex gap-2">
+          <div className="flex border rounded-md overflow-hidden">
+            <Button
+              variant={viewMode === "tree" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode("tree")}
+            >
+              <Network className="h-4 w-4 mr-1" />
+              Albero
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4 mr-1" />
+              Lista
+            </Button>
+          </div>
           <Button variant="outline" size="sm" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
             <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
             Sincronizza
