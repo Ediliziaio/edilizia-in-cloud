@@ -59,6 +59,9 @@ const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
+
+// Billing mode guard
+import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
