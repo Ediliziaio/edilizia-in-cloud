@@ -221,3 +221,6 @@ verify_jwt = false
 
 [functions.billing-import]
 verify_jwt = false
+
+[functions.verify-custom-domain]
+verify_jwt = false

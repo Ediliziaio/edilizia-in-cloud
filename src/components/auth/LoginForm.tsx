@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
+import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
 type ViewMode = "login" | "forgot" | "2fa";
@@ -25,13 +26,31 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
+  // Domain-based branding for white-label login
+  const { data: domainBranding } = useBrandingByDomain();
+
+  const platformName = domainBranding?.platform_name || domainBranding?.login_title || "Edilizia in Cloud";
+  const loginSubtitle = domainBranding?.login_subtitle || "La piattaforma per l'edilizia moderna";
+  const loginBgColor = domainBranding?.login_bg_color || undefined;
+  const loginLogoUrl = domainBranding?.login_logo_url || domainBranding?.logo_url || null;
+  const isWhiteLabel = !!domainBranding;
+
+  // Apply favicon from branding
+  useEffect(() => {
+    if (domainBranding?.favicon_url) {
+      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (link) link.href = domainBranding.favicon_url;
+    }
+    if (domainBranding?.platform_name) {
+      document.title = domainBranding.platform_name;
+    }
+  }, [domainBranding]);
+
   // Capture referral code from URL
   useEffect(() => {
     const refCode = searchParams.get("ref");
     if (refCode) {
       sessionStorage.setItem("referral_code", refCode);
-
-      // Track the click (fire and forget)
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "guqgszwelffntrgtsycm";
       fetch(`https://${projectId}.supabase.co/functions/v1/track-referral-click`, {
         method: "POST",
@@ -48,7 +67,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         .then((d) => {
           if (d.click_id) sessionStorage.setItem("referral_click_id", d.click_id);
         })
-        .catch(() => {}); // Ignore tracking errors
+        .catch(() => {});
     }
   }, [searchParams]);
 
@@ -67,7 +86,6 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         return;
       }
 
-      // Check if 2FA is required
       try {
         const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
@@ -157,13 +175,10 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
   const handle2FAVerified = () => {
     toast({ title: "Accesso effettuato", description: "Benvenuto!" });
-    // Session is already active, just close the 2FA view
-    // The auth state listener will handle navigation
     window.location.reload();
   };
 
   const handle2FACancel = async () => {
-    // Sign out since 2FA wasn't completed
     await supabase.auth.signOut();
     setView("login");
     toast({ title: "Accesso annullato", description: "Verifica 2FA richiesta." });
@@ -171,19 +186,32 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
   return (
     <div ref={ref} className="min-h-screen flex flex-col lg:flex-row bg-background">
-      {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center p-12">
+      {/* Left branding panel — dynamic */}
+      <div
+        className="hidden lg:flex lg:w-1/2 items-center justify-center p-12"
+        style={{ backgroundColor: loginBgColor || "hsl(var(--primary))" }}
+      >
         <div className="max-w-md text-center space-y-8">
-          <img
-            src={ediliziaLogo}
-            alt="EdiliziaInCloud"
-            className="h-14 mx-auto brightness-0 invert"
-          />
-          <h1 className="text-3xl font-bold text-primary-foreground">
-            La piattaforma per l'edilizia moderna
+          {loginLogoUrl ? (
+            <img
+              src={loginLogoUrl}
+              alt={platformName}
+              className="h-14 mx-auto object-contain"
+            />
+          ) : (
+            <img
+              src={ediliziaLogo}
+              alt="EdiliziaInCloud"
+              className="h-14 mx-auto brightness-0 invert"
+            />
+          )}
+          <h1 className="text-3xl font-bold text-white">
+            {isWhiteLabel ? platformName : "La piattaforma per l'edilizia moderna"}
           </h1>
-          <p className="text-primary-foreground/70 text-lg leading-relaxed">
-            Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto.
+          <p className="text-white/70 text-lg leading-relaxed">
+            {isWhiteLabel
+              ? loginSubtitle
+              : "Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto."}
           </p>
         </div>
       </div>
@@ -192,11 +220,11 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         {/* Mobile logo */}
         <div className="lg:hidden mb-10">
-          <img
-            src={ediliziaLogo}
-            alt="EdiliziaInCloud"
-            className="h-12 mx-auto"
-          />
+          {loginLogoUrl ? (
+            <img src={loginLogoUrl} alt={platformName} className="h-12 mx-auto object-contain" />
+          ) : (
+            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto" />
+          )}
         </div>
 
         <div className="w-full max-w-sm space-y-8">
