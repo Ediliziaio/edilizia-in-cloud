@@ -141,14 +141,76 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
     return pathname === url || pathname.startsWith(url + "/");
   };
 
+  const hasActiveChild = visibleItems.some(item => isActive(item.url));
   const AreaIcon = area.icon;
 
+  // Collapsed mode: show icon with hover flyout
+  if (collapsed) {
+    return (
+      <SidebarGroup className="py-0">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <HoverCard openDelay={100} closeDelay={150}>
+              <HoverCardTrigger asChild>
+                <SidebarMenuButton
+                  className={cn(
+                    "flex items-center justify-center",
+                    hasActiveChild && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <AreaIcon className="h-4 w-4" />
+                </SidebarMenuButton>
+              </HoverCardTrigger>
+              <HoverCardContent
+                side="right"
+                align="start"
+                sideOffset={8}
+                className="w-52 p-1.5 bg-sidebar border border-sidebar-border shadow-lg rounded-lg"
+              >
+                <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                  {area.title}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {visibleItems.map((item) => {
+                    const ItemIcon = item.icon;
+                    const active = isActive(item.url);
+                    return (
+                      <NavLink
+                        key={item.url}
+                        to={item.url}
+                        end={item.url === "/azienda" || item.url === "/azienda/marketing"}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          active && "bg-primary/10 text-primary font-medium"
+                        )}
+                      >
+                        <ItemIcon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{item.title}</span>
+                        {item.isBeta && (
+                          <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                        )}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+    );
+  }
+
+  // Expanded mode: collapsible section
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <SidebarGroup className="py-0">
