@@ -554,6 +554,19 @@ export default function PlatformInfoTab() {
         isSaving={saveMutation.isPending}
       />
 
+      {/* URL Applicazione */}
+      <ApiKeyCard
+        icon={Server}
+        title="URL Applicazione"
+        description="URL pubblico dell'app"
+        tooltipText="URL pubblico dell'applicazione, usato per generare link inviti admin e link firma offerte nelle email."
+        fields={[{ key: "site_url", label: "URL Applicazione", isSecret: false }]}
+        settings={settings}
+        isLoading={settingsLoading}
+        onSave={(updates) => saveMutation.mutate(updates)}
+        isSaving={saveMutation.isPending}
+      />
+
       {/* Stripe */}
       <StripeSettingsCard
         settings={settings}

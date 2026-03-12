@@ -2,6 +2,7 @@ import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_sha
 import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -72,7 +73,7 @@ Deno.serve(async (req) => {
       .eq("id", quote_id);
 
     // Build signature link
-    const appUrl = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://edilizia-in-cloud.lovable.app";
+    const appUrl = await getPlatformSetting("site_url", "SITE_URL") || "https://edilizia-in-cloud.lovable.app";
     const signatureLink = `${appUrl}/offerta/${signatureToken}`;
 
     // Load company info
