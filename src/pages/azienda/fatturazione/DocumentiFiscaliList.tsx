@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";

@@ -258,7 +258,7 @@ export default function RegistroIncassi() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Saldo netto</p>
+            <p className="text-xs text-muted-foreground">Non scaduto</p>
             <p className="text-lg font-semibold">€ {kpis.saldo.toFixed(2)}</p>
           </CardContent>
         </Card>

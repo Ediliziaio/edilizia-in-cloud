@@ -14,6 +14,24 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, FileText, Loader2 } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
 
+function useMovimentiCassaByDocIds(docIds: string[]) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["movimenti-cassa-by-docs", companyId, docIds],
+    enabled: !!companyId && docIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimenti_cassa_native" as never)
+        .select("*")
+        .eq("company_id", companyId!)
+        .in("documento_id", docIds)
+        .order("data_movimento", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as MovimentoCassa[]) ?? [];
+    },
+  });
+}
+
 function getInitials(name?: string | null): string {
   if (!name) return "?";
   return name.split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
