@@ -77,6 +77,7 @@ const App = () => (
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
+              <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
