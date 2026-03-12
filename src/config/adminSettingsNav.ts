@@ -44,7 +44,7 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
     items: [
       {
         id: "super-admin",
-        label: "Super Admin",
+        label: "Gestione Team",
         description: "Gestisci gli amministratori della piattaforma",
         icon: Users,
         url: "/admin/impostazioni/super-admin",

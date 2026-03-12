@@ -23,7 +23,7 @@ export default function AdminSettings() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="profilo" className="gap-2"><User className="h-4 w-4" /> Profilo</TabsTrigger>
           {permissions.can_manage_admins && (
-            <TabsTrigger value="admins" className="gap-2"><ShieldCheck className="h-4 w-4" /> Super Admin</TabsTrigger>
+            <TabsTrigger value="admins" className="gap-2"><ShieldCheck className="h-4 w-4" /> Gestione Team</TabsTrigger>
           )}
           <TabsTrigger value="piattaforma" className="gap-2"><Server className="h-4 w-4" /> Piattaforma</TabsTrigger>
           {permissions.can_manage_admins && (
