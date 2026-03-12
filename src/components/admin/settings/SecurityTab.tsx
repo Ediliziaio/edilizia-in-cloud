@@ -86,9 +86,15 @@ function SessionsCard() {
             ))}
           </div>
         ) : !sessions || sessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            Nessuna sessione attiva registrata
-          </p>
+          <div className="text-center py-6 space-y-2">
+            <Info className="h-5 w-5 mx-auto text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Nessuna sessione attiva registrata.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Le sessioni verranno tracciate automaticamente dal prossimo accesso.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
