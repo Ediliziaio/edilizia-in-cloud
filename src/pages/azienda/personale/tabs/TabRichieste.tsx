@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { useRichieste, useCreateRichiesta, useUpdateRichiestaStato, type RichiestaWithProfilo } from "@/hooks/useRichieste";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
