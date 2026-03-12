@@ -4,16 +4,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Bell, Building2, Clock, MessageSquare, Loader2 } from "lucide-react";
+import { Bell, Building2, Clock, MessageSquare, CreditCard, Pause, Users, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Prefs {
   new_company: boolean;
   trial_expiring: boolean;
   new_ticket: boolean;
+  payment_failed_alert: boolean;
+  company_suspended_alert: boolean;
+  new_referral_signup: boolean;
 }
 
-const defaults: Prefs = { new_company: true, trial_expiring: true, new_ticket: true };
+const defaults: Prefs = {
+  new_company: true,
+  trial_expiring: true,
+  new_ticket: true,
+  payment_failed_alert: true,
+  company_suspended_alert: true,
+  new_referral_signup: false,
+};
 
 export default function NotificationsTab() {
   const { user } = useAuth();
@@ -24,12 +34,19 @@ export default function NotificationsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_notification_prefs")
-        .select("new_company, trial_expiring, new_ticket")
+        .select("new_company, trial_expiring, new_ticket, payment_failed_alert, company_suspended_alert, new_referral_signup")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
       if (!data) return defaults;
-      return { new_company: data.new_company, trial_expiring: data.trial_expiring, new_ticket: data.new_ticket } as Prefs;
+      return {
+        new_company: data.new_company,
+        trial_expiring: data.trial_expiring,
+        new_ticket: data.new_ticket,
+        payment_failed_alert: data.payment_failed_alert,
+        company_suspended_alert: data.company_suspended_alert,
+        new_referral_signup: data.new_referral_signup,
+      } as Prefs;
     },
     enabled: !!user,
   });
@@ -57,6 +74,9 @@ export default function NotificationsTab() {
     { key: "new_company", icon: Building2, label: "Nuova azienda registrata", desc: "Ricevi una notifica quando una nuova azienda si registra sulla piattaforma" },
     { key: "trial_expiring", icon: Clock, label: "Trial in scadenza", desc: "Ricevi un alert quando un periodo di prova sta per scadere" },
     { key: "new_ticket", icon: MessageSquare, label: "Nuovo ticket di supporto", desc: "Ricevi una notifica per ogni nuovo ticket di assistenza aperto" },
+    { key: "payment_failed_alert", icon: CreditCard, label: "Pagamento fallito", desc: "Avvisa quando un'azienda ha un pagamento non riuscito" },
+    { key: "company_suspended_alert", icon: Pause, label: "Azienda sospesa", desc: "Avvisa quando un'azienda viene sospesa automaticamente" },
+    { key: "new_referral_signup", icon: Users, label: "Nuovo referral", desc: "Avvisa quando un referrer porta una nuova registrazione" },
   ];
 
   if (isLoading) {
