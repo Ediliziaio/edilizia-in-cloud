@@ -230,3 +230,6 @@ verify_jwt = false
 
 [functions.invite-admin]
 verify_jwt = false
+
+[functions.test-integration]
+verify_jwt = false
