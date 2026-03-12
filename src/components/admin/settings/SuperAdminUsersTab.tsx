@@ -249,7 +249,7 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Condividi questo link con l'admin invitato. L'email potrebbe non essere stata inviata.
+                Copia e condividi questo link con l'admin invitato. Il link scade tra 7 giorni.
               </p>
             </div>
           )}
