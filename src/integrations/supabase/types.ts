@@ -951,6 +951,7 @@ export type Database = {
           name: string
           rate_limit_per_day: number
           rate_limit_per_minute: number
+          revoked_at: string | null
           scopes: string[]
           updated_at: string
         }
@@ -967,6 +968,7 @@ export type Database = {
           name?: string
           rate_limit_per_day?: number
           rate_limit_per_minute?: number
+          revoked_at?: string | null
           scopes?: string[]
           updated_at?: string
         }
@@ -983,6 +985,7 @@ export type Database = {
           name?: string
           rate_limit_per_day?: number
           rate_limit_per_minute?: number
+          revoked_at?: string | null
           scopes?: string[]
           updated_at?: string
         }
