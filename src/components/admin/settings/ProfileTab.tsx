@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, User, Save, Loader2, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { Camera, User, Save, Loader2, Trash2, Phone, Clock, CalendarDays, ArrowRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +16,26 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  platform_manager: "Manager",
+  platform_sales: "Sales",
+  platform_support: "Support",
+  platform_marketing: "Marketing",
+  platform_implementation: "Implementation",
+  company_admin: "Admin Azienda",
+  company_staff: "Staff",
+  customer: "Cliente",
+  employee: "Dipendente",
+  salesperson: "Commerciale",
+  call_center: "Call Center",
+  referrer: "Segnalatore",
+};
+
 export default function ProfileTab() {
   const { user, refreshAuth } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["admin-profile", user?.id],
@@ -23,7 +43,7 @@ export default function ProfileTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, avatar_url")
+        .select("first_name, last_name, avatar_url, phone, last_login_at, created_at")
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -31,13 +51,28 @@ export default function ProfileTab() {
     },
   });
 
+  const { data: userRoles } = useQuery({
+    queryKey: ["admin-profile-roles", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return data?.map((r) => r.role) ?? [];
+    },
+  });
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name ?? "");
       setLastName(profile.last_name ?? "");
+      setPhone(profile.phone ?? "");
     }
   }, [profile]);
 
@@ -103,7 +138,7 @@ export default function ProfileTab() {
       queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
       refreshAuth();
       toast.success("Avatar rimosso");
-    } catch (err: any) {
+    } catch {
       toast.error("Errore rimozione avatar");
     }
   };
@@ -114,7 +149,11 @@ export default function ProfileTab() {
       if (!firstName.trim() || !lastName.trim()) throw new Error("Nome e cognome sono obbligatori");
       const { error } = await supabase
         .from("profiles")
-        .update({ first_name: firstName.trim(), last_name: lastName.trim() })
+        .update({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          phone: phone.trim() || null,
+        })
         .eq("id", user!.id);
       if (error) throw error;
     },
@@ -230,6 +269,20 @@ export default function ProfileTab() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="prof-phone" className="flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" /> Telefono
+            </Label>
+            <Input
+              id="prof-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Es. +39 333 1234567"
+              maxLength={20}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>Email</Label>
             <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
               <span className="text-sm text-muted-foreground">{user?.email}</span>
@@ -239,8 +292,16 @@ export default function ProfileTab() {
 
           <div className="space-y-2">
             <Label>Ruolo</Label>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-primary/10 text-primary hover:bg-primary/20">Super Admin</Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              {userRoles && userRoles.length > 0 ? (
+                userRoles.map((role) => (
+                  <Badge key={role} className="bg-primary/10 text-primary hover:bg-primary/20">
+                    {ROLE_LABELS[role] ?? role}
+                  </Badge>
+                ))
+              ) : (
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/20">—</Badge>
+              )}
             </div>
           </div>
 
@@ -260,6 +321,52 @@ export default function ProfileTab() {
               Salva modifiche
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Account info */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informazioni account</CardTitle>
+          <CardDescription>Dettagli sul tuo account e ultimo accesso.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Account creato il</p>
+                <p className="text-sm font-medium">
+                  {profile?.created_at
+                    ? format(new Date(profile.created_at), "dd MMM yyyy", { locale: it })
+                    : "—"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Ultimo accesso</p>
+                <p className="text-sm font-medium">
+                  {profile?.last_login_at
+                    ? format(new Date(profile.last_login_at), "dd MMM yyyy, HH:mm", { locale: it })
+                    : "Mai"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate("/admin/impostazioni/sicurezza")}
+          >
+            Gestisci sicurezza
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </CardContent>
       </Card>
     </div>
