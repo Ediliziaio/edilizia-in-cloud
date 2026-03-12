@@ -90,13 +90,13 @@ export function CompanyDetailHeader({ company, onBack, onImpersonate }: CompanyD
                       </span>
                     </>
                   )}
-                  {company.city && (
+                  {(company as any).city && (
                     <>
                       <Separator orientation="vertical" className="h-3.5" />
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-3.5 w-3.5" />
-                        {company.city}
-                        {company.province ? ` (${company.province})` : ""}
+                        {(company as any).city}
+                        {(company as any).province ? ` (${(company as any).province})` : ""}
                       </span>
                     </>
                   )}
