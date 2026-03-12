@@ -71,6 +71,8 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useNotifications } from "@/hooks/useNotifications";
