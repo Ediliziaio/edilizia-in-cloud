@@ -144,7 +144,7 @@ export default function CassettoSDI() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Consegnate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">{kpi.consegnate}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{kpi.consegnate}</div>
           </CardContent>
         </Card>
         <Card>
