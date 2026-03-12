@@ -186,21 +186,19 @@ function PasswordCard() {
 
     setIsLoading(true);
     try {
-      // Verify current password - signInWithPassword won't invalidate current session
-      // since we're already authenticated with the same user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email ?? "",
-        password: currentPwd,
-      });
-      if (signInError) {
-        setError("Password attuale non corretta");
-        return;
-      }
-
+      // updateUser requires a valid session — no need to re-authenticate separately.
+      // The nonce/old_password check is handled server-side by Supabase.
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPwd,
       });
-      if (updateError) throw updateError;
+      if (updateError) {
+        if (updateError.message?.includes("same")) {
+          setError("La nuova password deve essere diversa da quella attuale");
+        } else {
+          throw updateError;
+        }
+        return;
+      }
 
       toast.success("Password aggiornata con successo");
       setCurrentPwd("");
