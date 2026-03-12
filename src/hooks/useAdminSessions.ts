@@ -27,13 +27,16 @@ export function useAdminSessions() {
         .order("last_seen_at", { ascending: false });
       if (error) throw error;
 
-      return (data ?? []).map((row: any, index: number) => ({
+      // Determine current session by matching the token stored in this tab
+      const currentToken = sessionStorage.getItem("admin_session_token");
+
+      return (data ?? []).map((row: any) => ({
         id: row.id,
         deviceHint: row.device_hint,
         ipAddress: row.ip_address,
         lastSeenAt: row.last_seen_at,
         createdAt: row.created_at,
-        isCurrent: index === 0,
+        isCurrent: currentToken ? row.session_token === currentToken : false,
       }));
     },
   });

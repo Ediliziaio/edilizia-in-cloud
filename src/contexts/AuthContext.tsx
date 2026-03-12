@@ -266,6 +266,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!sessionStorage.getItem(SESSION_ID_KEY)) {
               startSession();
             }
+            // Track admin session for super_admin users (fire-and-forget)
+            if (userData.role === "super_admin" && event === "SIGNED_IN") {
+              const info = getBrowserInfo();
+              supabase.functions.invoke("upsert-admin-session", {
+                body: {
+                  device_hint: `${info.browser} su ${info.os}`,
+                },
+              }).then((res) => {
+                if (res.data?.session_token) {
+                  sessionStorage.setItem("admin_session_token", res.data.session_token);
+                }
+              }).catch(() => {});
+            }
           }, 0);
         } else if (event === "SIGNED_OUT") {
           setState({

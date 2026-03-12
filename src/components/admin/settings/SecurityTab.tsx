@@ -139,9 +139,11 @@ function SessionsCard() {
                   variant="outline"
                   size="sm"
                   className="w-full text-destructive hover:text-destructive"
-                  onClick={() => {
+                  onClick={async () => {
                     const others = sessions.filter((s) => !s.isCurrent);
-                    others.forEach((s) => revoke(s.id));
+                    for (const s of others) {
+                      await revoke(s.id);
+                    }
                   }}
                   disabled={isRevoking}
                 >
@@ -184,6 +186,8 @@ function PasswordCard() {
 
     setIsLoading(true);
     try {
+      // Verify current password - signInWithPassword won't invalidate current session
+      // since we're already authenticated with the same user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email ?? "",
         password: currentPwd,

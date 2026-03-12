@@ -172,13 +172,31 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [email, setEmail] = useState("");
   const [selectedPreset, setSelectedPreset] = useState(0);
 
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
   const handleInvite = () => {
     if (!email.trim()) { toast.error("Inserisci l'email"); return; }
     const preset = PERMISSION_PRESETS[selectedPreset];
     invite(
       { email: email.trim(), permissions: { ...DEFAULT_PERMISSIONS, ...preset.value } },
-      { onSuccess: () => { onClose(); setEmail(""); } }
+      {
+        onSuccess: (data: any) => {
+          // Show invite URL if returned
+          if (data?.inviteUrl) {
+            setInviteUrl(data.inviteUrl);
+          } else {
+            onClose(); setEmail("");
+          }
+        },
+      }
     );
+  };
+
+  const handleCopyUrl = () => {
+    if (inviteUrl) {
+      navigator.clipboard.writeText(inviteUrl);
+      toast.success("Link copiato negli appunti");
+    }
   };
 
   return (
@@ -221,13 +239,35 @@ function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => vo
               ))}
             </div>
           </div>
+          {inviteUrl && (
+            <div className="space-y-2">
+              <Label>Link di invito</Label>
+              <div className="flex gap-2">
+                <Input value={inviteUrl} readOnly className="text-xs font-mono" />
+                <Button variant="outline" size="sm" onClick={handleCopyUrl}>
+                  Copia
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Condividi questo link con l'admin invitato. L'email potrebbe non essere stata inviata.
+              </p>
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={handleInvite} disabled={isPending} className="gap-2">
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            Invia invito
-          </Button>
+          {inviteUrl ? (
+            <Button onClick={() => { onClose(); setEmail(""); setInviteUrl(null); }}>
+              Chiudi
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>Annulla</Button>
+              <Button onClick={handleInvite} disabled={isPending} className="gap-2">
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                Invia invito
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

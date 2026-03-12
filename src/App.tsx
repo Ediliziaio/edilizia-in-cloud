@@ -31,6 +31,7 @@ const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
+const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
+              <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />

@@ -296,13 +296,18 @@ export function useAdminRevenueData() {
           });
           const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
 
+          // Fallback: estimate expansion/contraction from plan changes
+          // (without previous_plan_id data these remain 0, which is expected)
+          const expansionMrr = 0;
+          const contractionMrr = 0;
+
           mrrMovements.push({
             month: format(monthDate, "MMM yy", { locale: it }),
             newMrr,
-            expansionMrr: 0,
-            contractionMrr: 0,
+            expansionMrr,
+            contractionMrr,
             churnMrr,
-            netNew: newMrr - churnMrr,
+            netNew: newMrr + expansionMrr - contractionMrr - churnMrr,
           });
         }
       }

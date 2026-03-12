@@ -216,6 +216,7 @@ export function useInviteAdmin() {
         throw new Error(msg?.error || res.error.message);
       }
       if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
