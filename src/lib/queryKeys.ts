@@ -979,4 +979,12 @@ export const queryKeys = {
     record: (userId: string | undefined) => ["my-salesperson-record", userId] as const,
     commissions: (salespersonId: string | undefined) => ["salesperson-commissions", salespersonId] as const,
   },
+
+  // ── Documenti Fiscali (native billing) ─────────────────
+  documentiFiscali: {
+    all: ["documenti-fiscali"] as const,
+    list: (companyId: string | undefined, filters?: Record<string, unknown>) =>
+      ["documenti-fiscali", "list", companyId, filters] as const,
+    detail: (id: string | undefined) => ["documenti-fiscali", "detail", id] as const,
+  },
 } as const;

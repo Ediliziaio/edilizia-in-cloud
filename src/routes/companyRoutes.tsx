@@ -62,6 +62,7 @@ const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 
 // Billing mode guard
 import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
+const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -156,6 +157,11 @@ export function companyRoutes() {
         <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
         <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
         <Route path="scadenzario" element={<BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard>} />
+        
+        {/* Native billing routes */}
+        <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
+        <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
+        <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
         
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
