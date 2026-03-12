@@ -26,10 +26,10 @@ export default function AnagraficaDetail() {
   const fatture = documenti.filter((d) => d.tipo !== "ddt");
   const ddts = documenti.filter((d) => d.tipo === "ddt");
 
-  const { data: movimenti } = useMovimentiCassa({ documento_id: undefined });
-  // Filter movimenti for documents of this anagrafica
-  const docIds = new Set(documenti.map((d) => d.id));
-  const movimentiFiltered = (movimenti ?? []).filter((m) => m.documento_id && docIds.has(m.documento_id));
+  // Only fetch movimenti once we have document IDs to filter by
+  const docIds = useMemo(() => documenti.map((d) => d.id), [documenti]);
+  const { data: movimentiData } = useMovimentiCassaByDocIds(docIds);
+  const movimentiFiltered = movimentiData ?? [];
 
   if (isLoading || !anagrafica) {
     return (
