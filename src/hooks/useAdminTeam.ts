@@ -181,7 +181,7 @@ export function useUpdateAdminPermission() {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) {
-        const msg = await res.error?.context?.json?.().catch(() => null);
+        const msg = await res.error?.context?.json?.().catch((): null => null);
         throw new Error(msg?.error || res.error.message);
       }
       if (res.data?.error) throw new Error(res.data.error);
@@ -212,7 +212,7 @@ export function useInviteAdmin() {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) {
-        const msg = await res.error?.context?.json?.().catch(() => null);
+        const msg = await res.error?.context?.json?.().catch((): null => null);
         throw new Error(msg?.error || res.error.message);
       }
       if (res.data?.error) throw new Error(res.data.error);
@@ -242,7 +242,7 @@ export function useDeleteAdmin() {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) {
-        const msg = await res.error?.context?.json?.().catch(() => null);
+        const msg = await res.error?.context?.json?.().catch((): null => null);
         throw new Error(msg?.error || res.error.message);
       }
       if (res.data?.error) throw new Error(res.data.error);
