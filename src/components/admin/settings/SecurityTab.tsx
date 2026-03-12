@@ -162,16 +162,14 @@ function SessionsCard() {
 
 function PasswordCard() {
   const { user } = useAuth();
-  const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const strength = getPasswordStrength(newPwd);
-  const canSubmit = currentPwd.length >= 1 && newPwd.length >= 8 && newPwd === confirmPwd;
+  const canSubmit = newPwd.length >= 8 && newPwd === confirmPwd;
 
   const handleSubmit = async () => {
     setError(null);
@@ -201,7 +199,6 @@ function PasswordCard() {
       }
 
       toast.success("Password aggiornata con successo");
-      setCurrentPwd("");
       setNewPwd("");
       setConfirmPwd("");
     } catch (err: any) {
@@ -229,26 +226,6 @@ function PasswordCard() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-
-        <div className="space-y-2">
-          <Label>Password attuale</Label>
-          <div className="relative">
-            <Input
-              type={showCurrent ? "text" : "password"}
-              value={currentPwd}
-              onChange={(e) => setCurrentPwd(e.target.value)}
-              placeholder="La tua password attuale"
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowCurrent(!showCurrent)}
-              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-            >
-              {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
 
         <div className="space-y-2">
           <Label>Nuova password</Label>

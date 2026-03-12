@@ -233,3 +233,9 @@ verify_jwt = false
 
 [functions.test-integration]
 verify_jwt = false
+
+[functions.accept-admin-invite]
+verify_jwt = false
+
+[functions.upsert-admin-session]
+verify_jwt = false

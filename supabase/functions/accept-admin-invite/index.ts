@@ -30,17 +30,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
-      (u: any) => u.email?.toLowerCase() === invite.email.toLowerCase()
-    );
-
+    // 2. Check if user already exists using getUserByEmail (efficient, no listUsers)
     let userId: string;
+    let hadExistingAccount = false;
 
-    if (existingUser) {
+    const { data: existingUserData } = await supabaseAdmin.auth.admin.getUserByEmail(invite.email);
+
+    if (existingUserData?.user) {
       // User already exists — just assign the role
-      userId = existingUser.id;
+      userId = existingUserData.user.id;
+      hadExistingAccount = true;
     } else {
       // Create new user
       if (!password || password.length < 8) {
@@ -98,11 +97,11 @@ Deno.serve(async (req) => {
       action: "accept_admin_invite",
       target_type: "admin_invite",
       target_id: invite.id,
-      details: { email: invite.email, had_existing_account: !!existingUser },
+      details: { email: invite.email, had_existing_account: hadExistingAccount },
     });
 
     return new Response(
-      JSON.stringify({ ok: true, had_existing_account: !!existingUser }),
+      JSON.stringify({ ok: true, had_existing_account: hadExistingAccount }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
