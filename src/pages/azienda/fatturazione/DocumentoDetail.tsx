@@ -85,7 +85,7 @@ export default function DocumentoDetail() {
 
   const handleDownloadPDF = async () => {
     try {
-      await downloadPDF(doc, azienda as AnagraficaAzienda);
+      await downloadNativePDF(doc.id, doc.numero);
       toast.success("PDF scaricato");
     } catch (err: any) {
       toast.error("Errore nel download PDF", { description: err.message });
