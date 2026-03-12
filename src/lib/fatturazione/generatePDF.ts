@@ -43,7 +43,7 @@ export async function uploadNativePDF(documentoId: string): Promise<string> {
   });
 
   if (error) {
-    const detail = error.context ? await error.context.json?.().catch(() => null) : null;
+    const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
     throw new Error(detail?.error || error.message || "Errore nell'upload del PDF");
   }
 
