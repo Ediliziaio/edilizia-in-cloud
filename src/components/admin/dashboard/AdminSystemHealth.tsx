@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, CheckCircle2, AlertTriangle, Loader2, Zap, ShieldAlert, Clock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { RlsMonitorSection } from "./RlsMonitorSection";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -200,6 +201,9 @@ export function AdminSystemHealth() {
                 </span>
               </div>
             </div>
+
+            {/* RLS Monitor */}
+            <RlsMonitorSection />
 
             {/* Total calls summary */}
             <div className="text-xs text-muted-foreground text-center">

@@ -14701,6 +14701,12 @@ export type Database = {
           value: number
         }[]
       }
+      get_tables_without_rls: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_top_companies_by_email: {
         Args: { p_limit?: number }
         Returns: {
