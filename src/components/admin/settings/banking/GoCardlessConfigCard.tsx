@@ -225,7 +225,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             Testa Connessione
           </Button>
           {hasUnsavedChanges && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">● Modifiche non salvate</span>
+            <span className="text-xs text-orange-600 dark:text-orange-400">● Modifiche non salvate</span>
           )}
         </div>
       </CardContent>
