@@ -260,6 +260,7 @@ function AdminSettingsSidebar() {
 function AdminMainSidebar() {
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
+  const { data: sidebarBadges } = useAdminSidebarBadges();
   const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
