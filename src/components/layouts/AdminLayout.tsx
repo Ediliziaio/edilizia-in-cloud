@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useAdminSidebarBadges, getBadgeForNavItem } from "@/hooks/useAdminSidebarBadges";
 import { 
   LayoutDashboard, 
   Building, 
@@ -259,6 +260,7 @@ function AdminSettingsSidebar() {
 function AdminMainSidebar() {
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
+  const { data: sidebarBadges } = useAdminSidebarBadges();
   const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -323,10 +325,15 @@ function AdminMainSidebar() {
   return (
     <Sidebar className="border-r">
       <div className="flex flex-col border-b">
-        <div className="flex h-14 items-center px-4">
+        <div className="flex h-14 items-center px-4 justify-between">
           <Link to="/admin" className="flex items-center">
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           </Link>
+          {sidebarBadges?.maintenanceActive && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-600 dark:text-orange-400" title="Manutenzione attiva">
+              🔧
+            </span>
+          )}
         </div>
         {permissions.can_manage_companies && (
           <div className="px-3 pb-3">
@@ -415,21 +422,37 @@ function AdminMainSidebar() {
                       onToggle={() => toggle(sub.id)}
                     >
                       <SidebarMenu className="divide-y divide-dashed divide-border/40">
-                        {items.map((item) => (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild>
-                              <NavLink 
-                                to={item.url} 
-                                end={item.url === "/admin"}
-                                className={navLinkClass}
-                                activeClassName={activeClass}
-                              >
-                                <item.icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {items.map((item) => {
+                          const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                          return (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink 
+                                  to={item.url} 
+                                  end={item.url === "/admin"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span className="flex-1">{item.title}</span>
+                                  {badge && badge.count != null && badge.count > 0 && (
+                                    <span
+                                      className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-[10px] font-bold leading-none ${
+                                        badge.variant === "destructive"
+                                          ? "bg-destructive text-destructive-foreground"
+                                          : badge.variant === "warning"
+                                          ? "bg-orange-500 text-white dark:bg-orange-600"
+                                          : "bg-primary/15 text-primary"
+                                      }`}
+                                    >
+                                      {badge.count > 99 ? "99+" : badge.count}
+                                    </span>
+                                  )}
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
                       </SidebarMenu>
                     </SidebarSubcategory>
                   );
