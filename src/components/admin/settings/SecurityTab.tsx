@@ -162,16 +162,14 @@ function SessionsCard() {
 
 function PasswordCard() {
   const { user } = useAuth();
-  const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const strength = getPasswordStrength(newPwd);
-  const canSubmit = currentPwd.length >= 1 && newPwd.length >= 8 && newPwd === confirmPwd;
+  const canSubmit = newPwd.length >= 8 && newPwd === confirmPwd;
 
   const handleSubmit = async () => {
     setError(null);
