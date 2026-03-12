@@ -6115,87 +6115,171 @@ export type Database = {
       hr_profili: {
         Row: {
           attivo: boolean | null
+          badge_id: string | null
+          cap_residenza: string | null
+          ccnl: string | null
+          citta_residenza: string | null
           codice_fiscale: string | null
           cognome: string
+          colore_avatar: string | null
           company_id: string
+          contatto_emergenza_nome: string | null
+          contatto_emergenza_telefono: string | null
           created_at: string | null
           data_assunzione: string | null
           data_cessazione: string | null
           data_nascita: string | null
           email: string | null
+          email_privata: string | null
           employee_id: string | null
+          ferie_anno_giorni: number | null
+          ferie_residue: number | null
           foto_url: string | null
+          giorni_lavorativi: string[] | null
           iban: string | null
           id: string
           indirizzo: string | null
           livello_ccnl: string | null
+          luogo_nascita: string | null
+          mansione: string | null
           matricola: string | null
+          nazionalita: string | null
           nome: string
           note: string | null
+          note_interne: string | null
+          orario_fine: string | null
+          orario_inizio: string | null
           orario_tipo: string | null
           ore_giornaliere: number | null
           ore_settimanali: number | null
+          pausa_pranzo_minuti: number | null
+          permessi_anno_ore: number | null
+          permessi_residui_ore: number | null
+          pin_timbratura: string | null
+          posizione_organigramma: number | null
+          reparto: string | null
+          responsabile_id: string | null
+          rol_anno_ore: number | null
+          rol_residuo_ore: number | null
           sede_id: string | null
           sesso: string | null
+          stato_civile: string | null
           telefono: string | null
+          telefono_privato: string | null
           tipo_contratto: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
           attivo?: boolean | null
+          badge_id?: string | null
+          cap_residenza?: string | null
+          ccnl?: string | null
+          citta_residenza?: string | null
           codice_fiscale?: string | null
           cognome: string
+          colore_avatar?: string | null
           company_id: string
+          contatto_emergenza_nome?: string | null
+          contatto_emergenza_telefono?: string | null
           created_at?: string | null
           data_assunzione?: string | null
           data_cessazione?: string | null
           data_nascita?: string | null
           email?: string | null
+          email_privata?: string | null
           employee_id?: string | null
+          ferie_anno_giorni?: number | null
+          ferie_residue?: number | null
           foto_url?: string | null
+          giorni_lavorativi?: string[] | null
           iban?: string | null
           id?: string
           indirizzo?: string | null
           livello_ccnl?: string | null
+          luogo_nascita?: string | null
+          mansione?: string | null
           matricola?: string | null
+          nazionalita?: string | null
           nome: string
           note?: string | null
+          note_interne?: string | null
+          orario_fine?: string | null
+          orario_inizio?: string | null
           orario_tipo?: string | null
           ore_giornaliere?: number | null
           ore_settimanali?: number | null
+          pausa_pranzo_minuti?: number | null
+          permessi_anno_ore?: number | null
+          permessi_residui_ore?: number | null
+          pin_timbratura?: string | null
+          posizione_organigramma?: number | null
+          reparto?: string | null
+          responsabile_id?: string | null
+          rol_anno_ore?: number | null
+          rol_residuo_ore?: number | null
           sede_id?: string | null
           sesso?: string | null
+          stato_civile?: string | null
           telefono?: string | null
+          telefono_privato?: string | null
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
           attivo?: boolean | null
+          badge_id?: string | null
+          cap_residenza?: string | null
+          ccnl?: string | null
+          citta_residenza?: string | null
           codice_fiscale?: string | null
           cognome?: string
+          colore_avatar?: string | null
           company_id?: string
+          contatto_emergenza_nome?: string | null
+          contatto_emergenza_telefono?: string | null
           created_at?: string | null
           data_assunzione?: string | null
           data_cessazione?: string | null
           data_nascita?: string | null
           email?: string | null
+          email_privata?: string | null
           employee_id?: string | null
+          ferie_anno_giorni?: number | null
+          ferie_residue?: number | null
           foto_url?: string | null
+          giorni_lavorativi?: string[] | null
           iban?: string | null
           id?: string
           indirizzo?: string | null
           livello_ccnl?: string | null
+          luogo_nascita?: string | null
+          mansione?: string | null
           matricola?: string | null
+          nazionalita?: string | null
           nome?: string
           note?: string | null
+          note_interne?: string | null
+          orario_fine?: string | null
+          orario_inizio?: string | null
           orario_tipo?: string | null
           ore_giornaliere?: number | null
           ore_settimanali?: number | null
+          pausa_pranzo_minuti?: number | null
+          permessi_anno_ore?: number | null
+          permessi_residui_ore?: number | null
+          pin_timbratura?: string | null
+          posizione_organigramma?: number | null
+          reparto?: string | null
+          responsabile_id?: string | null
+          rol_anno_ore?: number | null
+          rol_residuo_ore?: number | null
           sede_id?: string | null
           sesso?: string | null
+          stato_civile?: string | null
           telefono?: string | null
+          telefono_privato?: string | null
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -6213,6 +6297,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_profili_responsabile_id_fkey"
+            columns: ["responsabile_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
             referencedColumns: ["id"]
           },
           {
