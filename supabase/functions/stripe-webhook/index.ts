@@ -35,6 +35,51 @@ async function getCompanyByStripeCustomer(
   return data;
 }
 
+async function upsertSubscriptionInvoice(
+  supabase: ReturnType<typeof createClient>,
+  companyId: string,
+  invoice: any,
+  stripeCustomerId: string
+) {
+  await supabase.from("subscription_invoices").upsert(
+    {
+      company_id: companyId,
+      stripe_invoice_id: invoice.id,
+      stripe_customer_id: stripeCustomerId,
+      amount_paid: invoice.amount_paid ?? 0,
+      amount_due: invoice.amount_due ?? 0,
+      currency: invoice.currency ?? "eur",
+      status: invoice.status ?? "draft",
+      invoice_url: invoice.hosted_invoice_url ?? null,
+      invoice_pdf: invoice.invoice_pdf ?? null,
+      period_start: invoice.period_start
+        ? new Date(invoice.period_start * 1000).toISOString()
+        : null,
+      period_end: invoice.period_end
+        ? new Date(invoice.period_end * 1000).toISOString()
+        : null,
+      paid_at: invoice.status_transitions?.paid_at
+        ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+        : null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "stripe_invoice_id" }
+  );
+}
+
+async function handleInvoiceCreated(
+  supabase: ReturnType<typeof createClient>,
+  invoice: any
+) {
+  const stripeCustomerId = invoice.customer;
+  if (!stripeCustomerId) return;
+
+  const company = await getCompanyByStripeCustomer(supabase, stripeCustomerId);
+  if (!company) return;
+
+  await upsertSubscriptionInvoice(supabase, company.id, invoice, stripeCustomerId);
+}
+
 // ─── Event Handlers ────────────────────────────────────────
 
 async function handleCheckoutCompleted(
