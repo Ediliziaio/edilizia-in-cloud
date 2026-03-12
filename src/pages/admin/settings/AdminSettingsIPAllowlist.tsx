@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Trash2, Shield, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Shield, Loader2, AlertTriangle, Crosshair } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
