@@ -14799,6 +14799,10 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      release_token_refresh_lock: {
+        Args: { p_integration_id: string }
+        Returns: undefined
+      }
       save_internal_automation_nodes: {
         Args: {
           p_company_id: string
@@ -14819,6 +14823,10 @@ export type Database = {
       trigger_form_automations: {
         Args: { p_submission_id: string }
         Returns: undefined
+      }
+      try_acquire_token_refresh_lock: {
+        Args: { p_integration_id: string }
+        Returns: boolean
       }
       update_referrer_tier: {
         Args: { p_referrer_id: string }
