@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import {
@@ -8,14 +8,15 @@ import {
   useDeleteDocumento,
 } from "@/hooks/useDocumentiFiscali";
 import { useEditorState } from "./editor/useEditorState";
+import { validateDocumento } from "@/lib/fatturazione/calcoli";
 import { EditorTopBar } from "./editor/EditorTopBar";
 import { EditorClienteSection } from "./editor/EditorClienteSection";
+import { EditorDatiDocumento } from "./editor/EditorDatiDocumento";
 import { EditorRigheSection } from "./editor/EditorRigheSection";
 import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { TipoDocumento } from "@/types/fatturazione";
 
@@ -50,15 +51,13 @@ export default function EditorDocumento() {
   const { state, dispatch, isSaving, lastSaved } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
 
-  if (isCreate || isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const validationErrors = useMemo(
+    () => validateDocumento(state),
+    [state]
+  );
+  const criticalErrorCount = validationErrors.filter((e) => e.severity === "error").length;
 
-  if (!state._initialized) {
+  if (isCreate || isLoading || !state._initialized) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -81,37 +80,19 @@ export default function EditorDocumento() {
           }
         }}
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
+        validationErrorCount={criticalErrorCount}
       />
 
       <div className="flex flex-1 min-h-0">
-        {/* Left panel: form */}
+        {/* Left panel: continuous scroll form */}
         <ScrollArea className="w-1/2 border-r">
-          <div className="p-4 space-y-6">
-            <Tabs defaultValue="cliente" className="w-full">
-              <TabsList className="w-full grid grid-cols-4 h-8">
-                <TabsTrigger value="cliente" className="text-xs">Cliente</TabsTrigger>
-                <TabsTrigger value="righe" className="text-xs">Righe</TabsTrigger>
-                <TabsTrigger value="pagamento" className="text-xs">Pagamento</TabsTrigger>
-                <TabsTrigger value="note" className="text-xs">Note</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="cliente" className="mt-4">
-                <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              </TabsContent>
-
-              <TabsContent value="righe" className="mt-4 space-y-4">
-                <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
-                <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              </TabsContent>
-
-              <TabsContent value="pagamento" className="mt-4">
-                <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              </TabsContent>
-
-              <TabsContent value="note" className="mt-4">
-                <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              </TabsContent>
-            </Tabs>
+          <div className="p-4 space-y-4 pb-8">
+            <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />
           </div>
         </ScrollArea>
 

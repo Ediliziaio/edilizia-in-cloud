@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { formatCurrency } from "@/lib/formatters";
+import { format, parseISO } from "date-fns";
+import { it } from "date-fns/locale";
 import type { EditorState } from "./useEditorState";
-import type { TipoDocumento } from "@/types/fatturazione";
+import type { TipoDocumento, ScadenzaPagamento } from "@/types/fatturazione";
 
 const TIPO_TITLES: Record<TipoDocumento, string> = {
   fattura: "FATTURA",
@@ -15,12 +18,13 @@ const TIPO_TITLES: Record<TipoDocumento, string> = {
   ddt: "DOCUMENTO DI TRASPORTO",
 };
 
-interface Props {
-  state: EditorState;
+function fmtDate(d: string | undefined): string {
+  if (!d) return "";
+  try { return format(parseISO(d), "d MMMM yyyy", { locale: it }); } catch { return d; }
 }
 
-function fmt(n: number | undefined): string {
-  return (n ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+interface Props {
+  state: EditorState;
 }
 
 export function EditorPreviewPanel({ state }: Props) {
@@ -28,15 +32,9 @@ export function EditorPreviewPanel({ state }: Props) {
   const snapshot = state.cliente_snapshot;
   const righe = state.righe ?? [];
   const riepilogo = state.riepilogo_iva ?? [];
+  const scadenze = (state.scadenze_pagamento ?? []) as ScadenzaPagamento[];
 
   const docTitle = TIPO_TITLES[(state.tipo as TipoDocumento) ?? "fattura"] ?? "DOCUMENTO";
-
-  const formattedDate = useMemo(() => {
-    if (!state.data_emissione) return "";
-    try {
-      return new Date(state.data_emissione).toLocaleDateString("it-IT");
-    } catch { return state.data_emissione; }
-  }, [state.data_emissione]);
 
   return (
     <div className="h-full overflow-auto bg-muted/30 p-4">
@@ -44,7 +42,7 @@ export function EditorPreviewPanel({ state }: Props) {
         className="mx-auto bg-card shadow-lg border rounded-sm"
         style={{ width: "210mm", maxWidth: "100%", minHeight: "297mm", padding: "15mm", fontSize: "9pt" }}
       >
-        {/* Header: Emitter */}
+        {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
             {azienda ? (
@@ -65,11 +63,9 @@ export function EditorPreviewPanel({ state }: Props) {
           <div className="text-right">
             <div className="text-lg font-bold tracking-wide text-primary">{docTitle}</div>
             <div className="text-sm font-mono font-semibold mt-1">{state.numero}</div>
-            <div className="text-muted-foreground text-[8pt] mt-1">Data: {formattedDate}</div>
+            <div className="text-muted-foreground text-[8pt] mt-1">Data: {fmtDate(state.data_emissione)}</div>
             {state.data_scadenza && (
-              <div className="text-muted-foreground text-[8pt]">
-                Scadenza: {new Date(state.data_scadenza).toLocaleDateString("it-IT")}
-              </div>
+              <div className="text-muted-foreground text-[8pt]">Scadenza: {fmtDate(state.data_scadenza)}</div>
             )}
           </div>
         </div>
@@ -95,6 +91,13 @@ export function EditorPreviewPanel({ state }: Props) {
               {snapshot.codice_sdi && <span>SDI: {snapshot.codice_sdi}</span>}
               {snapshot.pec && <span>PEC: {snapshot.pec}</span>}
             </div>
+            {/* CIG/CUP */}
+            {(state.cig || state.cup) && (
+              <div className="text-muted-foreground text-[8pt] mt-1 flex gap-3">
+                {state.cig && <span>CIG: {state.cig}</span>}
+                {state.cup && <span>CUP: {state.cup}</span>}
+              </div>
+            )}
           </div>
         )}
 
@@ -107,6 +110,9 @@ export function EditorPreviewPanel({ state }: Props) {
                 <th className="text-left py-1.5 font-semibold">Descrizione</th>
                 <th className="text-right py-1.5 font-semibold">Qtà</th>
                 <th className="text-right py-1.5 font-semibold">Prezzo</th>
+                {righe.some((r) => (r.sconto_percentuale ?? 0) > 0) && (
+                  <th className="text-right py-1.5 font-semibold">Sc.%</th>
+                )}
                 <th className="text-right py-1.5 font-semibold">IVA%</th>
                 <th className="text-right py-1.5 font-semibold">Totale</th>
               </tr>
@@ -117,9 +123,12 @@ export function EditorPreviewPanel({ state }: Props) {
                   <td className="py-1.5 text-muted-foreground">{i + 1}</td>
                   <td className="py-1.5">{r.descrizione || "—"}</td>
                   <td className="py-1.5 text-right tabular-nums">{r.quantita} {r.unita_misura}</td>
-                  <td className="py-1.5 text-right tabular-nums">€{fmt(r.prezzo_unitario)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{r.aliquota_iva}%</td>
-                  <td className="py-1.5 text-right tabular-nums font-medium">€{fmt(r.totale_riga)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{formatCurrency(r.prezzo_unitario)}</td>
+                  {righe.some((r) => (r.sconto_percentuale ?? 0) > 0) && (
+                    <td className="py-1.5 text-right tabular-nums">{r.sconto_percentuale ? `${r.sconto_percentuale}%` : ""}</td>
+                  )}
+                  <td className="py-1.5 text-right tabular-nums">{r.aliquota_iva}%{r.natura_iva ? ` (${r.natura_iva})` : ""}</td>
+                  <td className="py-1.5 text-right tabular-nums font-medium">{formatCurrency(r.totale_riga)}</td>
                 </tr>
               ))}
             </tbody>
@@ -128,41 +137,67 @@ export function EditorPreviewPanel({ state }: Props) {
 
         {/* Totals */}
         <div className="flex justify-end">
-          <div className="space-y-1" style={{ minWidth: "200px" }}>
+          <div className="space-y-1" style={{ minWidth: "220px" }}>
             <div className="flex justify-between text-[8pt]">
               <span className="text-muted-foreground">Imponibile</span>
-              <span className="tabular-nums">€{fmt(state.imponibile_totale)}</span>
+              <span className="tabular-nums">{formatCurrency(state.imponibile_totale ?? 0)}</span>
             </div>
+            {(state.sconto_globale_valore ?? 0) > 0 && (
+              <div className="flex justify-between text-[8pt] text-destructive">
+                <span>Sconto globale</span>
+                <span className="tabular-nums">-{formatCurrency(state.sconto_globale_valore ?? 0)}</span>
+              </div>
+            )}
             {riepilogo.map((r, i) => (
               <div key={i} className="flex justify-between text-[8pt]">
-                <span className="text-muted-foreground">IVA {r.aliquota}%</span>
-                <span className="tabular-nums">€{fmt(r.imposta)}</span>
+                <span className="text-muted-foreground">IVA {r.aliquota}%{r.natura ? ` (${r.natura})` : ""}</span>
+                <span className="tabular-nums">{formatCurrency(r.imposta)}</span>
               </div>
             ))}
             {state.bollo_virtuale && (
               <div className="flex justify-between text-[8pt]">
                 <span className="text-muted-foreground">Bollo</span>
-                <span className="tabular-nums">€{fmt(state.bollo_importo ?? 2)}</span>
+                <span className="tabular-nums">{formatCurrency(state.bollo_importo ?? 2)}</span>
+              </div>
+            )}
+            {(state.cassa_importo ?? 0) > 0 && (
+              <div className="flex justify-between text-[8pt]">
+                <span className="text-muted-foreground">Cassa previdenziale</span>
+                <span className="tabular-nums">+{formatCurrency(state.cassa_importo ?? 0)}</span>
               </div>
             )}
             {(state.ritenuta_importo ?? 0) > 0 && (
               <div className="flex justify-between text-[8pt] text-destructive">
                 <span>Ritenuta d'acconto</span>
-                <span className="tabular-nums">-€{fmt(state.ritenuta_importo)}</span>
+                <span className="tabular-nums">-{formatCurrency(state.ritenuta_importo ?? 0)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold border-t pt-1 text-sm">
               <span>Totale</span>
-              <span className="tabular-nums">€{fmt(state.totale_da_pagare)}</span>
+              <span className="tabular-nums">{formatCurrency(state.totale_da_pagare ?? 0)}</span>
             </div>
           </div>
         </div>
 
         {/* Payment info */}
         {state.metodo_pagamento_codice && (
-          <div className="mt-6 border-t pt-3 text-[8pt] text-muted-foreground">
-            <div>Pagamento: {state.metodo_pagamento_codice} — {state.metodo_pagamento_nome ?? "Bonifico"}</div>
+          <div className="mt-6 border-t pt-3 text-[8pt] text-muted-foreground space-y-0.5">
+            <div className="font-semibold text-foreground text-[8pt]">Modalità di pagamento</div>
+            <div>{state.metodo_pagamento_codice} — {state.metodo_pagamento_nome ?? "Bonifico"}</div>
             {state.iban_pagamento && <div>IBAN: {state.iban_pagamento}</div>}
+            {state.bic_pagamento && <div>BIC: {state.bic_pagamento}</div>}
+            {state.nome_banca && <div>Banca: {state.nome_banca}</div>}
+            {scadenze.length > 0 && (
+              <div className="mt-2">
+                <div className="font-semibold text-foreground text-[8pt] mb-0.5">Scadenze</div>
+                {scadenze.map((sc, i) => (
+                  <div key={i}>
+                    Rata {sc.numero_rata}: {fmtDate(sc.data_scadenza)} — {formatCurrency(sc.importo)}
+                    {sc.pagato && " ✓"}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -170,7 +205,7 @@ export function EditorPreviewPanel({ state }: Props) {
         {state.note_documento && (
           <div className="mt-4 text-[8pt] text-muted-foreground border-t pt-2">
             <div className="font-semibold text-foreground mb-0.5">Note</div>
-            {state.note_documento}
+            <div className="whitespace-pre-wrap">{state.note_documento}</div>
           </div>
         )}
       </div>

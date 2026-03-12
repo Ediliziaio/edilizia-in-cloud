@@ -1,11 +1,12 @@
-import { useReducer, useEffect, useRef, useCallback, useState } from "react";
+import { useReducer, useEffect, useRef, useState } from "react";
 import type {
   DocumentoFiscale,
   RigaDocumento,
-  RiepilogoIVA,
   ClienteSnapshot,
+  ScadenzaPagamento,
 } from "@/types/fatturazione";
 import { useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
 
 // ─── State & Actions ─────────────────────────────────────────
 
@@ -17,93 +18,48 @@ type Action =
   | { type: "INIT"; payload: DocumentoFiscale }
   | { type: "SET_FIELD"; field: string; value: unknown }
   | { type: "SET_CLIENTE"; anagrafica_id: string; snapshot: ClienteSnapshot }
+  | { type: "CLEAR_CLIENTE" }
   | { type: "ADD_RIGA"; riga: RigaDocumento }
   | { type: "UPDATE_RIGA"; index: number; riga: Partial<RigaDocumento> }
   | { type: "REMOVE_RIGA"; index: number }
-  | { type: "SET_PAGAMENTO"; fields: Record<string, unknown> };
+  | { type: "DUPLICATE_RIGA"; index: number }
+  | { type: "REORDER_RIGHE"; righe: RigaDocumento[] }
+  | { type: "SET_PAGAMENTO"; fields: Record<string, unknown> }
+  | { type: "ADD_SCADENZA"; scadenza: ScadenzaPagamento }
+  | { type: "UPDATE_SCADENZA"; index: number; scadenza: Partial<ScadenzaPagamento> }
+  | { type: "REMOVE_SCADENZA"; index: number }
+  | { type: "SET_SCADENZE"; scadenze: ScadenzaPagamento[] };
 
-// ─── Calculation helpers ─────────────────────────────────────
-
-function calcRigaTotals(r: RigaDocumento): RigaDocumento {
-  const base = r.prezzo_unitario * r.quantita;
-  const scontoVal = r.sconto_percentuale ? base * (r.sconto_percentuale / 100) : (r.sconto_valore ?? 0);
-  const imponibile = Math.round((base - scontoVal) * 100) / 100;
-  const aliquota = parseFloat(r.aliquota_iva) || 0;
-  const imposta = r.natura_iva ? 0 : Math.round(imponibile * (aliquota / 100) * 100) / 100;
-  return {
-    ...r,
-    imponibile,
-    imposta,
-    totale_riga: Math.round((imponibile + imposta) * 100) / 100,
-  };
-}
+// ─── Recalculate ─────────────────────────────────────────────
 
 function recalculate(state: EditorState): EditorState {
-  const righe = (state.righe ?? []).map(calcRigaTotals);
+  const righe = (state.righe ?? []).map(calcolaRiga);
 
-  const subtotale = righe.reduce((s, r) => s + r.imponibile, 0);
-  const scontoGlobaleValore = state.sconto_globale_percentuale
-    ? Math.round(subtotale * (state.sconto_globale_percentuale / 100) * 100) / 100
-    : (state.sconto_globale_valore ?? 0);
-
-  const imponibile_totale = Math.round((subtotale - scontoGlobaleValore) * 100) / 100;
-
-  // Build riepilogo IVA
-  const ivaMap = new Map<string, RiepilogoIVA>();
-  for (const r of righe) {
-    const key = r.natura_iva || r.aliquota_iva;
-    const existing = ivaMap.get(key);
-    if (existing) {
-      existing.imponibile += r.imponibile;
-      existing.imposta += r.imposta;
-    } else {
-      ivaMap.set(key, {
-        aliquota: r.aliquota_iva,
-        natura: r.natura_iva,
-        imponibile: r.imponibile,
-        imposta: r.imposta,
-        esigibilita: "I" as const,
-      });
-    }
-  }
-  const riepilogo_iva = Array.from(ivaMap.values()).map((r) => ({
-    ...r,
-    imponibile: Math.round(r.imponibile * 100) / 100,
-    imposta: Math.round(r.imposta * 100) / 100,
-  }));
-
-  const iva_totale = riepilogo_iva.reduce((s, r) => s + r.imposta, 0);
-  const totale_documento = Math.round((imponibile_totale + iva_totale + (state.arrotondamento ?? 0)) * 100) / 100;
-
-  // Bollo
-  const bollo = state.bollo_virtuale ? (state.bollo_importo ?? 2) : 0;
-
-  // Ritenuta
-  const ritenuta_importo = state.ritenuta_acconto && state.ritenuta_aliquota
-    ? Math.round(imponibile_totale * (state.ritenuta_aliquota / 100) * 100) / 100
-    : 0;
-
-  // Cassa previdenziale
-  const cassa_importo = state.cassa_previdenziale && state.cassa_aliquota
-    ? Math.round((state.cassa_imponibile ?? imponibile_totale) * (state.cassa_aliquota / 100) * 100) / 100
-    : 0;
-
-  const totale_da_pagare = Math.round(
-    (totale_documento + bollo + cassa_importo - ritenuta_importo) * 100
-  ) / 100;
+  const totali = calcolaTotaliDocumento(righe, {
+    scontoGlobalePerc: state.sconto_globale_percentuale,
+    scontoGlobaleValore: state.sconto_globale_valore,
+    bolloVirtuale: state.bollo_virtuale,
+    bolloImporto: state.bollo_importo,
+    ritenutaAcconto: state.ritenuta_acconto,
+    ritenutaAliquota: state.ritenuta_aliquota,
+    cassaPrevidenziale: state.cassa_previdenziale,
+    cassaAliquota: state.cassa_aliquota,
+    cassaImponibile: state.cassa_imponibile,
+    arrotondamento: state.arrotondamento,
+  });
 
   return {
     ...state,
     righe,
-    subtotale,
-    sconto_globale_valore: scontoGlobaleValore,
-    imponibile_totale,
-    riepilogo_iva,
-    iva_totale,
-    totale_documento,
-    ritenuta_importo,
-    cassa_importo,
-    totale_da_pagare,
+    subtotale: totali.subtotale,
+    sconto_globale_valore: totali.scontoGlobaleValore,
+    imponibile_totale: totali.imponibile_totale,
+    riepilogo_iva: totali.riepilogo_iva,
+    iva_totale: totali.iva_totale,
+    totale_documento: totali.totale_documento,
+    ritenuta_importo: totali.ritenuta_importo,
+    cassa_importo: totali.cassa_importo,
+    totale_da_pagare: totali.totale_da_pagare,
   };
 }
 
@@ -124,6 +80,13 @@ function editorReducer(state: EditorState, action: Action): EditorState {
         cliente_snapshot: action.snapshot,
       });
 
+    case "CLEAR_CLIENTE":
+      return recalculate({
+        ...state,
+        anagrafica_id: undefined,
+        cliente_snapshot: undefined as unknown as ClienteSnapshot,
+      });
+
     case "ADD_RIGA": {
       const righe = [...(state.righe ?? []), action.riga];
       return recalculate({ ...state, righe });
@@ -140,8 +103,43 @@ function editorReducer(state: EditorState, action: Action): EditorState {
       return recalculate({ ...state, righe });
     }
 
+    case "DUPLICATE_RIGA": {
+      const righe = [...(state.righe ?? [])];
+      const original = righe[action.index];
+      if (original) {
+        const dup = { ...original, id: crypto.randomUUID(), numero_linea: righe.length + 1 };
+        righe.splice(action.index + 1, 0, dup);
+      }
+      return recalculate({ ...state, righe });
+    }
+
+    case "REORDER_RIGHE":
+      return recalculate({
+        ...state,
+        righe: action.righe.map((r, i) => ({ ...r, numero_linea: i + 1 })),
+      });
+
     case "SET_PAGAMENTO":
       return { ...state, ...action.fields };
+
+    case "ADD_SCADENZA": {
+      const scadenze = [...(state.scadenze_pagamento ?? []), action.scadenza];
+      return { ...state, scadenze_pagamento: scadenze };
+    }
+
+    case "UPDATE_SCADENZA": {
+      const scadenze = [...(state.scadenze_pagamento ?? [])];
+      scadenze[action.index] = { ...scadenze[action.index], ...action.scadenza };
+      return { ...state, scadenze_pagamento: scadenze };
+    }
+
+    case "REMOVE_SCADENZA": {
+      const scadenze = (state.scadenze_pagamento ?? []).filter((_, i) => i !== action.index);
+      return { ...state, scadenze_pagamento: scadenze };
+    }
+
+    case "SET_SCADENZE":
+      return { ...state, scadenze_pagamento: action.scadenze };
 
     default:
       return state;
@@ -180,6 +178,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       data_scadenza: state.data_scadenza,
       metodo_pagamento_codice: state.metodo_pagamento_codice,
       iban_pagamento: state.iban_pagamento,
+      bic_pagamento: state.bic_pagamento,
+      nome_banca: state.nome_banca,
+      intestatario_conto: state.intestatario_conto,
       sconto_globale_percentuale: state.sconto_globale_percentuale,
       bollo_virtuale: state.bollo_virtuale,
       ritenuta_acconto: state.ritenuta_acconto,
@@ -189,6 +190,11 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       cassa_previdenziale: state.cassa_previdenziale,
       cassa_tipo: state.cassa_tipo,
       cassa_aliquota: state.cassa_aliquota,
+      scadenze_pagamento: state.scadenze_pagamento,
+      serie: state.serie,
+      causale: state.causale,
+      cig: state.cig,
+      cup: state.cup,
     });
 
     if (serialized === prevStateRef.current) return;
@@ -216,6 +222,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           data_scadenza: state.data_scadenza,
           metodo_pagamento_codice: state.metodo_pagamento_codice,
           iban_pagamento: state.iban_pagamento,
+          bic_pagamento: state.bic_pagamento,
+          nome_banca: state.nome_banca,
+          intestatario_conto: state.intestatario_conto,
           sconto_globale_percentuale: state.sconto_globale_percentuale,
           bollo_virtuale: state.bollo_virtuale,
           bollo_importo: state.bollo_importo,
@@ -227,6 +236,10 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           cassa_tipo: state.cassa_tipo,
           cassa_aliquota: state.cassa_aliquota,
           scadenze_pagamento: state.scadenze_pagamento,
+          serie: state.serie,
+          causale: state.causale,
+          cig: state.cig,
+          cup: state.cup,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
@@ -237,10 +250,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     };
   }, [state, updateMutation]);
 
-  const isDirty = prevStateRef.current !== "" && !updateMutation.isPending;
   const isSaving = updateMutation.isPending;
 
-  return { state, dispatch, isDirty, isSaving, lastSaved };
+  return { state, dispatch, isSaving, lastSaved };
 }
 
 export function createEmptyRiga(numero_linea: number): RigaDocumento {
