@@ -184,11 +184,24 @@ function PasswordCard() {
 
     setIsLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email ?? "",
+      // Verify current password by attempting to sign in with a separate call,
+      // but immediately update password. updateUser requires a valid session (already present).
+      // We verify the old password by attempting a non-persistent check.
+      const { error: verifyError } = await supabase.rpc("verify_user_password" as any, {
         password: currentPwd,
-      });
-      if (signInError) {
+      }).catch(() => ({ error: { message: "verification_not_available" } }));
+
+      // If the RPC doesn't exist, fall back to signInWithPassword
+      if (verifyError?.message === "verification_not_available") {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: user?.email ?? "",
+          password: currentPwd,
+        });
+        if (signInError) {
+          setError("Password attuale non corretta");
+          return;
+        }
+      } else if (verifyError) {
         setError("Password attuale non corretta");
         return;
       }
