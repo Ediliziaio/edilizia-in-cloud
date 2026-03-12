@@ -13,6 +13,40 @@ import { Search, RefreshCw, Users, Building2, MapPin, UserPlus, List, Network } 
 import type { HrProfilo, OrgTreeNode } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
 import { OrgTreeView } from "@/components/hr/OrgTreeView";
+import type { OrgTreeNode as OrgTreeNodeType } from "@/types/hr";
+
+function filterTree(
+  nodes: OrgTreeNodeType[],
+  search: string,
+  reparto: string
+): OrgTreeNodeType[] {
+  if (!search && reparto === "__all__") return nodes;
+
+  const searchLower = search.toLowerCase();
+
+  function nodeMatches(node: OrgTreeNodeType): boolean {
+    const matchSearch =
+      !search ||
+      `${node.nome} ${node.cognome} ${node.mansione || ""} ${node.email || ""}`
+        .toLowerCase()
+        .includes(searchLower);
+    const matchReparto = reparto === "__all__" || node.reparto === reparto;
+    return matchSearch && matchReparto;
+  }
+
+  function filterRecursive(nodes: OrgTreeNodeType[]): OrgTreeNodeType[] {
+    const result: OrgTreeNodeType[] = [];
+    for (const node of nodes) {
+      const filteredChildren = filterRecursive(node.children);
+      if (nodeMatches(node) || filteredChildren.length > 0) {
+        result.push({ ...node, children: filteredChildren });
+      }
+    }
+    return result;
+  }
+
+  return filterRecursive(nodes);
+}
 
 const REPARTO_COLORS: Record<string, string> = {
   Direzione: "bg-slate-700 text-white",
@@ -204,7 +238,7 @@ export function TabOrganigramma() {
       {/* Tree View */}
       {viewMode === "tree" && data?.tree && (
         <OrgTreeView
-          tree={data.tree}
+          tree={filterTree(data.tree, search, filterReparto)}
           onNodeClick={(node) => handleEdit(node as HrProfilo)}
         />
       )}
