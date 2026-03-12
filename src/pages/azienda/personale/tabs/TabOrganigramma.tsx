@@ -9,9 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, RefreshCw, Users, Building2, MapPin, UserPlus } from "lucide-react";
-import type { HrProfilo } from "@/types/hr";
+import { Search, RefreshCw, Users, Building2, MapPin, UserPlus, List, Network } from "lucide-react";
+import type { HrProfilo, OrgTreeNode } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
+import { OrgTreeView } from "@/components/hr/OrgTreeView";
 
 const REPARTO_COLORS: Record<string, string> = {
   Direzione: "bg-slate-700 text-white",
@@ -33,6 +34,7 @@ export function TabOrganigramma() {
   const [filterReparto, setFilterReparto] = useState<string>("__all__");
   const [editingProfilo, setEditingProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   const profili = data?.profili || [];
   const reparti = data?.reparti || [];
@@ -168,6 +170,26 @@ export function TabOrganigramma() {
           </Select>
         </div>
         <div className="flex gap-2">
+          <div className="flex border rounded-md overflow-hidden">
+            <Button
+              variant={viewMode === "tree" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode("tree")}
+            >
+              <Network className="h-4 w-4 mr-1" />
+              Albero
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4 mr-1" />
+              Lista
+            </Button>
+          </div>
           <Button variant="outline" size="sm" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
             <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
             Sincronizza
@@ -179,80 +201,90 @@ export function TabOrganigramma() {
         </div>
       </div>
 
+      {/* Tree View */}
+      {viewMode === "tree" && data?.tree && (
+        <OrgTreeView
+          tree={data.tree}
+          onNodeClick={(node) => handleEdit(node as HrProfilo)}
+        />
+      )}
+
       {/* List View Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Mansione</TableHead>
-                <TableHead>Reparto</TableHead>
-                <TableHead>Responsabile</TableHead>
-                <TableHead>Contratto</TableHead>
-                <TableHead>Assunzione</TableHead>
-                <TableHead>Stato</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
+      {viewMode === "list" && (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nessun risultato trovato
-                  </TableCell>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Mansione</TableHead>
+                  <TableHead>Reparto</TableHead>
+                  <TableHead>Responsabile</TableHead>
+                  <TableHead>Contratto</TableHead>
+                  <TableHead>Assunzione</TableHead>
+                  <TableHead>Stato</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((p) => {
-                  const responsabile = profili.find((r) => r.id === p.responsabile_id);
-                  return (
-                    <TableRow
-                      key={p.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleEdit(p)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: p.colore_avatar || "#0EA5E9" }}
-                          >
-                            {p.nome?.[0]}{p.cognome?.[0]}
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Nessun risultato trovato
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((p) => {
+                    const responsabile = profili.find((r) => r.id === p.responsabile_id);
+                    return (
+                      <TableRow
+                        key={p.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleEdit(p)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: p.colore_avatar || "#0EA5E9" }}
+                            >
+                              {p.nome?.[0]}{p.cognome?.[0]}
+                            </div>
+                            {p.nome} {p.cognome}
                           </div>
-                          {p.nome} {p.cognome}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{p.mansione || "—"}</TableCell>
-                      <TableCell>
-                        {p.reparto ? (
-                          <Badge className={getRepartoBadgeClass(p.reparto)} variant="secondary">
-                            {p.reparto}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{p.mansione || "—"}</TableCell>
+                        <TableCell>
+                          {p.reparto ? (
+                            <Badge className={getRepartoBadgeClass(p.reparto)} variant="secondary">
+                              {p.reparto}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {responsabile ? `${responsabile.nome} ${responsabile.cognome}` : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm capitalize">{p.tipo_contratto?.replace("_", " ") || "—"}</TableCell>
+                        <TableCell className="text-sm">
+                          {p.data_assunzione
+                            ? new Date(p.data_assunzione).toLocaleDateString("it-IT")
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={p.attivo ? "default" : "secondary"}>
+                            {p.attivo ? "Attivo" : "Inattivo"}
                           </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {responsabile ? `${responsabile.nome} ${responsabile.cognome}` : "—"}
-                      </TableCell>
-                      <TableCell className="text-sm capitalize">{p.tipo_contratto?.replace("_", " ") || "—"}</TableCell>
-                      <TableCell className="text-sm">
-                        {p.data_assunzione
-                          ? new Date(p.data_assunzione).toLocaleDateString("it-IT")
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={p.attivo ? "default" : "secondary"}>
-                          {p.attivo ? "Attivo" : "Inattivo"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <HrProfiloSheet
         open={sheetOpen}
