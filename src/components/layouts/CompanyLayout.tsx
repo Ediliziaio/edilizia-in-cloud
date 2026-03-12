@@ -216,7 +216,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   // Expanded mode: collapsible section
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <SidebarGroup className="py-0">
+      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent/50")}>
         <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
           <span className="flex items-center gap-2">
             <AreaIcon className="h-3.5 w-3.5" />
@@ -224,7 +224,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
           </span>
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleItems.map((item) => {
