@@ -45,12 +45,7 @@ export default function PersonalePage() {
           <TabOrganigramma />
         </TabsContent>
         <TabsContent value="profili">
-          <ComingSoonPlaceholder
-            icon={Users}
-            title="Profili Dipendenti"
-            description="Anagrafica completa del personale"
-            comingSoonText="La gestione profili sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabProfili />
         </TabsContent>
         <TabsContent value="timbrature">
           <TabTimbrature />
