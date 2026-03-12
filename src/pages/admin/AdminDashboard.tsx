@@ -22,6 +22,7 @@ import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueF
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
 import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
+import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
 import {
   useDashboardLayout,
   SortableWidget,
