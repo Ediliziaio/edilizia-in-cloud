@@ -63,6 +63,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
