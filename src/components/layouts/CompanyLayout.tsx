@@ -150,7 +150,15 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
-    return pathname === url || pathname.startsWith(url + "/");
+    if (pathname === url) return true;
+    if (pathname.startsWith(url + "/")) {
+      const hasMoreSpecific = visibleItems.some(
+        other => other.url !== url && other.url.startsWith(url + "/") &&
+          (pathname === other.url || pathname.startsWith(other.url + "/"))
+      );
+      return !hasMoreSpecific;
+    }
+    return false;
   };
 
   const hasActiveChild = visibleItems.some(item => isActive(item.url));
@@ -216,13 +224,13 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   // Expanded mode: collapsible section
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent/50")}>
+      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent")}>
         <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
           <span className="flex items-center gap-2">
             <AreaIcon className="h-3.5 w-3.5" />
             {area.title}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
           <SidebarGroupContent>
@@ -673,7 +681,7 @@ function CompanySidebar() {
                           to={item.url}
                           end={item.url === "/azienda"}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                          activeClassName="bg-primary/10 text-primary font-medium"
                         >
                           <item.icon className="h-4 w-4" />
                           <span className="font-medium">{item.title}</span>
