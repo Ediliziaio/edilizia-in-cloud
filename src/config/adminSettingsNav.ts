@@ -63,6 +63,22 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         url: "/admin/impostazioni/piattaforma",
       },
       {
+        id: "integrazioni",
+        label: "Integrazioni",
+        description: "API esterne, webhook e connettori",
+        icon: Plug,
+        url: "/admin/impostazioni/integrazioni",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "banking",
+        label: "Banking",
+        description: "Conti bancari e impostazioni pagamenti",
+        icon: Landmark,
+        url: "/admin/impostazioni/banking",
+        permission: "can_manage_admins",
+      },
+      {
         id: "agenti-ai",
         label: "Agenti AI",
         description: "Configurazione modelli e agenti intelligenti",
