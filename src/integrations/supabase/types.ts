@@ -180,6 +180,36 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_sessions: {
+        Row: {
+          created_at: string
+          device_hint: string | null
+          id: string
+          ip_address: string | null
+          last_seen_at: string
+          session_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_hint?: string | null
+          id?: string
+          ip_address?: string | null
+          last_seen_at?: string
+          session_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_hint?: string | null
+          id?: string
+          ip_address?: string | null
+          last_seen_at?: string
+          session_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_agent_audit_log: {
         Row: {
           action: string
@@ -9946,6 +9976,7 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          avatar_url: string | null
           company_id: string | null
           created_at: string
           email: string
@@ -9967,6 +9998,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          avatar_url?: string | null
           company_id?: string | null
           created_at?: string
           email: string
@@ -9988,6 +10020,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          avatar_url?: string | null
           company_id?: string | null
           created_at?: string
           email?: string
