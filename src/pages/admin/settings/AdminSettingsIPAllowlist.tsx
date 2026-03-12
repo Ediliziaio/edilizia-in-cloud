@@ -162,6 +162,10 @@ export default function AdminSettingsIPAllowlist() {
               {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
               Aggiungi
             </Button>
+            <Button type="button" variant="outline" onClick={detectMyIp} disabled={detectingIp}>
+              {detectingIp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4 mr-1" />}
+              Il mio IP
+            </Button>
           </form>
 
           {isLoading ? (
