@@ -49,12 +49,7 @@ export default function PersonalePage() {
           />
         </TabsContent>
         <TabsContent value="timbrature">
-          <ComingSoonPlaceholder
-            icon={Clock}
-            title="Timbrature"
-            description="Registrazione entrate, uscite e pause"
-            comingSoonText="Il sistema timbrature sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabTimbrature />
         </TabsContent>
         <TabsContent value="presenze">
           <ComingSoonPlaceholder
