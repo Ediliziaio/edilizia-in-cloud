@@ -28,6 +28,7 @@ const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Home = lazy(() => import("@/pages/Home"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
+const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
