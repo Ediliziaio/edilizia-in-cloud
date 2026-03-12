@@ -120,6 +120,14 @@ export default {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        "sidebar-slide-down": {
+          from: { opacity: "0", height: "0", transform: "translateY(-4px)" },
+          to: { opacity: "1", height: "var(--radix-collapsible-content-height)", transform: "translateY(0)" },
+        },
+        "sidebar-slide-up": {
+          from: { opacity: "1", height: "var(--radix-collapsible-content-height)", transform: "translateY(0)" },
+          to: { opacity: "0", height: "0", transform: "translateY(-4px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
