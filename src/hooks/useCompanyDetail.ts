@@ -328,7 +328,7 @@ export function useCompanyDetail(id: string | undefined) {
         body: { company_id: id, new_plan_id: planId },
       });
       if (error) {
-        const msg = await error?.context?.json?.().catch(() => null);
+        const msg = await error?.context?.json?.().catch((): null => null);
         throw new Error(msg?.error || "Errore cambio piano");
       }
       return data;
