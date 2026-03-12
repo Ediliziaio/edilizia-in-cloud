@@ -593,7 +593,7 @@ function CompanySidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* 5 collapsible macro-areas */}
+            {/* 5 collapsible macro-areas — exclusive accordion */}
             {macroAreas
               .filter(a => a.id !== "area_cruscotto")
               .map(area => {
@@ -605,6 +605,12 @@ function CompanySidebar() {
                     area={area}
                     visibleItems={visibleItems}
                     pathname={location.pathname}
+                    open={openAreaId === area.id}
+                    onOpenChange={(isOpen) => {
+                      const newId = isOpen ? area.id : null;
+                      setOpenAreaId(newId);
+                      try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch {}
+                    }}
                   />
                 );
               })}
