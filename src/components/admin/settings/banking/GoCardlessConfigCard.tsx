@@ -101,7 +101,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isConfigured ? (
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
+              <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Configurato
               </Badge>
             ) : (
