@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       .eq("id", quote_id);
 
     // Build signature link
-    const appUrl = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://edilizia-in-cloud.lovable.app";
+    const appUrl = await getPlatformSetting("site_url", "SITE_URL") || "https://edilizia-in-cloud.lovable.app";
     const signatureLink = `${appUrl}/offerta/${signatureToken}`;
 
     // Load company info
