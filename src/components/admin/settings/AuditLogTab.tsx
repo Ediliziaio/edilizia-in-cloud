@@ -102,6 +102,9 @@ export default function AuditLogTab() {
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
       }
+      if (adminFilter !== "all") {
+        query = query.eq("user_id", adminFilter);
+      }
       if (dateRange.from) {
         query = query.gte("created_at", dateRange.from.toISOString());
       }
