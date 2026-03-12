@@ -69,6 +69,7 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { internalNavItems, marketingNavItems, cruscottoNavItem, internalSubcategories, marketingSubcategories, type NavItem } from "@/lib/sidebarConfig";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -139,6 +140,7 @@ function CompanySidebar() {
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
+  const { mode: billingMode } = useBillingMode();
   const navigate = useNavigate();
   const location = useLocation();
   const { toggle, isOpen } = useSidebarSections();
@@ -197,7 +199,10 @@ function CompanySidebar() {
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
-      if (item.featureKey && !isFeatureEnabled(item.featureKey)) {
+      // Handle billing mode-specific feature keys
+      if (item.featureKey === "billing_external" && billingMode !== "external") return false;
+      if (item.featureKey === "billing_native" && billingMode !== "native") return false;
+      if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) {
         return false;
       }
       return true;
@@ -205,8 +210,8 @@ function CompanySidebar() {
   };
 
   const companyId = effectiveCompany?.id;
-  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
-  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
+  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, isFeatureEnabled, billingMode, companyId]);
+  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, isFeatureEnabled, billingMode, companyId]);
   const showCruscotto = permissions.canViewCruscotto;
 
   return (

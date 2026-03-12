@@ -1,27 +1,24 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
+import { useDocumentoFiscale, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, FileText, FileWarning, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Clock, Send, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import type { DocumentoFiscale as Doc, AnagraficaAzienda } from "@/types/fatturazione";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
@@ -40,13 +37,8 @@ const STATO_LABELS: Record<string, { label: string; variant: "default" | "second
 };
 
 const TIPO_LABELS: Record<string, string> = {
-  fattura: "Fattura",
-  fattura_pa: "Fattura PA",
-  nota_credito: "Nota di Credito",
-  nota_debito: "Nota di Debito",
-  ddt: "DDT",
-  proforma: "Proforma",
-  preventivo: "Preventivo",
+  fattura: "Fattura", fattura_pa: "Fattura PA", nota_credito: "Nota di Credito",
+  nota_debito: "Nota di Debito", ddt: "DDT", proforma: "Proforma", preventivo: "Preventivo",
 };
 
 export default function DocumentoDetail() {
@@ -54,42 +46,34 @@ export default function DocumentoDetail() {
   const navigate = useNavigate();
   const { data: doc, isLoading } = useDocumentoFiscale(id);
   const { data: azienda } = useAnagraficaAzienda();
+  const updateMutation = useUpdateDocumento();
   const [ncLoading, setNcLoading] = useState(false);
+  const [convertLoading, setConvertLoading] = useState(false);
 
   if (isLoading || !doc) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato);
+  const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa"].includes(doc.tipo);
   const stato = STATO_LABELS[doc.stato] ?? { label: doc.stato, variant: "secondary" as const };
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
+  const residuo = doc.totale_da_pagare - doc.importo_pagato;
+  const paymentProgress = doc.totale_da_pagare > 0 ? (doc.importo_pagato / doc.totale_da_pagare) * 100 : 0;
+  const isProforma = doc.tipo === "proforma";
+  const isPreventivo = doc.tipo === "preventivo";
 
   const handleCreaNC = async (modalita: "totale" | "parziale") => {
     try {
       setNcLoading(true);
       const prefilled = await creaNotaCredito(doc.id, modalita);
-      // Navigate to create a new document with prefilled data
-      navigate("/azienda/documenti/nuovo?tipo=nota_credito", {
-        state: { prefilled },
-      });
-    } catch (err: any) {
-      toast.error("Errore nella creazione della NC", { description: err.message });
-    } finally {
-      setNcLoading(false);
-    }
+      navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
+    } catch (err: any) { toast.error("Errore nella creazione della NC", { description: err.message }); }
+    finally { setNcLoading(false); }
   };
 
   const handleDownloadPDF = async () => {
-    try {
-      await downloadNativePDF(doc.id, doc.numero);
-      toast.success("PDF scaricato");
-    } catch (err: any) {
-      toast.error("Errore nel download PDF", { description: err.message });
-    }
+    try { await downloadNativePDF(doc.id, doc.numero); toast.success("PDF scaricato"); }
+    catch (err: any) { toast.error("Errore nel download PDF", { description: err.message }); }
   };
 
   const handleDownloadXML = () => {
@@ -97,21 +81,40 @@ export default function DocumentoDetail() {
       const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
       const blob = new Blob([xml], { type: "application/xml" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${doc.numero}.xml`;
-      a.click();
+      const a = document.createElement("a"); a.href = url; a.download = `${doc.numero}.xml`; a.click();
       URL.revokeObjectURL(url);
       toast.success("XML scaricato");
-    } catch (err: any) {
-      toast.error("Errore nella generazione XML", { description: err.message });
-    }
+    } catch (err: any) { toast.error("Errore nella generazione XML", { description: err.message }); }
   };
 
-  const residuo = doc.totale_da_pagare - doc.importo_pagato;
+  const handleConvertToFattura = async () => {
+    try {
+      setConvertLoading(true);
+      const newDoc = await convertiProformaInFattura(doc.id);
+      toast.success("Convertito in fattura");
+      navigate(`/azienda/documenti/${newDoc.id}`);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setConvertLoading(false); }
+  };
+
+  const handleSegnaPagata = () => {
+    updateMutation.mutate({ id: doc.id, stato: "pagata", importo_pagato: doc.totale_da_pagare, pagato_at: new Date().toISOString() });
+  };
+
+  const handleStatoPreventivo = (nuovoStato: "accettata" | "annullata") => {
+    updateMutation.mutate({ id: doc.id, stato: nuovoStato === "accettata" ? "accettata" : "annullata" });
+  };
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      {/* Proforma banner */}
+      {isProforma && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <span className="font-medium text-destructive">DOCUMENTO NON FISCALE — Proforma</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -129,13 +132,37 @@ export default function DocumentoDetail() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
             <Download className="h-4 w-4 mr-1" /> PDF
           </Button>
-          {doc.tipo !== "ddt" && doc.tipo !== "proforma" && doc.tipo !== "preventivo" && (
+          {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
             <Button variant="outline" size="sm" onClick={handleDownloadXML}>
               <FileText className="h-4 w-4 mr-1" /> XML
+            </Button>
+          )}
+
+          {(isProforma || isPreventivo) && doc.stato !== "annullata" && (
+            <Button size="sm" onClick={handleConvertToFattura} disabled={convertLoading}>
+              {convertLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+              Converti in Fattura
+            </Button>
+          )}
+
+          {isPreventivo && doc.stato === "emessa" && (
+            <>
+              <Button size="sm" variant="default" onClick={() => handleStatoPreventivo("accettata")}>
+                <CheckCircle className="h-4 w-4 mr-1" /> Accettato
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")}>
+                Rifiutato
+              </Button>
+            </>
+          )}
+
+          {["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato) && !isProforma && !isPreventivo && (
+            <Button variant="outline" size="sm" onClick={handleSegnaPagata}>
+              <CreditCard className="h-4 w-4 mr-1" /> Segna pagata
             </Button>
           )}
 
@@ -144,45 +171,23 @@ export default function DocumentoDetail() {
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" disabled={ncLoading}>
                   <FileWarning className="h-4 w-4 mr-1" />
-                  {ncLoading ? "Creazione..." : "Emetti Nota di Credito"}
+                  {ncLoading ? "Creazione..." : "Emetti NC"}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Crea Nota di Credito</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Scegli la modalità di storno per la fattura N° {doc.numero}
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>Scegli la modalità di storno per la fattura N° {doc.numero}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-3 py-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3"
-                    onClick={() => handleCreaNC("totale")}
-                  >
-                    <div className="text-left">
-                      <div className="font-medium">Storno totale automatico</div>
-                      <div className="text-xs text-muted-foreground">
-                        Tutte le righe vengono copiate con quantità negate
-                      </div>
-                    </div>
+                  <Button variant="outline" className="w-full justify-start h-auto py-3" onClick={() => handleCreaNC("totale")}>
+                    <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe con quantità negate</div></div>
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3"
-                    onClick={() => handleCreaNC("parziale")}
-                  >
-                    <div className="text-left">
-                      <div className="font-medium">Storno parziale</div>
-                      <div className="text-xs text-muted-foreground">
-                        Apri l'editor per inserire le righe manualmente
-                      </div>
-                    </div>
+                  <Button variant="outline" className="w-full justify-start h-auto py-3" onClick={() => handleCreaNC("parziale")}>
+                    <div className="text-left"><div className="font-medium">Storno parziale</div><div className="text-xs text-muted-foreground">Apri l'editor per inserire le righe</div></div>
                   </Button>
                 </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                </AlertDialogFooter>
+                <AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel></AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )}
@@ -195,41 +200,78 @@ export default function DocumentoDetail() {
         </div>
       </div>
 
-      {/* Payment status */}
-      {doc.tipo !== "ddt" && doc.tipo !== "preventivo" && (
-        <div className="grid grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground">Totale documento</p>
-              <p className="text-lg font-semibold">€ {doc.totale_documento.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground">Netto a pagare</p>
-              <p className="text-lg font-semibold">€ {doc.totale_da_pagare.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground">Incassato</p>
-              <p className="text-lg font-semibold text-emerald-600">€ {doc.importo_pagato.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground">Residuo</p>
-              <p className={`text-lg font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>
-                € {residuo.toFixed(2)}
-              </p>
-            </CardContent>
-          </Card>
+      {/* 60/40 Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Left: Preview (60%) */}
+        <div className="lg:col-span-3 bg-muted/30 rounded-lg p-6 flex justify-center">
+          <PreviewFattura documento={doc} azienda={azienda ?? null} scale={0.75} />
         </div>
-      )}
 
-      {/* Preview */}
-      <div className="bg-muted/30 rounded-lg p-6 flex justify-center">
-        <PreviewFattura documento={doc} azienda={azienda ?? null} scale={0.75} />
+        {/* Right: Info cards (40%) */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Info Card */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">Informazioni</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span>{tipoLabel}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Numero</span><span className="font-mono">{doc.numero}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Data emissione</span><span>{doc.data_emissione}</span></div>
+              {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">Data scadenza</span><span>{doc.data_scadenza}</span></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">Cliente</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
+              {doc.cliente_snapshot?.partita_iva && <div className="flex justify-between"><span className="text-muted-foreground">P.IVA</span><span className="font-mono">{doc.cliente_snapshot.partita_iva}</span></div>}
+            </CardContent>
+          </Card>
+
+          {/* Payment Card */}
+          {!["ddt", "preventivo"].includes(doc.tipo) && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Pagamenti</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Totale</p><p className="font-semibold">€ {doc.totale_documento.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Da pagare</p><p className="font-semibold">€ {doc.totale_da_pagare.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">€ {doc.importo_pagato.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>€ {residuo.toFixed(2)}</p></div>
+                </div>
+                <Progress value={paymentProgress} className="h-2" />
+                <p className="text-xs text-muted-foreground text-center">{Math.round(paymentProgress)}% incassato</p>
+                {residuo > 0 && (
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link to="/azienda/documenti/incassi">
+                      <CreditCard className="h-4 w-4 mr-1" /> Registra incasso
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SDI Status Card */}
+          {doc.sdi_id_trasmissione && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Stato SDI</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">ID Trasmissione</span><span className="font-mono text-xs">{doc.sdi_id_trasmissione}</span></div>
+                {doc.sdi_stato && <div className="flex justify-between"><span className="text-muted-foreground">Stato</span><Badge variant="outline">{doc.sdi_stato}</Badge></div>}
+                {doc.sdi_data_consegna && <div className="flex justify-between"><span className="text-muted-foreground">Data consegna</span><span>{doc.sdi_data_consegna}</span></div>}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Linked Documents */}
+          {doc.documento_correlato_id && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Documenti collegati</CardTitle></CardHeader>
+              <CardContent>
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <Link to={`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`}>
+                    <ExternalLink className="h-4 w-4 mr-1" /> Visualizza documento originale
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

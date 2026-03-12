@@ -70,6 +70,9 @@ const DDTList = lazy(() => import("@/pages/azienda/fatturazione/DDTList"));
 const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/RegistroIncassi"));
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
+const PipelinePreventivi = lazy(() => import("@/pages/azienda/fatturazione/PipelinePreventivi"));
+const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
+const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -173,6 +176,8 @@ export function companyRoutes() {
         <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche/:id" element={<BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard>} />
+        <Route path="documenti/preventivi/pipeline" element={<BillingModeGuard requiredMode="native"><PipelinePreventivi /></BillingModeGuard>} />
+        <Route path="documenti/report" element={<BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard>} />
         <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
         <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         
@@ -235,6 +240,7 @@ export function companyRoutes() {
           <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
           <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
           <Route path="fatturazione" element={<SettingsBilling />} />
+          <Route path="fatturazione-nativa" element={<ImpostazioniFatturazione />} />
           <Route path="abbonamento" element={<SettingsSubscriptionBilling />} />
           <Route path="form-builder" element={<SettingsFormBuilder />} />
           <Route path="numeri-telefono" element={<SettingsPhoneNumbers />} />
