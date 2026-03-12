@@ -64,6 +64,7 @@ const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
+const CassettoSDI = lazy(() => import("@/pages/azienda/fatturazione/CassettoSDI"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
