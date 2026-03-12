@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { useBranding } from "@/hooks/useBranding";
+import { useSaveSubdomain, useRequestDomainVerification, useVerifyCustomDomain } from "@/hooks/useBrandingByDomain";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Upload, Palette, Lock, HeadphonesIcon, Eye } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Upload, Palette, Lock, HeadphonesIcon, Eye, Globe, Copy, CheckCircle2, RefreshCw } from "lucide-react";
 
 const COLOR_PRESETS = [
   { name: "Blu Professionale", primary: "#1E40AF", secondary: "#3B82F6", accent: "#DBEAFE", text: "#FFFFFF" },
