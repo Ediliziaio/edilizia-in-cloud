@@ -14414,6 +14414,7 @@ export type Database = {
               unique_visitors: number
             }[]
           }
+      get_auth_email: { Args: never; Returns: string }
       get_blocked_orders: {
         Args: { p_company_id: string }
         Returns: {
