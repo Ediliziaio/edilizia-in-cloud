@@ -1,173 +1,265 @@
-import { useState, useEffect, useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Camera, User, Save, Loader2, Trash2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Shield, User, Mail, Loader2, Save, Key, Eye, EyeOff } from "lucide-react";
-import { toast } from "sonner";
-
-function getPasswordStrength(password: string) {
-  if (!password) return { label: "", value: 0, color: "" };
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-  if (score <= 2) return { label: "Debole", value: 33, color: "bg-destructive" };
-  if (score <= 3) return { label: "Media", value: 66, color: "bg-yellow-500" };
-  return { label: "Forte", value: 100, color: "bg-green-500" };
-}
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProfileTab() {
-  const { user, profile, refreshAuth } = useAuth();
-  const [formData, setFormData] = useState({ firstName: "", lastName: "" });
-  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
-  const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
+  const { user, refreshAuth } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["admin-profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, avatar_url")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   useEffect(() => {
-    if (profile) setFormData({ firstName: profile.first_name || "", lastName: profile.last_name || "" });
+    if (profile) {
+      setFirstName(profile.first_name ?? "");
+      setLastName(profile.last_name ?? "");
+    }
   }, [profile]);
 
-  const profileMutation = useMutation({
+  // ── Avatar ──
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine valido");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("L'immagine deve essere inferiore a 2 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setIsUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `admin/${user.id}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(path);
+
+      const urlWithCache = `${publicUrl}?t=${Date.now()}`;
+
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: urlWithCache })
+        .eq("id", user.id);
+
+      queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+      refreshAuth();
+      toast.success("Avatar aggiornato");
+    } catch (err: any) {
+      toast.error("Errore upload avatar", { description: err.message });
+      setAvatarPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    if (!user?.id) return;
+    try {
+      await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+      setAvatarPreview(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+      refreshAuth();
+      toast.success("Avatar rimosso");
+    } catch (err: any) {
+      toast.error("Errore rimozione avatar");
+    }
+  };
+
+  // ── Save profile ──
+  const updateProfile = useMutation({
     mutationFn: async () => {
-      const errors: Record<string, string> = {};
-      if (!formData.firstName.trim()) errors.firstName = "Il nome è obbligatorio";
-      if (!formData.lastName.trim()) errors.lastName = "Il cognome è obbligatorio";
-      setProfileErrors(errors);
-      if (Object.keys(errors).length > 0) throw new Error("validation");
-      const { error } = await supabase.from("profiles").update({ first_name: formData.firstName.trim(), last_name: formData.lastName.trim() }).eq("id", profile!.id);
+      if (!firstName.trim() || !lastName.trim()) throw new Error("Nome e cognome sono obbligatori");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: firstName.trim(), last_name: lastName.trim() })
+        .eq("id", user!.id);
       if (error) throw error;
     },
-    onSuccess: () => { refreshAuth(); toast.success("Profilo aggiornato con successo"); },
-    onError: (e: Error) => { if (e.message === "validation") return; toast.error(e.message || "Impossibile aggiornare il profilo"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+      refreshAuth();
+      toast.success("Profilo aggiornato");
+    },
+    onError: (err: any) => toast.error(err.message || "Errore aggiornamento"),
   });
 
-  const passwordMutation = useMutation({
-    mutationFn: async () => {
-      const errors: Record<string, string> = {};
-      if (!currentPassword.trim()) errors.current = "Inserisci la password attuale";
-      if (!newPassword.trim()) errors.new = "Inserisci la nuova password";
-      else if (newPassword.length < 8) errors.new = "Minimo 8 caratteri";
-      if (!confirmPassword.trim()) errors.confirm = "Conferma la nuova password";
-      else if (newPassword !== confirmPassword) errors.confirm = "Le password non corrispondono";
-      setPasswordErrors(errors);
-      if (Object.keys(errors).length > 0) throw new Error("validation");
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user!.email!, password: currentPassword });
-      if (signInError) throw new Error("Password attuale non corretta");
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-    },
-    onSuccess: () => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setPasswordErrors({}); toast.success("Password cambiata con successo"); },
-    onError: (e: Error) => { if (e.message === "validation") return; toast.error(e.message || "Errore durante il cambio password"); },
-  });
+  const avatarUrl = avatarPreview ?? profile?.avatar_url ?? null;
+  const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Profilo</h1>
+        <p className="text-muted-foreground">
+          Gestisci le tue informazioni personali visibili nella piattaforma.
+        </p>
+      </div>
+
+      {/* Avatar card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Informazioni Profilo</CardTitle>
-          <CardDescription>Aggiorna i tuoi dati personali</CardDescription>
+          <CardTitle className="text-base">Foto profilo</CardTitle>
+          <CardDescription>
+            Formati supportati: JPG, PNG, GIF. Dimensione massima: 2 MB.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <Shield className="h-8 w-8 text-primary" />
-            <div>
-              <p className="font-medium">Super Admin</p>
-              <Badge variant="secondary">Accesso completo alla piattaforma</Badge>
+        <CardContent>
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={avatarUrl ?? undefined} alt="Avatar" />
+                <AvatarFallback className="text-lg bg-primary/10 text-primary">
+                  {initials || <User className="h-8 w-8" />}
+                </AvatarFallback>
+              </Avatar>
+              {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/80">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
             </div>
+
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="gap-2"
+              >
+                <Camera className="h-4 w-4" />
+                {isUploading ? "Caricamento..." : "Cambia foto"}
+              </Button>
+              {profile?.avatar_url && (
+                <Button variant="ghost" size="sm" onClick={removeAvatar} className="gap-2 text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4" />
+                  Rimuovi foto
+                </Button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
-          <Separator />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">Nome</Label>
-              <Input id="firstName" value={formData.firstName} onChange={(e) => { setFormData({ ...formData, firstName: e.target.value }); setProfileErrors(p => ({ ...p, firstName: "" })); }} className={profileErrors.firstName ? "border-destructive" : ""} />
-              {profileErrors.firstName && <p className="text-sm text-destructive">{profileErrors.firstName}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Cognome</Label>
-              <Input id="lastName" value={formData.lastName} onChange={(e) => { setFormData({ ...formData, lastName: e.target.value }); setProfileErrors(p => ({ ...p, lastName: "" })); }} className={profileErrors.lastName ? "border-destructive" : ""} />
-              {profileErrors.lastName && <p className="text-sm text-destructive">{profileErrors.lastName}</p>}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{user?.email}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
-          </div>
-          <Button onClick={() => profileMutation.mutate()} disabled={profileMutation.isPending} className="w-full">
-            {profileMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Salva Modifiche
-          </Button>
         </CardContent>
       </Card>
 
+      {/* Personal info */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Key className="h-5 w-5" /> Cambia Password</CardTitle>
-          <CardDescription>Aggiorna la tua password di accesso</CardDescription>
+          <CardTitle className="text-base">Informazioni personali</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Password Attuale</Label>
-            <div className="relative">
-              <Input type={showCurrent ? "text" : "password"} value={currentPassword} onChange={(e) => { setCurrentPassword(e.target.value); setPasswordErrors(p => ({ ...p, current: "" })); }} className={`pr-10 ${passwordErrors.current ? "border-destructive" : ""}`} />
-              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowCurrent(!showCurrent)}>
-                {showCurrent ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-              </Button>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="prof-firstName">Nome</Label>
+              <Input
+                id="prof-firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Mario"
+              />
             </div>
-            {passwordErrors.current && <p className="text-sm text-destructive">{passwordErrors.current}</p>}
-          </div>
-          <div className="space-y-2">
-            <Label>Nuova Password</Label>
-            <div className="relative">
-              <Input type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setPasswordErrors(p => ({ ...p, new: "" })); }} placeholder="Minimo 8 caratteri" className={`pr-10 ${passwordErrors.new ? "border-destructive" : ""}`} />
-              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowNew(!showNew)}>
-                {showNew ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="prof-lastName">Cognome</Label>
+              <Input
+                id="prof-lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Rossi"
+              />
             </div>
-            {passwordErrors.new && <p className="text-sm text-destructive">{passwordErrors.new}</p>}
-            {newPassword && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Forza password</span>
-                  <span className={strength.value === 100 ? "text-green-600" : strength.value === 66 ? "text-yellow-600" : "text-destructive"}>{strength.label}</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                  <div className={`h-full transition-all ${strength.color}`} style={{ width: `${strength.value}%` }} />
-                </div>
-              </div>
-            )}
           </div>
+
           <div className="space-y-2">
-            <Label>Conferma Nuova Password</Label>
-            <div className="relative">
-              <Input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setPasswordErrors(p => ({ ...p, confirm: "" })); }} className={`pr-10 ${passwordErrors.confirm ? "border-destructive" : ""}`} />
-              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowConfirm(!showConfirm)}>
-                {showConfirm ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-              </Button>
+            <Label>Email</Label>
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+              <span className="text-sm text-muted-foreground">{user?.email}</span>
+              <Badge variant="outline" className="ml-auto text-xs">Non modificabile</Badge>
             </div>
-            {passwordErrors.confirm && <p className="text-sm text-destructive">{passwordErrors.confirm}</p>}
           </div>
-          <Button onClick={() => passwordMutation.mutate()} disabled={passwordMutation.isPending || !currentPassword || !newPassword} variant="outline" className="w-full">
-            {passwordMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Key className="h-4 w-4 mr-2" />}
-            Cambia Password
-          </Button>
+
+          <div className="space-y-2">
+            <Label>Ruolo</Label>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary/10 text-primary hover:bg-primary/20">Super Admin</Badge>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-end">
+            <Button
+              onClick={() => updateProfile.mutate()}
+              disabled={updateProfile.isPending}
+              className="gap-2"
+            >
+              {updateProfile.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Salva modifiche
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
