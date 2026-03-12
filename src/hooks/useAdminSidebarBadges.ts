@@ -24,7 +24,7 @@ export function useAdminSidebarBadges() {
         supabase
           .from("support_conversations")
           .select("id", { count: "exact", head: true })
-          .not("status", "in", '("resolved","closed")'),
+          .in("status", ["open", "pending", "waiting"]),
         supabase
           .from("companies")
           .select("id", { count: "exact", head: true })
