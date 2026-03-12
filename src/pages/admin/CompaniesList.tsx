@@ -504,17 +504,24 @@ export default function CompaniesList() {
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
+      {/* Smart Filter Presets */}
+      <CompanyFilterPresets
+        activePreset={activePreset}
+        onClearPreset={clearAllFilters}
+        presets={filterPresets}
+      />
+
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cerca per nome o email..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setActivePreset(null); }}
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti gli stati</SelectItem>
@@ -524,7 +531,7 @@ export default function CompaniesList() {
             <SelectItem value="expired">Scaduto</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={sectorFilter} onValueChange={setSectorFilter}>
+        <Select value={sectorFilter} onValueChange={(v) => { setSectorFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="Settore" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i settori</SelectItem>
@@ -533,13 +540,22 @@ export default function CompaniesList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={planFilter} onValueChange={setPlanFilter}>
+        <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Piano" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i piani</SelectItem>
             {uniquePlans.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={healthFilter} onValueChange={(v) => { setHealthFilter(v as HealthFilter); setActivePreset(null); }}>
+          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti</SelectItem>
+            <SelectItem value="healthy">Healthy</SelectItem>
+            <SelectItem value="at_risk">A rischio</SelectItem>
+            <SelectItem value="critical">Critico</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
@@ -555,10 +571,14 @@ export default function CompaniesList() {
         </div>
       </div>
 
+      {/* Active Filter Chips */}
       {hasActiveFilters && !isLoading && (
-        <p className="text-sm text-muted-foreground">
-          Visualizzando {filteredCompanies.length} di {companies.length} aziende
-        </p>
+        <CompanyActiveFilters
+          filters={activeFiltersList}
+          totalCount={companies.length}
+          filteredCount={filteredCompanies.length}
+          onClearAll={clearAllFilters}
+        />
       )}
 
       {isLoading ? (
