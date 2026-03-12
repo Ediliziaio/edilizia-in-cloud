@@ -6,6 +6,7 @@ import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
 import { TabRichieste } from "./tabs/TabRichieste";
 import { TabSedi } from "./tabs/TabSedi";
+import { TabFestivita } from "./tabs/TabFestivita";
 
 export default function PersonalePage() {
   return (
@@ -64,12 +65,7 @@ export default function PersonalePage() {
           <TabSedi />
         </TabsContent>
         <TabsContent value="festivita">
-          <ComingSoonPlaceholder
-            icon={CalendarCheck}
-            title="Festività"
-            description="Calendario festività aziendali"
-            comingSoonText="Il calendario festività sarà disponibile nel prossimo aggiornamento."
-          />
+          <TabFestivita />
         </TabsContent>
       </Tabs>
     </div>
