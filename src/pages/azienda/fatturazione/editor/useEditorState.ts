@@ -195,6 +195,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       causale: state.causale,
       cig: state.cig,
       cup: state.cup,
+      arrotondamento: state.arrotondamento,
     });
 
     if (serialized === prevStateRef.current) return;
