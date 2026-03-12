@@ -145,6 +145,66 @@ export default function AuditLogTab() {
   });
 
   const totalPages = Math.ceil((data?.total || 0) / PAGE_SIZE);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportFullCsv = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      // Fetch ALL logs matching current filters (no pagination)
+      let query = supabase
+        .from("admin_audit_log")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (actionFilter !== "all") query = query.eq("action", actionFilter);
+      if (adminFilter !== "all") query = query.eq("user_id", adminFilter);
+      if (dateRange.from) query = query.gte("created_at", dateRange.from.toISOString());
+      if (dateRange.to) query = query.lte("created_at", dateRange.to.toISOString());
+
+      const { data: allLogs, error } = await query;
+      if (error) throw error;
+      if (!allLogs?.length) return;
+
+      // Resolve profiles
+      const userIds = [...new Set(allLogs.map((l) => l.user_id))];
+      const profiles: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", userIds);
+        (profileData || []).forEach((p) => {
+          profiles[p.id] = `${p.first_name} ${p.last_name}`;
+        });
+      }
+
+      const headers = ["Data", "Admin", "Azione", "Dettaglio", "IP", "Target ID"];
+      const rows = allLogs.map((log) => {
+        const details = log.details as Record<string, unknown> | null;
+        return [
+          format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it }),
+          `"${profiles[log.user_id] || "—"}"`,
+          `"${actionLabels[log.action] || log.action}"`,
+          `"${details?.target_name || details?.company_name || "—"}"`,
+          `"${log.ip_address || "—"}"`,
+          `"${log.target_id || "—"}"`,
+        ].join(",");
+      });
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-log-completo-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Esportati ${allLogs.length} record`);
+    } catch {
+      toast.error("Errore nell'esportazione");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [actionFilter, adminFilter, dateRange]);
 
   return (
     <Card>
