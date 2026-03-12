@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight, Search, Download } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight, Search, Download, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
@@ -219,23 +220,51 @@ export default function AuditLogTab() {
               <TableBody>
                 {(data?.logs || []).map((log) => {
                   const details = log.details as Record<string, any> | null;
+                  const hasDetails = details && Object.keys(details).length > 0;
                   return (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {data!.profiles[log.user_id] || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={actionColors[log.action] || "outline"}>
-                          {actionLabels[log.action] || log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate">
-                        {details?.target_name || details?.company_name || log.target_id || "—"}
-                      </TableCell>
-                    </TableRow>
+                    <Collapsible key={log.id} asChild>
+                      <>
+                        <CollapsibleTrigger asChild>
+                          <TableRow className={hasDetails ? "cursor-pointer hover:bg-muted/50 group" : ""}>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {data!.profiles[log.user_id] || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={actionColors[log.action] || "outline"}>
+                                {actionLabels[log.action] || log.action}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate max-w-[250px]">
+                                  {details?.target_name || details?.company_name || log.target_id || "—"}
+                                </span>
+                                {hasDetails && (
+                                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform group-data-[state=open]:rotate-180" />
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        </CollapsibleTrigger>
+                        {hasDetails && (
+                          <CollapsibleContent asChild>
+                            <tr>
+                              <td colSpan={4} className="p-0">
+                                <div className="bg-muted/30 border-t px-6 py-3">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Dettagli completi</p>
+                                  <pre className="text-xs bg-background rounded-md border p-3 overflow-x-auto max-h-48 whitespace-pre-wrap break-all">
+                                    {JSON.stringify(details, null, 2)}
+                                  </pre>
+                                </div>
+                              </td>
+                            </tr>
+                          </CollapsibleContent>
+                        )}
+                      </>
+                    </Collapsible>
                   );
                 })}
               </TableBody>
