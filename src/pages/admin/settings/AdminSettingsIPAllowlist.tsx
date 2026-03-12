@@ -78,9 +78,29 @@ export default function AdminSettingsIPAllowlist() {
   });
 
   const isValidIp = (ip: string) => {
-    // IPv4 or CIDR
+    const trimmed = ip.trim();
+    // IPv4 or IPv4 CIDR
     const ipv4 = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-    return ipv4.test(ip.trim());
+    // IPv6 (simplified: hex groups with colons, optional CIDR)
+    const ipv6 = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(\/\d{1,3})?$/;
+    return ipv4.test(trimmed) || ipv6.test(trimmed);
+  };
+
+  const detectMyIp = async () => {
+    setDetectingIp(true);
+    try {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const data = await res.json();
+      if (data?.ip) {
+        setNewIp(data.ip);
+        setNewLabel("Il mio IP");
+        toast.success(`IP rilevato: ${data.ip}`);
+      }
+    } catch {
+      toast.error("Impossibile rilevare l'IP corrente");
+    } finally {
+      setDetectingIp(false);
+    }
   };
 
   return (
