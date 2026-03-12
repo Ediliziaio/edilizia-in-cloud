@@ -160,7 +160,7 @@ export default function CassettoSDI() {
             <CardTitle className="text-sm font-medium text-muted-foreground">In attesa</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-500">{kpi.inAttesa}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{kpi.inAttesa}</div>
           </CardContent>
         </Card>
       </div>
