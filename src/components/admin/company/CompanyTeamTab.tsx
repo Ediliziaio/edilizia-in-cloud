@@ -1,9 +1,22 @@
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, UserCheck, TrendingUp, HardHat, Plus, Loader2, KeyRound } from "lucide-react";
-import { format } from "date-fns";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Shield, UserCheck, TrendingUp, HardHat, Plus, Loader2, KeyRound,
+  Search, MoreHorizontal, Trash2, Key, Users, UserX, Clock,
+} from "lucide-react";
+import { format, differenceInDays } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { PERMISSION_LABELS, commissionTypeLabels } from "@/lib/adminConstants";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
@@ -25,6 +38,10 @@ interface CompanyTeamTabProps {
   onEditPermissions: (user: { id: string; name: string; permissions: StaffPermissions }) => void;
   onCreateAccount: (type: "salesperson" | "employee", entityId: string, email: string, name: string) => void;
   creatingAccountFor: string | null;
+  onDeleteUser?: (userId: string, name: string) => void;
+  onResetPassword?: (userId: string, name: string) => void;
+  isDeletingUser?: boolean;
+  isResettingPassword?: boolean;
 }
 
 function getActivePermissions(permissions: any) {
@@ -34,26 +51,95 @@ function getActivePermissions(permissions: any) {
     .map(([, label]) => label);
 }
 
+function LastAccessBadge({ lastLoginAt }: { lastLoginAt?: string | null }) {
+  if (!lastLoginAt) return <Badge variant="secondary" className="text-xs gap-1"><Clock className="h-3 w-3" />Mai</Badge>;
+  const days = differenceInDays(new Date(), new Date(lastLoginAt));
+  if (days <= 3) return <Badge variant="default" className="bg-emerald-600 text-xs gap-1"><Clock className="h-3 w-3" />{days === 0 ? "Oggi" : `${days}gg fa`}</Badge>;
+  if (days <= 14) return <Badge variant="outline" className="border-amber-500/30 text-amber-600 text-xs gap-1"><Clock className="h-3 w-3" />{days}gg fa</Badge>;
+  return <Badge variant="outline" className="border-destructive/30 text-destructive text-xs gap-1"><Clock className="h-3 w-3" />{days}gg fa</Badge>;
+}
+
+function matchesSearch(member: any, query: string): boolean {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  const name = `${member.first_name || ""} ${member.last_name || ""}`.toLowerCase();
+  const email = (member.email || "").toLowerCase();
+  return name.includes(q) || email.includes(q);
+}
+
 export function CompanyTeamTab({
-  teamData,
-  totalTeam,
-  onCreateStaff,
-  onCreateSalesperson,
-  onCreateEmployee,
-  onEditPermissions,
-  onCreateAccount,
-  creatingAccountFor,
+  teamData, totalTeam,
+  onCreateStaff, onCreateSalesperson, onCreateEmployee,
+  onEditPermissions, onCreateAccount, creatingAccountFor,
+  onDeleteUser, onResetPassword, isDeletingUser, isResettingPassword,
 }: CompanyTeamTabProps) {
+  const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const filtered = useMemo(() => {
+    if (!teamData) return { admins: [], staff: [], salespeople: [], employees: [] };
+    return {
+      admins: teamData.admins.filter((m) => matchesSearch(m, search)),
+      staff: teamData.staff.filter((m) => matchesSearch(m, search)),
+      salespeople: teamData.salespeople.filter((m) => matchesSearch(m, search)),
+      employees: teamData.employees.filter((m) => matchesSearch(m, search)),
+    };
+  }, [teamData, search]);
+
+  const withAccount = useMemo(() => {
+    if (!teamData) return 0;
+    return (
+      teamData.admins.length +
+      teamData.staff.length +
+      teamData.salespeople.filter((s) => s.user_id).length +
+      teamData.employees.filter((e) => e.user_id).length
+    );
+  }, [teamData]);
+
+  const withoutAccount = totalTeam - withAccount;
+
   return (
     <div className="space-y-6">
+      {/* Stats + Search */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex items-center gap-3 flex-wrap flex-1">
+          <Card className="px-4 py-2.5 flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">{totalTeam}</span>
+            <span className="text-xs text-muted-foreground">Totali</span>
+          </Card>
+          <Card className="px-4 py-2.5 flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-medium">{withAccount}</span>
+            <span className="text-xs text-muted-foreground">Con account</span>
+          </Card>
+          {withoutAccount > 0 && (
+            <Card className="px-4 py-2.5 flex items-center gap-2">
+              <UserX className="h-4 w-4 text-amber-600" />
+              <span className="text-sm font-medium">{withoutAccount}</span>
+              <span className="text-xs text-muted-foreground">Senza account</span>
+            </Card>
+          )}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca per nome o email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Badges summary */}
       <Card>
         <CardContent className="py-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium">{totalTeam} membri totali:</span>
-            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">{teamData?.admins.length || 0} Admin</Badge>
-            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{teamData?.staff.length || 0} Staff</Badge>
-            <Badge variant="default" className="bg-violet-600 hover:bg-violet-700">{teamData?.salespeople.length || 0} Venditori</Badge>
-            <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">{teamData?.employees.length || 0} Dipendenti</Badge>
+            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">{filtered.admins.length} Admin</Badge>
+            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{filtered.staff.length} Staff</Badge>
+            <Badge variant="default" className="bg-violet-600 hover:bg-violet-700">{filtered.salespeople.length} Venditori</Badge>
+            <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">{filtered.employees.length} Dipendenti</Badge>
           </div>
         </CardContent>
       </Card>
@@ -64,11 +150,11 @@ export function CompanyTeamTab({
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-emerald-600" />
             <CardTitle className="text-base">Admin Azienda</CardTitle>
-            <Badge variant="secondary" className="ml-auto">{teamData?.admins.length || 0}</Badge>
+            <Badge variant="secondary" className="ml-auto">{filtered.admins.length}</Badge>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {teamData?.admins.length === 0 ? (
+          {filtered.admins.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Nessun admin trovato</p>
           ) : (
             <Table>
@@ -77,11 +163,13 @@ export function CompanyTeamTab({
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Telefono</TableHead>
+                  <TableHead>Ultimo Accesso</TableHead>
                   <TableHead>Creato il</TableHead>
+                  {(onDeleteUser || onResetPassword) && <TableHead className="w-12" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teamData?.admins.map((admin) => (
+                {filtered.admins.map((admin) => (
                   <TableRow key={admin.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -93,7 +181,19 @@ export function CompanyTeamTab({
                     </TableCell>
                     <TableCell className="text-muted-foreground">{admin.email}</TableCell>
                     <TableCell className="text-muted-foreground">{admin.phone || "—"}</TableCell>
+                    <TableCell><LastAccessBadge lastLoginAt={admin.last_login_at} /></TableCell>
                     <TableCell className="text-muted-foreground">{format(new Date(admin.created_at), "dd/MM/yyyy")}</TableCell>
+                    {(onDeleteUser || onResetPassword) && (
+                      <TableCell>
+                        <MemberActions
+                          userId={admin.user_id || admin.id}
+                          name={`${admin.first_name} ${admin.last_name}`}
+                          hasAccount
+                          onDelete={onDeleteUser ? () => setDeleteTarget({ id: admin.user_id || admin.id, name: `${admin.first_name} ${admin.last_name}` }) : undefined}
+                          onResetPassword={onResetPassword}
+                        />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -108,14 +208,14 @@ export function CompanyTeamTab({
           <div className="flex items-center gap-2">
             <UserCheck className="h-5 w-5 text-blue-600" />
             <CardTitle className="text-base">Staff</CardTitle>
-            <Badge variant="secondary">{teamData?.staff.length || 0}</Badge>
+            <Badge variant="secondary">{filtered.staff.length}</Badge>
             <Button size="sm" variant="outline" className="ml-auto" onClick={onCreateStaff}>
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {teamData?.staff.length === 0 ? (
+          {filtered.staff.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Nessun membro staff trovato</p>
           ) : (
             <Table>
@@ -124,12 +224,13 @@ export function CompanyTeamTab({
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Permessi</TableHead>
+                  <TableHead>Ultimo Accesso</TableHead>
                   <TableHead>Creato il</TableHead>
                   <TableHead>Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teamData?.staff.map((member) => {
+                {filtered.staff.map((member) => {
                   const perms = getActivePermissions(member.permissions);
                   const defaultPerms: StaffPermissions = Object.keys(DEFAULT_PERMISSIONS).reduce((acc, key) => {
                     (acc as any)[key] = (member.permissions as any)?.[key] ?? false;
@@ -160,15 +261,27 @@ export function CompanyTeamTab({
                           )}
                         </div>
                       </TableCell>
+                      <TableCell><LastAccessBadge lastLoginAt={member.last_login_at} /></TableCell>
                       <TableCell className="text-muted-foreground">{format(new Date(member.created_at), "dd/MM/yyyy")}</TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onEditPermissions({ id: member.id, name: `${member.first_name} ${member.last_name}`, permissions: defaultPerms })}
-                        >
-                          <Shield className="h-4 w-4 mr-1" /> Permessi
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onEditPermissions({ id: member.id, name: `${member.first_name} ${member.last_name}`, permissions: defaultPerms })}
+                          >
+                            <Shield className="h-4 w-4 mr-1" /> Permessi
+                          </Button>
+                          {(onDeleteUser || onResetPassword) && (
+                            <MemberActions
+                              userId={member.id}
+                              name={`${member.first_name} ${member.last_name}`}
+                              hasAccount
+                              onDelete={onDeleteUser ? () => setDeleteTarget({ id: member.id, name: `${member.first_name} ${member.last_name}` }) : undefined}
+                              onResetPassword={onResetPassword}
+                            />
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -185,14 +298,14 @@ export function CompanyTeamTab({
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-violet-600" />
             <CardTitle className="text-base">Venditori</CardTitle>
-            <Badge variant="secondary">{teamData?.salespeople.length || 0}</Badge>
+            <Badge variant="secondary">{filtered.salespeople.length}</Badge>
             <Button size="sm" variant="outline" className="ml-auto" onClick={onCreateSalesperson}>
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {teamData?.salespeople.length === 0 ? (
+          {filtered.salespeople.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Nessun venditore trovato</p>
           ) : (
             <Table>
@@ -207,7 +320,7 @@ export function CompanyTeamTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teamData?.salespeople.map((sp) => (
+                {filtered.salespeople.map((sp) => (
                   <TableRow key={sp.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -232,17 +345,28 @@ export function CompanyTeamTab({
                       {sp.is_active ? <Badge variant="default" className="text-xs">Attivo</Badge> : <Badge variant="destructive" className="text-xs">Inattivo</Badge>}
                     </TableCell>
                     <TableCell>
-                      {!sp.user_id && sp.email && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={creatingAccountFor === sp.id}
-                          onClick={() => onCreateAccount("salesperson", sp.id, sp.email!, `${sp.first_name} ${sp.last_name}`)}
-                        >
-                          {creatingAccountFor === sp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
-                          Crea Account
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {!sp.user_id && sp.email && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={creatingAccountFor === sp.id}
+                            onClick={() => onCreateAccount("salesperson", sp.id, sp.email!, `${sp.first_name} ${sp.last_name}`)}
+                          >
+                            {creatingAccountFor === sp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
+                            Crea Account
+                          </Button>
+                        )}
+                        {sp.user_id && (onDeleteUser || onResetPassword) && (
+                          <MemberActions
+                            userId={sp.user_id}
+                            name={`${sp.first_name} ${sp.last_name}`}
+                            hasAccount
+                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: sp.user_id, name: `${sp.first_name} ${sp.last_name}` }) : undefined}
+                            onResetPassword={onResetPassword}
+                          />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -258,14 +382,14 @@ export function CompanyTeamTab({
           <div className="flex items-center gap-2">
             <HardHat className="h-5 w-5 text-amber-600" />
             <CardTitle className="text-base">Dipendenti</CardTitle>
-            <Badge variant="secondary">{teamData?.employees.length || 0}</Badge>
+            <Badge variant="secondary">{filtered.employees.length}</Badge>
             <Button size="sm" variant="outline" className="ml-auto" onClick={onCreateEmployee}>
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {teamData?.employees.length === 0 ? (
+          {filtered.employees.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Nessun dipendente trovato</p>
           ) : (
             <Table>
@@ -282,7 +406,7 @@ export function CompanyTeamTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teamData?.employees.map((emp) => (
+                {filtered.employees.map((emp) => (
                   <TableRow key={emp.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -306,17 +430,28 @@ export function CompanyTeamTab({
                       {emp.is_active ? <Badge variant="default" className="text-xs">Attivo</Badge> : <Badge variant="destructive" className="text-xs">Inattivo</Badge>}
                     </TableCell>
                     <TableCell>
-                      {!emp.user_id && emp.email && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={creatingAccountFor === emp.id}
-                          onClick={() => onCreateAccount("employee", emp.id, emp.email!, `${emp.first_name} ${emp.last_name}`)}
-                        >
-                          {creatingAccountFor === emp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
-                          Crea Account
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {!emp.user_id && emp.email && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={creatingAccountFor === emp.id}
+                            onClick={() => onCreateAccount("employee", emp.id, emp.email!, `${emp.first_name} ${emp.last_name}`)}
+                          >
+                            {creatingAccountFor === emp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
+                            Crea Account
+                          </Button>
+                        )}
+                        {emp.user_id && (onDeleteUser || onResetPassword) && (
+                          <MemberActions
+                            userId={emp.user_id}
+                            name={`${emp.first_name} ${emp.last_name}`}
+                            hasAccount
+                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: emp.user_id, name: `${emp.first_name} ${emp.last_name}` }) : undefined}
+                            onResetPassword={onResetPassword}
+                          />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -325,6 +460,75 @@ export function CompanyTeamTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'utente verrà rimosso dall'azienda e il suo account sarà eliminato. Questa azione è irreversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isDeletingUser}
+              onClick={() => {
+                if (deleteTarget && onDeleteUser) {
+                  onDeleteUser(deleteTarget.id, deleteTarget.name);
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              {isDeletingUser && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Trash2 className="h-4 w-4 mr-2" />
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+// ─── Row-level actions dropdown ────────────────────────────────────────────────
+
+function MemberActions({
+  userId, name, hasAccount,
+  onDelete, onResetPassword,
+}: {
+  userId: string;
+  name: string;
+  hasAccount: boolean;
+  onDelete?: () => void;
+  onResetPassword?: (userId: string, name: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        {hasAccount && onResetPassword && (
+          <DropdownMenuItem onClick={() => onResetPassword(userId, name)}>
+            <Key className="h-4 w-4 mr-2" />
+            Reset Password
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <>
+            {onResetPassword && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Elimina Utente
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
