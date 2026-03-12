@@ -1,28 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
   CommandGroup, CommandItem, CommandSeparator,
 } from "@/components/ui/command";
 import {
-  Package, User, UserCircle, MessageSquare,
-  LayoutDashboard, ShoppingCart, Warehouse,
-  Calendar, Users, Ticket, BarChart2, Settings,
-  Loader2,
+  Package, User, UserCircle, MessageSquare, Loader2,
 } from "lucide-react";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
-
-const QUICK_NAV = [
-  { title: "Dashboard", url: "/azienda", icon: LayoutDashboard },
-  { title: "Ordini", url: "/azienda/ordini", icon: ShoppingCart },
-  { title: "Clienti", url: "/azienda/clienti", icon: Users },
-  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse },
-  { title: "Calendario", url: "/azienda/calendario", icon: Calendar },
-  { title: "Ticket Clienti", url: "/azienda/assistenza", icon: Ticket },
-  { title: "Marketing", url: "/azienda/marketing", icon: BarChart2 },
-  { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
-];
+import { macroAreas } from "@/lib/sidebarConfig";
 
 const RESULT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Package, User, UserCircle, MessageSquare,
@@ -39,6 +26,17 @@ interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Flatten macro-areas into grouped nav items
+const navGroups = macroAreas.map(area => ({
+  title: area.title,
+  icon: area.icon,
+  items: area.items.map(item => ({
+    title: item.title,
+    url: item.url,
+    icon: item.icon,
+  })),
+}));
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
@@ -62,6 +60,17 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return acc;
   }, {} as Record<string, SearchResult[]>);
 
+  const filteredNavGroups = useMemo(() => {
+    if (query.length < 2) return navGroups;
+    const q = query.toLowerCase();
+    return navGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => item.title.toLowerCase().includes(q)),
+      }))
+      .filter(group => group.items.length > 0);
+  }, [query]);
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
@@ -76,7 +85,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
         )}
 
-        {query.length >= 2 && !isFetching && results.length === 0 && (
+        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && (
           <CommandEmpty>Nessun risultato per &quot;{query}&quot;</CommandEmpty>
         )}
 
@@ -107,24 +116,26 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
         {results.length > 0 && query.length >= 2 && <CommandSeparator />}
 
-        <CommandGroup heading={query.length >= 2 ? "Navigazione rapida" : "Sezioni principali"}>
-          {QUICK_NAV
-            .filter(item =>
-              query.length < 2 ||
-              item.title.toLowerCase().includes(query.toLowerCase())
-            )
-            .map((item) => (
-              <CommandItem
-                key={item.url}
-                onSelect={() => handleSelect(item.url)}
-                className="flex items-center gap-3"
-              >
-                <item.icon className="h-4 w-4 text-muted-foreground" />
-                <span>{item.title}</span>
-              </CommandItem>
-            ))
-          }
-        </CommandGroup>
+        {filteredNavGroups.map((group) => {
+          const GroupIcon = group.icon;
+          return (
+            <CommandGroup key={group.title} heading={group.title}>
+              {group.items.map((item) => {
+                const ItemIcon = item.icon;
+                return (
+                  <CommandItem
+                    key={item.url}
+                    onSelect={() => handleSelect(item.url)}
+                    className="flex items-center gap-3"
+                  >
+                    <ItemIcon className="h-4 w-4 text-muted-foreground" />
+                    <span>{item.title}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          );
+        })}
       </CommandList>
 
       <div className="border-t px-3 py-2 flex items-center justify-between text-xs text-muted-foreground">
