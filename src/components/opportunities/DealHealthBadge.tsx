@@ -33,32 +33,33 @@ export const DealHealthBadge = memo(function DealHealthBadge({
     : 'bg-red-500';
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium cursor-default",
-            health.color,
-            compact && "px-0 py-0",
-            className
+    <div className={cn("inline-flex", className)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium cursor-default",
+              health.color,
+              compact && "px-0 py-0",
+            )}
+          >
+            <span className={cn("h-2 w-2 rounded-full shrink-0", dotColor)} />
+            {!compact && <span>{health.score}</span>}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[240px] space-y-1">
+          <p className="font-semibold text-xs">
+            {health.badge} — {health.score}/100
+          </p>
+          {health.reasons.length > 0 && (
+            <ul className="text-[10px] space-y-0.5">
+              {health.reasons.map((r, i) => (
+                <li key={i}>• {r}</li>
+              ))}
+            </ul>
           )}
-        >
-          <span className={cn("h-2 w-2 rounded-full shrink-0", dotColor)} />
-          {!compact && <span>{health.score}</span>}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[240px] space-y-1">
-        <p className="font-semibold text-xs">
-          {health.badge} — {health.score}/100
-        </p>
-        {health.reasons.length > 0 && (
-          <ul className="text-[10px] space-y-0.5">
-            {health.reasons.map((r, i) => (
-              <li key={i}>• {r}</li>
-            ))}
-          </ul>
-        )}
-      </TooltipContent>
-    </Tooltip>
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 });
