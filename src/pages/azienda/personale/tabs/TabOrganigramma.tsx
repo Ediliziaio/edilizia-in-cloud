@@ -9,9 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, RefreshCw, Users, Building2, MapPin, UserPlus } from "lucide-react";
-import type { HrProfilo } from "@/types/hr";
+import { Search, RefreshCw, Users, Building2, MapPin, UserPlus, List, Network } from "lucide-react";
+import type { HrProfilo, OrgTreeNode } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
+import { OrgTreeView } from "@/components/hr/OrgTreeView";
 
 const REPARTO_COLORS: Record<string, string> = {
   Direzione: "bg-slate-700 text-white",

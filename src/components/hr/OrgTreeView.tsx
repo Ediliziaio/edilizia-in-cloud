@@ -31,9 +31,6 @@ function TreeBranch({
               <div
                 className="absolute top-0 h-px bg-border"
                 style={{
-                  left: "calc(50% / var(--children-count) + 50% / var(--children-count))",
-                  right: "calc(50% / var(--children-count) + 50% / var(--children-count))",
-                  // Simplified: stretch between first and last child centers
                   left: `calc(${100 / (2 * node.children.length)}%)`,
                   right: `calc(${100 / (2 * node.children.length)}%)`,
                 }}
