@@ -809,7 +809,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 🏗️ CANTIERI ═══
+  // ═══ CANTIERI ═══
   {
     id: 'cantiere_creato',
     label: 'Nuovo cantiere aperto',
