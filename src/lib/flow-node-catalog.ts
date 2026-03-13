@@ -860,7 +860,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ ✅ TASK ═══
+  // ═══ TASK ═══
   {
     id: 'task_creato',
     label: 'Nuova attività creata',
