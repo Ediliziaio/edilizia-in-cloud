@@ -1294,7 +1294,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'attendi',
     label: 'Attendi (delay)',
     description: 'Mette in pausa il flow per un tempo definito prima del passo successivo',
-    icon: '⏱️',
+    icon: 'Clock',
     categoria: 'generale',
     configSchema: [
       { id: 'minuti', label: 'Minuti', type: 'number', required: false, min: 0, max: 59, defaultValue: 0 },
