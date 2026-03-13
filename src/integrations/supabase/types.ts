@@ -1182,6 +1182,61 @@ export type Database = {
           },
         ]
       }
+      anagrafica_reconciliation_log: {
+        Row: {
+          action: string
+          anagrafica_id: string
+          cliente_id: string | null
+          company_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          performed_by: string | null
+        }
+        Insert: {
+          action: string
+          anagrafica_id: string
+          cliente_id?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+        }
+        Update: {
+          action?: string
+          anagrafica_id?: string
+          cliente_id?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafica_reconciliation_log_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_reconciliation_log_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_reconciliation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anagrafiche_native: {
         Row: {
           aliquota_iva_default: string | null
@@ -1189,6 +1244,7 @@ export type Database = {
           bic_cliente: string | null
           cellulare: string | null
           cig: string | null
+          cliente_id: string | null
           codice_fiscale: string | null
           codice_sdi: string | null
           cognome: string | null
@@ -1210,6 +1266,7 @@ export type Database = {
           indirizzo_numero_civico: string | null
           indirizzo_provincia: string | null
           indirizzo_via: string | null
+          last_synced_at: string | null
           metodo_pagamento_default: string | null
           nome: string | null
           note: string | null
@@ -1219,6 +1276,7 @@ export type Database = {
           ragione_sociale: string | null
           sconto_default: number | null
           sito_web: string | null
+          sync_from_cliente: boolean
           tags: string[] | null
           telefono: string | null
           tipo: string
@@ -1233,6 +1291,7 @@ export type Database = {
           bic_cliente?: string | null
           cellulare?: string | null
           cig?: string | null
+          cliente_id?: string | null
           codice_fiscale?: string | null
           codice_sdi?: string | null
           cognome?: string | null
@@ -1254,6 +1313,7 @@ export type Database = {
           indirizzo_numero_civico?: string | null
           indirizzo_provincia?: string | null
           indirizzo_via?: string | null
+          last_synced_at?: string | null
           metodo_pagamento_default?: string | null
           nome?: string | null
           note?: string | null
@@ -1263,6 +1323,7 @@ export type Database = {
           ragione_sociale?: string | null
           sconto_default?: number | null
           sito_web?: string | null
+          sync_from_cliente?: boolean
           tags?: string[] | null
           telefono?: string | null
           tipo?: string
@@ -1277,6 +1338,7 @@ export type Database = {
           bic_cliente?: string | null
           cellulare?: string | null
           cig?: string | null
+          cliente_id?: string | null
           codice_fiscale?: string | null
           codice_sdi?: string | null
           cognome?: string | null
@@ -1298,6 +1360,7 @@ export type Database = {
           indirizzo_numero_civico?: string | null
           indirizzo_provincia?: string | null
           indirizzo_via?: string | null
+          last_synced_at?: string | null
           metodo_pagamento_default?: string | null
           nome?: string | null
           note?: string | null
@@ -1307,6 +1370,7 @@ export type Database = {
           ragione_sociale?: string | null
           sconto_default?: number | null
           sito_web?: string | null
+          sync_from_cliente?: boolean
           tags?: string[] | null
           telefono?: string | null
           tipo?: string
@@ -1316,6 +1380,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "anagrafiche_native_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "anagrafiche_native_company_id_fkey"
             columns: ["company_id"]
