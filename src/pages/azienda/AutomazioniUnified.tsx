@@ -5,16 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, LayoutTemplate } from "lucide-react";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
-import type { AutomationRule } from "@/hooks/useAutomazioni";
-import { AutomazioneFormDrawer } from "@/components/automazioni/AutomazioneFormDrawer";
 
-type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche";
+type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
 
 const CATEGORIE: { value: CategoriaFiltro; label: string; emoji: string }[] = [
   { value: "tutte", label: "Tutte", emoji: "⚡" },
   { value: "crm", label: "CRM & Vendite", emoji: "👥" },
   { value: "marketing", label: "Marketing", emoji: "📣" },
+  { value: "preventivi", label: "Preventivi", emoji: "📋" },
+  { value: "fatturazione", label: "Fatturazione", emoji: "💰" },
+  { value: "ordini", label: "Ordini", emoji: "📦" },
   { value: "cantieri", label: "Cantieri", emoji: "🏗️" },
+  { value: "assistenza", label: "Assistenza", emoji: "🎧" },
+  { value: "magazzino", label: "Magazzino", emoji: "🏭" },
+  { value: "hr", label: "HR", emoji: "🧑‍💼" },
   { value: "task", label: "Task", emoji: "✅" },
   { value: "notifiche", label: "Notifiche", emoji: "🔔" },
   { value: "generale", label: "Generale", emoji: "⚙️" },
@@ -27,10 +31,6 @@ export default function AutomazioniUnified() {
   const [vistaTemplates, setVistaTemplates] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [folderId, setFolderId] = useState<string | null>(null);
-
-  // Template gallery state
-  const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
-  const [showForm, setShowForm] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -100,21 +100,9 @@ export default function AutomazioniUnified() {
 
       {/* Content */}
       {vistaTemplates ? (
-        <>
-          <AutomazioniTemplateGallery
-            categoria={categoriaAttiva === "tutte" ? "tutte" : categoriaAttiva}
-            onCustomizza={(template) => {
-              setEditingRule(template);
-              setShowForm(true);
-            }}
-          />
-          {showForm && (
-            <AutomazioneFormDrawer
-              rule={editingRule}
-              onClose={() => { setShowForm(false); setEditingRule(null); }}
-            />
-          )}
-        </>
+        <AutomazioniTemplateGallery
+          categoriaFiltro={categoriaAttiva === "tutte" ? null : categoriaAttiva}
+        />
       ) : (
         <AutomationFlowsList
           statusFilter={statusFilter}
