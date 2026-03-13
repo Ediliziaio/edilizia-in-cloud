@@ -8,6 +8,8 @@ import { KPISection } from "./KPISection";
 import { AppuntamentiScorecard } from "./AppuntamentiScorecard";
 import { TempisticheScorecard } from "./TempisticheScorecard";
 import { AgentRadarProfile } from "./AgentRadarProfile";
+import { VenditoriFunnel } from "./VenditoriFunnel";
+import { VenditoriRanking } from "./VenditoriRanking";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Questo mese" },
