@@ -136,6 +136,13 @@ Deno.serve(async (req) => {
       .from("invoices").select("*, invoice_lines(*)").eq("id", invoice_id).single();
     if (invErr || !invoice) return json({ error: "Invoice not found" }, 404);
 
+    // Verify user belongs to this company
+    try {
+      await verifyCompanyAccess(supabase, userId, invoice.company_id);
+    } catch {
+      return json({ error: "Non autorizzato: accesso negato a questa fattura" }, 403);
+    }
+
     // Fetch company
     const { data: company } = await supabase
       .from("companies").select("name, vat_number, fiscal_code, address, city, zip, phone, email")
