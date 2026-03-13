@@ -533,7 +533,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_in_scadenza',
     label: 'Preventivo in scadenza',
     description: 'Scatta N giorni prima della scadenza di un preventivo non ancora risposto',
-    icon: '⏳',
+    icon: 'Hourglass',
     categoria: 'preventivi',
     dbEvent: 'SCHEDULED',
     outputVariables: [
