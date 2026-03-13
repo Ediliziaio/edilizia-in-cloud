@@ -87,6 +87,9 @@ export default function DocumentiFiscaliList() {
   const [page, setPage] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
   const [payTarget, setPayTarget] = useState<DocumentoFiscale | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkPayOpen, setBulkPayOpen] = useState(false);
 
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
