@@ -377,6 +377,7 @@ export function FlowBuilderPage() {
             onDelete={handleDeleteNode}
             onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
             onDragStart={() => {}}
+            onSelectItem={handleSelectItem}
           />
         )}
       </div>
