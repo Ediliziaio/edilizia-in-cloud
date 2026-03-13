@@ -2295,8 +2295,67 @@ export type Database = {
           },
         ]
       }
+      automation_flow_versions: {
+        Row: {
+          company_id: string
+          connections_snapshot: Json
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          flow_id: string
+          id: string
+          nodes_snapshot: Json
+          status: string
+          version: number
+          version_note: string | null
+        }
+        Insert: {
+          company_id: string
+          connections_snapshot?: Json
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          flow_id: string
+          id?: string
+          nodes_snapshot?: Json
+          status?: string
+          version?: number
+          version_note?: string | null
+        }
+        Update: {
+          company_id?: string
+          connections_snapshot?: Json
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          flow_id?: string
+          id?: string
+          nodes_snapshot?: Json
+          status?: string
+          version?: number
+          version_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_flow_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_flow_versions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_flows: {
         Row: {
+          allow_multiple_opportunities: boolean
+          allow_reentry: boolean
           category: string
           company_id: string
           config_json: Json
@@ -2306,12 +2365,23 @@ export type Database = {
           folder_id: string | null
           id: string
           name: string
+          note: string | null
+          note_color: string | null
+          sender_email: string | null
+          sender_name: string | null
           status: string
+          stop_on_reply: boolean
+          time_window_active: boolean | null
+          time_window_from: string | null
+          time_window_to: string | null
+          timezone: string | null
           updated_at: string
           updated_by: string | null
           version: number
         }
         Insert: {
+          allow_multiple_opportunities?: boolean
+          allow_reentry?: boolean
           category?: string
           company_id: string
           config_json?: Json
@@ -2321,12 +2391,23 @@ export type Database = {
           folder_id?: string | null
           id?: string
           name?: string
+          note?: string | null
+          note_color?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
           status?: string
+          stop_on_reply?: boolean
+          time_window_active?: boolean | null
+          time_window_from?: string | null
+          time_window_to?: string | null
+          timezone?: string | null
           updated_at?: string
           updated_by?: string | null
           version?: number
         }
         Update: {
+          allow_multiple_opportunities?: boolean
+          allow_reentry?: boolean
           category?: string
           company_id?: string
           config_json?: Json
@@ -2336,7 +2417,16 @@ export type Database = {
           folder_id?: string | null
           id?: string
           name?: string
+          note?: string | null
+          note_color?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
           status?: string
+          stop_on_reply?: boolean
+          time_window_active?: boolean | null
+          time_window_from?: string | null
+          time_window_to?: string | null
+          timezone?: string | null
           updated_at?: string
           updated_by?: string | null
           version?: number

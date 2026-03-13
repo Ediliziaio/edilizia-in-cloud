@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
+import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -255,6 +256,22 @@ export function FlowBuilderPage() {
     if (tab) setCatalogTab(tab);
   }, []);
 
+  // Compute validation errors from nodes
+  const validationErrors = useMemo<WorkflowError[]>(() => {
+    const errs: WorkflowError[] = [];
+    for (const n of rfNodes) {
+      if (n.type === "note") continue;
+      if (!n.data?.label) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo senza nome", tipo: "avviso", messaggio: "Il nodo non ha un'etichetta configurata." });
+      }
+    }
+    // Check if there's at least one trigger
+    if (rfNodes.length > 0 && !rfNodes.some((n) => n.type === "trigger")) {
+      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso non ha un trigger di avvio." });
+    }
+    return errs;
+  }, [rfNodes]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -312,7 +329,7 @@ export function FlowBuilderPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — only in builder tab */}
         {activeTab === "builder" && (
-          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} />
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} />
         )}
 
         {/* Center content */}
@@ -361,9 +378,9 @@ export function FlowBuilderPage() {
               )}
             </div>
           )}
-          {activeTab === "impostazioni" && <WorkflowImpostazioni />}
-          {activeTab === "cronologia" && <WorkflowCronologia />}
-          {activeTab === "registro" && <WorkflowRegistro />}
+          {activeTab === "impostazioni" && <WorkflowImpostazioni flowId={flowId} />}
+          {activeTab === "cronologia" && <WorkflowCronologia flowId={flowId} />}
+          {activeTab === "registro" && <WorkflowRegistro flowId={flowId} />}
         </div>
 
         {/* Right panel — only in builder tab */}
