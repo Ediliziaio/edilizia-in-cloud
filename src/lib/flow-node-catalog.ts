@@ -551,7 +551,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando un cliente apre un nuovo ticket di supporto',
     icon: '🎫',
     categoria: 'assistenza',
-    dbTable: 'support_tickets',
+    dbTable: 'tickets',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
