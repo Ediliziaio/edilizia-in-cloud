@@ -636,7 +636,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'prodotto_esaurito',
     label: 'Prodotto esaurito (giacenza = 0)',
     description: 'Scatta quando un prodotto raggiunge giacenza zero',
-    icon: '🚫',
+    icon: 'XCircle',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
