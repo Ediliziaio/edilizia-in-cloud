@@ -747,9 +747,9 @@ Istruzione: ${aiPrompt}`;
           if (subjectMatch) subject = subjectMatch[1].trim();
           if (bodyMatch) body = bodyMatch[1].trim();
 
-          return await executeSendEmail(supabase, { ...cfg, email_subject: subject, email_body: body }, entityId, companyId);
+          return await executeSendEmail(supabase, { ...ncfg, email_subject: subject, email_body: body }, entityId, companyId);
         } else if (aiChannel === "whatsapp") {
-          return await executeSendWhatsApp(supabase, { ...cfg, whatsapp_body: generatedText }, entityId, companyId);
+          return await executeSendWhatsApp(supabase, { ...ncfg, whatsapp_body: generatedText }, entityId, companyId);
         } else if (aiChannel === "sms") {
           if (!aiContact.phone) return { success: false, error: "Contatto senza telefono" };
           const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
