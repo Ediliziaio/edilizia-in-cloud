@@ -498,7 +498,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Il cliente ha accettato il preventivo',
     icon: '✅',
     categoria: 'preventivi',
-    dbTable: 'preventivi_native',
+    dbTable: 'quotes',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
