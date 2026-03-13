@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, LayoutTemplate } from "lucide-react";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
@@ -9,7 +10,7 @@ import { AutomazioniTemplateGallery } from "@/components/automazioni/Automazioni
 type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
 
 const CATEGORIE: { value: CategoriaFiltro; label: string; emoji: string }[] = [
-  { value: "tutte", label: "Tutte", emoji: "⚡" },
+  { value: "tutte", label: "Tutte le categorie", emoji: "⚡" },
   { value: "crm", label: "CRM & Vendite", emoji: "👥" },
   { value: "marketing", label: "Marketing", emoji: "📣" },
   { value: "preventivi", label: "Preventivi", emoji: "📋" },
@@ -48,27 +49,40 @@ export default function AutomazioniUnified() {
         </Button>
       </div>
 
-      {/* Category filter pills + view toggle */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {CATEGORIE.map((cat) => (
-            <button
-              key={cat.value}
-              onClick={() => setCategoriaAttiva(cat.value)}
-              className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                whitespace-nowrap transition-all
-                ${categoriaAttiva === cat.value
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:bg-muted"
-                }
-              `}
-            >
-              <span>{cat.emoji}</span>
-              <span>{cat.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* Filters row: Search + Category dropdown + Template toggle */}
+      <div className="flex items-center gap-3">
+        {!vistaTemplates && (
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca automazione..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        )}
+
+        <Select
+          value={categoriaAttiva}
+          onValueChange={(v) => setCategoriaAttiva(v as CategoriaFiltro)}
+        >
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Categoria" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIE.map((cat) => (
+              <SelectItem key={cat.value} value={cat.value}>
+                <span className="flex items-center gap-2">
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex-1" />
 
         <button
           onClick={() => setVistaTemplates(!vistaTemplates)}
@@ -84,19 +98,6 @@ export default function AutomazioniUnified() {
           Template
         </button>
       </div>
-
-      {/* Search bar */}
-      {!vistaTemplates && (
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca automazione..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      )}
 
       {/* Content */}
       {vistaTemplates ? (
