@@ -152,6 +152,7 @@ export default function UnifiedTasks() {
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterFonte === "marketing" && !MARKETING_CATEGORIES.includes(t.category)) return false;
       if (filterFonte === "cantieri" && MARKETING_CATEGORIES.includes(t.category)) return false;
+      if (filterAssignee !== "all" && t.assigned_to !== filterAssignee) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
         if (!t.title?.toLowerCase().includes(q) && !t.notes?.toLowerCase().includes(q)) return false;
