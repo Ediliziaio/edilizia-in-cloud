@@ -145,6 +145,16 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({});
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? true) }));
+  };
+
+  const isGroupOpen = (label: string, items: NavItem[]) => {
+    if (label in openGroups) return openGroups[label];
+    return true; // default open
+  };
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
