@@ -166,7 +166,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_creata',
     label: 'Nuova opportunità creata',
     description: 'Scatta alla creazione di una nuova opportunità/deal',
-    icon: '💼',
+    icon: 'Briefcase',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'INSERT',
