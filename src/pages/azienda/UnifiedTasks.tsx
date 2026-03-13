@@ -10,7 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ListTodo, ExternalLink, CheckCircle2 } from "lucide-react";
+import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useDebounce } from "@/hooks/useDebounce";
+import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -68,6 +71,9 @@ export default function UnifiedTasks() {
   const [filterFonte, setFilterFonte] = useState(initialFonte);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("myday");
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [searchText, setSearchText] = useState("");
+  const debouncedSearch = useDebounce(searchText, 300);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -128,9 +134,13 @@ export default function UnifiedTasks() {
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterFonte === "marketing" && !MARKETING_CATEGORIES.includes(t.category)) return false;
       if (filterFonte === "cantieri" && MARKETING_CATEGORIES.includes(t.category)) return false;
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        if (!t.title?.toLowerCase().includes(q) && !t.notes?.toLowerCase().includes(q)) return false;
+      }
       return true;
     });
-  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte]);
+  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, debouncedSearch]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
@@ -209,15 +219,24 @@ export default function UnifiedTasks() {
           <div className="space-y-6">
             <TaskStatCards {...stats} />
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca attività..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="pl-9 h-9"
+                />
+              </div>
               <Select value={filterFonte} onValueChange={setFilterFonte}>
-                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Fonte" /></SelectTrigger>
                 <SelectContent>
                   {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Stato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="active">Attive</SelectItem>
@@ -227,7 +246,7 @@ export default function UnifiedTasks() {
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Priorità" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="bassa">Bassa</SelectItem>
@@ -237,7 +256,7 @@ export default function UnifiedTasks() {
                 </SelectContent>
               </Select>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Categoria" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
@@ -245,6 +264,26 @@ export default function UnifiedTasks() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="flex rounded-md border overflow-hidden ml-auto">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "p-2 transition-colors",
+                    viewMode === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <LayoutList className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("kanban")}
+                  className={cn(
+                    "p-2 transition-colors",
+                    viewMode === "kanban" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <Kanban className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {isLoading ? (
@@ -260,6 +299,11 @@ export default function UnifiedTasks() {
                   </Button>
                 </CardContent>
               </Card>
+            ) : viewMode === "kanban" ? (
+              <TaskKanbanBoard
+                tasks={filteredTasks}
+                onTaskSelect={(task) => { setEditingTask(task); setDialogOpen(true); }}
+              />
             ) : (
               <>
                 <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
