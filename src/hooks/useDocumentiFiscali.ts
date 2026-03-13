@@ -75,7 +75,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     ordine_id: row.ordine_id as string | undefined,
     cig: row.cig as string | undefined,
     cup: row.cup as string | undefined,
-    causale: row.causale as string | undefined,
+    causale: (row.causale ?? []) as unknown[],
     note_documento: row.note_documento as string | undefined,
     importo_pagato: Number(row.importo_pagato ?? 0),
     pagato_at: row.pagato_at as string | undefined,
