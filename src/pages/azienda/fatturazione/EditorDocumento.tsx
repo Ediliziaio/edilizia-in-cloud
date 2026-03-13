@@ -44,7 +44,7 @@ export default function EditorDocumento() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, contact_id, description, total_amount, profiles!orders_contact_id_fkey(id, first_name, last_name, company_name, fiscal_code, vat_number)")
+        .select("id, description, total_amount")
         .eq("id", ordineParam!)
         .maybeSingle();
       if (error) throw error;
