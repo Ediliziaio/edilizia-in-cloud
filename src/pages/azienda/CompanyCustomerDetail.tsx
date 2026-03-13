@@ -93,6 +93,37 @@ export default function CompanyCustomerDetail() {
     enabled: !!id && !!effectiveCompany?.id,
   });
 
+  // Check if a fiscal anagrafica is linked to this profile
+  const { data: anagraficaCollegata } = useQuery({
+    queryKey: ["anagrafica-by-cliente", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("anagrafiche_native" as never)
+        .select("id, ragione_sociale, partita_iva")
+        .eq("cliente_id", id!)
+        .maybeSingle();
+      return data as { id: string; ragione_sociale: string | null; partita_iva: string | null } | null;
+    },
+    enabled: !!id,
+  });
+
+  // Fetch invoices for the linked anagrafica
+  const { data: fattureCliente = [] } = useQuery({
+    queryKey: ["fatture-cliente", id, anagraficaCollegata?.id],
+    enabled: !!anagraficaCollegata?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("documenti_fiscali" as never)
+        .select("id, tipo, numero, data_emissione, stato, totale_documento")
+        .eq("anagrafica_id", anagraficaCollegata!.id)
+        .order("data_emissione", { ascending: false })
+        .limit(20);
+      return (data ?? []) as unknown as Array<{
+        id: string; tipo: string; numero: string; data_emissione: string; stato: string; totale_documento: number;
+      }>;
+    },
+  });
+
   const orderCount = orders.length;
 
   useEffect(() => {
