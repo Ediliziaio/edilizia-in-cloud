@@ -71,6 +71,7 @@ const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/Registro
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
 const PipelinePreventivi = lazy(() => import("@/pages/azienda/fatturazione/PipelinePreventivi"));
+const NoteCreditoList = lazy(() => import("@/pages/azienda/fatturazione/NoteCreditoList"));
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
