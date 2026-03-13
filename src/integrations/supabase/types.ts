@@ -17430,6 +17430,25 @@ export type Database = {
         }
         Returns: undefined
       }
+      search_kb_chunks: {
+        Args: {
+          p_azienda_id: string
+          p_categoria?: string
+          p_embedding: string
+          p_threshold?: number
+          p_top_k?: number
+        }
+        Returns: {
+          categoria: string
+          chunk_index: number
+          documento_id: string
+          id: string
+          pagina: number
+          similarity: number
+          testo: string
+          testo_preview: string
+        }[]
+      }
       staff_update_own_password_flag: {
         Args: { _must_change: boolean }
         Returns: undefined
