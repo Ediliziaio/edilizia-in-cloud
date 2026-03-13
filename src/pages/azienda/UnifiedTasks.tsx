@@ -236,6 +236,7 @@ export default function UnifiedTasks() {
 
         <TabsContent value="all">
           <div className="space-y-6">
+            <TaskQuickAdd />
             <TaskStatCards {...stats} />
 
             <div className="flex flex-wrap items-center gap-3">
