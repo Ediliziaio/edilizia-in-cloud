@@ -134,9 +134,13 @@ export default function UnifiedTasks() {
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterFonte === "marketing" && !MARKETING_CATEGORIES.includes(t.category)) return false;
       if (filterFonte === "cantieri" && MARKETING_CATEGORIES.includes(t.category)) return false;
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        if (!t.title?.toLowerCase().includes(q) && !t.notes?.toLowerCase().includes(q)) return false;
+      }
       return true;
     });
-  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte]);
+  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, debouncedSearch]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
