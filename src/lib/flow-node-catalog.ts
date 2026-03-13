@@ -1152,7 +1152,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'aggiorna_campo',
     label: 'Aggiorna campo entità',
     description: 'Aggiorna un campo specifico su qualsiasi entità del sistema',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'crm',
     configSchema: [
       { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true, options: [
