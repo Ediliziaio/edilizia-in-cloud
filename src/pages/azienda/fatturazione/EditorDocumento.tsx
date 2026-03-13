@@ -18,6 +18,7 @@ import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
 import { EditorDDTSection } from "./editor/EditorDDTSection";
+import { EditorOrdineSection } from "./editor/EditorOrdineSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
