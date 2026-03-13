@@ -1307,6 +1307,45 @@ function resolveVariables(text: string, contact: any): string {
 // ────────────────────────────────────────────────────
 // HELPERS
 // ────────────────────────────────────────────────────
+
+async function completeExecutionRun(supabase: any, enrollmentId: string, status: "completed" | "error", errorMessage?: string) {
+  try {
+    const now = new Date();
+    // Find the running execution run for this enrollment
+    const { data: run } = await supabase
+      .from("flow_execution_runs")
+      .select("id, started_at")
+      .eq("enrollment_id", enrollmentId)
+      .eq("status", "running")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!run) return;
+
+    const durationMs = now.getTime() - new Date(run.started_at).getTime();
+
+    // Count executed nodes from execution log
+    const { count } = await supabase
+      .from("automation_execution_log")
+      .select("id", { count: "exact", head: true })
+      .eq("enrollment_id", enrollmentId);
+
+    await supabase
+      .from("flow_execution_runs")
+      .update({
+        status,
+        ended_at: now.toISOString(),
+        duration_ms: durationMs,
+        nodes_executed: count ?? 0,
+        error_message: errorMessage ?? null,
+      })
+      .eq("id", run.id);
+  } catch (err: any) {
+    console.error("completeExecutionRun error:", err.message);
+  }
+}
+
 async function markQueueItem(supabase: any, id: string, status: string, error?: string) {
   await supabase
     .from("automation_queue")
