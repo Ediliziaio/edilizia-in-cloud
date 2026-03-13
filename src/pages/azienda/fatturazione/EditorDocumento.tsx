@@ -126,6 +126,7 @@ export default function EditorDocumento() {
             )}
 
             <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
 
             {/* DDT-specific sections */}

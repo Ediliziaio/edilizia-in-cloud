@@ -253,6 +253,7 @@ export interface DocumentoFiscale {
   riferimenti_ordine?: unknown[];
   riferimenti_ddt?: unknown[];
   documento_correlato_id?: string;
+  ordine_id?: string;
 
   // PA
   cig?: string;

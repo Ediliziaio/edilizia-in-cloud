@@ -61,6 +61,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     metodo_pagamento_codice: row.metodo_pagamento_codice as DocumentoFiscale["metodo_pagamento_codice"],
     iban_pagamento: row.iban_pagamento as string | undefined,
     documento_correlato_id: row.documento_correlato_id as string | undefined,
+    ordine_id: row.ordine_id as string | undefined,
     cig: row.cig as string | undefined,
     cup: row.cup as string | undefined,
     note_documento: row.note_documento as string | undefined,
