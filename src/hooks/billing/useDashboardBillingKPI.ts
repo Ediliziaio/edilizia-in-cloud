@@ -79,7 +79,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
         }
 
         if (d.stato === "bozza" && isFattura) fatture_in_bozza++;
-        if (d.tipo === "proforma" && d.stato !== "annullata") proforma_aperti++;
+        if (d.tipo === "proforma" && ["bozza", "inviata"].includes(d.stato)) proforma_aperti++;
       }
 
       // Incassi
