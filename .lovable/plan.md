@@ -1,194 +1,75 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+## ATT-05 · Motore Automazioni Task — Piano di Implementazione
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+### Situazione attuale
 
----
+- Esiste già una tabella `automations` con campi: `name`, `trigger_type`, `trigger_config`, `conditions`, `actions`, `is_active`, `company_id`, `created_by` — usata dalla pagina `/azienda/automazioni-legacy` (`AutomationsConfig`). Questa gestisce automazioni per commesse (ordini).
+- Esiste un sistema di automazioni marketing separato (`internal_automation_flows`, `AutomationBuilder.tsx`) — completamente diverso.
+- **Non esiste** una tabella `task_automation_rules` specifica per la creazione automatica di task da eventi CRM/cantiere.
+- Le tabelle reali sono: `marketing_contacts` (con `first_name`, `last_name`, `source`, `assigned_to`), `marketing_opportunities` (con `name`, `stage_id`, `assigned_to`, `value`, `source`), `appointments` (con `status`, `is_completed`, `assigned_to`, `contact_id`).
+- La tabella `tasks` usa campi inglesi: `title`, `status`, `priority`, `category`, `due_date`, `assigned_to`, `created_by`, `contact_id`, `opportunity_id`, `order_id`.
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+### Adattamento allo schema reale
+
+Il prompt ATT-05 assume campi italiani (`titolo`, `stato`, `priorita`, `fonte`, etc.) che non esistono. Adatteremo tutto ai campi reali inglesi della tabella `tasks`. Allo stesso modo, le tabelle trigger usano nomi reali (`marketing_contacts`, `marketing_opportunities`, `appointments`).
+
+Non creeremo una nuova tabella `task_automation_rules` — **estenderemo la tabella `automations` esistente** con nuovi `trigger_type` e azioni specifiche per task, oppure creeremo una tabella dedicata se più pulito. Data la differenza semantica (la tabella `automations` esistente gestisce commesse), creeremo una **nuova tabella `task_automation_rules`**.
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### Piano
 
----
+#### 1. Migrazione DB — Nuove tabelle
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+**`task_automation_rules`**:
+- `id`, `company_id` (FK companies), `name`, `description`, `is_active` (default true)
+- `trigger_type` TEXT — valori: `contact_created`, `opportunity_created`, `opportunity_stage_changed`, `appointment_confirmed`, `appointment_completed`
+- `trigger_config` JSONB (es. `{ "from_stage_id": "...", "to_stage_id": "..." }` per stage changes)
+- `conditions` JSONB (array di `{ field, operator, value }`)
+- Campi azione (per creare task): `action_title`, `action_notes`, `action_priority` (default 'normale'), `action_assign_to` (default 'entity_assignee' — valori: `entity_assignee`, `creator`, `user:<uuid>`), `action_due_days` INTEGER (default 1), `action_category` (default 'generale')
+- `executions_count` INTEGER default 0, `last_executed_at` TIMESTAMPTZ
+- `created_at`, `updated_at`, `created_by` (FK profiles)
+- RLS: company_id scoped via `get_my_company_id()`
 
----
+**`task_automation_log`**:
+- `id`, `rule_id` (FK task_automation_rules ON DELETE CASCADE), `task_created_id` (FK tasks), `trigger_data` JSONB, `success` BOOLEAN, `error` TEXT, `created_at`
+- RLS: select via join on rule.company_id
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+#### 2. Edge Function `task-automation-trigger`
 
----
+Receives database webhook payloads from `marketing_contacts`, `marketing_opportunities`, `appointments`. Maps events to trigger types, fetches matching active rules, evaluates conditions, and creates tasks via direct INSERT into `tasks` table (using service role).
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+Template variables in `action_title`: `{{contact_name}}`, `{{opportunity_name}}`, `{{appointment_title}}`.
 
----
+Config in `config.toml`: `verify_jwt = false` (called by DB webhooks internally).
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+Database webhooks will be created via migration SQL using `supabase_functions.http_request` (pg_net):
+- `marketing_contacts` INSERT → trigger function
+- `marketing_opportunities` INSERT, UPDATE → trigger function  
+- `appointments` UPDATE → trigger function
 
----
+#### 3. UI — Page + Form
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+**Modify existing `src/pages/azienda/Automations.tsx`** — or create a new page at `/azienda/automazioni-task` and add route. Better: create a **new tab** in the existing Automations page, or a dedicated page. Given the existing `/azienda/automazioni` route already points to `InternalAutomations`, we'll add a new route `/azienda/automazioni-task` → `TaskAutomationsPage`.
 
----
+New files:
+| File | Purpose |
+|------|---------|
+| `src/pages/azienda/TaskAutomationsPage.tsx` | List of task automation rules with toggle, edit, delete, preset suggestions |
+| `src/components/automazioni/TaskAutomationFormDialog.tsx` | Dialog to create/edit a rule |
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+Add route in `companyRoutes.tsx` and sidebar entry in `sidebarConfig.ts`.
 
----
+#### 4. File creati/modificati
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+| File | Azione |
+|------|--------|
+| Migration SQL | New tables `task_automation_rules`, `task_automation_log` with RLS |
+| `supabase/functions/task-automation-trigger/index.ts` | **Nuovo** — Edge Function |
+| `supabase/config.toml` | Add `[functions.task-automation-trigger]` |
+| `src/pages/azienda/TaskAutomationsPage.tsx` | **Nuovo** |
+| `src/components/automazioni/TaskAutomationFormDialog.tsx` | **Nuovo** |
+| `src/routes/companyRoutes.tsx` | Add route |
+| `src/lib/sidebarConfig.ts` | Add sidebar entry |
 
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
