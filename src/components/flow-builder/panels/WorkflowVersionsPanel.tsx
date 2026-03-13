@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, RotateCcw, Eye } from "lucide-react";
+import { Clock, RotateCcw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface Props {
   flowId: string;
@@ -26,6 +27,49 @@ export function WorkflowVersionsPanel({ flowId }: Props) {
       return data ?? [];
     },
     enabled: !!flowId,
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (version: any) => {
+      const nodes = version.nodes_snapshot ?? [];
+      const connections = version.connections_snapshot ?? [];
+
+      // Delete current nodes and connections, then re-insert from snapshot
+      const { error: delNodes } = await (supabase as any)
+        .from("automation_nodes")
+        .delete()
+        .eq("flow_id", flowId);
+      if (delNodes) throw delNodes;
+
+      const { error: delConns } = await (supabase as any)
+        .from("automation_connections")
+        .delete()
+        .eq("flow_id", flowId);
+      if (delConns) throw delConns;
+
+      if (nodes.length > 0) {
+        const { error: insNodes } = await (supabase as any)
+          .from("automation_nodes")
+          .insert(nodes.map((n: any) => ({ ...n, flow_id: flowId })));
+        if (insNodes) throw insNodes;
+      }
+
+      if (connections.length > 0) {
+        const { error: insConns } = await (supabase as any)
+          .from("automation_connections")
+          .insert(connections.map((c: any) => ({ ...c, flow_id: flowId })));
+        if (insConns) throw insConns;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-nodes"] });
+      qc.invalidateQueries({ queryKey: ["automation-connections"] });
+      qc.invalidateQueries({ queryKey: ["flow-versions", flowId] });
+      toast.success("Versione ripristinata con successo");
+    },
+    onError: () => {
+      toast.error("Errore nel ripristino della versione");
+    },
   });
 
   const corrente = versioni[0] ?? null;
@@ -103,10 +147,11 @@ export function WorkflowVersionsPanel({ flowId }: Props) {
                             `Ripristinare la versione ${v.version}? Le modifiche non salvate andranno perse.`
                           )
                         ) {
-                          // TODO: implement restore from snapshot
+                          restoreMutation.mutate(v);
                         }
                       }}
-                      className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+                      disabled={restoreMutation.isPending}
+                      className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 disabled:opacity-50"
                     >
                       <RotateCcw className="h-3 w-3" /> Ripristina
                     </button>
