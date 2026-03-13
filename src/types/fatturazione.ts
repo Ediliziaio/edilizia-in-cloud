@@ -340,6 +340,10 @@ export interface AnagraficaNative {
   note?: string;
   tags?: string[];
   attivo: boolean;
+  // Reconciliation fields
+  cliente_id?: string | null;
+  sync_from_cliente?: boolean;
+  last_synced_at?: string | null;
   created_at: string;
   updated_at: string;
 }
