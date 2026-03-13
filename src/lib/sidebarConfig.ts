@@ -121,9 +121,6 @@ export const macroAreas: MacroArea[] = [
     items: [
       // ─── Sub-gruppo: Fatturazione e Documenti (billing_native) ───
       { title: "Fatture", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", groupLabel: "Fatturazione e Documenti" },
-      { title: "Proforma", url: "/azienda/documenti/proforma", icon: FileClock, permissionKey: "canViewBilling", featureKey: "billing_native" },
-      { title: "Note di Credito", url: "/azienda/documenti/note-credito", icon: FileX2, permissionKey: "canViewBilling", featureKey: "billing_native" },
-      { title: "DDT", url: "/azienda/documenti/ddt", icon: Truck, permissionKey: "canViewBilling", featureKey: "billing_native" },
       { title: "Anagrafica Fiscale", url: "/azienda/documenti/anagrafiche", icon: BookUser, permissionKey: "canViewBilling", featureKey: "billing_native" },
       { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Coins, permissionKey: "canViewBilling", featureKey: "billing_native" },
       { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Archive, permissionKey: "canViewBilling", featureKey: "billing_native" },
