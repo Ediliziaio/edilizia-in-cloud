@@ -145,7 +145,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({});
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? true) }));
