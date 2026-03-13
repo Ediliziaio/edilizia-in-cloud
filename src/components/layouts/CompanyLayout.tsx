@@ -191,27 +191,51 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                   {area.title}
                 </p>
                 <div className="flex flex-col gap-0.5">
-                  {visibleItems.map((item) => {
-                    const ItemIcon = item.icon;
-                    const active = isActive(item.url);
-                    return (
-                      <NavLink
-                        key={item.url}
-                        to={item.url}
-                        end={item.url === "/azienda" || item.url === "/azienda/marketing"}
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                          active && "bg-primary/10 text-primary font-medium"
+                  {(() => {
+                    const groupedItems: Array<{ label: string | null; items: NavItem[] }> = [];
+                    let currentGroup: { label: string | null; items: NavItem[] } = { label: null, items: [] };
+                    for (const item of visibleItems) {
+                      if (item.groupLabel && item.groupLabel !== currentGroup.label) {
+                        if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
+                        currentGroup = { label: item.groupLabel, items: [item] };
+                      } else {
+                        currentGroup.items.push(item);
+                      }
+                    }
+                    if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
+
+                    return groupedItems.map((group, gi) => (
+                      <div key={group.label ?? `g${gi}`}>
+                        {group.label && (
+                          <div className={cn("px-2 pt-1.5 pb-0.5", gi > 0 && "mt-1 border-t border-sidebar-border/40")}>
+                            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/40">
+                              {group.label}
+                            </span>
+                          </div>
                         )}
-                      >
-                        <ItemIcon className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{item.title}</span>
-                        {item.isBeta && (
-                          <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                        )}
-                      </NavLink>
-                    );
-                  })}
+                        {group.items.map((item) => {
+                          const ItemIcon = item.icon;
+                          const active = isActive(item.url);
+                          return (
+                            <NavLink
+                              key={item.url}
+                              to={item.url}
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                                active && "bg-primary/10 text-primary font-medium"
+                              )}
+                            >
+                              <ItemIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{item.title}</span>
+                              {item.isBeta && (
+                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                              )}
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </HoverCardContent>
             </HoverCard>
