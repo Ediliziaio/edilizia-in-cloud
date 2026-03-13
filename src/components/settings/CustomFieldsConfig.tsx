@@ -716,24 +716,15 @@ export function CustomFieldsConfig() {
       )}
 
       {/* ── Footer ── */}
-      <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
-        <span>
-          Presentazione 1 a {Math.min(pageSize, total)} di {total} risultati
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span>Dimensione pagina:</span>
-          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-            <SelectTrigger className="h-8 w-[80px] text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-              <SelectItem value="200">200</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <TablePagination
+        currentPage={safePage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={total}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+        pageSizeOptions={[25, 50, 100, 200]}
+      />
 
       {/* ── Add field dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
