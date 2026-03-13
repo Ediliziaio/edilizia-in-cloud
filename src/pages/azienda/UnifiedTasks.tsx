@@ -14,6 +14,7 @@ import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban 
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
+import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
