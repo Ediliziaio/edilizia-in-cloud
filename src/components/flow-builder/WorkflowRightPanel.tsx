@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Search, Zap, AppWindow } from "lucide-react";
+import { X, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -78,14 +78,13 @@ function CatalogPanel({
   onSelectItem?: (item: CatalogItem) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [subTab, setSubTab] = useState<"native" | "app">("native");
 
   const handleSelect = (item: CatalogItem) => {
     onSelectItem?.(item);
   };
 
   return (
-    <div className="flex h-full w-[300px] flex-col border-l bg-background">
+    <div className="flex h-full w-[340px] flex-col border-l bg-background">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
@@ -130,53 +129,18 @@ function CatalogPanel({
         ))}
       </div>
 
-      {/* Sub-tabs: Nativi / App */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setSubTab("native")}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
-            subTab === "native" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Zap className="h-3 w-3" />
-          Nativi
-        </button>
-        <button
-          onClick={() => setSubTab("app")}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
-            subTab === "app" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <AppWindow className="h-3 w-3" />
-          App
-        </button>
-      </div>
-
       {/* Items */}
       <ScrollArea className="flex-1">
-        {subTab === "native" ? (
-          <>
-            {catalogTab === "trigger" && (
-              <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} />
-            )}
-            {(catalogTab === "action" || catalogTab === "condition") && (
-              <ActionCatalogList
-                search={search}
-                onSelect={handleSelect}
-                onDragStart={onDragStart}
-                includeConditions={catalogTab === "condition" || catalogTab === "action"}
-              />
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 px-4">
-            <AppWindow className="h-8 w-8 text-muted-foreground/40 mb-3" />
-            <p className="text-xs text-muted-foreground text-center">
-              Le integrazioni app saranno disponibili a breve.
-            </p>
-          </div>
+        {catalogTab === "trigger" && (
+          <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} />
+        )}
+        {(catalogTab === "action" || catalogTab === "condition") && (
+          <ActionCatalogList
+            search={search}
+            onSelect={handleSelect}
+            onDragStart={onDragStart}
+            includeConditions={catalogTab === "condition" || catalogTab === "action"}
+          />
         )}
       </ScrollArea>
     </div>
