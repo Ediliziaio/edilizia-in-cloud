@@ -759,7 +759,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'dipendente_creato',
     label: 'Nuovo dipendente aggiunto',
     description: 'Scatta quando viene inserito un nuovo dipendente/collaboratore',
-    icon: '👤',
+    icon: 'UserPlus',
     categoria: 'hr',
     dbTable: 'employees',
     dbEvent: 'INSERT',
