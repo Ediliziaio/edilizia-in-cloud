@@ -152,7 +152,8 @@ const VenditoriPerformanceReport = () => {
               </Card>
             )}
           </div>
-        </TabsContent>
+
+          <VenditoriFunnel stages={funnel} />
 
         <TabsContent value="ranking" className="mt-4">
           <Card>
