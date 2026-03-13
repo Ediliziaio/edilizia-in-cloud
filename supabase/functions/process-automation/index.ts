@@ -540,16 +540,16 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     case "create_task": {
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId,
-        title: cfg.task_title || "Attività automatica",
-        notes: cfg.task_notes || null,
-        priority: cfg.task_priority || "normale",
-        category: cfg.task_category || "generale",
-        assigned_to: cfg.task_assigned_to || null,
+        title: ncfg.task_title || "Attività automatica",
+        notes: ncfg.task_notes || null,
+        priority: ncfg.task_priority || "normale",
+        category: ncfg.task_category || "generale",
+        assigned_to: ncfg.task_assigned_to || null,
         status: "da_fare",
         created_by: "00000000-0000-0000-0000-000000000000",
       });
       if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "create_task", title: cfg.task_title } };
+      return { success: true, output: { action: "create_task", title: ncfg.task_title } };
     }
 
     case "send_notification": {
