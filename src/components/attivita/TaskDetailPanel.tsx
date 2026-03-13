@@ -404,6 +404,14 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             </>
           )}
 
+          {/* Checklist */}
+          <Separator />
+          <TaskChecklist taskId={task.id} />
+
+          {/* Comments */}
+          <Separator />
+          <TaskComments taskId={task.id} />
+
           {/* Meta */}
           <Separator />
           <div className="text-xs text-muted-foreground space-y-1">
