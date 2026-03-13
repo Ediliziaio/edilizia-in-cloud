@@ -912,7 +912,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ ⏰ SCHEDULATI / MANUALI ═══
+  // ═══ SCHEDULATI / MANUALI ═══
   {
     id: 'cron_giornaliero',
     label: 'Ogni giorno (a orario fisso)',
