@@ -77,7 +77,7 @@ export function FlowBuilderPage() {
           id: triggerId,
           type: "trigger",
           position: { x: 300, y: 100 },
-          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger" },
+          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger", onOpenCatalog: () => openCatalog("trigger") },
         },
         {
           id: endId,
