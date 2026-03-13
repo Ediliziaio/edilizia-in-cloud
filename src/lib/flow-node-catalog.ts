@@ -984,7 +984,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
 
 export const ACTION_CATALOG: ActionDefinition[] = [
 
-  // ═══ ✅ TASK & ATTIVITÀ ═══
+  // ═══ TASK & ATTIVITÀ ═══
   {
     id: 'crea_task',
     label: 'Crea attività',
