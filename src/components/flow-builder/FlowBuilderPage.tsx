@@ -68,7 +68,7 @@ export function FlowBuilderPage() {
       setRfNodes(nodesToReactFlow(builder.nodes));
       setRfEdges(connectionsToEdges(builder.connections));
       initializedRef.current = true;
-    } else if (flowId && !isLoading && builder.nodes.length === 0) {
+    } else if (!isLoading && builder.nodes.length === 0 && (flowId || id === "nuova")) {
       // Empty canvas placeholder: trigger + end node
       const triggerId = "placeholder-trigger";
       const endId = "placeholder-end";
