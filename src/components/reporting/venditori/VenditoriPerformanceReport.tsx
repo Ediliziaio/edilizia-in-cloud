@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import { VenditoriRanking } from "./VenditoriRanking";
 import { VenditoriTrend } from "./VenditoriTrend";
 import { VenditoriInsights } from "./VenditoriInsights";
 import { VenditoriConfronto } from "./VenditoriConfronto";
+import { ReportExportMenu } from "../shared/ReportExportMenu";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -20,6 +21,24 @@ const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "trimestre", label: "Ultimo trimestre" },
   { value: "semestre", label: "Ultimo semestre" },
   { value: "anno", label: "Anno corrente" },
+];
+
+const EXPORT_COLUMNS = [
+  { key: "nome_agente", label: "Agente" },
+  { key: "opp_totali", label: "Opportunità Totali" },
+  { key: "opp_vinte", label: "Vinte" },
+  { key: "opp_perse", label: "Perse" },
+  { key: "opp_aperte", label: "Aperte" },
+  { key: "tasso_chiusura", label: "Tasso Chiusura %" },
+  { key: "tasso_conversione", label: "Tasso Conversione %" },
+  { key: "fatturato_generato", label: "Fatturato €" },
+  { key: "importo_medio_chiusura", label: "Importo Medio €" },
+  { key: "pipeline_valore", label: "Pipeline €" },
+  { key: "appuntamenti_fissati", label: "App. Fissati" },
+  { key: "appuntamenti_effettuati", label: "App. Effettuati" },
+  { key: "tasso_show_up", label: "Show-Up %" },
+  { key: "avg_giorni_chiusura", label: "Giorni Chiusura Media" },
+  { key: "nuovi_contatti", label: "Nuovi Contatti" },
 ];
 
 function aggregateTeamKPI(list: VendorKPI[]): VendorKPI | null {
@@ -85,6 +104,16 @@ const VenditoriPerformanceReport = () => {
 
   const agenti = kpiList.map(k => ({ id: k.agent_id, nome: k.nome_agente }));
 
+  // Export data
+  const exportRows = useMemo(() =>
+    kpiList.map(k => {
+      const row: Record<string, string> = {};
+      EXPORT_COLUMNS.forEach(c => { row[c.key] = String((k as any)[c.key] ?? ""); });
+      return row;
+    }),
+    [kpiList]
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -101,6 +130,12 @@ const VenditoriPerformanceReport = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              <ReportExportMenu
+                rows={exportRows}
+                columns={EXPORT_COLUMNS}
+                filenameBase={`report-venditori-${periodo}`}
+                disabled={isLoading}
+              />
               <Select value={agentId} onValueChange={setAgentId}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Seleziona agente" />

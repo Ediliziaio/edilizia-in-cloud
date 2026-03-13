@@ -8,6 +8,7 @@ import {
   useSpeedToLeadDistribuzione,
   useTrendGiornaliero,
   useFonteLeadPerformance,
+  type CallCenterKPI,
 } from "@/hooks/useCallCenterReport";
 import { CallCenterKPISection } from "./CallCenterKPISection";
 import { CallCenterInsights } from "./CallCenterInsights";
@@ -16,6 +17,7 @@ import { SpeedToLeadChart } from "./SpeedToLeadChart";
 import { CallCenterTrendChart } from "./CallCenterTrendChart";
 import { FonteLeadTable } from "./FonteLeadTable";
 import { OperatoriRanking } from "./OperatoriRanking";
+import { ReportExportMenu } from "../shared/ReportExportMenu";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Mese corrente" },
@@ -25,6 +27,24 @@ const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "anno", label: "Anno corrente" },
 ];
 
+const EXPORT_COLUMNS = [
+  { key: "nome_operatore", label: "Operatore" },
+  { key: "lead_assegnati", label: "Lead Assegnati" },
+  { key: "lead_lavorati", label: "Lead Lavorati" },
+  { key: "pct_lead_lavorati", label: "% Lavorati" },
+  { key: "lead_contattati", label: "Contattati" },
+  { key: "tasso_contatto", label: "Tasso Contatto %" },
+  { key: "tentativi_totali", label: "Tentativi" },
+  { key: "avg_speed_to_lead_min", label: "Speed to Lead (min)" },
+  { key: "appuntamenti_fissati", label: "Appuntamenti" },
+  { key: "tasso_app_su_contattati", label: "App/Contattati %" },
+  { key: "show_up_count", label: "Show-Up" },
+  { key: "tasso_show_up", label: "Show-Up %" },
+  { key: "chiamate_per_giorno", label: "Chiamate/Giorno" },
+  { key: "durata_media_min", label: "Durata Media (min)" },
+  { key: "giorni_lavorati", label: "Giorni Lavorati" },
+];
+
 export default function CallCenterReport() {
   const [periodo, setPeriodo] = useState<PeriodoVendor>("mese");
   const [operatoreId, setOperatoreId] = useState<string>("tutti");
@@ -32,25 +52,20 @@ export default function CallCenterReport() {
 
   const effectiveOpId = operatoreId === "tutti" ? undefined : operatoreId;
 
-  // Single KPI query — no duplicate when "tutti"
+  // Single KPI query — filter client-side for individual operator
   const { data: kpiList, isLoading: kpiLoading } = useCallCenterKPI(periodo);
-  const { data: kpiFiltered, isLoading: kpiFilteredLoading } = useCallCenterKPI(
-    periodo,
-    effectiveOpId
-  );
-  const isIndividual = operatoreId !== "tutti";
 
-  // Only load speed/trend/fonti when their tab is active
-  const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId);
-  const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId);
-  const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo);
+  // Lazy load — only when tab is active
+  const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId, subTab === "speed");
+  const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId, subTab === "trend");
+  const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo, subTab === "fonti");
 
-  // Aggregate team KPI from kpiList — avoids duplicate query
+  // Aggregate team or find individual — all client-side from kpiList
   const currentKpi = useMemo(() => {
-    if (isIndividual) {
-      return kpiFiltered?.[0] ?? null;
-    }
     if (!kpiList?.length) return null;
+    if (operatoreId !== "tutti") {
+      return kpiList.find(k => k.operatore_id === operatoreId) ?? null;
+    }
     const agg = kpiList.reduce((acc, k) => ({
       ...acc,
       lead_assegnati: acc.lead_assegnati + (k.lead_assegnati ?? 0),
@@ -72,7 +87,7 @@ export default function CallCenterReport() {
       appuntamenti_fissati: 0, tasso_app_su_contattati: 0, tasso_app_su_assegnati: 0,
       show_up_count: 0, tasso_show_up: 0,
       durata_media_min: 0, chiamate_per_giorno: 0, giorni_lavorati: 0,
-    });
+    } as CallCenterKPI);
 
     agg.pct_lead_lavorati = agg.lead_assegnati ? Math.round(1000 * agg.lead_lavorati / agg.lead_assegnati) / 10 : 0;
     agg.tasso_contatto = agg.lead_lavorati ? Math.round(1000 * agg.lead_contattati / agg.lead_lavorati) / 10 : 0;
@@ -94,9 +109,17 @@ export default function CallCenterReport() {
     agg.pct_oltre_24ore = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_oltre_24ore ?? 0), 0) / withSpeed.length) / 10 : 0;
 
     return agg;
-  }, [isIndividual, kpiList, kpiFiltered]);
+  }, [kpiList, operatoreId]);
 
-  const isKpiLoading = isIndividual ? kpiFilteredLoading : kpiLoading;
+  // Export data
+  const exportRows = useMemo(() =>
+    (kpiList ?? []).map(k => {
+      const row: Record<string, string> = {};
+      EXPORT_COLUMNS.forEach(c => { row[c.key] = String((k as any)[c.key] ?? ""); });
+      return row;
+    }),
+    [kpiList]
+  );
 
   return (
     <div className="space-y-6">
@@ -106,6 +129,12 @@ export default function CallCenterReport() {
         <h2 className="text-lg font-semibold">Report Call Center</h2>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ReportExportMenu
+            rows={exportRows}
+            columns={EXPORT_COLUMNS}
+            filenameBase={`report-callcenter-${periodo}`}
+            disabled={kpiLoading}
+          />
           <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodoVendor)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
@@ -147,7 +176,7 @@ export default function CallCenterReport() {
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-4 space-y-6">
-          <CallCenterKPISection kpi={currentKpi} isLoading={isKpiLoading} />
+          <CallCenterKPISection kpi={currentKpi} isLoading={kpiLoading} />
           <CallCenterInsights kpi={currentKpi} />
         </TabsContent>
 
