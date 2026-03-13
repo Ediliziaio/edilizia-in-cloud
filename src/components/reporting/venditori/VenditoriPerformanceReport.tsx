@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, BarChart3, TrendingUp } from "lucide-react";
+import { Users, BarChart3, TrendingUp, GitCompareArrows } from "lucide-react";
 import { useVendorKPI, useVendorTrend, useVendorFunnel, type PeriodoVendor, type VendorKPI } from "@/hooks/useVendorReport";
 import { KPISection } from "./KPISection";
 import { AppuntamentiScorecard } from "./AppuntamentiScorecard";
@@ -12,6 +12,7 @@ import { VenditoriFunnel } from "./VenditoriFunnel";
 import { VenditoriRanking } from "./VenditoriRanking";
 import { VenditoriTrend } from "./VenditoriTrend";
 import { VenditoriInsights } from "./VenditoriInsights";
+import { VenditoriConfronto } from "./VenditoriConfronto";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -131,6 +132,9 @@ const VenditoriPerformanceReport = () => {
           <TabsTrigger value="trend" className="gap-1.5">
             <TrendingUp className="h-4 w-4" /> Trend Temporale
           </TabsTrigger>
+          <TabsTrigger value="confronto" className="gap-1.5">
+            <GitCompareArrows className="h-4 w-4" /> Confronto
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
@@ -166,6 +170,10 @@ const VenditoriPerformanceReport = () => {
 
         <TabsContent value="trend" className="mt-4">
           <VenditoriTrend trend={trend} agentId={agentId} />
+        </TabsContent>
+
+        <TabsContent value="confronto" className="mt-4">
+          <VenditoriConfronto kpiList={kpiList} />
         </TabsContent>
       </Tabs>
     </div>
