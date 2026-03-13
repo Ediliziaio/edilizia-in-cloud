@@ -118,6 +118,20 @@ export default function UnifiedTasks() {
     enabled: !!companyId,
   });
 
+  // Extract unique assignees for filter
+  const assignees = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    tasks.forEach((t) => {
+      if (t.assigned_profile && t.assigned_to) {
+        map.set(t.assigned_to, {
+          id: t.assigned_to,
+          name: `${t.assigned_profile.first_name} ${t.assigned_profile.last_name}`,
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks]);
+
   const now = new Date();
   const in48h = addHours(now, 48);
   const weekStart = startOfWeek(now, { locale: it });
