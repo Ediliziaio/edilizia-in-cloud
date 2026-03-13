@@ -159,6 +159,78 @@ export default function DocumentiFiscaliList() {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PER_PAGE);
 
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === docs.length && docs.length > 0) return new Set();
+      return new Set(docs.map((d) => d.id));
+    });
+  }, [docs]);
+
+  const allSelected = docs.length > 0 && selectedIds.size === docs.length;
+  const someSelected = selectedIds.size > 0;
+
+  // ── Bulk actions ──────────────────────────────────────
+  const selectedDocs = useMemo(() => docs.filter((d) => selectedIds.has(d.id)), [docs, selectedIds]);
+
+  const handleBulkExport = () => {
+    const columns: CsvColumn[] = [
+      { key: "numero", label: "Numero" },
+      { key: "tipo", label: "Tipo" },
+      { key: "data_emissione", label: "Data" },
+      { key: "cliente", label: "Cliente" },
+      { key: "stato", label: "Stato" },
+      { key: "imponibile", label: "Imponibile" },
+      { key: "iva", label: "IVA" },
+      { key: "totale", label: "Totale" },
+    ];
+    const rows = selectedDocs.map((d) => ({
+      numero: d.numero,
+      tipo: d.tipo,
+      data_emissione: d.data_emissione,
+      cliente: d.cliente_snapshot?.ragione_sociale ?? "",
+      stato: d.stato,
+      imponibile: String(d.imponibile_totale),
+      iva: String(d.iva_totale),
+      totale: String(d.totale_documento),
+    }));
+    exportToXLSX(rows, columns, `documenti_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`${rows.length} documenti esportati`);
+  };
+
+  const handleBulkPay = async () => {
+    const now = new Date().toISOString();
+    let ok = 0;
+    for (const doc of selectedDocs) {
+      if (!PAGABILE.includes(doc.stato)) continue;
+      try {
+        await updateMutation.mutateAsync({
+          id: doc.id,
+          stato: "pagata" as StatoDocumento,
+          importo_pagato: doc.totale_da_pagare,
+          pagato_at: now,
+        });
+        ok++;
+      } catch {}
+    }
+    if (ok > 0) toast.success(`${ok} documenti segnati come pagati`);
+    clearSelection();
+    setBulkPayOpen(false);
+  };
+
+  const handleBulkDelete = async () => {
+    let ok = 0;
+    for (const doc of selectedDocs) {
+      if (doc.stato !== "bozza") continue;
+      try {
+        await deleteMutation.mutateAsync(doc.id);
+        ok++;
+      } catch {}
+    }
+    if (ok > 0) toast.success(`${ok} documenti eliminati`);
+    clearSelection();
+    setBulkDeleteOpen(false);
+  };
+
   // Totals for footer
   const totals = useMemo(() => {
     let imp = 0, iva = 0, tot = 0;
