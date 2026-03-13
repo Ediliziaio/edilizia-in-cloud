@@ -154,16 +154,18 @@ const VenditoriPerformanceReport = () => {
           </div>
 
           <VenditoriFunnel stages={funnel} />
+        </TabsContent>
 
         <TabsContent value="ranking" className="mt-4">
           <VenditoriRanking kpiList={kpiList} isLoading={isLoading} />
+        </TabsContent>
 
         <TabsContent value="trend" className="mt-4">
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <TrendingUp className="h-12 w-12 text-muted-foreground/40 mb-4" />
               <h3 className="font-medium text-muted-foreground">Trend Temporale</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1">In arrivo con VENDOR-REP-03</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">In arrivo con VENDOR-REP-04</p>
             </CardContent>
           </Card>
         </TabsContent>
