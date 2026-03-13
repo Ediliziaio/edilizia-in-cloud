@@ -82,7 +82,7 @@ export function useCallCenterKPI(periodo: PeriodoVendor, operatoreId?: string) {
   });
 }
 
-export function useSpeedToLeadDistribuzione(periodo: PeriodoVendor, operatoreId?: string) {
+export function useSpeedToLeadDistribuzione(periodo: PeriodoVendor, operatoreId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   const { inizio, fine } = usePeriodoDate(periodo);
   return useQuery({
@@ -97,7 +97,7 @@ export function useSpeedToLeadDistribuzione(periodo: PeriodoVendor, operatoreId?
       if (error) throw error;
       return (data ?? []) as SpeedBucket[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 5 * 60_000,
   });
 }
