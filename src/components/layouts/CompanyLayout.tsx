@@ -288,38 +288,43 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 }
                 if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
 
+                const renderExpandedItems = (items: NavItem[]) => items.map((item) => {
+                  const ItemIcon = item.icon;
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                            active && "bg-primary/10 text-primary font-medium"
+                          )}
+                        >
+                          <ItemIcon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          {item.isBeta && (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                });
+
                 return groupedItems.map((group, gi) => (
                   <div key={group.label ?? `g${gi}`}>
-                    {group.label && (
-                      <div className={cn("px-3 pt-2 pb-1", gi > 0 && "mt-1 border-t border-border/40")}>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                          {group.label}
-                        </span>
-                      </div>
+                    {group.label ? (
+                      <SidebarSubcategory
+                        label={group.label}
+                        isOpen={isGroupOpen(group.label, group.items)}
+                        onToggle={() => toggleGroup(group.label!)}
+                      >
+                        {renderExpandedItems(group.items)}
+                      </SidebarSubcategory>
+                    ) : (
+                      renderExpandedItems(group.items)
                     )}
-                    {group.items.map((item) => {
-                      const ItemIcon = item.icon;
-                      const active = isActive(item.url);
-                      return (
-                        <SidebarMenuItem key={item.url}>
-                          <SidebarMenuButton asChild>
-                            <NavLink
-                              to={item.url}
-                              className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                                active && "bg-primary/10 text-primary font-medium"
-                              )}
-                            >
-                              <ItemIcon className="h-4 w-4" />
-                              <span>{item.title}</span>
-                              {item.isBeta && (
-                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                              )}
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
                   </div>
                 ));
               })()}
