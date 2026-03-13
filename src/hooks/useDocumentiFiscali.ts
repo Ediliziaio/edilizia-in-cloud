@@ -60,7 +60,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     cassa_tipo: row.cassa_tipo as string | undefined,
     cassa_aliquota: row.cassa_aliquota as number | undefined,
     cassa_importo: row.cassa_importo as number | undefined,
-    cassa_imponibile: row.cassa_imponibile as string | undefined,
+    cassa_imponibile: row.cassa_imponibile as number | undefined,
     cassa_aliquota_iva: row.cassa_aliquota_iva as string | undefined,
     cassa_ritenuta: row.cassa_ritenuta as boolean | undefined,
     totale_da_pagare: Number(row.totale_da_pagare ?? 0),
