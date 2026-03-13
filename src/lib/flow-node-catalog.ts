@@ -549,7 +549,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 🎫 TICKET ASSISTENZA ═══
+  // ═══ TICKET ASSISTENZA ═══
   {
     id: 'ticket_creato',
     label: 'Nuovo ticket assistenza aperto',
