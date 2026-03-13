@@ -814,7 +814,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cantiere_creato',
     label: 'Nuovo cantiere aperto',
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
-    icon: '🏗️',
+    icon: 'Building2',
     categoria: 'cantieri',
     dbEvent: 'INSERT',
     outputVariables: [
