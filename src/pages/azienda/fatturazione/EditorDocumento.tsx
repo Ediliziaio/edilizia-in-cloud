@@ -66,14 +66,9 @@ export default function EditorDocumento() {
       createdRef.current = true;
 
       // Build prefilled data from order if available
-      let mergedPrefill = { ...prefilled };
+      let mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
       if (ordineData) {
-        const profile = ordineData.profiles as any;
-        if (profile) {
-          mergedPrefill.oggetto = ordineData.description || undefined;
-          // Try to find matching anagrafica by contact
-          // The link will be created after via EditorOrdineSection
-        }
+        mergedPrefill.note_documento = ordineData.description || undefined;
       }
 
       createMutation.mutate(
