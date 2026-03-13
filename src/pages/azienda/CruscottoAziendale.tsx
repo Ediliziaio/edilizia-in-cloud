@@ -102,6 +102,11 @@ export default function CruscottoAziendale() {
         />
       </SectionErrorBoundary>
 
+      {/* SEZIONE 1b: KPI FATTURAZIONE NATIVA */}
+      <SectionErrorBoundary sectionName="Fatturazione KPI">
+        <BillingKPIWidget />
+      </SectionErrorBoundary>
+
       {/* SEZIONE 2: ALERT PANEL */}
       <SectionErrorBoundary sectionName="Alert Panel">
         <AlertPanel
