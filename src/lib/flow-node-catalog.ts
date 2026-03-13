@@ -989,7 +989,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_task',
     label: 'Crea attività',
     description: 'Crea un nuovo task nella sezione Attività',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'task',
     outputVariables: [{ id: 'task.id', label: 'ID Task creato', type: 'uuid' }],
     configSchema: [
