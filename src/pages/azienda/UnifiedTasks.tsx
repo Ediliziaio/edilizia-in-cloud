@@ -159,7 +159,7 @@ export default function UnifiedTasks() {
       }
       return true;
     });
-  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, debouncedSearch]);
+  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
