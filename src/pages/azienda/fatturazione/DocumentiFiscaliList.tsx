@@ -849,6 +849,49 @@ export default function DocumentiFiscaliList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Bulk Delete Confirmation ─────────────────── */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {selectedIds.size} documenti?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Solo i documenti in bozza verranno eliminati. Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={handleBulkDelete}
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Bulk Pay Confirmation ────────────────────── */}
+      <AlertDialog open={bulkPayOpen} onOpenChange={setBulkPayOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Segnare {selectedIds.size} documenti come pagati?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Solo i documenti con stato pagabile verranno aggiornati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={updateMutation.isPending}
+              onClick={handleBulkPay}
+            >
+              {updateMutation.isPending ? "Aggiornamento..." : "Conferma"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
