@@ -160,7 +160,7 @@ export function companyRoutes() {
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
-        <Route path="attivita" element={<Tasks />} />
+        <Route path="attivita" element={<UnifiedTasks />} />
         <Route path="errori" element={<GlobalErrors />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
