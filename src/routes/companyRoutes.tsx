@@ -207,7 +207,7 @@ export function companyRoutes() {
         <Route path="marketing/calendario" element={<MarketingCalendar />} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
-        <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni?tab=marketing" replace />} />
+        <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
         <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai?tipo=custom" replace />} />
         <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai?tipo=platform" replace />} />
         <Route path="marketing/email" element={<EmailMarketing />} />
