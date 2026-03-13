@@ -174,13 +174,13 @@ export function companyRoutes() {
         <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
         <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         <Route path="documenti/cassetto-sdi" element={<BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard>} />
-        <Route path="documenti/ddt" element={<BillingModeGuard requiredMode="native"><DDTList /></BillingModeGuard>} />
+        <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche/:id" element={<BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard>} />
-        <Route path="documenti/proforma" element={<BillingModeGuard requiredMode="native"><PipelinePreventivi /></BillingModeGuard>} />
-        <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti/proforma" replace />} />
-        <Route path="documenti/note-credito" element={<BillingModeGuard requiredMode="native"><NoteCreditoList /></BillingModeGuard>} />
+        <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
+        <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
+        <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
         <Route path="documenti/report" element={<BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard>} />
         <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
         <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />

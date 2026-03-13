@@ -403,7 +403,7 @@ export default function DocumentiFiscaliList() {
                       {showColTipo && (
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] font-normal">
-                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo" }[doc.tipo] ?? doc.tipo}
+                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa" }[doc.tipo] ?? doc.tipo}
                           </Badge>
                         </TableCell>
                       )}
