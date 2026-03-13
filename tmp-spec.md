@@ -1,0 +1,1935 @@
+# FLOW-EXT-02 · Catalogo Completo Trigger + Azioni (Tutti i Domini)
+
+## Obiettivo
+Sostituire il catalogo parziale di FLOW-02 con un catalogo completo che copra
+TUTTI i domini aziendali: Ordini, Magazzino, Clienti, Ticket Assistenza,
+Calendario, Errori, Fatturazioni, Incassi, Costi, HR, Marketing, Contatti,
+Opportunità, Email, Messaggi, Campagne Facebook, Preventivi, Cantieri, Task.
+
+---
+
+## Prompt per Lovable
+
+```
+## Contesto
+
+Il file `src/lib/flow-node-catalog.ts` esiste già con un catalogo base (FLOW-02).
+Dobbiamo sostituirlo completamente con il catalogo espanso che copre TUTTI i domini.
+
+## Task — Sostituisci `src/lib/flow-node-catalog.ts` con il catalogo completo
+
+### STEP 0 — Analisi tabelle DB reali
+
+Prima di scrivere il catalogo, verifica i nomi esatti delle tabelle:
+
+```sql
+-- Tutte le tabelle del progetto
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY tablename;
+
+-- Cerca tabelle per dominio
+SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+  AND tablename ILIKE ANY(ARRAY[
+    '%order%', '%ordine%', '%order%',
+    '%invoice%', '%fattur%',
+    '%product%', '%prodott%', '%inventory%', '%magazzin%', '%stock%',
+    '%ticket%', '%support%', '%assistenz%',
+    '%contact%', '%contatt%',
+    '%opportunit%', '%lead%', '%deal%',
+    '%appointment%', '%appuntament%', '%calendar%',
+    '%campaign%', '%campagn%', '%marketing%',
+    '%estimate%', '%preventiv%', '%quote%',
+    '%payment%', '%pagament%', '%incasso%',
+    '%expense%', '%cost%', '%costo%', '%spesa%',
+    '%employee%', '%dipendent%', '%hr%', '%staff%',
+    '%message%', '%messagg%', '%email%', '%chat%',
+    '%cantier%', '%project%', '%task%',
+    '%error%', '%log%', '%notification%'
+  ]);
+
+-- Struttura delle tabelle chiave
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN (
+    -- inserisci qui i nomi reali trovati sopra
+    'orders', 'invoices', 'contacts', 'opportunities', 'appointments',
+    'tickets', 'products', 'estimates', 'payments', 'employees'
+  )
+ORDER BY table_name, ordinal_position;
+```
+
+---
+
+### STEP 1 — Nuovo `src/lib/flow-node-catalog.ts` completo
+
+Sostituisci l'intero file con questo:
+
+```typescript
+// src/lib/flow-node-catalog.ts
+// Catalogo completo di tutti i trigger, azioni e condizioni disponibili nel flow builder.
+// Ogni entry è usata dal FlowBuilderSidebar (palette) e dal FlowBuilderConfigPanel.
+
+// ─── Tipi base ──────────────────────────────────────────────────────────────
+
+export interface VariableDefinition {
+  id: string;          // "contatto.nome" — usato come {{contatto.nome}}
+  label: string;       // "Nome contatto" — mostrato nel VariablePicker
+  type: 'string' | 'number' | 'boolean' | 'date' | 'uuid';
+  example?: string;    // "Mario Rossi" — mostrato come hint
+}
+
+export type ConfigFieldType =
+  | 'text'
+  | 'textarea'
+  | 'select'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'time'
+  | 'user_select'      // dropdown degli utenti dell'azienda
+  | 'entity_select'    // selezione dinamica di un'entità (contatto, opportunità, ecc.)
+  | 'tag_input'        // inserimento di tag multipli
+  | 'json_editor';     // editor JSON grezzo per webhook headers
+
+export interface ConfigFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface ConfigFieldSchema {
+  id: string;
+  label: string;
+  type: ConfigFieldType;
+  required?: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: ConfigFieldOption[];
+  supportsVariables?: boolean;  // mostra il pulsante "+ variabile"
+  min?: number;
+  max?: number;
+  defaultValue?: any;
+}
+
+export interface TriggerDefinition {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  categoria: string;
+  dbTable?: string;          // tabella DB che scatena il trigger
+  dbEvent?: 'INSERT' | 'UPDATE' | 'DELETE' | 'SCHEDULED';
+  outputVariables: VariableDefinition[];
+  configSchema: ConfigFieldSchema[];  // configurazione aggiuntiva (es. filtri sul trigger)
+}
+
+export interface ActionDefinition {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  categoria: string;
+  outputVariables?: VariableDefinition[];
+  configSchema: ConfigFieldSchema[];
+}
+
+export interface ConditionDefinition {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  configSchema: ConfigFieldSchema[];
+}
+
+// ─── TRIGGER CATALOG ────────────────────────────────────────────────────────
+
+export const TRIGGER_CATALOG: TriggerDefinition[] = [
+
+  // ═══════════════════════════════════════════════
+  // 👥 CRM & CONTATTI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'contatto_creato',
+    label: 'Nuovo contatto creato',
+    description: 'Scatta quando viene aggiunto un nuovo contatto/lead al CRM',
+    icon: '👤',
+    categoria: 'crm',
+    dbTable: 'contacts',  // adatta al nome reale
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome', type: 'string', example: 'Mario Rossi' },
+      { id: 'contatto.email', label: 'Email', type: 'string', example: 'mario@azienda.it' },
+      { id: 'contatto.telefono', label: 'Telefono', type: 'string', example: '+39 02 1234567' },
+      { id: 'contatto.fonte', label: 'Fonte acquisizione', type: 'string', example: 'Facebook' },
+      { id: 'contatto.citta', label: 'Città', type: 'string', example: 'Milano' },
+      { id: 'contatto.azienda', label: 'Azienda', type: 'string' },
+      { id: 'contatto.created_at', label: 'Data creazione', type: 'date' },
+    ],
+    configSchema: [
+      {
+        id: 'fonte_filtro',
+        label: 'Filtra per fonte (opzionale)',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi fonte' },
+          { value: 'facebook', label: 'Facebook' },
+          { value: 'google', label: 'Google' },
+          { value: 'sito_web', label: 'Sito web' },
+          { value: 'manuale', label: 'Inserimento manuale' },
+          { value: 'whatsapp', label: 'WhatsApp' },
+          { value: 'referral', label: 'Referral' },
+        ],
+        helpText: 'Se impostato, il trigger scatta solo per contatti da questa fonte',
+      },
+    ],
+  },
+
+  {
+    id: 'contatto_aggiornato',
+    label: 'Contatto aggiornato',
+    description: 'Scatta quando vengono modificati i dati di un contatto',
+    icon: '✏️',
+    categoria: 'crm',
+    dbTable: 'contacts',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'contatto.email', label: 'Email', type: 'string' },
+      { id: 'contatto.campo_modificato', label: 'Campo modificato', type: 'string', example: 'telefono' },
+    ],
+    configSchema: [
+      {
+        id: 'campo_filtro',
+        label: 'Scatta solo quando cambia il campo',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi campo' },
+          { value: 'stato', label: 'Stato' },
+          { value: 'assegnato_a', label: 'Responsabile assegnato' },
+          { value: 'email', label: 'Email' },
+          { value: 'telefono', label: 'Telefono' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'contatto_assegnato',
+    label: 'Contatto assegnato a agente',
+    description: 'Scatta quando un contatto viene assegnato a un responsabile',
+    icon: '🤝',
+    categoria: 'crm',
+    dbTable: 'contacts',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'contatto.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 💼 OPPORTUNITÀ & PIPELINE
+  // ═══════════════════════════════════════════════
+  {
+    id: 'opportunita_creata',
+    label: 'Nuova opportunità creata',
+    description: 'Scatta alla creazione di una nuova opportunità/deal',
+    icon: '💼',
+    categoria: 'crm',
+    dbTable: 'opportunities',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number', example: '5000' },
+      { id: 'opportunita.stage', label: 'Stage attuale', type: 'string', example: 'nuovo_lead' },
+      { id: 'opportunita.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'opportunita.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'opportunita.data_chiusura_prevista', label: 'Data chiusura prevista', type: 'date' },
+    ],
+    configSchema: [
+      {
+        id: 'valore_minimo',
+        label: 'Solo opportunità con valore superiore a (€)',
+        type: 'number',
+        required: false,
+        placeholder: 'Es: 1000',
+        helpText: 'Lascia vuoto per qualsiasi valore',
+      },
+    ],
+  },
+
+  {
+    id: 'opportunita_stage_cambiato',
+    label: 'Stage opportunità cambiato',
+    description: 'Scatta quando un deal cambia stage nella pipeline',
+    icon: '📊',
+    categoria: 'crm',
+    dbTable: 'opportunities',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number' },
+      { id: 'opportunita.stage', label: 'Nuovo stage', type: 'string' },
+      { id: 'opportunita.stage_precedente', label: 'Stage precedente', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'stage_da',
+        label: 'Da stage (opzionale)',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi' },
+          { value: 'nuovo_lead', label: 'Nuovo Lead' },
+          { value: 'contattato', label: 'Contattato' },
+          { value: 'appuntamento', label: 'Appuntamento' },
+          { value: 'offerta_inviata', label: 'Offerta inviata' },
+          { value: 'negoziazione', label: 'Negoziazione' },
+          { value: 'vinto', label: 'Vinto' },
+          { value: 'perso', label: 'Perso' },
+        ],
+      },
+      {
+        id: 'stage_a',
+        label: 'A stage (richiesto)',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'contattato', label: 'Contattato' },
+          { value: 'appuntamento', label: 'Appuntamento fissato' },
+          { value: 'offerta_inviata', label: 'Offerta inviata' },
+          { value: 'negoziazione', label: 'In negoziazione' },
+          { value: 'vinto', label: 'Vinto ✅' },
+          { value: 'perso', label: 'Perso ❌' },
+        ],
+        helpText: 'Il trigger scatta solo quando si arriva in questo stage',
+      },
+    ],
+  },
+
+  {
+    id: 'opportunita_vinta',
+    label: 'Opportunità vinta',
+    description: 'Scatta quando un deal viene marcato come "Vinto"',
+    icon: '🏆',
+    categoria: 'crm',
+    dbTable: 'opportunities',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number' },
+      { id: 'opportunita.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'opportunita.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'opportunita_persa',
+    label: 'Opportunità persa',
+    description: 'Scatta quando un deal viene marcato come "Perso"',
+    icon: '❌',
+    categoria: 'crm',
+    dbTable: 'opportunities',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.motivo_perdita', label: 'Motivo perdita', type: 'string' },
+      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📅 APPUNTAMENTI & CALENDARIO
+  // ═══════════════════════════════════════════════
+  {
+    id: 'appuntamento_creato',
+    label: 'Appuntamento creato',
+    description: 'Scatta alla creazione di un nuovo appuntamento',
+    icon: '📅',
+    categoria: 'crm',
+    dbTable: 'appointments',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
+      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'appuntamento.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'appuntamento.luogo', label: 'Luogo', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'tipo_filtro',
+        label: 'Tipo appuntamento (opzionale)',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Tutti i tipi' },
+          { value: 'sopralluogo', label: 'Sopralluogo' },
+          { value: 'video_call', label: 'Video call' },
+          { value: 'telefonata', label: 'Telefonata' },
+          { value: 'in_sede', label: 'In sede' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'appuntamento_confermato',
+    label: 'Appuntamento confermato',
+    description: 'Scatta quando un appuntamento viene confermato dal cliente',
+    icon: '✅',
+    categoria: 'crm',
+    dbTable: 'appointments',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
+      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'appuntamento_completato',
+    label: 'Appuntamento completato (show-up)',
+    description: 'Il cliente si è presentato all\'appuntamento',
+    icon: '🎯',
+    categoria: 'crm',
+    dbTable: 'appointments',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'appuntamento.note', label: 'Note appuntamento', type: 'string' },
+      { id: 'appuntamento.esito', label: 'Esito', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'appuntamento_no_show',
+    label: 'Appuntamento no-show',
+    description: 'Il cliente non si è presentato all\'appuntamento',
+    icon: '🚫',
+    categoria: 'crm',
+    dbTable: 'appointments',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'appuntamento.contatto_email', label: 'Email contatto', type: 'string' },
+      { id: 'appuntamento.contatto_telefono', label: 'Tel contatto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'appuntamento_imminente',
+    label: 'Appuntamento imminente (promemoria)',
+    description: 'Scatta X ore/minuti prima di un appuntamento',
+    icon: '⏰',
+    categoria: 'crm',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
+      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'ore_prima',
+        label: 'Ore prima dell\'appuntamento',
+        type: 'number',
+        required: true,
+        defaultValue: 24,
+        min: 1,
+        max: 168,
+        helpText: 'Es: 24 = reminder il giorno prima',
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📦 ORDINI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'ordine_creato',
+    label: 'Nuovo ordine creato',
+    description: 'Scatta alla creazione di un nuovo ordine',
+    icon: '📦',
+    categoria: 'ordini',
+    dbTable: 'orders',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
+      { id: 'ordine.numero', label: 'Numero ordine', type: 'string', example: 'ORD-2024-001' },
+      { id: 'ordine.importo', label: 'Importo totale (€)', type: 'number' },
+      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ordine.cliente_email', label: 'Email cliente', type: 'string' },
+      { id: 'ordine.stato', label: 'Stato ordine', type: 'string' },
+      { id: 'ordine.created_at', label: 'Data creazione', type: 'date' },
+    ],
+    configSchema: [
+      {
+        id: 'importo_minimo',
+        label: 'Solo ordini superiori a (€)',
+        type: 'number',
+        required: false,
+        placeholder: 'Es: 500',
+      },
+    ],
+  },
+
+  {
+    id: 'ordine_stato_cambiato',
+    label: 'Stato ordine cambiato',
+    description: 'Scatta quando un ordine cambia stato',
+    icon: '🔄',
+    categoria: 'ordini',
+    dbTable: 'orders',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
+      { id: 'ordine.numero', label: 'Numero ordine', type: 'string' },
+      { id: 'ordine.stato', label: 'Nuovo stato', type: 'string' },
+      { id: 'ordine.stato_precedente', label: 'Stato precedente', type: 'string' },
+      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ordine.importo', label: 'Importo (€)', type: 'number' },
+    ],
+    configSchema: [
+      {
+        id: 'stato_a',
+        label: 'Quando arriva allo stato',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'confermato', label: 'Confermato' },
+          { value: 'in_lavorazione', label: 'In lavorazione' },
+          { value: 'spedito', label: 'Spedito' },
+          { value: 'consegnato', label: 'Consegnato' },
+          { value: 'annullato', label: 'Annullato' },
+          { value: 'reso', label: 'Reso/Rimborso' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ordine_in_ritardo',
+    label: 'Ordine in ritardo sulla consegna',
+    description: 'Scatta quando un ordine supera la data di consegna prevista',
+    icon: '⚠️',
+    categoria: 'ordini',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
+      { id: 'ordine.numero', label: 'Numero ordine', type: 'string' },
+      { id: 'ordine.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
+      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'giorni_tolleranza',
+        label: 'Giorni di tolleranza dopo la scadenza',
+        type: 'number',
+        required: true,
+        defaultValue: 1,
+        min: 0,
+        max: 30,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 💰 FATTURAZIONE & INCASSI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'fattura_creata',
+    label: 'Nuova fattura emessa',
+    description: 'Scatta alla creazione/emissione di una fattura',
+    icon: '🧾',
+    categoria: 'fatturazione',
+    dbTable: 'invoices',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
+      { id: 'fattura.numero', label: 'Numero fattura', type: 'string', example: 'FAT-2024-001' },
+      { id: 'fattura.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'fattura.importo_iva', label: 'IVA (€)', type: 'number' },
+      { id: 'fattura.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'fattura.data_scadenza', label: 'Data scadenza pagamento', type: 'date' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'fattura_scaduta',
+    label: 'Fattura scaduta non pagata',
+    description: 'Scatta quando una fattura supera la data di scadenza senza pagamento',
+    icon: '⏰',
+    categoria: 'fatturazione',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
+      { id: 'fattura.numero', label: 'Numero fattura', type: 'string' },
+      { id: 'fattura.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'fattura.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'fattura.cliente_email', label: 'Email cliente', type: 'string' },
+      { id: 'fattura.giorni_scaduta', label: 'Giorni di ritardo', type: 'number' },
+    ],
+    configSchema: [
+      {
+        id: 'giorni_dopo_scadenza',
+        label: 'Scatta dopo N giorni dalla scadenza',
+        type: 'number',
+        required: true,
+        defaultValue: 3,
+        min: 1,
+        max: 90,
+      },
+    ],
+  },
+
+  {
+    id: 'pagamento_ricevuto',
+    label: 'Pagamento ricevuto',
+    description: 'Scatta quando viene registrato un incasso/pagamento',
+    icon: '💵',
+    categoria: 'fatturazione',
+    dbTable: 'payments',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'pagamento.id', label: 'ID Pagamento', type: 'uuid' },
+      { id: 'pagamento.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'pagamento.metodo', label: 'Metodo pagamento', type: 'string', example: 'Bonifico' },
+      { id: 'pagamento.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'pagamento.fattura_numero', label: 'Numero fattura', type: 'string' },
+      { id: 'pagamento.data', label: 'Data pagamento', type: 'date' },
+    ],
+    configSchema: [
+      {
+        id: 'importo_minimo',
+        label: 'Solo pagamenti superiori a (€)',
+        type: 'number',
+        required: false,
+        placeholder: 'Lascia vuoto per qualsiasi importo',
+      },
+    ],
+  },
+
+  {
+    id: 'costo_registrato',
+    label: 'Costo/Spesa registrata',
+    description: 'Scatta quando viene inserita una nuova spesa o costo aziendale',
+    icon: '💸',
+    categoria: 'fatturazione',
+    dbTable: 'expenses',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'costo.id', label: 'ID Spesa', type: 'uuid' },
+      { id: 'costo.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'costo.categoria', label: 'Categoria spesa', type: 'string' },
+      { id: 'costo.descrizione', label: 'Descrizione', type: 'string' },
+      { id: 'costo.fornitore', label: 'Fornitore', type: 'string' },
+      { id: 'costo.creato_da', label: 'Inserito da (user ID)', type: 'uuid' },
+    ],
+    configSchema: [
+      {
+        id: 'importo_soglia',
+        label: 'Solo spese superiori a (€) — per approvazione',
+        type: 'number',
+        required: false,
+        placeholder: 'Es: 500',
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📋 PREVENTIVI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'preventivo_creato',
+    label: 'Preventivo creato',
+    description: 'Scatta alla creazione di un nuovo preventivo/offerta',
+    icon: '📋',
+    categoria: 'preventivi',
+    dbTable: 'estimates',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
+      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.importo', label: 'Importo totale (€)', type: 'number' },
+      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.cliente_email', label: 'Email cliente', type: 'string' },
+      { id: 'preventivo.validita', label: 'Data validità', type: 'date' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'preventivo_accettato',
+    label: 'Preventivo accettato',
+    description: 'Il cliente ha accettato il preventivo',
+    icon: '✅',
+    categoria: 'preventivi',
+    dbTable: 'estimates',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
+      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.contact_id', label: 'ID Contatto', type: 'uuid' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'preventivo_rifiutato',
+    label: 'Preventivo rifiutato',
+    description: 'Il cliente ha rifiutato il preventivo',
+    icon: '❌',
+    categoria: 'preventivi',
+    dbTable: 'estimates',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
+      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.motivo_rifiuto', label: 'Motivo rifiuto', type: 'string' },
+      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'preventivo_in_scadenza',
+    label: 'Preventivo in scadenza',
+    description: 'Scatta N giorni prima della scadenza di un preventivo non ancora risposto',
+    icon: '⏳',
+    categoria: 'preventivi',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
+      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.giorni_alla_scadenza', label: 'Giorni alla scadenza', type: 'number' },
+    ],
+    configSchema: [
+      {
+        id: 'giorni_prima',
+        label: 'Giorni prima della scadenza',
+        type: 'number',
+        required: true,
+        defaultValue: 3,
+        min: 1,
+        max: 30,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 🎫 TICKET ASSISTENZA
+  // ═══════════════════════════════════════════════
+  {
+    id: 'ticket_creato',
+    label: 'Nuovo ticket assistenza aperto',
+    description: 'Scatta quando un cliente apre un nuovo ticket di supporto',
+    icon: '🎫',
+    categoria: 'assistenza',
+    dbTable: 'tickets',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
+      { id: 'ticket.numero', label: 'Numero ticket', type: 'string', example: 'TKT-001' },
+      { id: 'ticket.oggetto', label: 'Oggetto', type: 'string' },
+      { id: 'ticket.priorita', label: 'Priorità', type: 'string', example: 'alta' },
+      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ticket.cliente_email', label: 'Email cliente', type: 'string' },
+      { id: 'ticket.categoria', label: 'Categoria problema', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'priorita_filtro',
+        label: 'Solo ticket con priorità',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi priorità' },
+          { value: 'urgente', label: 'Urgente 🔴' },
+          { value: 'alta', label: 'Alta 🟠' },
+          { value: 'media', label: 'Media 🟡' },
+          { value: 'bassa', label: 'Bassa 🟢' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ticket_stato_cambiato',
+    label: 'Stato ticket cambiato',
+    description: 'Scatta quando un ticket cambia stato (aperto→in_lavorazione→risolto)',
+    icon: '🔄',
+    categoria: 'assistenza',
+    dbTable: 'tickets',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
+      { id: 'ticket.numero', label: 'Numero ticket', type: 'string' },
+      { id: 'ticket.stato', label: 'Nuovo stato', type: 'string' },
+      { id: 'ticket.stato_precedente', label: 'Stato precedente', type: 'string' },
+      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ticket.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+    ],
+    configSchema: [
+      {
+        id: 'stato_a',
+        label: 'Quando passa allo stato',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'in_lavorazione', label: 'In lavorazione' },
+          { value: 'in_attesa_cliente', label: 'In attesa risposta cliente' },
+          { value: 'risolto', label: 'Risolto ✅' },
+          { value: 'chiuso', label: 'Chiuso' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ticket_senza_risposta',
+    label: 'Ticket senza risposta da N ore',
+    description: 'SLA alert: ticket aperto senza aggiornamenti da troppo tempo',
+    icon: '🚨',
+    categoria: 'assistenza',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
+      { id: 'ticket.numero', label: 'Numero ticket', type: 'string' },
+      { id: 'ticket.ore_apertura', label: 'Ore dall\'apertura', type: 'number' },
+      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ticket.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+    ],
+    configSchema: [
+      {
+        id: 'ore_sla',
+        label: 'SLA: ore massime senza risposta',
+        type: 'number',
+        required: true,
+        defaultValue: 24,
+        min: 1,
+        max: 168,
+        helpText: 'Es: 24 = scatta se il ticket è ancora aperto dopo 24h',
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📦 MAGAZZINO
+  // ═══════════════════════════════════════════════
+  {
+    id: 'scorta_minima',
+    label: 'Prodotto sotto scorta minima',
+    description: 'Scatta quando la giacenza di un prodotto scende sotto il minimo',
+    icon: '⚠️',
+    categoria: 'magazzino',
+    dbTable: 'products',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'prodotto.id', label: 'ID Prodotto', type: 'uuid' },
+      { id: 'prodotto.nome', label: 'Nome prodotto', type: 'string' },
+      { id: 'prodotto.sku', label: 'SKU', type: 'string' },
+      { id: 'prodotto.giacenza', label: 'Giacenza attuale', type: 'number' },
+      { id: 'prodotto.scorta_minima', label: 'Scorta minima impostata', type: 'number' },
+      { id: 'prodotto.fornitore', label: 'Fornitore principale', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'prodotto_esaurito',
+    label: 'Prodotto esaurito (giacenza = 0)',
+    description: 'Scatta quando un prodotto raggiunge giacenza zero',
+    icon: '🚫',
+    categoria: 'magazzino',
+    dbTable: 'products',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'prodotto.id', label: 'ID Prodotto', type: 'uuid' },
+      { id: 'prodotto.nome', label: 'Nome prodotto', type: 'string' },
+      { id: 'prodotto.sku', label: 'SKU', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'carico_magazzino',
+    label: 'Nuovo carico in magazzino',
+    description: 'Scatta quando arriva un nuovo carico di merce',
+    icon: '📥',
+    categoria: 'magazzino',
+    dbTable: 'stock_movements',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'carico.id', label: 'ID Movimento', type: 'uuid' },
+      { id: 'carico.prodotto_nome', label: 'Prodotto', type: 'string' },
+      { id: 'carico.quantita', label: 'Quantità', type: 'number' },
+      { id: 'carico.fornitore', label: 'Fornitore', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📣 MARKETING
+  // ═══════════════════════════════════════════════
+  {
+    id: 'email_aperta',
+    label: 'Email di marketing aperta',
+    description: 'Il contatto ha aperto un\'email della campagna',
+    icon: '📧',
+    categoria: 'marketing',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome contatto', type: 'string' },
+      { id: 'contatto.email', label: 'Email', type: 'string' },
+      { id: 'campagna.id', label: 'ID Campagna', type: 'uuid' },
+      { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
+      { id: 'email.oggetto', label: 'Oggetto email', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'campagna_id',
+        label: 'Campagna specifica (opzionale)',
+        type: 'entity_select',
+        required: false,
+        helpText: 'Lascia vuoto per qualsiasi campagna',
+      },
+    ],
+  },
+
+  {
+    id: 'email_cliccata',
+    label: 'Link email cliccato',
+    description: 'Il contatto ha cliccato un link nell\'email',
+    icon: '🖱️',
+    categoria: 'marketing',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
+      { id: 'email.link_cliccato', label: 'URL cliccato', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'form_compilato',
+    label: 'Form web compilato',
+    description: 'Un visitatore ha compilato un form sul sito (lead generation)',
+    icon: '📝',
+    categoria: 'marketing',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'form.id', label: 'ID Submission', type: 'uuid' },
+      { id: 'form.nome', label: 'Nome', type: 'string' },
+      { id: 'form.email', label: 'Email', type: 'string' },
+      { id: 'form.telefono', label: 'Telefono', type: 'string' },
+      { id: 'form.messaggio', label: 'Messaggio', type: 'string' },
+      { id: 'form.fonte', label: 'Pagina di provenienza', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'form_id',
+        label: 'Form specifico (opzionale)',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi form' },
+          { value: 'contatto', label: 'Form contatto' },
+          { value: 'preventivo', label: 'Form preventivo' },
+          { value: 'newsletter', label: 'Iscrizione newsletter' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'campagna_facebook_lead',
+    label: 'Nuovo lead da campagna Facebook',
+    description: 'Un utente ha compilato un Lead Form su Facebook/Instagram',
+    icon: '📘',
+    categoria: 'marketing',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'lead.id', label: 'ID Lead', type: 'uuid' },
+      { id: 'lead.nome', label: 'Nome', type: 'string' },
+      { id: 'lead.email', label: 'Email', type: 'string' },
+      { id: 'lead.telefono', label: 'Telefono', type: 'string' },
+      { id: 'campagna.nome', label: 'Nome campagna Facebook', type: 'string' },
+      { id: 'campagna.adset', label: 'AdSet', type: 'string' },
+      { id: 'campagna.ad_nome', label: 'Nome inserzione', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'messaggio_whatsapp_ricevuto',
+    label: 'Messaggio WhatsApp ricevuto',
+    description: 'Scatta quando il sistema riceve un messaggio WhatsApp da un contatto',
+    icon: '💬',
+    categoria: 'marketing',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'messaggio.id', label: 'ID Messaggio', type: 'uuid' },
+      { id: 'messaggio.testo', label: 'Testo messaggio', type: 'string' },
+      { id: 'messaggio.mittente', label: 'Numero mittente', type: 'string' },
+      { id: 'contatto.id', label: 'ID Contatto (se trovato)', type: 'uuid' },
+      { id: 'contatto.nome', label: 'Nome contatto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 👤 HR & PERSONALE
+  // ═══════════════════════════════════════════════
+  {
+    id: 'dipendente_creato',
+    label: 'Nuovo dipendente aggiunto',
+    description: 'Scatta quando viene inserito un nuovo dipendente/collaboratore',
+    icon: '👤',
+    categoria: 'hr',
+    dbTable: 'employees',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
+      { id: 'dipendente.nome', label: 'Nome e cognome', type: 'string' },
+      { id: 'dipendente.email', label: 'Email', type: 'string' },
+      { id: 'dipendente.ruolo', label: 'Ruolo', type: 'string' },
+      { id: 'dipendente.data_inizio', label: 'Data inizio', type: 'date' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'contratto_in_scadenza',
+    label: 'Contratto dipendente in scadenza',
+    description: 'Scatta N giorni prima della scadenza di un contratto',
+    icon: '📄',
+    categoria: 'hr',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
+      { id: 'dipendente.nome', label: 'Nome', type: 'string' },
+      { id: 'contratto.scadenza', label: 'Data scadenza contratto', type: 'date' },
+      { id: 'contratto.giorni_rimanenti', label: 'Giorni rimanenti', type: 'number' },
+    ],
+    configSchema: [
+      {
+        id: 'giorni_prima',
+        label: 'Giorni prima della scadenza',
+        type: 'number',
+        required: true,
+        defaultValue: 30,
+        min: 1,
+        max: 180,
+      },
+    ],
+  },
+
+  {
+    id: 'ferie_richiesta',
+    label: 'Richiesta ferie/permesso inviata',
+    description: 'Un dipendente ha inviato una richiesta di ferie o permesso',
+    icon: '🏖️',
+    categoria: 'hr',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'richiesta.id', label: 'ID Richiesta', type: 'uuid' },
+      { id: 'dipendente.nome', label: 'Nome dipendente', type: 'string' },
+      { id: 'richiesta.tipo', label: 'Tipo (ferie/permesso)', type: 'string' },
+      { id: 'richiesta.data_inizio', label: 'Dal', type: 'date' },
+      { id: 'richiesta.data_fine', label: 'Al', type: 'date' },
+      { id: 'richiesta.giorni', label: 'Numero giorni', type: 'number' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 🏗️ CANTIERI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'cantiere_creato',
+    label: 'Nuovo cantiere aperto',
+    description: 'Scatta alla creazione di un nuovo cantiere/commessa',
+    icon: '🏗️',
+    categoria: 'cantieri',
+    dbTable: 'cantieri',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
+      { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
+      { id: 'cantiere.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'cantiere.indirizzo', label: 'Indirizzo', type: 'string' },
+      { id: 'cantiere.importo', label: 'Importo commessa (€)', type: 'number' },
+      { id: 'cantiere.data_inizio', label: 'Data inizio prevista', type: 'date' },
+      { id: 'cantiere.responsabile_id', label: 'Responsabile (user ID)', type: 'uuid' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'cantiere_fase_completata',
+    label: 'Fase cantiere completata',
+    description: 'Scatta quando viene completata una fase/milestone del cantiere',
+    icon: '✅',
+    categoria: 'cantieri',
+    dbTable: 'cantiere_fasi',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'fase.id', label: 'ID Fase', type: 'uuid' },
+      { id: 'fase.nome', label: 'Nome fase', type: 'string' },
+      { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
+      { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
+      { id: 'cantiere.cliente_nome', label: 'Nome cliente', type: 'string' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'cantiere_in_ritardo',
+    label: 'Cantiere in ritardo sulla data di fine',
+    description: 'Scatta quando un cantiere supera la data di fine prevista',
+    icon: '⚠️',
+    categoria: 'cantieri',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
+      { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
+      { id: 'cantiere.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
+      { id: 'cantiere.responsabile_id', label: 'Responsabile (user ID)', type: 'uuid' },
+    ],
+    configSchema: [
+      {
+        id: 'giorni_tolleranza',
+        label: 'Giorni di tolleranza',
+        type: 'number',
+        required: true,
+        defaultValue: 0,
+        min: 0,
+        max: 30,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // ✅ TASK
+  // ═══════════════════════════════════════════════
+  {
+    id: 'task_creato',
+    label: 'Nuova attività creata',
+    description: 'Scatta alla creazione di un nuovo task/attività',
+    icon: '✅',
+    categoria: 'task',
+    dbTable: 'tasks',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'task.id', label: 'ID Task', type: 'uuid' },
+      { id: 'task.titolo', label: 'Titolo', type: 'string' },
+      { id: 'task.priorita', label: 'Priorità', type: 'string' },
+      { id: 'task.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'task.scadenza', label: 'Data scadenza', type: 'date' },
+      { id: 'task.fonte', label: 'Fonte', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'priorita_filtro',
+        label: 'Solo task con priorità',
+        type: 'select',
+        required: false,
+        options: [
+          { value: '', label: 'Qualsiasi' },
+          { value: 'urgente', label: 'Urgente' },
+          { value: 'alta', label: 'Alta' },
+          { value: 'media', label: 'Media' },
+          { value: 'bassa', label: 'Bassa' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'task_completato',
+    label: 'Attività completata',
+    description: 'Scatta quando un task viene marcato come completato',
+    icon: '☑️',
+    categoria: 'task',
+    dbTable: 'tasks',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'task.id', label: 'ID Task', type: 'uuid' },
+      { id: 'task.titolo', label: 'Titolo', type: 'string' },
+      { id: 'task.completato_da', label: 'Completato da (user ID)', type: 'uuid' },
+      { id: 'task.tempo_impiegato', label: 'Tempo impiegato (min)', type: 'number' },
+    ],
+    configSchema: [],
+  },
+
+  {
+    id: 'task_scaduto',
+    label: 'Attività scaduta senza completamento',
+    description: 'Scatta quando una attività supera la data di scadenza',
+    icon: '⏰',
+    categoria: 'task',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'task.id', label: 'ID Task', type: 'uuid' },
+      { id: 'task.titolo', label: 'Titolo', type: 'string' },
+      { id: 'task.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'task.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
+    ],
+    configSchema: [],
+  },
+
+  // ═══════════════════════════════════════════════
+  // ⏰ SCHEDULATI / MANUALI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'cron_giornaliero',
+    label: 'Ogni giorno (a orario fisso)',
+    description: 'Il flow si esegue automaticamente ogni giorno all\'orario specificato',
+    icon: '🌅',
+    categoria: 'generale',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'cron.data', label: 'Data esecuzione', type: 'date' },
+      { id: 'cron.ora', label: 'Ora esecuzione', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'orario',
+        label: 'Orario di esecuzione',
+        type: 'time',
+        required: true,
+        defaultValue: '08:00',
+        helpText: 'Ora locale dell\'azienda',
+      },
+    ],
+  },
+
+  {
+    id: 'cron_settimanale',
+    label: 'Ogni settimana (giorno fisso)',
+    description: 'Il flow si esegue una volta alla settimana nel giorno specificato',
+    icon: '📅',
+    categoria: 'generale',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'cron.data', label: 'Data esecuzione', type: 'date' },
+      { id: 'cron.giorno', label: 'Giorno della settimana', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'giorno',
+        label: 'Giorno della settimana',
+        type: 'select',
+        required: true,
+        defaultValue: 'lunedi',
+        options: [
+          { value: 'lunedi', label: 'Lunedì' },
+          { value: 'martedi', label: 'Martedì' },
+          { value: 'mercoledi', label: 'Mercoledì' },
+          { value: 'giovedi', label: 'Giovedì' },
+          { value: 'venerdi', label: 'Venerdì' },
+          { value: 'sabato', label: 'Sabato' },
+          { value: 'domenica', label: 'Domenica' },
+        ],
+      },
+      {
+        id: 'orario',
+        label: 'Orario',
+        type: 'time',
+        required: true,
+        defaultValue: '08:00',
+      },
+    ],
+  },
+
+  {
+    id: 'cron_mensile',
+    label: 'Ogni mese (giorno fisso)',
+    description: 'Il flow si esegue una volta al mese',
+    icon: '📆',
+    categoria: 'generale',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'cron.data', label: 'Data esecuzione', type: 'date' },
+      { id: 'cron.mese', label: 'Mese', type: 'string' },
+    ],
+    configSchema: [
+      {
+        id: 'giorno_mese',
+        label: 'Giorno del mese',
+        type: 'number',
+        required: true,
+        defaultValue: 1,
+        min: 1,
+        max: 28,
+        helpText: 'Max 28 per evitare problemi con febbraio',
+      },
+      {
+        id: 'orario',
+        label: 'Orario',
+        type: 'time',
+        required: true,
+        defaultValue: '08:00',
+      },
+    ],
+  },
+
+  {
+    id: 'manuale',
+    label: 'Avvio manuale',
+    description: 'Il flow viene avviato manualmente da un utente (pulsante "Esegui")',
+    icon: '▶️',
+    categoria: 'generale',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'manuale.avviato_da', label: 'Avviato da (user ID)', type: 'uuid' },
+      { id: 'manuale.timestamp', label: 'Timestamp avvio', type: 'date' },
+    ],
+    configSchema: [],
+  },
+];
+
+// ─── ACTION CATALOG ──────────────────────────────────────────────────────────
+
+export const ACTION_CATALOG: ActionDefinition[] = [
+
+  // ═══════════════════════════════════════════════
+  // ✅ TASK & ATTIVITÀ
+  // ═══════════════════════════════════════════════
+  {
+    id: 'crea_task',
+    label: 'Crea attività',
+    description: 'Crea un nuovo task nella sezione Attività',
+    icon: '✅',
+    categoria: 'task',
+    outputVariables: [{ id: 'task.id', label: 'ID Task creato', type: 'uuid' }],
+    configSchema: [
+      { id: 'titolo', label: 'Titolo attività', type: 'text', required: true,
+        placeholder: 'Es: Chiamare {{contatto.nome}} per follow-up', supportsVariables: true },
+      { id: 'descrizione', label: 'Descrizione', type: 'textarea', required: false, supportsVariables: true },
+      { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'media',
+        options: [
+          { value: 'urgente', label: 'Urgente 🔴' },
+          { value: 'alta', label: 'Alta 🟠' },
+          { value: 'media', label: 'Media 🟡' },
+          { value: 'bassa', label: 'Bassa 🟢' },
+        ],
+      },
+      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false,
+        helpText: 'Lascia vuoto per assegnare al responsabile del trigger',
+      },
+      { id: 'scadenza_giorni', label: 'Scadenza (giorni dalla creazione)', type: 'number',
+        required: false, min: 0, max: 365, placeholder: 'Es: 3' },
+    ],
+  },
+
+  {
+    id: 'aggiorna_task',
+    label: 'Aggiorna stato attività',
+    description: 'Cambia stato, priorità o assegnatario di un task esistente',
+    icon: '✏️',
+    categoria: 'task',
+    configSchema: [
+      { id: 'task_id', label: 'ID Task (usa variabile)', type: 'text',
+        required: true, supportsVariables: true, placeholder: '{{task.id}}',
+        helpText: 'Di solito si usa la variabile {{task.id}} dal trigger' },
+      { id: 'stato', label: 'Nuovo stato', type: 'select', required: false,
+        options: [
+          { value: 'da_fare', label: 'Da fare' },
+          { value: 'in_corso', label: 'In corso' },
+          { value: 'in_attesa', label: 'In attesa' },
+          { value: 'completato', label: 'Completato' },
+          { value: 'annullato', label: 'Annullato' },
+        ],
+      },
+      { id: 'priorita', label: 'Nuova priorità', type: 'select', required: false,
+        options: [
+          { value: '', label: 'Non cambiare' },
+          { value: 'urgente', label: 'Urgente' },
+          { value: 'alta', label: 'Alta' },
+          { value: 'media', label: 'Media' },
+          { value: 'bassa', label: 'Bassa' },
+        ],
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📨 COMUNICAZIONI
+  // ═══════════════════════════════════════════════
+  {
+    id: 'invia_notifica_inapp',
+    label: 'Invia notifica in-app',
+    description: 'Invia una notifica push all\'utente nella piattaforma',
+    icon: '🔔',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'user_id', label: 'Destinatario (user_id)', type: 'user_select', required: true,
+        helpText: 'Puoi usare {{opportunita.assegnato_a}} per notificare il responsabile' },
+      { id: 'titolo', label: 'Titolo notifica', type: 'text', required: true, supportsVariables: true,
+        placeholder: 'Es: Nuovo lead: {{contatto.nome}}' },
+      { id: 'testo', label: 'Testo notifica', type: 'textarea', required: false, supportsVariables: true },
+      { id: 'link', label: 'URL di destinazione (opzionale)', type: 'text', required: false, supportsVariables: true },
+    ],
+  },
+
+  {
+    id: 'invia_email',
+    label: 'Invia email',
+    description: 'Invia un\'email a un indirizzo specifico o variabile',
+    icon: '📧',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'destinatario', label: 'A (indirizzo email)', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.email}}' },
+      { id: 'cc', label: 'CC (opzionale)', type: 'text', required: false, supportsVariables: true },
+      { id: 'oggetto', label: 'Oggetto', type: 'text', required: true, supportsVariables: true,
+        placeholder: 'Es: Conferma appuntamento - {{appuntamento.data_ora}}' },
+      { id: 'corpo', label: 'Corpo email (HTML supportato)', type: 'textarea', required: true,
+        supportsVariables: true,
+        placeholder: 'Gentile {{contatto.nome}},\n\nLa tua richiesta è stata ricevuta...' },
+      { id: 'template', label: 'Oppure usa template salvato', type: 'select', required: false,
+        options: [{ value: '', label: 'Nessun template (usa testo sopra)' }],
+        helpText: 'Se selezioni un template, sovrascrive il corpo sopra',
+      },
+    ],
+  },
+
+  {
+    id: 'invia_whatsapp',
+    label: 'Invia messaggio WhatsApp',
+    description: 'Invia un messaggio WhatsApp tramite API integrata',
+    icon: '💬',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.telefono}}' },
+      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true,
+        supportsVariables: true,
+        placeholder: 'Ciao {{contatto.nome}}, ti confermiamo l\'appuntamento di...' },
+      { id: 'template_wa', label: 'Template WhatsApp approvato (opzionale)', type: 'text',
+        required: false, placeholder: 'appointment_reminder',
+        helpText: 'Per messaggi fuori dalle 24h serve un template approvato da Meta',
+      },
+    ],
+  },
+
+  {
+    id: 'invia_sms',
+    label: 'Invia SMS',
+    description: 'Invia un SMS tramite provider integrato',
+    icon: '📱',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'numero', label: 'Numero', type: 'text', required: true, supportsVariables: true,
+        placeholder: '{{contatto.telefono}}' },
+      { id: 'testo', label: 'Testo SMS (max 160 caratteri)', type: 'textarea', required: true,
+        supportsVariables: true, max: 160 },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 💼 CRM
+  // ═══════════════════════════════════════════════
+  {
+    id: 'crea_opportunita',
+    label: 'Crea opportunità',
+    description: 'Crea una nuova opportunità/deal nel CRM',
+    icon: '💼',
+    categoria: 'crm',
+    outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
+    configSchema: [
+      { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true,
+        placeholder: 'Es: Deal con {{contatto.azienda}}' },
+      { id: 'stage', label: 'Stage iniziale', type: 'select', required: true, defaultValue: 'nuovo_lead',
+        options: [
+          { value: 'nuovo_lead', label: 'Nuovo Lead' },
+          { value: 'contattato', label: 'Contattato' },
+          { value: 'appuntamento', label: 'Appuntamento' },
+          { value: 'offerta_inviata', label: 'Offerta inviata' },
+        ],
+      },
+      { id: 'valore', label: 'Valore stimato (€)', type: 'number', required: false },
+      { id: 'contact_id', label: 'Contatto collegato', type: 'text', required: false,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
+    ],
+  },
+
+  {
+    id: 'cambia_stage_opportunita',
+    label: 'Cambia stage opportunità',
+    description: 'Sposta un deal a un altro stage della pipeline',
+    icon: '📊',
+    categoria: 'crm',
+    configSchema: [
+      { id: 'opportunity_id', label: 'ID Opportunità', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{opportunita.id}}' },
+      { id: 'stage', label: 'Nuovo stage', type: 'select', required: true,
+        options: [
+          { value: 'contattato', label: 'Contattato' },
+          { value: 'appuntamento', label: 'Appuntamento fissato' },
+          { value: 'offerta_inviata', label: 'Offerta inviata' },
+          { value: 'negoziazione', label: 'In negoziazione' },
+          { value: 'vinto', label: 'Vinto ✅' },
+          { value: 'perso', label: 'Perso ❌' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'assegna_agente',
+    label: 'Assegna responsabile',
+    description: 'Assegna un responsabile a un contatto, opportunità o ticket',
+    icon: '👤',
+    categoria: 'crm',
+    configSchema: [
+      { id: 'entity_type', label: 'Tipo entità', type: 'select', required: true,
+        options: [
+          { value: 'contacts', label: 'Contatto' },
+          { value: 'opportunities', label: 'Opportunità' },
+          { value: 'tickets', label: 'Ticket' },
+          { value: 'tasks', label: 'Task' },
+        ],
+      },
+      { id: 'entity_id', label: 'ID entità', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'strategia', label: 'Strategia assegnazione', type: 'select', required: true,
+        options: [
+          { value: 'specifico', label: 'Agente specifico' },
+          { value: 'round_robin', label: 'Round-robin (rotazione)' },
+          { value: 'meno_carico', label: 'Meno carico di lavoro' },
+        ],
+      },
+      { id: 'agente_id', label: 'Agente (solo se strategia = specifico)', type: 'user_select',
+        required: false },
+    ],
+  },
+
+  {
+    id: 'aggiorna_campo',
+    label: 'Aggiorna campo entità',
+    description: 'Aggiorna un campo specifico su qualsiasi entità del sistema',
+    icon: '✏️',
+    categoria: 'crm',
+    configSchema: [
+      { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true,
+        options: [
+          { value: 'contacts', label: 'Contatto' },
+          { value: 'opportunities', label: 'Opportunità' },
+          { value: 'tickets', label: 'Ticket assistenza' },
+          { value: 'tasks', label: 'Task' },
+          { value: 'orders', label: 'Ordine' },
+          { value: 'invoices', label: 'Fattura' },
+          { value: 'estimates', label: 'Preventivo' },
+        ],
+      },
+      { id: 'entity_id', label: 'ID entità', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'campo', label: 'Nome campo DB', type: 'text', required: true,
+        placeholder: 'Es: stato, assegnato_a, note' },
+      { id: 'valore', label: 'Nuovo valore', type: 'text', required: true, supportsVariables: true },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 📦 OPERATIVO
+  // ═══════════════════════════════════════════════
+  {
+    id: 'crea_bozza_ordine',
+    label: 'Crea bozza ordine',
+    description: 'Genera automaticamente una bozza di ordine da preventivo o opportunità vinta',
+    icon: '📦',
+    categoria: 'ordini',
+    outputVariables: [{ id: 'ordine.id', label: 'ID Ordine bozza', type: 'uuid' }],
+    configSchema: [
+      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.id}} o {{opportunita.contact_id}}' },
+      { id: 'titolo', label: 'Descrizione ordine', type: 'text', required: true,
+        supportsVariables: true,
+        placeholder: 'Es: Ordine da preventivo {{preventivo.numero}}' },
+      { id: 'importo', label: 'Importo (€)', type: 'text', required: false,
+        supportsVariables: true, placeholder: '{{preventivo.importo}}' },
+      { id: 'note', label: 'Note interne', type: 'textarea', required: false, supportsVariables: true },
+      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
+    ],
+  },
+
+  {
+    id: 'crea_bozza_preventivo',
+    label: 'Crea bozza preventivo',
+    description: 'Genera automaticamente una bozza di preventivo',
+    icon: '📋',
+    categoria: 'preventivi',
+    outputVariables: [{ id: 'preventivo.id', label: 'ID Preventivo bozza', type: 'uuid' }],
+    configSchema: [
+      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'titolo', label: 'Titolo preventivo', type: 'text', required: true,
+        supportsVariables: true, placeholder: 'Es: Preventivo per {{contatto.azienda}}' },
+      { id: 'validita_giorni', label: 'Validità (giorni)', type: 'number',
+        required: false, defaultValue: 30 },
+      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
+    ],
+  },
+
+  {
+    id: 'crea_cantiere',
+    label: 'Crea cantiere/commessa',
+    description: 'Apre automaticamente un nuovo cantiere (es. da preventivo accettato)',
+    icon: '🏗️',
+    categoria: 'cantieri',
+    outputVariables: [{ id: 'cantiere.id', label: 'ID Cantiere creato', type: 'uuid' }],
+    configSchema: [
+      { id: 'nome', label: 'Nome cantiere', type: 'text', required: true,
+        supportsVariables: true, placeholder: 'Es: Lavori per {{contatto.azienda}}' },
+      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'importo', label: 'Importo commessa (€)', type: 'text', required: false,
+        supportsVariables: true, placeholder: '{{preventivo.importo}}' },
+      { id: 'responsabile_id', label: 'Responsabile', type: 'user_select', required: false },
+      { id: 'data_inizio', label: 'Data inizio (giorni da oggi)', type: 'number',
+        required: false, defaultValue: 7 },
+    ],
+  },
+
+  {
+    id: 'crea_appuntamento',
+    label: 'Crea appuntamento',
+    description: 'Fissa automaticamente un appuntamento nel calendario',
+    icon: '📅',
+    categoria: 'crm',
+    outputVariables: [{ id: 'appuntamento.id', label: 'ID Appuntamento creato', type: 'uuid' }],
+    configSchema: [
+      { id: 'titolo', label: 'Titolo appuntamento', type: 'text', required: true,
+        supportsVariables: true, placeholder: 'Es: Sopralluogo {{cantiere.nome}}' },
+      { id: 'contact_id', label: 'ID Contatto', type: 'text', required: false,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'giorni_da_oggi', label: 'Fissa tra N giorni da oggi', type: 'number',
+        required: true, defaultValue: 1, min: 0, max: 365 },
+      { id: 'orario', label: 'Ora appuntamento', type: 'time', required: false,
+        defaultValue: '10:00' },
+      { id: 'tipo', label: 'Tipo', type: 'select', required: false,
+        options: [
+          { value: 'sopralluogo', label: 'Sopralluogo' },
+          { value: 'video_call', label: 'Video call' },
+          { value: 'telefonata', label: 'Telefonata' },
+          { value: 'in_sede', label: 'In sede' },
+        ],
+      },
+      { id: 'assegnato_a', label: 'Responsabile', type: 'user_select', required: false },
+    ],
+  },
+
+  {
+    id: 'crea_ticket',
+    label: 'Crea ticket assistenza',
+    description: 'Apre automaticamente un ticket di supporto',
+    icon: '🎫',
+    categoria: 'assistenza',
+    outputVariables: [{ id: 'ticket.id', label: 'ID Ticket creato', type: 'uuid' }],
+    configSchema: [
+      { id: 'oggetto', label: 'Oggetto ticket', type: 'text', required: true,
+        supportsVariables: true },
+      { id: 'descrizione', label: 'Descrizione problema', type: 'textarea', required: false,
+        supportsVariables: true },
+      { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'media',
+        options: [
+          { value: 'urgente', label: 'Urgente' },
+          { value: 'alta', label: 'Alta' },
+          { value: 'media', label: 'Media' },
+          { value: 'bassa', label: 'Bassa' },
+        ],
+      },
+      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: false,
+        supportsVariables: true, placeholder: '{{contatto.id}}' },
+      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
+    ],
+  },
+
+  {
+    id: 'crea_fattura',
+    label: 'Crea bozza fattura',
+    description: 'Genera automaticamente una bozza di fattura (es. da ordine completato)',
+    icon: '🧾',
+    categoria: 'fatturazione',
+    outputVariables: [{ id: 'fattura.id', label: 'ID Fattura bozza', type: 'uuid' }],
+    configSchema: [
+      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true,
+        supportsVariables: true },
+      { id: 'importo', label: 'Importo (€)', type: 'text', required: true,
+        supportsVariables: true, placeholder: '{{ordine.importo}}' },
+      { id: 'descrizione', label: 'Descrizione prestazione', type: 'textarea', required: true,
+        supportsVariables: true },
+      { id: 'scadenza_giorni', label: 'Giorni alla scadenza', type: 'number',
+        required: false, defaultValue: 30 },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════
+  // 🤖 AI & WEBHOOK
+  // ═══════════════════════════════════════════════
+  {
+    id: 'esegui_agente_ai',
+    label: 'Esegui agente AI',
+    description: 'Esegue un agente AI con contesto del trigger per analisi/risposta',
+    icon: '🤖',
+    categoria: 'generale',
+    configSchema: [
+      { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true,
+        helpText: 'Seleziona l\'agente AI da eseguire' },
+      { id: 'prompt', label: 'Prompt aggiuntivo (opzionale)', type: 'textarea',
+        required: false, supportsVariables: true,
+        placeholder: 'Analizza il lead {{contatto.nome}} e suggerisci la strategia migliore' },
+    ],
+  },
+
+  {
+    id: 'chiama_webhook',
+    label: 'Chiama webhook esterno',
+    description: 'Invia una chiamata HTTP a un URL esterno (Zapier, Make, API custom)',
+    icon: '🔗',
+    categoria: 'generale',
+    configSchema: [
+      { id: 'url', label: 'URL endpoint', type: 'text', required: true,
+        placeholder: 'https://hooks.zapier.com/...' },
+      { id: 'metodo', label: 'Metodo HTTP', type: 'select', required: true, defaultValue: 'POST',
+        options: [
+          { value: 'POST', label: 'POST' },
+          { value: 'PUT', label: 'PUT' },
+          { value: 'PATCH', label: 'PATCH' },
+          { value: 'GET', label: 'GET' },
+        ],
+      },
+      { id: 'headers', label: 'Headers aggiuntivi (JSON)', type: 'json_editor', required: false,
+        placeholder: '{"Authorization": "Bearer token123"}' },
+    ],
+  },
+
+  {
+    id: 'attendi',
+    label: 'Attendi (delay)',
+    description: 'Mette in pausa il flow per un tempo definito prima del passo successivo',
+    icon: '⏱️',
+    categoria: 'generale',
+    configSchema: [
+      { id: 'minuti', label: 'Minuti', type: 'number', required: false, min: 0, max: 59, defaultValue: 0 },
+      { id: 'ore', label: 'Ore', type: 'number', required: false, min: 0, max: 23, defaultValue: 0 },
+      { id: 'giorni', label: 'Giorni', type: 'number', required: false, min: 0, max: 30, defaultValue: 0 },
+      { id: 'helpText', label: '', type: 'boolean',
+        helpText: '⚠️ Delay > 5 minuti: il flow verrà rischedulato, non bloccherà l\'execution.' },
+    ],
+  },
+];
+
+// ─── CONDITION CATALOG ───────────────────────────────────────────────────────
+
+export const CONDITION_CATALOG: ConditionDefinition[] = [
+  {
+    id: 'condition_se',
+    label: 'SE condizione',
+    description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
+    icon: '⋯',
+    configSchema: [
+      {
+        id: 'variabile',
+        label: 'Variabile da controllare',
+        type: 'text',
+        required: true,
+        supportsVariables: true,
+        placeholder: '{{opportunita.valore}}',
+        helpText: 'Seleziona una variabile disponibile dagli step precedenti',
+      },
+      {
+        id: 'operatore',
+        label: 'Operatore',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'uguale', label: '= uguale a' },
+          { value: 'diverso', label: '≠ diverso da' },
+          { value: 'contiene', label: 'contiene' },
+          { value: 'non_contiene', label: 'non contiene' },
+          { value: 'maggiore', label: '> maggiore di' },
+          { value: 'minore', label: '< minore di' },
+          { value: 'maggiore_uguale', label: '≥ maggiore o uguale a' },
+          { value: 'minore_uguale', label: '≤ minore o uguale a' },
+          { value: 'vuoto', label: 'è vuoto' },
+          { value: 'non_vuoto', label: 'non è vuoto' },
+          { value: 'inizia_con', label: 'inizia con' },
+          { value: 'finisce_con', label: 'finisce con' },
+        ],
+      },
+      {
+        id: 'valore',
+        label: 'Valore di confronto',
+        type: 'text',
+        required: false,
+        supportsVariables: true,
+        placeholder: 'Es: 5000',
+        helpText: 'Non necessario per "è vuoto" / "non è vuoto"',
+      },
+      {
+        id: 'label',
+        label: 'Etichetta condizione (per il canvas)',
+        type: 'text',
+        required: false,
+        placeholder: 'Es: Valore > 5000€',
+        helpText: 'Testo mostrato sul nodo nel canvas',
+      },
+    ],
+  },
+  {
+    id: 'condition_multi',
+    label: 'SE condizioni multiple (AND/OR)',
+    description: 'Valuta più condizioni contemporaneamente con operatore AND o OR',
+    icon: '⋯',
+    configSchema: [
+      {
+        id: 'operatore_logico',
+        label: 'Tipo di combinazione',
+        type: 'select',
+        required: true,
+        defaultValue: 'AND',
+        options: [
+          { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
+          { value: 'OR', label: 'OR — almeno una condizione deve essere vera' },
+        ],
+      },
+      {
+        id: 'condizioni',
+        label: 'Condizioni (JSON array)',
+        type: 'json_editor',
+        required: true,
+        placeholder: '[{"variabile":"{{opportunita.valore}}","operatore":"maggiore","valore":"5000"},{"variabile":"{{opportunita.stage}}","operatore":"uguale","valore":"vinto"}]',
+        helpText: 'Ogni condizione: { variabile, operatore, valore }',
+      },
+    ],
+  },
+];
+
+// ─── Helper exports ───────────────────────────────────────────────────────────
+
+/** Mappa trigger_tipo → definizione (lookup rapido nell'executor) */
+export const TRIGGER_MAP: Record<string, TriggerDefinition> =
+  Object.fromEntries(TRIGGER_CATALOG.map(t => [t.id, t]));
+
+/** Mappa action tipo → definizione */
+export const ACTION_MAP: Record<string, ActionDefinition> =
+  Object.fromEntries(ACTION_CATALOG.map(a => [a.id, a]));
+
+/** Raggruppa trigger per categoria */
+export const TRIGGERS_BY_CATEGORY = TRIGGER_CATALOG.reduce((acc, t) => {
+  if (!acc[t.categoria]) acc[t.categoria] = [];
+  acc[t.categoria].push(t);
+  return acc;
+}, {} as Record<string, TriggerDefinition[]>);
+
+/** Raggruppa azioni per categoria */
+export const ACTIONS_BY_CATEGORY = ACTION_CATALOG.reduce((acc, a) => {
+  if (!acc[a.categoria]) acc[a.categoria] = [];
+  acc[a.categoria].push(a);
+  return acc;
+}, {} as Record<string, ActionDefinition[]>);
+```
+
+---
+
+### STEP 2 — Aggiorna il FlowBuilderSidebar per usare il nuovo catalogo
+
+Nel file `src/components/flow-builder/FlowBuilderSidebar.tsx`, aggiorna i gruppi:
+
+```tsx
+// Importa il catalogo aggiornato
+import { TRIGGERS_BY_CATEGORY, ACTIONS_BY_CATEGORY } from '@/lib/flow-node-catalog';
+
+// TRIGGER_GROUPS diventa dinamico
+const TRIGGER_GROUPS = Object.entries(TRIGGERS_BY_CATEGORY).map(([cat, items]) => ({
+  label: cat,
+  icon: getCategoryIcon(cat),
+  items,
+}));
+
+// ACTION_GROUPS diventa dinamico
+const ACTION_GROUPS = Object.entries(ACTIONS_BY_CATEGORY).map(([cat, items]) => ({
+  label: cat,
+  icon: getCategoryIcon(cat),
+  items,
+}));
+
+function getCategoryIcon(cat: string): string {
+  const icons: Record<string, string> = {
+    crm: '👥', marketing: '📣', ordini: '📦', fatturazione: '💰',
+    preventivi: '📋', assistenza: '🎫', magazzino: '📦', hr: '👤',
+    cantieri: '🏗️', task: '✅', comunicazione: '📨', generale: '⚙️',
+  };
+  return icons[cat] ?? '⚡';
+}
+```
+
+---
+
+### STEP 3 — Verifica TypeScript
+
+```bash
+npx tsc --noEmit 2>&1 | head -40
+```
+
+Correggi tutti gli errori di tipo prima di procedere.
+
+---
+
+### STEP 4 — Statistiche finali del catalogo
+
+```bash
+# Conta trigger e azioni nel nuovo catalogo
+node -e "
+const { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG } = require('./src/lib/flow-node-catalog.ts');
+console.log('Trigger:', TRIGGER_CATALOG.length);
+console.log('Azioni:', ACTION_CATALOG.length);
+console.log('Condizioni:', CONDITION_CATALOG.length);
+"
+```
+
+**Il catalogo aggiornato contiene:**
+- **34 trigger** distribuiti in: CRM (5), Appuntamenti (5), Ordini (3), Fatturazione (3),
+  Preventivi (4), Ticket Assistenza (3), Magazzino (3), Marketing (5), HR (3),
+  Cantieri (3), Task (3), Schedulati/Manuali (4)
+- **22 azioni** distribuite in: Task (2), Comunicazione (4), CRM (3), Operativo (5),
+  Fatturazione (1), AI/Webhook (3), Generale (1 delay)
+- **2 condizioni**: SE semplice, SE multiplo AND/OR
+```
