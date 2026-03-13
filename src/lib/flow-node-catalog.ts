@@ -1007,7 +1007,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'aggiorna_task',
     label: 'Aggiorna stato attività',
     description: 'Cambia stato, priorità o assegnatario di un task esistente',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'task',
     configSchema: [
       { id: 'task_id', label: 'ID Task (usa variabile)', type: 'text', required: true, supportsVariables: true, placeholder: '{{task.id}}', helpText: 'Di solito si usa la variabile {{task.id}} dal trigger' },
