@@ -191,11 +191,9 @@ export function companyRoutes() {
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
         {/* Unified Automazioni page (3 tabs: operative, task, marketing) */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
-        <Route path="automazioni/:id" element={<InternalAutomations />} />
-        <Route path="automazioni-legacy" element={<Automations />} />
-        
+
         {/* Backward-compatible redirects */}
-        <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni?tab=task" replace />} />
+        <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
         <Route path="agenti-ai/*" element={<AgentiAIUnified />} />
