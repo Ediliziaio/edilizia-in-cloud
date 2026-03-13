@@ -488,6 +488,66 @@ export default function DocumentiFiscaliList() {
           </div>
         </div>
       )}
+
+      {/* ── Delete Confirmation Dialog ───────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare il documento <strong>{deleteTarget?.numero}</strong>. Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+                }
+              }}
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Payment Confirmation Dialog ──────────────── */}
+      <AlertDialog open={!!payTarget} onOpenChange={(open) => !open && setPayTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Segnare come pagata?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il documento <strong>{payTarget?.numero}</strong> verrà segnato come pagato per l'importo di{" "}
+              <strong>{payTarget ? formatCurrency(payTarget.totale_da_pagare) : ""}</strong> in data odierna.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={updateMutation.isPending}
+              onClick={() => {
+                if (payTarget) {
+                  updateMutation.mutate(
+                    {
+                      id: payTarget.id,
+                      stato: "pagata",
+                      importo_pagato: payTarget.totale_da_pagare,
+                      pagato_at: new Date().toISOString(),
+                    },
+                    { onSettled: () => setPayTarget(null) }
+                  );
+                }
+              }}
+            >
+              {updateMutation.isPending ? "Aggiornamento..." : "Conferma pagamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
