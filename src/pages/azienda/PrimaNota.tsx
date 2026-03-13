@@ -30,17 +30,22 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function PrimaNota() {
+  const navigate = useNavigate();
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  const [autoView, setAutoView] = useState<"tutte" | "auto" | "manuali">("tutte");
+
+  const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
   const { entries, isLoading, saldo, isSaldoLoading, create, remove } = usePrimaNota({
     fromDate,
     toDate,
     direction: direction || undefined,
     search,
+    isAuto: isAutoFilter,
   });
 
   // Running balance (from oldest to newest, then reverse for display)
