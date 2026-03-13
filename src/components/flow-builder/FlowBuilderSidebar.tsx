@@ -1,11 +1,12 @@
-import { useState } from "react";
 import {
-  MessageSquare, AlertCircle, Clock, FileText,
-  BarChart2, Sparkles, X,
+  MessageSquare, AlertCircle, Clock, BarChart2, Sparkles, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { WorkflowNotesPanel } from "./panels/WorkflowNotesPanel";
+import { WorkflowErrorsPanel, type WorkflowError } from "./panels/WorkflowErrorsPanel";
+import { WorkflowVersionsPanel } from "./panels/WorkflowVersionsPanel";
 
 export type LeftPanel = "none" | "notes" | "errors" | "versions" | "history" | "stats" | "ai";
 
@@ -19,19 +20,22 @@ interface SidebarItem {
 interface FlowBuilderSidebarProps {
   activePanel: LeftPanel;
   onPanelChange: (p: LeftPanel) => void;
+  flowId?: string;
+  errors?: WorkflowError[];
 }
 
-const ITEMS: SidebarItem[] = [
-  { key: "notes", icon: <MessageSquare className="h-4 w-4" />, label: "Note" },
-  { key: "errors", icon: <AlertCircle className="h-4 w-4" />, label: "Errori" },
-  { key: "versions", icon: <Clock className="h-4 w-4" />, label: "Versioni" },
-  { key: "history", icon: <FileText className="h-4 w-4" />, label: "Storico" },
-  { key: "stats", icon: <BarChart2 className="h-4 w-4" />, label: "Statistiche" },
-  { key: "ai", icon: <Sparkles className="h-4 w-4" />, label: "AI" },
-];
-
-export function FlowBuilderSidebar({ activePanel, onPanelChange }: FlowBuilderSidebarProps) {
+export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [] }: FlowBuilderSidebarProps) {
   const toggle = (key: LeftPanel) => onPanelChange(activePanel === key ? "none" : key);
+
+  const erroriCount = errors.filter(e => e.tipo === "errore").length;
+
+  const ITEMS: SidebarItem[] = [
+    { key: "notes", icon: <MessageSquare className="h-4 w-4" />, label: "Note" },
+    { key: "errors", icon: <AlertCircle className="h-4 w-4" />, label: "Errori", badgeCount: erroriCount },
+    { key: "versions", icon: <Clock className="h-4 w-4" />, label: "Versioni" },
+    { key: "stats", icon: <BarChart2 className="h-4 w-4" />, label: "Statistiche" },
+    { key: "ai", icon: <Sparkles className="h-4 w-4" />, label: "AI" },
+  ];
 
   return (
     <div className="flex h-full shrink-0">
@@ -61,7 +65,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange }: FlowBuilderSi
 
       {/* Sliding panel */}
       {activePanel !== "none" && (
-        <div className="w-[260px] border-r bg-background flex flex-col">
+        <div className="w-[280px] border-r bg-background flex flex-col">
           <div className="flex items-center justify-between border-b px-3 py-2">
             <h3 className="text-sm font-semibold">
               {ITEMS.find((i) => i.key === activePanel)?.label}
@@ -70,28 +74,41 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange }: FlowBuilderSi
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <ScrollArea className="flex-1">
-            <div className="p-4">
-              <PanelPlaceholder panel={activePanel} />
+
+          {/* Render real panels */}
+          {activePanel === "notes" && flowId && (
+            <WorkflowNotesPanel flowId={flowId} />
+          )}
+          {activePanel === "errors" && (
+            <WorkflowErrorsPanel errors={errors} />
+          )}
+          {activePanel === "versions" && flowId && (
+            <WorkflowVersionsPanel flowId={flowId} />
+          )}
+          {activePanel === "stats" && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <p className="text-xs text-muted-foreground text-center">
+                Le statistiche di esecuzione verranno mostrate qui.
+              </p>
             </div>
-          </ScrollArea>
+          )}
+          {activePanel === "ai" && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <p className="text-xs text-muted-foreground text-center">
+                L'assistente AI per la creazione automatica di workflow sarà disponibile a breve.
+              </p>
+            </div>
+          )}
+          {/* Fallback for panels without flowId */}
+          {(activePanel === "notes" || activePanel === "versions") && !flowId && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <p className="text-xs text-muted-foreground text-center">
+                Salva il flusso per accedere a questa funzione.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
-  );
-}
-
-function PanelPlaceholder({ panel }: { panel: LeftPanel }) {
-  const messages: Record<string, string> = {
-    notes: "Aggiungi note e commenti al workflow. Le note sono visibili solo al team.",
-    errors: "Nessun errore rilevato. Il workflow sembra configurato correttamente.",
-    versions: "Lo storico delle versioni apparirà qui dopo ogni pubblicazione.",
-    history: "Lo storico delle modifiche sarà disponibile a breve.",
-    stats: "Le statistiche di esecuzione verranno mostrate qui.",
-    ai: "L'assistente AI per la creazione automatica di workflow sarà disponibile a breve.",
-  };
-
-  return (
-    <p className="text-xs text-muted-foreground">{messages[panel] || "In arrivo..."}</p>
   );
 }
