@@ -399,7 +399,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 💰 FATTURAZIONE & INCASSI ═══
+  // ═══ FATTURAZIONE & INCASSI ═══
   {
     id: 'fattura_creata',
     label: 'Nuova fattura emessa',
