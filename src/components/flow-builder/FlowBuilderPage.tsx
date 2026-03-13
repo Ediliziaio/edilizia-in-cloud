@@ -33,10 +33,12 @@ import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 
 export function FlowBuilderPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: routeId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const { toast: uiToast } = useToast();
-  const flowId = id === "nuova" ? undefined : id;
+  const isNewFlowRoute = !routeId || routeId === "nuova";
+  const flowId = isNewFlowRoute ? undefined : routeId;
+  const creationAttemptedRef = useRef(false);
 
   const builder = useAutomationBuilder(flowId);
   const {
