@@ -161,6 +161,12 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
+    // "Fatture" è attiva per /azienda/documenti e tutti i ?tipo=, ma NON per sottopagine autonome
+    if (url === "/azienda/documenti") {
+      const autonomousSubpaths = ["/azienda/documenti/anagrafiche", "/azienda/documenti/incassi", "/azienda/documenti/cassetto-sdi", "/azienda/documenti/report"];
+      if (autonomousSubpaths.some(p => pathname === p || pathname.startsWith(p + "/"))) return false;
+      return pathname === "/azienda/documenti" || pathname.startsWith("/azienda/documenti/");
+    }
     if (pathname === url) return true;
     if (pathname.startsWith(url + "/")) {
       const hasMoreSpecific = visibleItems.some(

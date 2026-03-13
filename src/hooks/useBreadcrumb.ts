@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useMemo } from "react";
 import { macroAreas } from "@/lib/sidebarConfig";
-import { Settings } from "lucide-react";
+import { Settings, Euro } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface BreadcrumbResult {
@@ -11,8 +11,17 @@ interface BreadcrumbResult {
   pageUrl: string | null;
 }
 
+const tipoLabels: Record<string, string> = {
+  fattura: "Fatture",
+  proforma: "Pro forma",
+  nota_credito: "Note di Credito",
+  ddt: "DDT",
+  preventivo: "Preventivi",
+  cestino: "Cestino",
+};
+
 export function useBreadcrumb(): BreadcrumbResult {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   return useMemo(() => {
     // Settings pages — special case
@@ -22,6 +31,18 @@ export function useBreadcrumb(): BreadcrumbResult {
         areaIcon: Settings,
         page: null,
         pageUrl: null,
+      };
+    }
+
+    // Documenti page with ?tipo= query param
+    if (pathname === "/azienda/documenti") {
+      const params = new URLSearchParams(search);
+      const tipo = params.get("tipo");
+      return {
+        area: "Finanza",
+        areaIcon: Euro,
+        page: tipo ? tipoLabels[tipo] ?? "Fatture" : "Fatture",
+        pageUrl: "/azienda/documenti",
       };
     }
 
@@ -41,5 +62,5 @@ export function useBreadcrumb(): BreadcrumbResult {
     }
 
     return { area: null, areaIcon: null, page: null, pageUrl: null };
-  }, [pathname]);
+  }, [pathname, search]);
 }
