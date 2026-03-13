@@ -1843,6 +1843,94 @@ export type Database = {
           },
         ]
       }
+      attivita_venditori: {
+        Row: {
+          cliente_id: string | null
+          company_id: string
+          created_at: string | null
+          data_attivita: string
+          durata_minuti: number | null
+          esito: string | null
+          id: string
+          note: string | null
+          order_id: string | null
+          quote_id: string | null
+          salesperson_id: string
+          tipo: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          company_id: string
+          created_at?: string | null
+          data_attivita?: string
+          durata_minuti?: number | null
+          esito?: string | null
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          quote_id?: string | null
+          salesperson_id: string
+          tipo?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          data_attivita?: string
+          durata_minuti?: number | null
+          esito?: string | null
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          quote_id?: string | null
+          salesperson_id?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attivita_venditori_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attivita_venditori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attivita_venditori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attivita_venditori_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attivita_venditori_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
+          },
+          {
+            foreignKeyName: "attivita_venditori_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attribution_sessions: {
         Row: {
           browser: string | null
@@ -4510,6 +4598,7 @@ export type Database = {
           ritenuta_causale: string | null
           ritenuta_importo: number | null
           ritenuta_tipo: string | null
+          salesperson_id: string | null
           scadenze_pagamento: Json | null
           sconto_globale_percentuale: number | null
           sconto_globale_valore: number | null
@@ -4595,6 +4684,7 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
+          salesperson_id?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
@@ -4680,6 +4770,7 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
+          salesperson_id?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
@@ -4749,6 +4840,20 @@ export type Database = {
             columns: ["ordine_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
         ]
@@ -10218,6 +10323,79 @@ export type Database = {
           },
         ]
       }
+      obiettivi_venditori: {
+        Row: {
+          anno: number
+          company_id: string
+          created_at: string | null
+          id: string
+          mese: number | null
+          note: string | null
+          periodo_tipo: string | null
+          salesperson_id: string
+          target_fatturato: number | null
+          target_nuovi_clienti: number | null
+          target_ordini: number | null
+          target_preventivi: number | null
+          target_win_rate: number | null
+          trimestre: number | null
+        }
+        Insert: {
+          anno: number
+          company_id: string
+          created_at?: string | null
+          id?: string
+          mese?: number | null
+          note?: string | null
+          periodo_tipo?: string | null
+          salesperson_id: string
+          target_fatturato?: number | null
+          target_nuovi_clienti?: number | null
+          target_ordini?: number | null
+          target_preventivi?: number | null
+          target_win_rate?: number | null
+          trimestre?: number | null
+        }
+        Update: {
+          anno?: number
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          mese?: number | null
+          note?: string | null
+          periodo_tipo?: string | null
+          salesperson_id?: string
+          target_fatturato?: number | null
+          target_nuovi_clienti?: number | null
+          target_ordini?: number | null
+          target_preventivi?: number | null
+          target_win_rate?: number | null
+          trimestre?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obiettivi_venditori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obiettivi_venditori_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
+          },
+          {
+            foreignKeyName: "obiettivi_venditori_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_steps: {
         Row: {
           auto_check_key: string | null
@@ -10795,6 +10973,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_salespeople_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
           },
           {
             foreignKeyName: "order_salespeople_salesperson_id_fkey"
@@ -11558,6 +11743,13 @@ export type Database = {
             foreignKeyName: "profiles_salesperson_id_fkey"
             columns: ["salesperson_id"]
             isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
+          },
+          {
+            foreignKeyName: "profiles_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
             referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
@@ -12073,6 +12265,7 @@ export type Database = {
           quote_number: string
           refused_at: string | null
           refused_reason: string | null
+          salesperson_id: string | null
           sent_at: string | null
           signature_token: string | null
           signed_at: string | null
@@ -12115,6 +12308,7 @@ export type Database = {
           quote_number: string
           refused_at?: string | null
           refused_reason?: string | null
+          salesperson_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
           signed_at?: string | null
@@ -12157,6 +12351,7 @@ export type Database = {
           quote_number?: string
           refused_at?: string | null
           refused_reason?: string | null
+          salesperson_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
           signed_at?: string | null
@@ -12193,6 +12388,20 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "performance_base_venditori"
+            referencedColumns: ["salesperson_id"]
+          },
+          {
+            foreignKeyName: "quotes_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
           {
@@ -12750,10 +12959,13 @@ export type Database = {
       }
       salespeople: {
         Row: {
+          area_geografica: string | null
+          avatar_url: string | null
           commission_type: string
           commission_value: number
           company_id: string
           created_at: string
+          data_inizio: string | null
           email: string | null
           first_name: string
           id: string
@@ -12762,12 +12974,16 @@ export type Database = {
           phone: string | null
           updated_at: string
           user_id: string | null
+          zona: string | null
         }
         Insert: {
+          area_geografica?: string | null
+          avatar_url?: string | null
           commission_type?: string
           commission_value?: number
           company_id: string
           created_at?: string
+          data_inizio?: string | null
           email?: string | null
           first_name: string
           id?: string
@@ -12776,12 +12992,16 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
+          zona?: string | null
         }
         Update: {
+          area_geografica?: string | null
+          avatar_url?: string | null
           commission_type?: string
           commission_value?: number
           company_id?: string
           created_at?: string
+          data_inizio?: string | null
           email?: string | null
           first_name?: string
           id?: string
@@ -12790,6 +13010,7 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
+          zona?: string | null
         }
         Relationships: [
           {
@@ -15655,6 +15876,32 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_base_venditori: {
+        Row: {
+          area_geografica: string | null
+          clienti_attivi_anno: number | null
+          company_id: string | null
+          fatturato_anno: number | null
+          is_active: boolean | null
+          nome_completo: string | null
+          pipeline_count: number | null
+          pipeline_valore: number | null
+          preventivi_anno: number | null
+          preventivi_vinti_anno: number | null
+          salesperson_id: string | null
+          valore_medio_ordine: number | null
+          win_rate_anno: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salespeople_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
