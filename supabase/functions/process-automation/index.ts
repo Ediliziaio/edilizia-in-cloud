@@ -294,6 +294,7 @@ async function processQueue(supabase: any) {
     } catch (err: any) {
       console.error(`Queue item ${item.id} error:`, err);
       await markQueueItem(supabase, item.id, "failed", err.message);
+      await completeExecutionRun(supabase, item.enrollment_id, "error", err.message);
     }
   }
 
