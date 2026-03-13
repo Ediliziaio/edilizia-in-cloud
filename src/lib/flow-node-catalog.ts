@@ -650,7 +650,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'carico_magazzino',
     label: 'Nuovo carico in magazzino',
     description: 'Scatta quando arriva un nuovo carico di merce',
-    icon: '📥',
+    icon: 'Warehouse',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock_movements',
     dbEvent: 'INSERT',
