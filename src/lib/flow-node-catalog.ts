@@ -120,7 +120,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contatto_aggiornato',
     label: 'Contatto aggiornato',
     description: 'Scatta quando vengono modificati i dati di un contatto',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'UPDATE',
