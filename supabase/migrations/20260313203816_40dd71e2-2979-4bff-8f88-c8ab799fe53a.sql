@@ -1,0 +1,1 @@
+ALTER TABLE automation_flows ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'generale';

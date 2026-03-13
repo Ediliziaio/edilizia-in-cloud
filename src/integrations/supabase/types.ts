@@ -2297,6 +2297,7 @@ export type Database = {
       }
       automation_flows: {
         Row: {
+          category: string
           company_id: string
           config_json: Json
           created_at: string
@@ -2311,6 +2312,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          category?: string
           company_id: string
           config_json?: Json
           created_at?: string
@@ -2325,6 +2327,7 @@ export type Database = {
           version?: number
         }
         Update: {
+          category?: string
           company_id?: string
           config_json?: Json
           created_at?: string
