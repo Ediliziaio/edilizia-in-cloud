@@ -900,7 +900,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'task_scaduto',
     label: 'Attività scaduta senza completamento',
     description: 'Scatta quando una attività supera la data di scadenza',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'task',
     dbEvent: 'SCHEDULED',
     outputVariables: [
