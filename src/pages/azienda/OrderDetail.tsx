@@ -293,6 +293,9 @@ export default function OrderDetail() {
     gcTime: 10 * 60 * 1000,
   });
 
+  // Fetch linked fatture
+  const { data: fattureCollegate = [] } = useFattureByOrdine(id);
+
   // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatusId: string) => {
