@@ -917,7 +917,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cron_giornaliero',
     label: 'Ogni giorno (a orario fisso)',
     description: "Il flow si esegue automaticamente ogni giorno all'orario specificato",
-    icon: '🌅',
+    icon: 'Clock',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
