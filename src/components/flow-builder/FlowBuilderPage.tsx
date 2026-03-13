@@ -19,18 +19,22 @@ import "@xyflow/react/dist/style.css";
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes } from "@/components/flow-builder/nodes";
-import { FlowBuilderHeader } from "./FlowBuilderHeader";
-import { FlowBuilderSidebar } from "./FlowBuilderSidebar";
-import { FlowBuilderConfigPanel } from "./FlowBuilderConfigPanel";
+import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
+import { FlowBuilderSidebar, type LeftPanel } from "./FlowBuilderSidebar";
+import { WorkflowRightPanel } from "./WorkflowRightPanel";
+import { WorkflowImpostazioni } from "./tabs/WorkflowImpostazioni";
+import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
+import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export function FlowBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const flowId = id === "nuova" ? undefined : id;
 
   const builder = useAutomationBuilder(flowId);
@@ -38,13 +42,20 @@ export function FlowBuilderPage() {
     flow, isLoading, isSaving, hasUnsavedChanges, canUndo, canRedo,
     undo, redo, saveImmediate, togglePublish,
     addNode, updateNode, removeNode, removeConnection, addConnection,
-    effectiveCompany, user, createFlowMutation,
+    effectiveCompany, user, createFlowMutation, updateFlowMutation,
   } = builder;
+
+  // UI state
+  const [activeTab, setActiveTab] = useState<BuilderTab>("builder");
+  const [leftPanel, setLeftPanel] = useState<LeftPanel>("none");
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<"catalog" | "config">("catalog");
+  const [catalogTab, setCatalogTab] = useState<"trigger" | "action" | "condition">("trigger");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // ReactFlow state
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const initializedRef = useRef(false);
@@ -70,27 +81,18 @@ export function FlowBuilderPage() {
     }
   }, [id, effectiveCompany, user]);
 
-  // Handle connect — with validation
+  // Handle connect
   const onConnect: OnConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
-
-      // BUG-2 fix: validate connections
-      if (params.source === params.target) return; // no self-loops
+      if (params.source === params.target) return;
 
       const sourceNode = rfNodes.find((n) => n.id === params.source);
       const targetNode = rfNodes.find((n) => n.id === params.target);
 
-      // No note nodes as source/target
       if (sourceNode?.type === "note" || targetNode?.type === "note") return;
-
-      // Trigger cannot be a target
       if (targetNode?.type === "trigger") {
-        toast({
-          title: "Connessione non valida",
-          description: "Il trigger non può avere connessioni in ingresso.",
-          variant: "destructive",
-        });
+        uiToast({ title: "Connessione non valida", description: "Il trigger non può avere connessioni in ingresso.", variant: "destructive" });
         return;
       }
 
@@ -106,45 +108,31 @@ export function FlowBuilderPage() {
         label: params.sourceHandle === "yes" ? "Sì" : params.sourceHandle === "no" ? "No" : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
-      // Add to builder
       if (flowId && effectiveCompany) {
         addConnection({
-          id: newEdge.id,
-          flow_id: flowId,
-          company_id: effectiveCompany.id,
-          from_node_id: params.source,
-          to_node_id: params.target,
-          label: (newEdge.label as string) ?? null,
-          created_at: new Date().toISOString(),
+          id: newEdge.id, flow_id: flowId, company_id: effectiveCompany.id,
+          from_node_id: params.source, to_node_id: params.target,
+          label: (newEdge.label as string) ?? null, created_at: new Date().toISOString(),
         });
       }
     },
-    [flowId, effectiveCompany, setRfEdges, addConnection, rfNodes, toast]
+    [flowId, effectiveCompany, setRfEdges, addConnection, rfNodes, uiToast]
   );
 
-  // BUG-1 fix: sync keyboard Delete with builder state
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
-      for (const node of deletedNodes) {
-        removeNode(node.id);
-      }
-      setSelectedNodeId((prev) =>
-        deletedNodes.some((n) => n.id === prev) ? null : prev
-      );
+      for (const node of deletedNodes) removeNode(node.id);
+      setSelectedNodeId((prev) => deletedNodes.some((n) => n.id === prev) ? null : prev);
     },
     [removeNode]
   );
 
   const onEdgesDelete = useCallback(
-    (deletedEdges: Edge[]) => {
-      for (const edge of deletedEdges) {
-        removeConnection(edge.id);
-      }
-    },
+    (deletedEdges: Edge[]) => { for (const edge of deletedEdges) removeConnection(edge.id); },
     [removeConnection]
   );
 
-  // Handle drop from sidebar
+  // Handle drop from right panel catalog
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -157,11 +145,7 @@ export function FlowBuilderPage() {
       if (!data || !reactFlowInstance || !flowId || !effectiveCompany || !user) return;
 
       const item: CatalogItem = JSON.parse(data);
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: e.clientX,
-        y: e.clientY,
-      });
-
+      const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const newNodeId = crypto.randomUUID();
       const rfNode: Node = {
         id: newNodeId,
@@ -177,42 +161,38 @@ export function FlowBuilderPage() {
       };
 
       setRfNodes((nds) => [...nds, rfNode]);
-
       addNode({
-        id: newNodeId,
-        flow_id: flowId,
-        company_id: effectiveCompany.id,
+        id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
         node_type: rfNode.data.nodeType as any,
-        position_x: Math.round(position.x),
-        position_y: Math.round(position.y),
+        position_x: Math.round(position.x), position_y: Math.round(position.y),
         config_json: { item_id: item.id, ...(item.kind === "note" ? { note_text: "" } : {}) },
-        label: item.label,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
     },
     [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
   );
 
-  // Handle node position change (drag end)
   const onNodeDragStop = useCallback(
     (_: any, node: Node) => {
-      updateNode(node.id, {
-        position_x: Math.round(node.position.x),
-        position_y: Math.round(node.position.y),
-      });
+      updateNode(node.id, { position_x: Math.round(node.position.x), position_y: Math.round(node.position.y) });
     },
     [updateNode]
   );
 
-  // Handle node selection
+  // Node click → open config in right panel
   const onNodeClick = useCallback((_: any, node: Node) => {
+    if (node.type === "note") return;
     setSelectedNodeId(node.id);
+    setRightPanelOpen(true);
+    setRightPanelMode("config");
   }, []);
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
-  }, []);
+    if (rightPanelMode === "config") {
+      setRightPanelOpen(false);
+    }
+  }, [rightPanelMode]);
 
   // Config panel handlers
   const selectedRfNode = useMemo(
@@ -222,13 +202,8 @@ export function FlowBuilderPage() {
 
   const handleUpdateNodeData = useCallback(
     (nodeId: string, newData: Record<string, any>) => {
-      setRfNodes((nds) =>
-        nds.map((n) => (n.id === nodeId ? { ...n, data: newData } : n))
-      );
-      updateNode(nodeId, {
-        config_json: { item_id: newData.itemId, ...newData },
-        label: newData.label ?? null,
-      });
+      setRfNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: newData } : n)));
+      updateNode(nodeId, { config_json: { item_id: newData.itemId, ...newData }, label: newData.label ?? null });
     },
     [setRfNodes, updateNode]
   );
@@ -239,31 +214,43 @@ export function FlowBuilderPage() {
       setRfEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
       removeNode(nodeId);
       setSelectedNodeId(null);
+      setRightPanelOpen(false);
     },
     [setRfNodes, setRfEdges, removeNode]
   );
 
+  const handleUpdateName = useCallback(
+    (name: string) => {
+      updateFlowMutation.mutate({ name });
+    },
+    [updateFlowMutation]
+  );
+
+  const handleArchive = useCallback(() => {
+    updateFlowMutation.mutate({ status: "archived" as any });
+    toast.success("Workflow archiviato");
+  }, [updateFlowMutation]);
+
+  // Open catalog panel
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        redo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        saveImmediate();
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveImmediate(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [undo, redo, saveImmediate]);
 
-  // BUG-6 fix: error state
+  // Error / loading states
   const isError = !isLoading && flowId && !flow && id !== "nuova";
 
   if (isLoading || (id === "nuova" && createFlowMutation.isPending)) {
@@ -279,12 +266,8 @@ export function FlowBuilderPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-center">
           <AlertCircle className="h-10 w-10 text-destructive" />
-          <p className="text-sm text-muted-foreground">
-            Errore nel caricamento del flow.
-          </p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
-            Torna indietro
-          </Button>
+          <p className="text-sm text-muted-foreground">Errore nel caricamento del flow.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
         </div>
       </div>
     );
@@ -292,57 +275,91 @@ export function FlowBuilderPage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      {/* Top bar */}
       <FlowBuilderHeader
         flow={flow}
         isSaving={isSaving}
         hasUnsavedChanges={hasUnsavedChanges}
         canUndo={canUndo}
         canRedo={canRedo}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         onSave={saveImmediate}
         onUndo={undo}
         onRedo={redo}
         onTogglePublish={togglePublish}
+        onUpdateName={handleUpdateName}
+        onArchive={handleArchive}
       />
 
+      {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        <FlowBuilderSidebar onDragStart={() => {}} />
+        {/* Left sidebar — only in builder tab */}
+        {activeTab === "builder" && (
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} />
+        )}
 
-        <div className="flex-1" ref={reactFlowWrapper}>
-          <ReactFlow
-            nodes={rfNodes}
-            edges={rfEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodesDelete={onNodesDelete}
-            onEdgesDelete={onEdgesDelete}
-            onInit={setReactFlowInstance}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeDragStop={onNodeDragStop}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            nodeTypes={nodeTypes}
-            fitView
-            deleteKeyCode={["Backspace", "Delete"]}
-            className="bg-muted/30"
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-            <Controls />
-            <MiniMap
-              nodeStrokeWidth={3}
-              className="!bg-background !border-border"
-              maskColor="hsl(var(--muted) / 0.5)"
-            />
-          </ReactFlow>
+        {/* Center content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {activeTab === "builder" && (
+            <div className="flex-1 relative" ref={reactFlowWrapper}>
+              <ReactFlow
+                nodes={rfNodes}
+                edges={rfEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodesDelete={onNodesDelete}
+                onEdgesDelete={onEdgesDelete}
+                onInit={setReactFlowInstance}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                onNodeDragStop={onNodeDragStop}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
+                fitView
+                deleteKeyCode={["Backspace", "Delete"]}
+                className="bg-muted/30"
+              >
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+                <Controls />
+                <MiniMap
+                  nodeStrokeWidth={3}
+                  className="!bg-background !border-border"
+                  maskColor="hsl(var(--muted) / 0.5)"
+                />
+              </ReactFlow>
+
+              {/* Floating button to open catalog when right panel is closed */}
+              {!rightPanelOpen && (
+                <div className="absolute top-3 right-3 flex gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 text-xs shadow-sm" onClick={() => openCatalog("trigger")}>
+                    + Trigger
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs shadow-sm" onClick={() => openCatalog("action")}>
+                    + Azione
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === "impostazioni" && <WorkflowImpostazioni />}
+          {activeTab === "cronologia" && <WorkflowCronologia />}
+          {activeTab === "registro" && <WorkflowRegistro />}
         </div>
 
-        {selectedRfNode && (
-          <FlowBuilderConfigPanel
+        {/* Right panel — only in builder tab */}
+        {activeTab === "builder" && rightPanelOpen && (
+          <WorkflowRightPanel
+            mode={rightPanelMode}
+            catalogTab={catalogTab}
+            onCatalogTabChange={setCatalogTab}
             selectedNode={selectedRfNode}
             onUpdateData={handleUpdateNodeData}
             onDelete={handleDeleteNode}
-            onClose={() => setSelectedNodeId(null)}
+            onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
+            onDragStart={() => {}}
           />
         )}
       </div>
