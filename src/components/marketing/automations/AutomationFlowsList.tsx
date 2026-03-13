@@ -24,6 +24,21 @@ import { Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2,
 import { useState, useMemo } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
+const CATEGORY_MAP: Record<string, { label: string; emoji: string }> = {
+  crm: { label: "CRM & Vendite", emoji: "👥" },
+  marketing: { label: "Marketing", emoji: "📣" },
+  preventivi: { label: "Preventivi", emoji: "📋" },
+  fatturazione: { label: "Fatturazione", emoji: "💰" },
+  ordini: { label: "Ordini", emoji: "📦" },
+  cantieri: { label: "Cantieri", emoji: "🏗️" },
+  assistenza: { label: "Assistenza", emoji: "🎧" },
+  magazzino: { label: "Magazzino", emoji: "🏭" },
+  hr: { label: "HR", emoji: "🧑‍💼" },
+  task: { label: "Task", emoji: "✅" },
+  notifiche: { label: "Notifiche", emoji: "🔔" },
+  generale: { label: "Generale", emoji: "⚙️" },
+};
+
 interface Props {
   statusFilter: string;
   searchQuery?: string;
@@ -72,9 +87,13 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
-        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by")
+        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by, category")
         .eq("company_id", effectiveCompany!.id)
         .order("updated_at", { ascending: false });
+
+      if (categoryFilter) {
+        query = query.eq("category", categoryFilter);
+      }
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
@@ -303,6 +322,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
                 <TableHead>Nome</TableHead>
+                <TableHead className="w-36">Categoria</TableHead>
                 <TableHead className="w-28">Stato</TableHead>
                 <TableHead className="w-32 text-right">Totale Iscritto</TableHead>
                 <TableHead className="w-36 text-right">Dinamico Iscritto</TableHead>
@@ -327,9 +347,10 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                       <span className="font-medium">{folder.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell />
-                  <TableCell />
-                  <TableCell />
+                   <TableCell />
+                   <TableCell />
+                   <TableCell />
+                   <TableCell />
                   <TableCell className="text-muted-foreground text-sm">
                     {formatDate(folder.created_at)}
                   </TableCell>
@@ -373,6 +394,16 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                         <span className="font-medium">{flow.name}</span>
                         <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50" />
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const cat = CATEGORY_MAP[flow.category] || CATEGORY_MAP.generale;
+                        return (
+                          <Badge variant="outline" className="text-xs font-normal gap-1">
+                            <span>{cat.emoji}</span> {cat.label}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
