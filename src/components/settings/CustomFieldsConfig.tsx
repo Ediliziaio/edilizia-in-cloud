@@ -578,8 +578,13 @@ export function CustomFieldsConfig() {
     toast.success("Chiave copiata");
   };
 
-  const visibleFields = filtered.slice(0, pageSize);
   const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const visibleFields = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Reset page on filter/search changes
+  useEffect(() => { setCurrentPage(1); }, [search, activeTab, groupBy]);
 
   return (
     <div className="space-y-0">
