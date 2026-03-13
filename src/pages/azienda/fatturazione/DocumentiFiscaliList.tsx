@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
 import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
