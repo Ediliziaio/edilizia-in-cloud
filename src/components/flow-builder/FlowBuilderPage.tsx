@@ -146,11 +146,20 @@ export function FlowBuilderPage() {
 
       const item: CatalogItem = JSON.parse(data);
       const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      addNodeFromItem(item, position);
+    },
+    [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
+  );
+
+  const addNodeFromItem = useCallback(
+    (item: CatalogItem, position?: { x: number; y: number }) => {
+      if (!flowId || !effectiveCompany || !user) return;
+      const pos = position ?? { x: 300 + Math.random() * 100, y: 200 + rfNodes.length * 120 };
       const newNodeId = crypto.randomUUID();
       const rfNode: Node = {
         id: newNodeId,
         type: item.kind,
-        position,
+        position: pos,
         data: {
           label: item.label,
           nodeType: item.kind === "trigger" ? "trigger" : item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
@@ -164,12 +173,19 @@ export function FlowBuilderPage() {
       addNode({
         id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
         node_type: rfNode.data.nodeType as any,
-        position_x: Math.round(position.x), position_y: Math.round(position.y),
+        position_x: Math.round(pos.x), position_y: Math.round(pos.y),
         config_json: { item_id: item.id, ...(item.kind === "note" ? { note_text: "" } : {}) },
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
     },
-    [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
+    [flowId, effectiveCompany, user, setRfNodes, addNode, rfNodes.length]
+  );
+
+  const handleSelectItem = useCallback(
+    (item: CatalogItem) => {
+      addNodeFromItem(item);
+    },
+    [addNodeFromItem]
   );
 
   const onNodeDragStop = useCallback(
