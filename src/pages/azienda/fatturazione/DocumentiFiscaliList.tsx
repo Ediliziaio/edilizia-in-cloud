@@ -524,6 +524,15 @@ export default function DocumentiFiscaliList() {
                       className="cursor-pointer"
                       onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
                     >
+                      {/* Checkbox */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={() => toggleSelect(doc.id)}
+                          aria-label={`Seleziona ${doc.numero}`}
+                        />
+                      </TableCell>
+
                       {/* Tipo (solo cestino) */}
                       {showColTipo && (
                         <TableCell>
