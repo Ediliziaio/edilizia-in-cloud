@@ -31,7 +31,7 @@ import {
 import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
-  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw,
+  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw, FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
