@@ -575,7 +575,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando un ticket cambia stato (aperto→in_lavorazione→risolto)',
     icon: '🔄',
     categoria: 'assistenza',
-    dbTable: 'support_tickets',
+    dbTable: 'tickets',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
