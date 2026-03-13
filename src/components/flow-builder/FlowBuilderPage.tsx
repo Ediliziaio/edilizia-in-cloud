@@ -18,7 +18,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
-import { nodeTypes } from "@/components/flow-builder/nodes";
+import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
 import { FlowBuilderSidebar, type LeftPanel } from "./FlowBuilderSidebar";
 import { WorkflowRightPanel } from "./WorkflowRightPanel";
