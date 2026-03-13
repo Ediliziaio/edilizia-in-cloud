@@ -23,7 +23,6 @@ export function FlowBuilderConfigPanel({
   onDelete,
   onClose,
 }: FlowBuilderConfigPanelProps) {
-  // BUG-3 fix: use selectedNode.id as dep so catalog recomputes on node change
   const catalog = useMemo(
     () => (selectedNode ? getCatalogItem(selectedNode.data?.itemId as string) : null),
     [selectedNode?.id, selectedNode?.data?.itemId]
@@ -129,6 +128,7 @@ function ConfigField({
         {field.label}
         {field.required && <span className="ml-0.5 text-destructive">*</span>}
       </Label>
+
       {field.type === "text" && (
         <Input
           value={value ?? field.defaultValue ?? ""}
@@ -137,6 +137,7 @@ function ConfigField({
           className="h-8 text-xs"
         />
       )}
+
       {field.type === "textarea" && (
         <Textarea
           value={value ?? field.defaultValue ?? ""}
@@ -145,15 +146,20 @@ function ConfigField({
           className="text-xs min-h-[60px]"
         />
       )}
+
       {field.type === "number" && (
         <Input
           type="number"
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(Number(e.target.value))}
+          min={field.min}
+          max={field.max}
+          placeholder={field.placeholder}
           className="h-8 text-xs"
         />
       )}
-      {field.type === "select" && field.options && (
+
+      {(field.type === "select" || field.type === "user_select" || field.type === "entity_select") && field.type === "select" && field.options && (
         <Select value={value ?? field.defaultValue ?? ""} onValueChange={onChange}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Seleziona..." />
@@ -167,16 +173,67 @@ function ConfigField({
           </SelectContent>
         </Select>
       )}
+
+      {field.type === "user_select" && (
+        <Input
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder ?? "ID utente o {{variabile}}"}
+          className="h-8 text-xs"
+        />
+      )}
+
+      {field.type === "entity_select" && (
+        <Input
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder ?? "ID entità o {{variabile}}"}
+          className="h-8 text-xs"
+        />
+      )}
+
       {field.type === "boolean" && (
         <Switch checked={!!value} onCheckedChange={onChange} />
       )}
-      {field.type === "tags" && (
+
+      {(field.type === "tags" || field.type === "tag_input") && (
         <Input
           value={Array.isArray(value) ? value.join(", ") : (value ?? "")}
           onChange={(e) => onChange(e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))}
-          placeholder="tag1, tag2, ..."
+          placeholder={field.placeholder ?? "tag1, tag2, ..."}
           className="h-8 text-xs"
         />
+      )}
+
+      {field.type === "json_editor" && (
+        <Textarea
+          value={value ?? field.defaultValue ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder ?? "{}"}
+          className="text-xs min-h-[80px] font-mono"
+        />
+      )}
+
+      {field.type === "date" && (
+        <Input
+          type="date"
+          value={value ?? field.defaultValue ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-xs"
+        />
+      )}
+
+      {field.type === "time" && (
+        <Input
+          type="time"
+          value={value ?? field.defaultValue ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-xs"
+        />
+      )}
+
+      {field.helpText && (
+        <p className="text-[10px] text-muted-foreground">{field.helpText}</p>
       )}
     </div>
   );
