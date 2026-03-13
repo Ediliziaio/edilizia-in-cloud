@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, TrendingDown, Wallet, Bot, Trash2,
+  TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { useNavigate } from "react-router-dom";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
