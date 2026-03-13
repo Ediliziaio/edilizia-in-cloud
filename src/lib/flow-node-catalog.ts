@@ -460,7 +460,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'costo_registrato',
     label: 'Costo/Spesa registrata',
     description: 'Scatta quando viene inserita una nuova spesa o costo aziendale',
-    icon: '💸',
+    icon: 'DollarSign',
     categoria: 'fatturazione',
     dbEvent: 'INSERT',
     outputVariables: [
