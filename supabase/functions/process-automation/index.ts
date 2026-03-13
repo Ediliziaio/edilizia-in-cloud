@@ -554,9 +554,9 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
     case "send_notification": {
       // Insert real notification into lifecycle_notifications
-      const title = cfg.notification_title || "Notifica automazione";
-      const message = cfg.notification_message || "";
-      const recipient = cfg.notification_recipient || "assigned";
+      const title = ncfg.notification_title || "Notifica automazione";
+      const message = ncfg.notification_message || "";
+      const recipient = ncfg.notification_recipient || "assigned";
 
       // Determine which company users should receive the notification
       let targetUserIds: string[] = [];
