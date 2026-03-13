@@ -1279,7 +1279,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'chiama_webhook',
     label: 'Chiama webhook esterno',
     description: 'Invia una chiamata HTTP a un URL esterno (Zapier, Make, API custom)',
-    icon: '🔗',
+    icon: 'Webhook',
     categoria: 'generale',
     configSchema: [
       { id: 'url', label: 'URL endpoint', type: 'text', required: true, placeholder: 'https://hooks.zapier.com/...' },
