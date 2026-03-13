@@ -307,7 +307,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_no_show',
     label: 'Appuntamento no-show',
     description: "Il cliente non si è presentato all'appuntamento",
-    icon: '🚫',
+    icon: 'XCircle',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
