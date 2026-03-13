@@ -448,7 +448,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
   switch (actionType) {
     case "add_tag": {
-      const tag = cfg.tag_name;
+      const tag = ncfg.tag_name;
       if (!tag) return { success: false, error: "No tag_name configured" };
       const { data: contact } = await supabase
         .from("marketing_contacts")
