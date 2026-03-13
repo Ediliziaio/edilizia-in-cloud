@@ -1,194 +1,148 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+## FLOW-EXT-04 — Audit Bug e Criticità: Piano di Correzione
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+### Riepilogo problemi trovati
+
+Dopo aver analizzato il database, il catalogo, l'edge function `process-automation`, i template e la UI, ecco i problemi reali identificati, ordinati per gravità.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+### PROBLEMA 1 — Mismatch naming azioni tra catalogo UI e edge function (CRITICO)
+
+Il catalogo `flow-node-catalog.ts` (FLOW-EXT-02) definisce le azioni con ID come `crea_task`, `invia_email`, `aggiungi_tag`, `crea_opportunita`, etc. Ma l'edge function `process-automation/index.ts` usa ID diversi per le stesse azioni:
+
+```text
+CATALOGO UI              →  EDGE FUNCTION
+──────────────────────────────────────────
+crea_task                →  create_task
+invia_email              →  send_email
+invia_whatsapp           →  send_whatsapp
+invia_sms                →  send_sms
+invia_notifica_inapp     →  send_notification
+aggiungi_tag             →  add_tag
+rimuovi_tag              →  remove_tag
+crea_opportunita         →  create_opportunity
+sposta_opportunita       →  move_opportunity
+assegna_agente           →  assign_user
+aggiorna_campo           →  update_field
+chiama_webhook           →  webhook_out
+esegui_agente_ai         →  send_ai_message / call_with_ai_agent
+attendi                  →  (delay node, non action)
+crea_bozza_ordine        →  ❌ MANCANTE
+crea_bozza_preventivo    →  ❌ MANCANTE
+crea_cantiere            →  ❌ MANCANTE
+crea_appuntamento        →  ❌ MANCANTE
+crea_ticket              →  ❌ MANCANTE
+crea_fattura             →  ❌ MANCANTE
+```
+
+**Inoltre**, i config field names sono diversi. Catalogo usa `titolo`, `priorita`, `destinatario`, ma l'edge function usa `task_title`, `task_priority`, `email_to`.
+
+**Fix**: Aggiornare l'edge function `process-automation` per supportare ENTRAMBI i set di ID (vecchi + nuovi) con alias, e aggiungere handler per le 6 azioni mancanti.
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### PROBLEMA 2 — dbTable errati nel catalogo (CRITICO)
+
+Tabelle referenziate dal catalogo che **non esistono** nel database:
+
+```text
+CATALOGO dbTable          →  TABELLA REALE
+──────────────────────────────────────────
+fatture_native            →  ❌ non esiste (esiste: invoices)
+preventivi_native         →  ❌ non esiste (esiste: quotes)
+support_tickets           →  ❌ non esiste (esiste: tickets)
+cantieri                  →  ❌ non esiste (nessuna tabella cantieri)
+```
+
+Tabelle che esistono e sono referenziate correttamente:
+- `marketing_contacts` ✅
+- `marketing_opportunities` ✅  
+- `appointments` ✅
+- `orders` ✅
+- `tasks` ✅
+- `employees` ✅
+
+**Fix**: Aggiornare i `dbTable` nel catalogo per allinearli ai nomi reali.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+### PROBLEMA 3 — Variabili template con naming sbagliato (MEDIO)
+
+Nei template `flow-templates.ts`, T01 usa `{{lead.nome}}`, `{{lead.telefono}}`, `{{campagna.nome}}` — ma il catalogo definisce le variabili come `{{contatto.nome}}`, `{{contatto.telefono}}`. L'edge function non risolve queste variabili perché il context viene popolato con chiavi diverse.
+
+**Fix**: Aggiornare i template per usare il naming del catalogo (`contatto.*` invece di `lead.*`).
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+### PROBLEMA 4 — Config field names mismatch nei template (MEDIO)
+
+I template usano `action_type` nel configJson dei nodi, ma l'edge function cerca `action_type` nello switch. Tuttavia i nomi dei config fields sono diversi:
+
+Template: `{ action_type: 'crea_task', titolo: '...' }`
+Edge function cerca: `{ action_type: 'create_task', task_title: '...' }`
+
+**Fix**: Allineare i config field names tra template, catalogo e edge function.
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+### PROBLEMA 5 — Commento stale in companyRoutes.tsx (BASSO)
+
+Riga 192: `{/* Unified Automazioni page (3 tabs: operative, task, marketing) */}` — da aggiornare.
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+### PROBLEMA 6 — Webhook esterno senza SSRF protection (MEDIO)
+
+L'azione `webhook_out` nell'edge function fa `fetch(url)` senza validazione dell'URL. Permette chiamate a `localhost`, `169.254.169.254` (AWS metadata), etc.
+
+**Fix**: Aggiungere validazione URL.
 
 ---
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+### PROBLEMA 7 — Nessuna idempotenza nell'edge function (BASSO)
+
+Se un webhook viene inviato due volte, crea due enrollment. Nessun meccanismo di deduplicazione.
 
 ---
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+### Piano di implementazione (in ordine di priorità)
+
+#### Task 1 — Fix dbTable nel catalogo
+In `flow-node-catalog.ts`:
+- `fatture_native` → `invoices`
+- `preventivi_native` → `quotes`  
+- `support_tickets` → `tickets`
+- `cantieri` → rimuovere (tabella non esiste nel DB)
+
+#### Task 2 — Aggiungere alias azioni nell'edge function
+In `process-automation/index.ts`, nella funzione `executeAction`:
+- Aggiungere mapping aliases: `crea_task` → esegui lo stesso handler di `create_task`
+- Aggiungere mapping config fields: `titolo` → `task_title`, `priorita` → `task_priority`, etc.
+- Aggiungere i 6 handler mancanti: `crea_bozza_ordine`, `crea_bozza_preventivo`, `crea_cantiere`, `crea_appuntamento`, `crea_ticket`, `crea_fattura`
+
+#### Task 3 — Fix variabili nei template
+In `flow-templates.ts`:
+- `{{lead.nome}}` → `{{contatto.nome}}`
+- `{{lead.telefono}}` → `{{contatto.telefono}}`
+- `{{campagna.nome}}` → resta (è una variabile di contesto, va bene)
+- Allineare i config fields dei nodi action ai nomi attesi dall'edge function
+
+#### Task 4 — SSRF protection su webhook_out
+In `process-automation/index.ts`, case `webhook_out`:
+- Validare URL contro lista di host bloccati (localhost, 127.0.0.1, 169.254.*, 10.*, 172.16.*, 192.168.*)
+
+#### Task 5 — Aggiornare commento stale
+In `companyRoutes.tsx`, aggiornare il commento alla riga 192.
 
 ---
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+### Cosa NON serve fare
 
----
+- **RLS**: `automation_flows`, `automation_nodes`, `automation_connections` hanno già RLS abilitato con policy per company admin, staff e super admin ✅
+- **`flow_execution_runs`** ha già RLS con policy "Users can view own company execution runs" ✅
+- **Tab Operative**: già rimossa dalla UI (solo un commento stale rimane) ✅
+- **Schema DB**: Non esiste una tabella `flows` separata e non serve crearne una. Il sistema usa `automation_flows` + tabelle normalizzate ✅
+- **Indici**: da valutare post-go-live in base all'uso reale
 
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
