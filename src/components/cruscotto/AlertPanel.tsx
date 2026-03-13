@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
 import type { OperationsData, FinanceData, TodayData } from "@/hooks/useCruscottoData";
+import type { DashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 
 interface AlertItem {
   id: string;
