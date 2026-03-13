@@ -7,6 +7,7 @@ export interface AutomationFlow {
   version: number;
   folder_id: string | null;
   config_json: Record<string, any> | null;
+  category: string;
   created_by: string;
   updated_by: string | null;
   created_at: string;
