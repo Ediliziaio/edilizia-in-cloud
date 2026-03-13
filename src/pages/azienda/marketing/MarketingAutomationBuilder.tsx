@@ -1,5 +1,5 @@
-import { AutomationBuilder } from "@/components/marketing/automations/AutomationBuilder";
+import { FlowBuilderPage } from "@/components/flow-builder/FlowBuilderPage";
 
 export default function MarketingAutomationBuilder() {
-  return <AutomationBuilder />;
+  return <FlowBuilderPage />;
 }
