@@ -80,12 +80,12 @@ export interface ConditionDefinition {
 
 export const TRIGGER_CATALOG: TriggerDefinition[] = [
 
-  // ═══ 👥 CRM & CONTATTI ═══
+  // ═══ CRM & CONTATTI ═══
   {
     id: 'contatto_creato',
     label: 'Nuovo contatto creato',
     description: 'Scatta quando viene aggiunto un nuovo contatto/lead al CRM',
-    icon: '👤',
+    icon: 'UserPlus',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'INSERT',
@@ -120,7 +120,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contatto_aggiornato',
     label: 'Contatto aggiornato',
     description: 'Scatta quando vengono modificati i dati di un contatto',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'UPDATE',
@@ -148,7 +148,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contatto_assegnato',
     label: 'Contatto assegnato a agente',
     description: 'Scatta quando un contatto viene assegnato a un responsabile',
-    icon: '🤝',
+    icon: 'Handshake',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'UPDATE',
@@ -161,12 +161,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 💼 OPPORTUNITÀ & PIPELINE ═══
+  // ═══ OPPORTUNITÀ & PIPELINE ═══
   {
     id: 'opportunita_creata',
     label: 'Nuova opportunità creata',
     description: 'Scatta alla creazione di una nuova opportunità/deal',
-    icon: '💼',
+    icon: 'Briefcase',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'INSERT',
@@ -187,7 +187,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_stage_cambiato',
     label: 'Stage opportunità cambiato',
     description: 'Scatta quando un deal cambia stage nella pipeline',
-    icon: '📊',
+    icon: 'BarChart3',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
@@ -215,7 +215,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_vinta',
     label: 'Opportunità vinta',
     description: 'Scatta quando un deal viene marcato come "Vinto"',
-    icon: '🏆',
+    icon: 'Trophy',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
@@ -232,7 +232,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_persa',
     label: 'Opportunità persa',
     description: 'Scatta quando un deal viene marcato come "Perso"',
-    icon: '❌',
+    icon: 'XCircle',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
@@ -245,12 +245,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 📅 APPUNTAMENTI & CALENDARIO ═══
+  // ═══ APPUNTAMENTI & CALENDARIO ═══
   {
     id: 'appuntamento_creato',
     label: 'Appuntamento creato',
     description: 'Scatta alla creazione di un nuovo appuntamento',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'INSERT',
@@ -274,7 +274,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_confermato',
     label: 'Appuntamento confermato',
     description: 'Scatta quando un appuntamento viene confermato dal cliente',
-    icon: '✅',
+    icon: 'CalendarCheck',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
@@ -291,7 +291,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_completato',
     label: 'Appuntamento completato (show-up)',
     description: "Il cliente si è presentato all'appuntamento",
-    icon: '🎯',
+    icon: 'Target',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
@@ -307,7 +307,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_no_show',
     label: 'Appuntamento no-show',
     description: "Il cliente non si è presentato all'appuntamento",
-    icon: '🚫',
+    icon: 'XCircle',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
@@ -322,7 +322,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_imminente',
     label: 'Appuntamento imminente (promemoria)',
     description: 'Scatta X ore/minuti prima di un appuntamento',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'crm',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -337,12 +337,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📦 ORDINI ═══
+  // ═══ ORDINI ═══
   {
     id: 'ordine_creato',
     label: 'Nuovo ordine creato',
     description: 'Scatta alla creazione di un nuovo ordine',
-    icon: '📦',
+    icon: 'Package',
     categoria: 'ordini',
     dbTable: 'orders',
     dbEvent: 'INSERT',
@@ -362,7 +362,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ordine_stato_cambiato',
     label: 'Stato ordine cambiato',
     description: 'Scatta quando un ordine cambia stato',
-    icon: '🔄',
+    icon: 'RotateCcw',
     categoria: 'ordini',
     dbTable: 'orders',
     dbEvent: 'UPDATE',
@@ -385,7 +385,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ordine_in_ritardo',
     label: 'Ordine in ritardo sulla consegna',
     description: 'Scatta quando un ordine supera la data di consegna prevista',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'ordini',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -399,12 +399,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 💰 FATTURAZIONE & INCASSI ═══
+  // ═══ FATTURAZIONE & INCASSI ═══
   {
     id: 'fattura_creata',
     label: 'Nuova fattura emessa',
     description: 'Scatta alla creazione/emissione di una fattura',
-    icon: '🧾',
+    icon: 'Receipt',
     categoria: 'fatturazione',
     dbTable: 'invoices',
     dbEvent: 'INSERT',
@@ -423,7 +423,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'fattura_scaduta',
     label: 'Fattura scaduta non pagata',
     description: 'Scatta quando una fattura supera la data di scadenza senza pagamento',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'fatturazione',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -442,7 +442,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'pagamento_ricevuto',
     label: 'Pagamento ricevuto',
     description: 'Scatta quando viene registrato un incasso/pagamento',
-    icon: '💵',
+    icon: 'CreditCard',
     categoria: 'fatturazione',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -460,7 +460,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'costo_registrato',
     label: 'Costo/Spesa registrata',
     description: 'Scatta quando viene inserita una nuova spesa o costo aziendale',
-    icon: '💸',
+    icon: 'DollarSign',
     categoria: 'fatturazione',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -476,12 +476,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📋 PREVENTIVI ═══
+  // ═══ PREVENTIVI ═══
   {
     id: 'preventivo_creato',
     label: 'Preventivo creato',
     description: 'Scatta alla creazione di un nuovo preventivo/offerta',
-    icon: '📋',
+    icon: 'FileText',
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'INSERT',
@@ -499,7 +499,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_accettato',
     label: 'Preventivo accettato',
     description: 'Il cliente ha accettato il preventivo',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'UPDATE',
@@ -517,7 +517,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_rifiutato',
     label: 'Preventivo rifiutato',
     description: 'Il cliente ha rifiutato il preventivo',
-    icon: '❌',
+    icon: 'XCircle',
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'UPDATE',
@@ -533,7 +533,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_in_scadenza',
     label: 'Preventivo in scadenza',
     description: 'Scatta N giorni prima della scadenza di un preventivo non ancora risposto',
-    icon: '⏳',
+    icon: 'Hourglass',
     categoria: 'preventivi',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -549,12 +549,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 🎫 TICKET ASSISTENZA ═══
+  // ═══ TICKET ASSISTENZA ═══
   {
     id: 'ticket_creato',
     label: 'Nuovo ticket assistenza aperto',
     description: 'Scatta quando un cliente apre un nuovo ticket di supporto',
-    icon: '🎫',
+    icon: 'Ticket',
     categoria: 'assistenza',
     dbTable: 'tickets',
     dbEvent: 'INSERT',
@@ -577,7 +577,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ticket_stato_cambiato',
     label: 'Stato ticket cambiato',
     description: 'Scatta quando un ticket cambia stato (aperto→in_lavorazione→risolto)',
-    icon: '🔄',
+    icon: 'RotateCcw',
     categoria: 'assistenza',
     dbTable: 'tickets',
     dbEvent: 'UPDATE',
@@ -599,7 +599,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ticket_senza_risposta',
     label: 'Ticket senza risposta da N ore',
     description: 'SLA alert: ticket aperto senza aggiornamenti da troppo tempo',
-    icon: '🚨',
+    icon: 'AlertTriangle',
     categoria: 'assistenza',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -614,12 +614,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📦 MAGAZZINO ═══
+  // ═══ MAGAZZINO ═══
   {
     id: 'scorta_minima',
     label: 'Prodotto sotto scorta minima',
     description: 'Scatta quando la giacenza di un prodotto scende sotto il minimo',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
@@ -636,7 +636,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'prodotto_esaurito',
     label: 'Prodotto esaurito (giacenza = 0)',
     description: 'Scatta quando un prodotto raggiunge giacenza zero',
-    icon: '🚫',
+    icon: 'XCircle',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
@@ -650,7 +650,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'carico_magazzino',
     label: 'Nuovo carico in magazzino',
     description: 'Scatta quando arriva un nuovo carico di merce',
-    icon: '📥',
+    icon: 'Warehouse',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock_movements',
     dbEvent: 'INSERT',
@@ -662,12 +662,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 📣 MARKETING ═══
+  // ═══ MARKETING ═══
   {
     id: 'email_aperta',
     label: 'Email di marketing aperta',
     description: "Il contatto ha aperto un'email della campagna",
-    icon: '📧',
+    icon: 'Mail',
     categoria: 'marketing',
     dbEvent: 'UPDATE',
     outputVariables: [
@@ -686,7 +686,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'email_cliccata',
     label: 'Link email cliccato',
     description: "Il contatto ha cliccato un link nell'email",
-    icon: '🖱️',
+    icon: 'Mail',
     categoria: 'marketing',
     dbEvent: 'UPDATE',
     outputVariables: [
@@ -703,7 +703,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'form_compilato',
     label: 'Form compilato',
     description: 'Un visitatore ha compilato un form di lead generation',
-    icon: '📝',
+    icon: 'ListTodo',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -723,7 +723,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'whatsapp_ricevuto',
     label: 'Messaggio WhatsApp ricevuto',
     description: 'Un contatto ha inviato un messaggio WhatsApp',
-    icon: '💬',
+    icon: 'MessageSquare',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -740,7 +740,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'campagna_facebook_lead',
     label: 'Lead da campagna Facebook',
     description: 'Scatta quando un lead arriva da una campagna Facebook/Meta',
-    icon: '📘',
+    icon: 'Users',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -754,12 +754,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 👤 HR & PERSONALE ═══
+  // ═══ HR & PERSONALE ═══
   {
     id: 'dipendente_creato',
     label: 'Nuovo dipendente aggiunto',
     description: 'Scatta quando viene inserito un nuovo dipendente/collaboratore',
-    icon: '👤',
+    icon: 'UserPlus',
     categoria: 'hr',
     dbTable: 'employees',
     dbEvent: 'INSERT',
@@ -776,7 +776,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contratto_in_scadenza',
     label: 'Contratto dipendente in scadenza',
     description: 'Scatta N giorni prima della scadenza di un contratto',
-    icon: '📄',
+    icon: 'FileText',
     categoria: 'hr',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -794,7 +794,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ferie_richiesta',
     label: 'Richiesta ferie/permesso inviata',
     description: 'Un dipendente ha inviato una richiesta di ferie o permesso',
-    icon: '🏖️',
+    icon: 'Calendar',
     categoria: 'hr',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -809,12 +809,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 🏗️ CANTIERI ═══
+  // ═══ CANTIERI ═══
   {
     id: 'cantiere_creato',
     label: 'Nuovo cantiere aperto',
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
-    icon: '🏗️',
+    icon: 'Building2',
     categoria: 'cantieri',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -831,7 +831,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cantiere_fase_completata',
     label: 'Fase cantiere completata',
     description: 'Scatta quando viene completata una fase/milestone del cantiere',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'cantieri',
     dbEvent: 'UPDATE',
     outputVariables: [
@@ -846,7 +846,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cantiere_in_ritardo',
     label: 'Cantiere in ritardo sulla data di fine',
     description: 'Scatta quando un cantiere supera la data di fine prevista',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'cantieri',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -860,12 +860,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ ✅ TASK ═══
+  // ═══ TASK ═══
   {
     id: 'task_creato',
     label: 'Nuova attività creata',
     description: 'Scatta alla creazione di un nuovo task/attività',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'task',
     dbEvent: 'INSERT',
     outputVariables: [
@@ -886,7 +886,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'task_completato',
     label: 'Attività completata',
     description: 'Scatta quando un task viene marcato come completato',
-    icon: '☑️',
+    icon: 'ClipboardCheck',
     categoria: 'task',
     dbEvent: 'UPDATE',
     outputVariables: [
@@ -900,7 +900,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'task_scaduto',
     label: 'Attività scaduta senza completamento',
     description: 'Scatta quando una attività supera la data di scadenza',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'task',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -912,12 +912,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ ⏰ SCHEDULATI / MANUALI ═══
+  // ═══ SCHEDULATI / MANUALI ═══
   {
     id: 'cron_giornaliero',
     label: 'Ogni giorno (a orario fisso)',
     description: "Il flow si esegue automaticamente ogni giorno all'orario specificato",
-    icon: '🌅',
+    icon: 'Clock',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -932,7 +932,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cron_settimanale',
     label: 'Ogni settimana (giorno fisso)',
     description: 'Il flow si esegue una volta alla settimana nel giorno specificato',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -952,7 +952,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cron_mensile',
     label: 'Ogni mese (giorno fisso)',
     description: 'Il flow si esegue una volta al mese',
-    icon: '📆',
+    icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -968,7 +968,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'manuale',
     label: 'Avvio manuale',
     description: 'Il flow viene avviato manualmente da un utente (pulsante "Esegui")',
-    icon: '▶️',
+    icon: 'Play',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
@@ -984,12 +984,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
 
 export const ACTION_CATALOG: ActionDefinition[] = [
 
-  // ═══ ✅ TASK & ATTIVITÀ ═══
+  // ═══ TASK & ATTIVITÀ ═══
   {
     id: 'crea_task',
     label: 'Crea attività',
     description: 'Crea un nuovo task nella sezione Attività',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'task',
     outputVariables: [{ id: 'task.id', label: 'ID Task creato', type: 'uuid' }],
     configSchema: [
@@ -1007,7 +1007,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'aggiorna_task',
     label: 'Aggiorna stato attività',
     description: 'Cambia stato, priorità o assegnatario di un task esistente',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'task',
     configSchema: [
       { id: 'task_id', label: 'ID Task (usa variabile)', type: 'text', required: true, supportsVariables: true, placeholder: '{{task.id}}', helpText: 'Di solito si usa la variabile {{task.id}} dal trigger' },
@@ -1022,12 +1022,12 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📨 COMUNICAZIONI ═══
+  // ═══ COMUNICAZIONI ═══
   {
     id: 'invia_notifica_inapp',
     label: 'Invia notifica in-app',
     description: "Invia una notifica push all'utente nella piattaforma",
-    icon: '🔔',
+    icon: 'Bell',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'user_id', label: 'Destinatario (user_id)', type: 'user_select', required: true, helpText: 'Puoi usare {{opportunita.assigned_to}} per notificare il responsabile' },
@@ -1040,7 +1040,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_email',
     label: 'Invia email',
     description: "Invia un'email a un indirizzo specifico o variabile",
-    icon: '📧',
+    icon: 'Mail',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'destinatario', label: 'A (indirizzo email)', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.email}}' },
@@ -1054,7 +1054,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_whatsapp',
     label: 'Invia messaggio WhatsApp',
     description: 'Invia un messaggio WhatsApp tramite API integrata',
-    icon: '💬',
+    icon: 'MessageSquare',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
@@ -1065,7 +1065,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_sms',
     label: 'Invia SMS',
     description: 'Invia un SMS al numero specificato',
-    icon: '📱',
+    icon: 'MessageSquare',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
@@ -1073,12 +1073,12 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📊 CRM ═══
+  // ═══ CRM ═══
   {
     id: 'aggiungi_tag',
     label: 'Aggiungi tag a contatto',
     description: 'Aggiunge uno o più tag a un contatto per segmentazione',
-    icon: '🏷️',
+    icon: 'Tag',
     categoria: 'crm',
     configSchema: [
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
@@ -1089,7 +1089,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'rimuovi_tag',
     label: 'Rimuovi tag da contatto',
     description: 'Rimuove uno o più tag da un contatto',
-    icon: '🗑️',
+    icon: 'Tag',
     categoria: 'crm',
     configSchema: [
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
@@ -1100,7 +1100,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_opportunita',
     label: 'Crea opportunità',
     description: 'Crea una nuova opportunità/deal nella pipeline',
-    icon: '💼',
+    icon: 'DollarSign',
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
@@ -1118,7 +1118,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'sposta_opportunita',
     label: 'Sposta opportunità a stage',
     description: 'Cambia lo stage di una opportunità esistente nella pipeline',
-    icon: '📊',
+    icon: 'BarChart3',
     categoria: 'crm',
     configSchema: [
       { id: 'opportunita_id', label: 'ID Opportunità', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.id}}' },
@@ -1133,7 +1133,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'assegna_agente',
     label: 'Assegna responsabile',
     description: 'Assegna un responsabile a un contatto, opportunità o ticket',
-    icon: '👤',
+    icon: 'UserCheck',
     categoria: 'crm',
     configSchema: [
       { id: 'entity_type', label: 'Tipo entità', type: 'select', required: true, options: [
@@ -1152,7 +1152,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'aggiorna_campo',
     label: 'Aggiorna campo entità',
     description: 'Aggiorna un campo specifico su qualsiasi entità del sistema',
-    icon: '✏️',
+    icon: 'Edit',
     categoria: 'crm',
     configSchema: [
       { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true, options: [
@@ -1166,12 +1166,12 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📦 OPERATIVO ═══
+  // ═══ OPERATIVO ═══
   {
     id: 'crea_bozza_ordine',
     label: 'Crea bozza ordine',
     description: 'Genera automaticamente una bozza di ordine da preventivo o opportunità vinta',
-    icon: '📦',
+    icon: 'Package',
     categoria: 'ordini',
     outputVariables: [{ id: 'ordine.id', label: 'ID Ordine bozza', type: 'uuid' }],
     configSchema: [
@@ -1186,7 +1186,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_bozza_preventivo',
     label: 'Crea bozza preventivo',
     description: 'Genera automaticamente una bozza di preventivo',
-    icon: '📋',
+    icon: 'FileText',
     categoria: 'preventivi',
     outputVariables: [{ id: 'preventivo.id', label: 'ID Preventivo bozza', type: 'uuid' }],
     configSchema: [
@@ -1200,7 +1200,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_cantiere',
     label: 'Crea cantiere/commessa',
     description: 'Apre automaticamente un nuovo cantiere (es. da preventivo accettato)',
-    icon: '🏗️',
+    icon: 'Building2',
     categoria: 'cantieri',
     outputVariables: [{ id: 'cantiere.id', label: 'ID Cantiere creato', type: 'uuid' }],
     configSchema: [
@@ -1215,7 +1215,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_appuntamento',
     label: 'Crea appuntamento',
     description: 'Fissa automaticamente un appuntamento nel calendario',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'crm',
     outputVariables: [{ id: 'appuntamento.id', label: 'ID Appuntamento creato', type: 'uuid' }],
     configSchema: [
@@ -1234,7 +1234,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_ticket',
     label: 'Crea ticket assistenza',
     description: 'Apre automaticamente un ticket di supporto',
-    icon: '🎫',
+    icon: 'Ticket',
     categoria: 'assistenza',
     outputVariables: [{ id: 'ticket.id', label: 'ID Ticket creato', type: 'uuid' }],
     configSchema: [
@@ -1252,7 +1252,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_fattura',
     label: 'Crea bozza fattura',
     description: 'Genera automaticamente una bozza di fattura (es. da ordine completato)',
-    icon: '🧾',
+    icon: 'Receipt',
     categoria: 'fatturazione',
     outputVariables: [{ id: 'fattura.id', label: 'ID Fattura bozza', type: 'uuid' }],
     configSchema: [
@@ -1263,12 +1263,12 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 🤖 AI & WEBHOOK ═══
+  // ═══ AI & WEBHOOK ═══
   {
     id: 'esegui_agente_ai',
     label: 'Esegui agente AI',
     description: 'Esegue un agente AI con contesto del trigger per analisi/risposta',
-    icon: '🤖',
+    icon: 'Zap',
     categoria: 'generale',
     configSchema: [
       { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Seleziona l'agente AI da eseguire" },
@@ -1279,7 +1279,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'chiama_webhook',
     label: 'Chiama webhook esterno',
     description: 'Invia una chiamata HTTP a un URL esterno (Zapier, Make, API custom)',
-    icon: '🔗',
+    icon: 'Webhook',
     categoria: 'generale',
     configSchema: [
       { id: 'url', label: 'URL endpoint', type: 'text', required: true, placeholder: 'https://hooks.zapier.com/...' },
@@ -1294,7 +1294,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'attendi',
     label: 'Attendi (delay)',
     description: 'Mette in pausa il flow per un tempo definito prima del passo successivo',
-    icon: '⏱️',
+    icon: 'Clock',
     categoria: 'generale',
     configSchema: [
       { id: 'minuti', label: 'Minuti', type: 'number', required: false, min: 0, max: 59, defaultValue: 0 },
@@ -1311,7 +1311,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     id: 'condition_se',
     label: 'SE condizione',
     description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
-    icon: '⋯',
+    icon: 'GitBranch',
     configSchema: [
       { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
       { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
@@ -1330,7 +1330,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     id: 'condition_multi',
     label: 'SE condizioni multiple (AND/OR)',
     description: 'Valuta più condizioni contemporaneamente con operatore AND o OR',
-    icon: '⋯',
+    icon: 'GitBranch',
     configSchema: [
       { id: 'operatore_logico', label: 'Tipo di combinazione', type: 'select', required: true, defaultValue: 'AND', options: [
         { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
