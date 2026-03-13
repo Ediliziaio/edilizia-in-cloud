@@ -1100,7 +1100,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_opportunita',
     label: 'Crea opportunità',
     description: 'Crea una nuova opportunità/deal nella pipeline',
-    icon: '💼',
+    icon: 'DollarSign',
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
