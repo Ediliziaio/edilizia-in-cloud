@@ -109,14 +109,17 @@ export function FlowBuilderPage() {
 
   // Create flow if new
   useEffect(() => {
-    if (id === "nuova" && effectiveCompany && user && !createFlowMutation.isPending && !createFlowMutation.data) {
+    if (isNewFlowRoute && effectiveCompany && user && !createFlowMutation.isPending && !createFlowMutation.data && !creationAttemptedRef.current) {
+      creationAttemptedRef.current = true;
       createFlowMutation.mutate("Nuova Automazione", {
         onSuccess: (data) => {
-          navigate(`/azienda/marketing/automazioni/${data.id}`, { replace: true });
+          // Detect current path prefix for admin vs company
+          const prefix = window.location.pathname.startsWith("/admin") ? "/admin" : "/azienda";
+          navigate(`${prefix}/marketing/automazioni/${data.id}`, { replace: true });
         },
       });
     }
-  }, [id, effectiveCompany, user]);
+  }, [isNewFlowRoute, effectiveCompany, user]);
 
   // Handle connect
   const onConnect: OnConnect = useCallback(
