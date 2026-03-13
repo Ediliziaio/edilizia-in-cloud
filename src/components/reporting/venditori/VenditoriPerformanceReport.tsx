@@ -171,6 +171,10 @@ const VenditoriPerformanceReport = () => {
         <TabsContent value="trend" className="mt-4">
           <VenditoriTrend trend={trend} agentId={agentId} />
         </TabsContent>
+
+        <TabsContent value="confronto" className="mt-4">
+          <VenditoriConfronto kpiList={kpiList} />
+        </TabsContent>
       </Tabs>
     </div>
   );
