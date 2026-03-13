@@ -132,6 +132,9 @@ const VenditoriPerformanceReport = () => {
           <TabsTrigger value="trend" className="gap-1.5">
             <TrendingUp className="h-4 w-4" /> Trend Temporale
           </TabsTrigger>
+          <TabsTrigger value="confronto" className="gap-1.5">
+            <GitCompareArrows className="h-4 w-4" /> Confronto
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
