@@ -187,7 +187,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_stage_cambiato',
     label: 'Stage opportunità cambiato',
     description: 'Scatta quando un deal cambia stage nella pipeline',
-    icon: '📊',
+    icon: 'BarChart3',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
