@@ -776,7 +776,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contratto_in_scadenza',
     label: 'Contratto dipendente in scadenza',
     description: 'Scatta N giorni prima della scadenza di un contratto',
-    icon: '📄',
+    icon: 'FileText',
     categoria: 'hr',
     dbEvent: 'SCHEDULED',
     outputVariables: [
