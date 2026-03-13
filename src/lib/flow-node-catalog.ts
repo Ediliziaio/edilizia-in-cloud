@@ -442,7 +442,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'pagamento_ricevuto',
     label: 'Pagamento ricevuto',
     description: 'Scatta quando viene registrato un incasso/pagamento',
-    icon: '💵',
+    icon: 'CreditCard',
     categoria: 'fatturazione',
     dbEvent: 'INSERT',
     outputVariables: [
