@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, TrendingDown, Wallet, Bot, Trash2,
+  TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { useNavigate } from "react-router-dom";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -28,17 +30,22 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function PrimaNota() {
+  const navigate = useNavigate();
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  const [autoView, setAutoView] = useState<"tutte" | "auto" | "manuali">("tutte");
+
+  const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
   const { entries, isLoading, saldo, isSaldoLoading, create, remove } = usePrimaNota({
     fromDate,
     toDate,
     direction: direction || undefined,
     search,
+    isAuto: isAutoFilter,
   });
 
   // Running balance (from oldest to newest, then reverse for display)
@@ -173,6 +180,18 @@ export default function PrimaNota() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <ToggleGroup
+          type="single"
+          value={autoView}
+          onValueChange={(v) => v && setAutoView(v as typeof autoView)}
+          className="border rounded-md"
+        >
+          <ToggleGroupItem value="tutte" className="text-xs h-8 px-3">Tutte</ToggleGroupItem>
+          <ToggleGroupItem value="auto" className="text-xs h-8 px-3">
+            <Bot className="h-3 w-3 mr-1" /> Auto
+          </ToggleGroupItem>
+          <ToggleGroupItem value="manuali" className="text-xs h-8 px-3">Manuali</ToggleGroupItem>
+        </ToggleGroup>
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <span className="text-muted-foreground text-sm">→</span>
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
@@ -231,13 +250,32 @@ export default function PrimaNota() {
                     </Badge>
                   </td>
                   <td className="p-3">
-                    <p className="font-medium truncate max-w-[220px]">{e.description}</p>
-                    {e.reference_number && (
-                      <p className="text-xs text-muted-foreground">Rif: {e.reference_number}</p>
-                    )}
-                    {e.suppliers?.name && (
-                      <p className="text-xs text-muted-foreground">{e.suppliers.name}</p>
-                    )}
+                    <p className="font-medium truncate max-w-[260px]">{e.description}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {e.reference_number && (
+                        <span className="text-xs text-muted-foreground">Rif: {e.reference_number}</span>
+                      )}
+                      {e.suppliers?.name && (
+                        <span className="text-xs text-muted-foreground">{e.suppliers.name}</span>
+                      )}
+                      {e.is_auto && e.auto_source && (
+                        <Badge variant="outline" className="text-[9px] border-blue-200 text-blue-600">
+                          {e.auto_source === "fattura_emessa" ? "Fattura" :
+                           e.auto_source === "incasso_fattura" ? "Incasso" :
+                           e.auto_source === "nota_credito" ? "Nota Credito" : e.auto_source}
+                        </Badge>
+                      )}
+                      {e.documenti_fiscali?.id && (
+                        <button
+                          onClick={() => navigate(`/azienda/documenti/${e.documenti_fiscali!.id}`)}
+                          className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {e.documenti_fiscali.tipo === "nota_credito" ? "NC" : "Fatt."} #{e.documenti_fiscali.numero}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={`flex items-center justify-end gap-1 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>

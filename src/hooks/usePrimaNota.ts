@@ -31,6 +31,7 @@ export interface PrimaNotaEntry {
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string } | null;
   orders?: { order_number: string } | null;
+  documenti_fiscali?: { id: string; numero: string; tipo: string } | null;
 }
 
 export interface PrimaNotaSaldo {
@@ -46,6 +47,8 @@ export interface PrimaNotaFilters {
   direction?: "entrata" | "uscita" | "";
   category?: string;
   search?: string;
+  isAuto?: boolean | null; // true=auto only, false=manual only, null=all
+  autoSource?: string;
 }
 
 export function usePrimaNota(filters: PrimaNotaFilters = {}) {
@@ -58,7 +61,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_number)`)
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_number), documenti_fiscali!invoice_id(id, numero, tipo)`)
         .eq("company_id", companyId!)
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -68,6 +71,9 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       if (filters.toDate) query = query.lte("entry_date", filters.toDate);
       if (filters.direction) query = query.eq("direction", filters.direction);
       if (filters.category) query = query.eq("category", filters.category);
+      if (filters.isAuto === true) query = query.eq("is_auto", true);
+      if (filters.isAuto === false) query = query.eq("is_auto", false);
+      if (filters.autoSource) query = query.eq("auto_source", filters.autoSource);
 
       const { data, error } = await query;
       if (error) throw error;
