@@ -455,6 +455,13 @@ export type Database = {
             foreignKeyName: "ai_agent_conversations_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -1712,6 +1719,13 @@ export type Database = {
             foreignKeyName: "appointments_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "appointments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -2035,6 +2049,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attribution_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "attribution_sessions_contact_id_fkey"
@@ -3211,6 +3232,13 @@ export type Database = {
             foreignKeyName: "call_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -4296,6 +4324,13 @@ export type Database = {
             foreignKeyName: "contact_attributions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: true
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "contact_attributions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -4359,6 +4394,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "contact_messages_contact_id_fkey"
@@ -5336,6 +5378,13 @@ export type Database = {
             foreignKeyName: "email_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "email_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -5779,6 +5828,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "form_submissions_contact_id_fkey"
@@ -7774,6 +7830,13 @@ export type Database = {
             foreignKeyName: "internal_call_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "internal_call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -8330,6 +8393,13 @@ export type Database = {
             foreignKeyName: "invoices_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -8867,6 +8937,13 @@ export type Database = {
             foreignKeyName: "marketing_contact_activities_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -8895,6 +8972,13 @@ export type Database = {
           value?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "marketing_contact_field_values_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
           {
             foreignKeyName: "marketing_contact_field_values_contact_id_fkey"
             columns: ["contact_id"]
@@ -8931,6 +9015,13 @@ export type Database = {
           list_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "marketing_contact_list_members_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
           {
             foreignKeyName: "marketing_contact_list_members_contact_id_fkey"
             columns: ["contact_id"]
@@ -9024,6 +9115,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "marketing_contact_notes_contact_id_fkey"
@@ -9279,6 +9377,13 @@ export type Database = {
             foreignKeyName: "marketing_documents_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "marketing_documents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -9389,6 +9494,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "marketing_opportunities_contact_id_fkey"
@@ -12380,6 +12492,13 @@ export type Database = {
             foreignKeyName: "quotes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "quotes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -13175,6 +13294,13 @@ export type Database = {
             foreignKeyName: "scadenze_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "scadenze_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
             referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
@@ -13405,6 +13531,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "sms_logs_contact_id_fkey"
@@ -14193,6 +14326,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "tasks_contact_id_fkey"
@@ -15818,6 +15958,33 @@ export type Database = {
       }
     }
     Views: {
+      callcenter_lead_journey: {
+        Row: {
+          appuntamenti_fissati: number | null
+          appuntamenti_show_up: number | null
+          company_id: string | null
+          contact_id: string | null
+          durata_media_chiamata: number | null
+          fonte_lead: string | null
+          fu_contattato: boolean | null
+          fu_lavorato: boolean | null
+          lead_created_at: string | null
+          nr_contatti_riusciti: number | null
+          nr_tentativi: number | null
+          operatore_assegnato: string | null
+          prima_chiamata_at: string | null
+          speed_to_lead_minuti: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fattura_pagamento_stato: {
         Row: {
           company_id: string | null
@@ -16144,6 +16311,88 @@ export type Database = {
           order_id: string
           urgency_level: string
           work_start_date: string
+        }[]
+      }
+      get_callcenter_fonte_lead_performance: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+        }
+        Returns: {
+          appuntamenti: number
+          avg_speed_to_lead_min: number
+          fonte: string
+          lead_contattati: number
+          lead_totali: number
+          qualita_fonte: string
+          tasso_appuntamento: number
+          tasso_contatto: number
+        }[]
+      }
+      get_callcenter_kpi_per_operatore: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+          p_operatore_id?: string
+        }
+        Returns: {
+          appuntamenti_fissati: number
+          avg_speed_to_lead_min: number
+          chiamate_per_giorno: number
+          durata_media_min: number
+          email_operatore: string
+          giorni_lavorati: number
+          lead_assegnati: number
+          lead_contattati: number
+          lead_lavorati: number
+          median_speed_to_lead_min: number
+          nome_operatore: string
+          operatore_id: string
+          pct_entro_1ora: number
+          pct_entro_5min: number
+          pct_lead_lavorati: number
+          pct_oltre_24ore: number
+          show_up_count: number
+          tasso_app_su_assegnati: number
+          tasso_app_su_contattati: number
+          tasso_contatto: number
+          tasso_show_up: number
+          tentativi_per_contatto: number
+          tentativi_totali: number
+        }[]
+      }
+      get_callcenter_speed_to_lead_distribuzione: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+          p_operatore_id?: string
+        }
+        Returns: {
+          bucket: string
+          bucket_ordine: number
+          nr_lead: number
+          pct: number
+        }[]
+      }
+      get_callcenter_trend_giornaliero: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+          p_operatore_id?: string
+        }
+        Returns: {
+          giorno: string
+          giorno_label: string
+          giorno_settimana: string
+          nr_appuntamenti: number
+          nr_chiamate: number
+          nr_contatti: number
+          tasso_appuntamento: number
+          tasso_contatto: number
         }[]
       }
       get_cash_flow_by_month: {
