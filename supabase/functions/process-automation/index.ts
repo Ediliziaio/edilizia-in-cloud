@@ -773,7 +773,7 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "remove_from_automation": {
-      const targetFlowId = cfg.target_flow_id;
+      const targetFlowId = ncfg.target_flow_id;
       if (!targetFlowId) return { success: false, error: "No target_flow_id configured" };
       // Remove active enrollments for this entity in the target flow
       const { data: removed, error: removeErr } = await supabase
