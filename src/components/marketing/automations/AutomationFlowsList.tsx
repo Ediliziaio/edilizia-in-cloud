@@ -395,6 +395,16 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                       </div>
                     </TableCell>
                     <TableCell>
+                      {(() => {
+                        const cat = CATEGORY_MAP[flow.category] || CATEGORY_MAP.generale;
+                        return (
+                          <Badge variant="outline" className="text-xs font-normal gap-1">
+                            <span>{cat.emoji}</span> {cat.label}
+                          </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
                       <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-primary">{counts.total}</TableCell>
