@@ -18,6 +18,8 @@ import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/Dril
 import { PuntoDiPareggio } from "@/components/cruscotto/PuntoDiPareggio";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
 import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
+import { BillingKPIWidget } from "@/components/cruscotto/BillingKPIWidget";
+import { ClienteSituazioneWidget } from "@/components/cruscotto/ClienteSituazioneWidget";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
