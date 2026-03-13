@@ -32,7 +32,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
           .from("documenti_fiscali")
           .select("tipo, stato, data_emissione, totale_da_pagare, imponibile_totale")
           .eq("company_id", companyId!)
-          .is("deleted_at", null),
+          .neq("stato", "annullata"),
 
         // 2. Incassi mese (movimenti_cassa_native entrata linked to documento)
         supabase
