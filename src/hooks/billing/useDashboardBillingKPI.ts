@@ -149,11 +149,11 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5) {
       // Aggregate by anagrafica_id
       const map = new Map<string, { fatturato: number; daIncassare: number }>();
       for (const d of data ?? []) {
-        const key = (d as any).anagrafica_id ?? "unknown";
+        const key = d.anagrafica_id ?? "unknown";
         if (!map.has(key)) map.set(key, { fatturato: 0, daIncassare: 0 });
         const entry = map.get(key)!;
-        entry.fatturato += (d as any).imponibile ?? 0;
-        if ((d as any).stato !== "pagata") entry.daIncassare += (d as any).imponibile ?? 0;
+        entry.fatturato += d.imponibile_totale ?? 0;
+        if (d.stato !== "pagata") entry.daIncassare += d.imponibile_totale ?? 0;
       }
 
       const ids = Array.from(map.keys()).filter((k) => k !== "unknown");
