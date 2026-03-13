@@ -92,7 +92,6 @@ export const macroAreas: MacroArea[] = [
     icon: LayoutGrid,
     items: [
       { title: "Cruscotto Aziendale", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
-      { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
     ],
   },
@@ -103,6 +102,7 @@ export const macroAreas: MacroArea[] = [
     title: "Cantieri & Lavori",
     icon: HardHat,
     items: [
+      { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
       { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
