@@ -723,7 +723,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'whatsapp_ricevuto',
     label: 'Messaggio WhatsApp ricevuto',
     description: 'Un contatto ha inviato un messaggio WhatsApp',
-    icon: '💬',
+    icon: 'MessageSquare',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
