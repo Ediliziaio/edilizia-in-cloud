@@ -30,7 +30,7 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
-function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: FinanceData, today: TodayData | null): AlertItem[] {
+function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: FinanceData, today: TodayData | null, billing?: DashboardBillingKPI | null): AlertItem[] {
   const alerts: AlertItem[] = [];
 
   // Marketing
