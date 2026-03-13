@@ -811,14 +811,35 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "webhook_out": {
-      const url = cfg.webhook_url;
+      const url = ncfg.webhook_url;
       if (!url) return { success: false, error: "No webhook_url configured" };
+
+      // SSRF protection
       try {
+        const parsed = new URL(url);
+        const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "[::1]"];
+        const BLOCKED_PREFIXES = ["10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168."];
+        if (
+          BLOCKED_HOSTS.includes(parsed.hostname) ||
+          BLOCKED_PREFIXES.some(p => parsed.hostname.startsWith(p)) ||
+          parsed.protocol === "file:"
+        ) {
+          return { success: false, error: `Webhook verso indirizzo non permesso: ${parsed.hostname}` };
+        }
+      } catch {
+        return { success: false, error: `URL non valido: ${url}` };
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10_000);
         const resp = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entity_id: entityId, company_id: companyId, config: cfg }),
+          body: JSON.stringify({ entity_id: entityId, company_id: companyId, config: ncfg }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const text = await resp.text();
         return { success: resp.ok, output: { action: "webhook_out", status: resp.status, body: text.slice(0, 500) }, error: resp.ok ? undefined : `HTTP ${resp.status}` };
       } catch (e: any) {
@@ -826,17 +847,115 @@ Istruzione: ${aiPrompt}`;
       }
     }
 
+    // ── 6 New cross-domain handlers (FLOW-EXT-04) ──
+
+    case "crea_bozza_ordine": {
+      const title = ncfg.titolo || ncfg.task_title || "Nuovo ordine automatico";
+      const clienteId = ncfg.cliente_id || entityId;
+      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const { data, error } = await supabase.from("orders").insert({
+        company_id: companyId,
+        title,
+        contact_id: clienteId,
+        total_amount: importo,
+        status: "draft",
+        notes: ncfg.note || null,
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_bozza_ordine", ordine_id: data?.id } };
+    }
+
+    case "crea_bozza_preventivo": {
+      const title = ncfg.titolo || "Nuovo preventivo automatico";
+      const clienteId = ncfg.cliente_id || entityId;
+      const { data, error } = await supabase.from("quotes").insert({
+        company_id: companyId,
+        title,
+        contact_id: clienteId,
+        status: "draft",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_bozza_preventivo", preventivo_id: data?.id } };
+    }
+
+    case "crea_cantiere": {
+      // No 'cantieri' table exists — log and create a task instead
+      const nome = ncfg.nome || "Cantiere automatico";
+      const { error } = await supabase.from("tasks").insert({
+        company_id: companyId,
+        title: `🏗️ Apertura cantiere: ${nome}`,
+        notes: `Cantiere creato automaticamente. Cliente: ${ncfg.cliente_id || entityId}. Importo: €${ncfg.importo || 0}`,
+        priority: "alta",
+        category: "cantieri",
+        status: "da_fare",
+        created_by: "00000000-0000-0000-0000-000000000000",
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_cantiere", fallback: "task_created", nome } };
+    }
+
+    case "crea_appuntamento": {
+      const title = ncfg.titolo || "Appuntamento automatico";
+      const giorniDaOggi = parseInt(ncfg.giorni_da_oggi) || 1;
+      const appointmentDate = new Date();
+      appointmentDate.setDate(appointmentDate.getDate() + giorniDaOggi);
+      const { data, error } = await supabase.from("appointments").insert({
+        company_id: companyId,
+        title,
+        contact_id: ncfg.contact_id || entityId,
+        appointment_date: appointmentDate.toISOString().split("T")[0],
+        appointment_time: ncfg.orario || "10:00",
+        appointment_type: ncfg.tipo || "in_sede",
+        assigned_to: ncfg.assegnato_a || null,
+        status: "confermato",
+        created_by: "00000000-0000-0000-0000-000000000000",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_appuntamento", appuntamento_id: data?.id } };
+    }
+
+    case "crea_ticket": {
+      const oggetto = ncfg.oggetto || "Ticket automatico";
+      const { data, error } = await supabase.from("tickets").insert({
+        company_id: companyId,
+        subject: oggetto,
+        description: ncfg.descrizione || null,
+        priority: ncfg.priorita || "media",
+        contact_id: ncfg.cliente_id || entityId,
+        status: "open",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_ticket", ticket_id: data?.id } };
+    }
+
+    case "crea_fattura": {
+      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const scadenzaGiorni = parseInt(ncfg.scadenza_giorni) || 30;
+      const scadenza = new Date();
+      scadenza.setDate(scadenza.getDate() + scadenzaGiorni);
+      const { data, error } = await supabase.from("invoices").insert({
+        company_id: companyId,
+        contact_id: ncfg.cliente_id || entityId,
+        total_amount: importo,
+        description: ncfg.descrizione || "Fattura automatica",
+        due_date: scadenza.toISOString().split("T")[0],
+        status: "draft",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_fattura", fattura_id: data?.id } };
+    }
+
     case "end_automation":
       return { success: true, output: { action: "end_automation" } };
 
     case "sync_google":
-      return await executeSyncGoogle(supabase, cfg, entityId, companyId);
+      return await executeSyncGoogle(supabase, ncfg, entityId, companyId);
 
     case "sync_meta_lead":
-      return await executeSyncMetaLead(supabase, cfg, entityId, companyId);
+      return await executeSyncMetaLead(supabase, ncfg, entityId, companyId);
 
     case "call_with_ai_agent": {
-      const aiAgentId = cfg.ai_agent_id;
+      const aiAgentId = ncfg.ai_agent_id;
       if (!aiAgentId) return { success: false, error: "No ai_agent_id configured" };
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
