@@ -385,7 +385,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ordine_in_ritardo',
     label: 'Ordine in ritardo sulla consegna',
     description: 'Scatta quando un ordine supera la data di consegna prevista',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'ordini',
     dbEvent: 'SCHEDULED',
     outputVariables: [
