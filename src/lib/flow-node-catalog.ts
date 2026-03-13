@@ -250,7 +250,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_creato',
     label: 'Appuntamento creato',
     description: 'Scatta alla creazione di un nuovo appuntamento',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'INSERT',
