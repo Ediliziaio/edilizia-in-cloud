@@ -952,7 +952,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cron_mensile',
     label: 'Ogni mese (giorno fisso)',
     description: 'Il flow si esegue una volta al mese',
-    icon: '📆',
+    icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
