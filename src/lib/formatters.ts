@@ -10,9 +10,11 @@ export function formatCurrency(amount: number): string {
 
 /** Compact currency for chart axes: €1.2M, €45k, €800 */
 export function formatCurrencyCompact(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
-  return `€${Math.round(v)}`;
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}k`;
+  return `${sign}€${Math.round(abs)}`;
 }
 
 export function formatDate(date: string | Date): string {

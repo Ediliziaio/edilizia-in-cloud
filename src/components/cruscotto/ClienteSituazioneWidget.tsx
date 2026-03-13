@@ -11,7 +11,7 @@ import { Users, ChevronRight } from "lucide-react";
 export function ClienteSituazioneWidget() {
   const { isNative } = useBillingMode();
   const companyId = useEffectiveCompanyId();
-  const { data: topClienti } = useTopClientiByFatturato(companyId, 5);
+  const { data: topClienti } = useTopClientiByFatturato(companyId, 5, isNative);
   const navigate = useNavigate();
 
   if (!isNative || !topClienti?.length) return null;
