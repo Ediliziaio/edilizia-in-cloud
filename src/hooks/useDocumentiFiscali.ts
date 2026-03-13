@@ -66,6 +66,14 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     note_documento: row.note_documento as string | undefined,
     importo_pagato: Number(row.importo_pagato ?? 0),
     pagato_at: row.pagato_at as string | undefined,
+    // Preventivo
+    data_validita: row.data_validita as string | undefined,
+    // DDT
+    ddt_fattura_id: row.ddt_fattura_id as string | undefined,
+    ddt_fatturato: row.ddt_fatturato as boolean | undefined,
+    ddt_causale_trasporto: row.ddt_causale_trasporto as string | undefined,
+    // Note
+    note_interne: row.note_interne as string | undefined,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   } as DocumentoFiscale;

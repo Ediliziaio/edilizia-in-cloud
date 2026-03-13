@@ -794,23 +794,37 @@ export default function DocumentiFiscaliList() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteTarget?.stato === "bozza" ? "Eliminare il documento?" : "Annullare il documento?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare il documento <strong>{deleteTarget?.numero}</strong>. Questa azione non può essere annullata.
+              {deleteTarget?.stato === "bozza"
+                ? <>Stai per eliminare il documento <strong>{deleteTarget?.numero}</strong>. Questa azione non può essere annullata.</>
+                : <>Il documento <strong>{deleteTarget?.numero}</strong> verrà spostato nel cestino (stato: annullata). Potrai ripristinarlo in seguito.</>
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
+              disabled={deleteMutation.isPending || updateMutation.isPending}
               onClick={() => {
                 if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+                  if (deleteTarget.stato === "bozza") {
+                    deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+                  } else {
+                    updateMutation.mutate(
+                      { id: deleteTarget.id, stato: "annullata" as StatoDocumento },
+                      { onSettled: () => setDeleteTarget(null) }
+                    );
+                  }
                 }
               }}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+              {(deleteMutation.isPending || updateMutation.isPending)
+                ? "Elaborazione..."
+                : deleteTarget?.stato === "bozza" ? "Elimina" : "Annulla documento"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

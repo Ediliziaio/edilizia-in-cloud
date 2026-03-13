@@ -212,7 +212,7 @@ export function validateDocumento(
         severity: "error",
       });
     }
-    if (r.quantita <= 0) {
+    if (!isNC && r.quantita <= 0) {
       errors.push({
         field: `righe[${i}].quantita`,
         message: `Riga ${i + 1}: quantità deve essere > 0`,
