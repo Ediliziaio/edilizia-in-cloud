@@ -740,7 +740,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'campagna_facebook_lead',
     label: 'Lead da campagna Facebook',
     description: 'Scatta quando un lead arriva da una campagna Facebook/Meta',
-    icon: '📘',
+    icon: 'Users',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
