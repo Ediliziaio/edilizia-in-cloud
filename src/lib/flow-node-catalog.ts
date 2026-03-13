@@ -1363,7 +1363,7 @@ export const ACTIONS_BY_CATEGORY = ACTION_CATALOG.reduce((acc, a) => {
 
 // ─── Backward-compatible bridge ─────────────────────────────────────────────
 
-export type FlowNodeKind = "trigger" | "action" | "condition" | "delay" | "goal" | "split" | "note";
+export type FlowNodeKind = "trigger" | "action" | "condition" | "delay" | "goal" | "split" | "note" | "end";
 
 export interface CatalogItem {
   id: string;
@@ -1476,6 +1476,7 @@ export const NODE_KIND_STYLES: Record<FlowNodeKind, { bg: string; border: string
   goal: { bg: "bg-green-50 dark:bg-green-950/40", border: "border-green-500", accent: "text-green-600", label: "Obiettivo" },
   split: { bg: "bg-teal-50 dark:bg-teal-950/40", border: "border-teal-400", accent: "text-teal-600", label: "Split" },
   note: { bg: "bg-yellow-50 dark:bg-yellow-950/40", border: "border-yellow-300", accent: "text-yellow-700", label: "Nota" },
+  end: { bg: "bg-muted", border: "border-border", accent: "text-muted-foreground", label: "Fine" },
 };
 
 // Re-export bridge arrays for sidebar use
