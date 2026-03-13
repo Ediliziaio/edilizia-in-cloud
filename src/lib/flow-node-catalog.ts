@@ -148,7 +148,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'contatto_assegnato',
     label: 'Contatto assegnato a agente',
     description: 'Scatta quando un contatto viene assegnato a un responsabile',
-    icon: '🤝',
+    icon: 'Handshake',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'UPDATE',
