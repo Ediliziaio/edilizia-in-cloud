@@ -322,7 +322,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_imminente',
     label: 'Appuntamento imminente (promemoria)',
     description: 'Scatta X ore/minuti prima di un appuntamento',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'crm',
     dbEvent: 'SCHEDULED',
     outputVariables: [
