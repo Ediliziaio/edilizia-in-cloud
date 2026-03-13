@@ -503,10 +503,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "create_opportunity": {
-      const name = cfg.opportunity_name || "Nuova Opportunità";
-      const value = cfg.opportunity_value || 0;
-      const pipelineId = cfg.pipeline_id;
-      const stageId = cfg.stage_id;
+      const name = ncfg.opportunity_name || "Nuova Opportunità";
+      const value = ncfg.opportunity_value || 0;
+      const pipelineId = ncfg.pipeline_id;
+      const stageId = ncfg.stage_id || ncfg.stage;
 
       const insertData: any = {
         name,
