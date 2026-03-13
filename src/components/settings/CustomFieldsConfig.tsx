@@ -461,7 +461,8 @@ export function CustomFieldsConfig() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [groupBy, setGroupBy] = useState("all");
-  const [pageSize, setPageSize] = useState(200);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: customFields = [], isLoading } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
