@@ -118,12 +118,7 @@ export default function DocumentiFiscaliList() {
     });
   }, []);
 
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds((prev) => {
-      if (prev.size === docs.length && docs.length > 0) return new Set();
-      return new Set(docs.map((d) => d.id));
-    });
-  }, [docs]);
+  // toggleSelectAll is defined after docs
 
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
