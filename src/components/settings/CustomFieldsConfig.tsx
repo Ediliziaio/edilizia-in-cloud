@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -460,7 +461,8 @@ export function CustomFieldsConfig() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [groupBy, setGroupBy] = useState("all");
-  const [pageSize, setPageSize] = useState(200);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: customFields = [], isLoading } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
@@ -576,8 +578,13 @@ export function CustomFieldsConfig() {
     toast.success("Chiave copiata");
   };
 
-  const visibleFields = filtered.slice(0, pageSize);
   const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const visibleFields = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Reset page on filter/search changes
+  useEffect(() => { setCurrentPage(1); }, [search, activeTab, groupBy]);
 
   return (
     <div className="space-y-0">
@@ -709,24 +716,15 @@ export function CustomFieldsConfig() {
       )}
 
       {/* ── Footer ── */}
-      <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
-        <span>
-          Presentazione 1 a {Math.min(pageSize, total)} di {total} risultati
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span>Dimensione pagina:</span>
-          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-            <SelectTrigger className="h-8 w-[80px] text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-              <SelectItem value="200">200</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <TablePagination
+        currentPage={safePage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={total}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+        pageSizeOptions={[25, 50, 100, 200]}
+      />
 
       {/* ── Add field dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
