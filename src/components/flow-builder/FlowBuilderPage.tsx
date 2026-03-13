@@ -256,6 +256,22 @@ export function FlowBuilderPage() {
     if (tab) setCatalogTab(tab);
   }, []);
 
+  // Compute validation errors from nodes
+  const validationErrors = useMemo<WorkflowError[]>(() => {
+    const errs: WorkflowError[] = [];
+    for (const n of rfNodes) {
+      if (n.type === "note") continue;
+      if (!n.data?.label) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo senza nome", tipo: "avviso", messaggio: "Il nodo non ha un'etichetta configurata." });
+      }
+    }
+    // Check if there's at least one trigger
+    if (rfNodes.length > 0 && !rfNodes.some((n) => n.type === "trigger")) {
+      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso non ha un trigger di avvio." });
+    }
+    return errs;
+  }, [rfNodes]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
