@@ -193,6 +193,7 @@ export function companyRoutes() {
         <Route path="automazioni" element={<InternalAutomations />} />
         <Route path="automazioni/:id" element={<InternalAutomations />} />
         <Route path="automazioni-legacy" element={<Automations />} />
+        <Route path="automazioni-task" element={<TaskAutomationsPage />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />
