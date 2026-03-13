@@ -827,6 +827,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       .from("automation_enrollments")
       .update({ status: "completed", updated_at: new Date().toISOString() })
       .eq("id", queueItem.enrollment_id);
+    await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
     return;
   }
 
