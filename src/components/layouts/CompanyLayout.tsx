@@ -73,6 +73,7 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { useBillingMode } from "@/contexts/BillingModeContext";
@@ -445,23 +446,28 @@ function CompanySidebar() {
     });
   };
 
+  const { state: sidebarState } = useSidebar();
+  const isCollapsed = sidebarState === "collapsed";
+
   return (
     <Sidebar className="border-r" collapsible="icon">
       <div
-        className="flex h-14 items-center border-b px-4"
+        className="flex h-14 items-center border-b px-4 overflow-hidden"
         style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
       >
-        <Link to="/azienda" className="flex items-center gap-2">
-          {branding?.logo_url ? (
-            <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
-          ) : effectiveCompany?.logo_url ? (
-            <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
-          ) : effectiveBrand.platformName ? (
-            <span className="font-semibold text-sm truncate">{effectiveBrand.platformName}</span>
-          ) : (
-            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
-          )}
-        </Link>
+        {!isCollapsed && (
+          <Link to="/azienda" className="flex items-center gap-2">
+            {branding?.logo_url ? (
+              <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
+            ) : effectiveCompany?.logo_url ? (
+              <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
+            ) : effectiveBrand.platformName ? (
+              <span className="font-semibold text-sm truncate">{effectiveBrand.platformName}</span>
+            ) : (
+              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+            )}
+          </Link>
+        )}
       </div>
       <SidebarContent>
         {isSettingsRoute ? (
@@ -818,30 +824,64 @@ function CompanySidebar() {
                   </SidebarMenu>
                 </div>
               )}
-              <div className="p-4">
-                <div className="flex items-center gap-3 mb-4 px-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-muted text-xs">
-                      {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {profile?.first_name} {profile?.last_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-                  onClick={handleLogoutOrExit}
-                >
-                  <LogOut className="h-4 w-4" />
-                  {isImpersonating ? "Torna a Admin" : "Esci"}
-                </Button>
+              <div className={cn("p-4", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
+                {isCollapsed ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Avatar className="h-8 w-8 cursor-default">
+                          <AvatarFallback className="bg-muted text-xs">
+                            {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {profile?.first_name} {profile?.last_name}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={handleLogoutOrExit}
+                        >
+                          <LogOut className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {isImpersonating ? "Torna a Admin" : "Esci"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-4 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-muted text-xs">
+                          {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {profile?.first_name} {profile?.last_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+                      onClick={handleLogoutOrExit}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      {isImpersonating ? "Torna a Admin" : "Esci"}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </>
