@@ -499,7 +499,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_accettato',
     label: 'Preventivo accettato',
     description: 'Il cliente ha accettato il preventivo',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'UPDATE',
