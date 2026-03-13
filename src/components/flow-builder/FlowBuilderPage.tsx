@@ -33,10 +33,12 @@ import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 
 export function FlowBuilderPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: routeId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const { toast: uiToast } = useToast();
-  const flowId = id === "nuova" ? undefined : id;
+  const isNewFlowRoute = !routeId || routeId === "nuova";
+  const flowId = isNewFlowRoute ? undefined : routeId;
+  const creationAttemptedRef = useRef(false);
 
   const builder = useAutomationBuilder(flowId);
   const {
@@ -63,6 +65,8 @@ export function FlowBuilderPage() {
 
   // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
   useEffect(() => { initializedRef.current = false; }, [flowId]);
+  // Reset creation guard on route change
+  useEffect(() => { if (!isNewFlowRoute) creationAttemptedRef.current = false; }, [isNewFlowRoute]);
 
   // Sync DB → ReactFlow (only on initial load)
   useEffect(() => {
@@ -71,7 +75,7 @@ export function FlowBuilderPage() {
       setRfNodes(nodesToReactFlow(builder.nodes));
       setRfEdges(connectionsToEdges(builder.connections));
       initializedRef.current = true;
-    } else if (!isLoading && builder.nodes.length === 0 && (flowId || id === "nuova")) {
+    } else if (!isLoading && builder.nodes.length === 0 && (flowId || isNewFlowRoute)) {
       // Empty canvas placeholder: trigger + end node
       const triggerId = "placeholder-trigger";
       const endId = "placeholder-end";
@@ -105,14 +109,17 @@ export function FlowBuilderPage() {
 
   // Create flow if new
   useEffect(() => {
-    if (id === "nuova" && effectiveCompany && user && !createFlowMutation.isPending && !createFlowMutation.data) {
+    if (isNewFlowRoute && effectiveCompany && user && !createFlowMutation.isPending && !createFlowMutation.data && !creationAttemptedRef.current) {
+      creationAttemptedRef.current = true;
       createFlowMutation.mutate("Nuova Automazione", {
         onSuccess: (data) => {
-          navigate(`/azienda/marketing/automazioni/${data.id}`, { replace: true });
+          // Detect current path prefix for admin vs company
+          const prefix = window.location.pathname.startsWith("/admin") ? "/admin" : "/azienda";
+          navigate(`${prefix}/marketing/automazioni/${data.id}`, { replace: true });
         },
       });
     }
-  }, [id, effectiveCompany, user]);
+  }, [isNewFlowRoute, effectiveCompany, user]);
 
   // Handle connect
   const onConnect: OnConnect = useCallback(
@@ -369,9 +376,9 @@ export function FlowBuilderPage() {
   }, [undo, redo, saveImmediate]);
 
   // Error / loading states
-  const isError = !isLoading && flowId && !flow && id !== "nuova";
+  const isError = !isLoading && flowId && !flow && !isNewFlowRoute;
 
-  if (isLoading || (id === "nuova" && createFlowMutation.isPending)) {
+  if (isLoading || (isNewFlowRoute && createFlowMutation.isPending)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
