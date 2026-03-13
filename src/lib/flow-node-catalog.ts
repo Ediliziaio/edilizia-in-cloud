@@ -599,7 +599,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ticket_senza_risposta',
     label: 'Ticket senza risposta da N ore',
     description: 'SLA alert: ticket aperto senza aggiornamenti da troppo tempo',
-    icon: '🚨',
+    icon: 'AlertTriangle',
     categoria: 'assistenza',
     dbEvent: 'SCHEDULED',
     outputVariables: [
