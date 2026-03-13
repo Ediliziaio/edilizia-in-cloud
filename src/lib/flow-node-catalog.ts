@@ -1,6 +1,7 @@
 // src/lib/flow-node-catalog.ts
 // Catalogo completo di tutti i trigger, azioni e condizioni disponibili nel flow builder.
 // Self-contained — no dependency on automationBuilder.ts
+// OUTPUT VARIABLES ALIGNED TO REAL DB COLUMN NAMES
 
 // ─── Tipi base ──────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ export interface ConditionDefinition {
 }
 
 // ─── TRIGGER CATALOG ────────────────────────────────────────────────────────
+// ALL outputVariables use REAL DB column names
 
 export const TRIGGER_CATALOG: TriggerDefinition[] = [
 
@@ -89,12 +91,13 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome', type: 'string', example: 'Mario Rossi' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string', example: 'Mario' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string', example: 'Rossi' },
       { id: 'contatto.email', label: 'Email', type: 'string', example: 'mario@azienda.it' },
-      { id: 'contatto.telefono', label: 'Telefono', type: 'string' },
-      { id: 'contatto.fonte', label: 'Fonte acquisizione', type: 'string', example: 'Facebook' },
-      { id: 'contatto.citta', label: 'Città', type: 'string' },
-      { id: 'contatto.azienda', label: 'Azienda', type: 'string' },
+      { id: 'contatto.phone', label: 'Telefono', type: 'string' },
+      { id: 'contatto.source', label: 'Fonte acquisizione', type: 'string', example: 'Facebook' },
+      { id: 'contatto.city', label: 'Città', type: 'string' },
+      { id: 'contatto.company_name', label: 'Azienda', type: 'string' },
       { id: 'contatto.created_at', label: 'Data creazione', type: 'date' },
     ],
     configSchema: [
@@ -123,7 +126,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string' },
       { id: 'contatto.email', label: 'Email', type: 'string' },
       { id: 'contatto.campo_modificato', label: 'Campo modificato', type: 'string' },
     ],
@@ -132,10 +136,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
         id: 'campo_filtro', label: 'Scatta solo quando cambia il campo', type: 'select', required: false,
         options: [
           { value: '', label: 'Qualsiasi campo' },
-          { value: 'stato', label: 'Stato' },
-          { value: 'assegnato_a', label: 'Responsabile assegnato' },
+          { value: 'status', label: 'Stato' },
+          { value: 'assigned_to', label: 'Responsabile assegnato' },
           { value: 'email', label: 'Email' },
-          { value: 'telefono', label: 'Telefono' },
+          { value: 'phone', label: 'Telefono' },
         ],
       },
     ],
@@ -150,8 +154,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome', type: 'string' },
-      { id: 'contatto.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string' },
+      { id: 'contatto.assigned_to', label: 'Assegnato a (user ID)', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -167,13 +172,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
-      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
-      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number', example: '5000' },
-      { id: 'opportunita.stage', label: 'Stage attuale', type: 'string' },
-      { id: 'opportunita.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'opportunita.name', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.value', label: 'Valore (€)', type: 'number', example: '5000' },
+      { id: 'opportunita.stage_id', label: 'Stage attuale (ID)', type: 'uuid' },
+      { id: 'opportunita.assigned_to', label: 'Responsabile (user ID)', type: 'uuid' },
       { id: 'opportunita.contact_id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
-      { id: 'opportunita.data_chiusura_prevista', label: 'Data chiusura prevista', type: 'date' },
+      { id: 'opportunita.expected_close_date', label: 'Data chiusura prevista', type: 'date' },
     ],
     configSchema: [
       { id: 'valore_minimo', label: 'Solo opportunità con valore superiore a (€)', type: 'number', required: false, placeholder: 'Es: 1000', helpText: 'Lascia vuoto per qualsiasi valore' },
@@ -189,10 +193,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
-      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
-      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number' },
-      { id: 'opportunita.stage', label: 'Nuovo stage', type: 'string' },
-      { id: 'opportunita.stage_precedente', label: 'Stage precedente', type: 'string' },
+      { id: 'opportunita.name', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.value', label: 'Valore (€)', type: 'number' },
+      { id: 'opportunita.stage_id', label: 'Nuovo stage (ID)', type: 'uuid' },
+      { id: 'opportunita.stage_precedente', label: 'Stage precedente (ID)', type: 'uuid' },
     ],
     configSchema: [
       { id: 'stage_da', label: 'Da stage (opzionale)', type: 'select', required: false, options: [
@@ -217,11 +221,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
-      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
-      { id: 'opportunita.valore', label: 'Valore (€)', type: 'number' },
+      { id: 'opportunita.name', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.value', label: 'Valore (€)', type: 'number' },
       { id: 'opportunita.contact_id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
-      { id: 'opportunita.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'opportunita.assigned_to', label: 'Responsabile (user ID)', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -235,9 +238,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
-      { id: 'opportunita.nome', label: 'Nome opportunità', type: 'string' },
-      { id: 'opportunita.motivo_perdita', label: 'Motivo perdita', type: 'string' },
-      { id: 'opportunita.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'opportunita.name', label: 'Nome opportunità', type: 'string' },
+      { id: 'opportunita.loss_reason', label: 'Motivo perdita', type: 'string' },
+      { id: 'opportunita.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -253,11 +256,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
-      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
-      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
-      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
-      { id: 'appuntamento.assegnato_a', label: 'Responsabile (user ID)', type: 'uuid' },
-      { id: 'appuntamento.luogo', label: 'Luogo', type: 'string' },
+      { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.appointment_date', label: 'Data', type: 'date' },
+      { id: 'appuntamento.appointment_time', label: 'Ora', type: 'string' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'appuntamento.assigned_to', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'appuntamento.formatted_address', label: 'Luogo', type: 'string' },
     ],
     configSchema: [
       { id: 'tipo_filtro', label: 'Tipo appuntamento (opzionale)', type: 'select', required: false, options: [
@@ -276,9 +280,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
-      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
-      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
-      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.appointment_date', label: 'Data', type: 'date' },
+      { id: 'appuntamento.appointment_time', label: 'Ora', type: 'string' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -292,9 +297,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
-      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
-      { id: 'appuntamento.note', label: 'Note appuntamento', type: 'string' },
-      { id: 'appuntamento.esito', label: 'Esito', type: 'string' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'appuntamento.internal_notes', label: 'Note appuntamento', type: 'string' },
+      { id: 'appuntamento.status', label: 'Stato', type: 'string' },
     ],
     configSchema: [],
   },
@@ -308,9 +313,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
-      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
-      { id: 'appuntamento.contatto_email', label: 'Email contatto', type: 'string' },
-      { id: 'appuntamento.contatto_telefono', label: 'Tel contatto', type: 'string' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
     ],
     configSchema: [],
   },
@@ -323,9 +327,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
-      { id: 'appuntamento.titolo', label: 'Titolo', type: 'string' },
-      { id: 'appuntamento.data_ora', label: 'Data e ora', type: 'date' },
-      { id: 'appuntamento.contatto_nome', label: 'Nome contatto', type: 'string' },
+      { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
+      { id: 'appuntamento.appointment_date', label: 'Data', type: 'date' },
+      { id: 'appuntamento.appointment_time', label: 'Ora', type: 'string' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
     configSchema: [
       { id: 'ore_prima', label: "Ore prima dell'appuntamento", type: 'number', required: true, defaultValue: 24, min: 1, max: 168, helpText: 'Es: 24 = reminder il giorno prima' },
@@ -343,11 +348,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
-      { id: 'ordine.numero', label: 'Numero ordine', type: 'string', example: 'ORD-2024-001' },
-      { id: 'ordine.importo', label: 'Importo totale (€)', type: 'number' },
-      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'ordine.cliente_email', label: 'Email cliente', type: 'string' },
-      { id: 'ordine.stato', label: 'Stato ordine', type: 'string' },
+      { id: 'ordine.order_code', label: 'Codice ordine', type: 'string', example: 'ORD-2024-001' },
+      { id: 'ordine.total_amount', label: 'Importo totale (€)', type: 'number' },
+      { id: 'ordine.customer_id', label: 'ID Cliente', type: 'uuid' },
+      { id: 'ordine.current_status_id', label: 'Stato (ID)', type: 'uuid' },
       { id: 'ordine.created_at', label: 'Data creazione', type: 'date' },
     ],
     configSchema: [
@@ -364,11 +368,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
-      { id: 'ordine.numero', label: 'Numero ordine', type: 'string' },
-      { id: 'ordine.stato', label: 'Nuovo stato', type: 'string' },
-      { id: 'ordine.stato_precedente', label: 'Stato precedente', type: 'string' },
-      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'ordine.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'ordine.order_code', label: 'Codice ordine', type: 'string' },
+      { id: 'ordine.current_status_id', label: 'Nuovo stato (ID)', type: 'uuid' },
+      { id: 'ordine.customer_id', label: 'ID Cliente', type: 'uuid' },
+      { id: 'ordine.total_amount', label: 'Importo (€)', type: 'number' },
     ],
     configSchema: [
       { id: 'stato_a', label: 'Quando arriva allo stato', type: 'select', required: true, options: [
@@ -387,9 +390,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'ordine.id', label: 'ID Ordine', type: 'uuid' },
-      { id: 'ordine.numero', label: 'Numero ordine', type: 'string' },
+      { id: 'ordine.order_code', label: 'Codice ordine', type: 'string' },
       { id: 'ordine.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
-      { id: 'ordine.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'ordine.customer_id', label: 'ID Cliente', type: 'uuid' },
     ],
     configSchema: [
       { id: 'giorni_tolleranza', label: 'Giorni di tolleranza dopo la scadenza', type: 'number', required: true, defaultValue: 1, min: 0, max: 30 },
@@ -407,11 +410,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
-      { id: 'fattura.numero', label: 'Numero fattura', type: 'string' },
-      { id: 'fattura.importo', label: 'Importo (€)', type: 'number' },
-      { id: 'fattura.importo_iva', label: 'IVA (€)', type: 'number' },
-      { id: 'fattura.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'fattura.data_scadenza', label: 'Data scadenza pagamento', type: 'date' },
+      { id: 'fattura.invoice_number', label: 'Numero fattura', type: 'string' },
+      { id: 'fattura.total', label: 'Totale (€)', type: 'number' },
+      { id: 'fattura.tax_amount', label: 'IVA (€)', type: 'number' },
+      { id: 'fattura.client_company_name', label: 'Nome cliente', type: 'string' },
+      { id: 'fattura.client_email', label: 'Email cliente', type: 'string' },
+      { id: 'fattura.due_date', label: 'Data scadenza pagamento', type: 'date' },
     ],
     configSchema: [],
   },
@@ -424,10 +428,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
-      { id: 'fattura.numero', label: 'Numero fattura', type: 'string' },
-      { id: 'fattura.importo', label: 'Importo (€)', type: 'number' },
-      { id: 'fattura.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'fattura.cliente_email', label: 'Email cliente', type: 'string' },
+      { id: 'fattura.invoice_number', label: 'Numero fattura', type: 'string' },
+      { id: 'fattura.total', label: 'Totale (€)', type: 'number' },
+      { id: 'fattura.client_company_name', label: 'Nome cliente', type: 'string' },
+      { id: 'fattura.client_email', label: 'Email cliente', type: 'string' },
       { id: 'fattura.giorni_scaduta', label: 'Giorni di ritardo', type: 'number' },
     ],
     configSchema: [
@@ -445,8 +449,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'pagamento.id', label: 'ID Pagamento', type: 'uuid' },
       { id: 'pagamento.importo', label: 'Importo (€)', type: 'number' },
       { id: 'pagamento.metodo', label: 'Metodo pagamento', type: 'string', example: 'Bonifico' },
-      { id: 'pagamento.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'pagamento.fattura_numero', label: 'Numero fattura', type: 'string' },
+      { id: 'pagamento.fattura_id', label: 'ID Fattura', type: 'uuid' },
       { id: 'pagamento.data', label: 'Data pagamento', type: 'date' },
     ],
     configSchema: [
@@ -484,11 +487,11 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
-      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
-      { id: 'preventivo.importo', label: 'Importo totale (€)', type: 'number' },
-      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'preventivo.cliente_email', label: 'Email cliente', type: 'string' },
-      { id: 'preventivo.validita', label: 'Data validità', type: 'date' },
+      { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.total', label: 'Importo totale (€)', type: 'number' },
+      { id: 'preventivo.client_name', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
+      { id: 'preventivo.expires_at', label: 'Data validità', type: 'date' },
     ],
     configSchema: [],
   },
@@ -502,9 +505,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
-      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
-      { id: 'preventivo.importo', label: 'Importo (€)', type: 'number' },
-      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.total', label: 'Importo (€)', type: 'number' },
+      { id: 'preventivo.client_name', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
       { id: 'preventivo.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
     configSchema: [],
@@ -519,9 +523,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
-      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
-      { id: 'preventivo.motivo_rifiuto', label: 'Motivo rifiuto', type: 'string' },
-      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.client_name', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
     ],
     configSchema: [],
   },
@@ -534,9 +538,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
-      { id: 'preventivo.numero', label: 'Numero preventivo', type: 'string' },
-      { id: 'preventivo.importo', label: 'Importo (€)', type: 'number' },
-      { id: 'preventivo.cliente_nome', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.total', label: 'Importo (€)', type: 'number' },
+      { id: 'preventivo.client_name', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
       { id: 'preventivo.giorni_alla_scadenza', label: 'Giorni alla scadenza', type: 'number' },
     ],
     configSchema: [
@@ -555,12 +560,11 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
-      { id: 'ticket.numero', label: 'Numero ticket', type: 'string' },
-      { id: 'ticket.oggetto', label: 'Oggetto', type: 'string' },
-      { id: 'ticket.priorita', label: 'Priorità', type: 'string' },
-      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'ticket.cliente_email', label: 'Email cliente', type: 'string' },
-      { id: 'ticket.categoria', label: 'Categoria problema', type: 'string' },
+      { id: 'ticket.subject', label: 'Oggetto', type: 'string' },
+      { id: 'ticket.priority', label: 'Priorità', type: 'string' },
+      { id: 'ticket.category', label: 'Categoria problema', type: 'string' },
+      { id: 'ticket.customer_id', label: 'ID Cliente', type: 'uuid' },
+      { id: 'ticket.assigned_to', label: 'Assegnato a', type: 'uuid' },
     ],
     configSchema: [
       { id: 'priorita_filtro', label: 'Solo ticket con priorità', type: 'select', required: false, options: [
@@ -579,11 +583,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
-      { id: 'ticket.numero', label: 'Numero ticket', type: 'string' },
-      { id: 'ticket.stato', label: 'Nuovo stato', type: 'string' },
-      { id: 'ticket.stato_precedente', label: 'Stato precedente', type: 'string' },
-      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'ticket.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'ticket.subject', label: 'Oggetto', type: 'string' },
+      { id: 'ticket.status', label: 'Nuovo stato', type: 'string' },
+      { id: 'ticket.customer_id', label: 'ID Cliente', type: 'uuid' },
+      { id: 'ticket.assigned_to', label: 'Assegnato a (user ID)', type: 'uuid' },
     ],
     configSchema: [
       { id: 'stato_a', label: 'Quando passa allo stato', type: 'select', required: true, options: [
@@ -601,10 +604,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
-      { id: 'ticket.numero', label: 'Numero ticket', type: 'string' },
+      { id: 'ticket.subject', label: 'Oggetto', type: 'string' },
       { id: 'ticket.ore_apertura', label: "Ore dall'apertura", type: 'number' },
-      { id: 'ticket.cliente_nome', label: 'Nome cliente', type: 'string' },
-      { id: 'ticket.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'ticket.customer_id', label: 'ID Cliente', type: 'uuid' },
+      { id: 'ticket.assigned_to', label: 'Assegnato a (user ID)', type: 'uuid' },
     ],
     configSchema: [
       { id: 'ore_sla', label: 'SLA: ore massime senza risposta', type: 'number', required: true, defaultValue: 24, min: 1, max: 168, helpText: 'Es: 24 = scatta se il ticket è ancora aperto dopo 24h' },
@@ -618,14 +621,14 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando la giacenza di un prodotto scende sotto il minimo',
     icon: '⚠️',
     categoria: 'magazzino',
+    dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'prodotto.id', label: 'ID Prodotto', type: 'uuid' },
-      { id: 'prodotto.nome', label: 'Nome prodotto', type: 'string' },
-      { id: 'prodotto.sku', label: 'SKU', type: 'string' },
-      { id: 'prodotto.giacenza', label: 'Giacenza attuale', type: 'number' },
-      { id: 'prodotto.scorta_minima', label: 'Scorta minima impostata', type: 'number' },
-      { id: 'prodotto.fornitore', label: 'Fornitore principale', type: 'string' },
+      { id: 'prodotto.name', label: 'Nome prodotto', type: 'string' },
+      { id: 'prodotto.quantity', label: 'Giacenza attuale', type: 'number' },
+      { id: 'prodotto.min_stock_level', label: 'Scorta minima impostata', type: 'number' },
+      { id: 'prodotto.supplier_id', label: 'ID Fornitore', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -635,11 +638,11 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando un prodotto raggiunge giacenza zero',
     icon: '🚫',
     categoria: 'magazzino',
+    dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'prodotto.id', label: 'ID Prodotto', type: 'uuid' },
-      { id: 'prodotto.nome', label: 'Nome prodotto', type: 'string' },
-      { id: 'prodotto.sku', label: 'SKU', type: 'string' },
+      { id: 'prodotto.name', label: 'Nome prodotto', type: 'string' },
     ],
     configSchema: [],
   },
@@ -649,12 +652,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando arriva un nuovo carico di merce',
     icon: '📥',
     categoria: 'magazzino',
+    dbTable: 'warehouse_stock_movements',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'carico.id', label: 'ID Movimento', type: 'uuid' },
-      { id: 'carico.prodotto_nome', label: 'Prodotto', type: 'string' },
-      { id: 'carico.quantita', label: 'Quantità', type: 'number' },
-      { id: 'carico.fornitore', label: 'Fornitore', type: 'string' },
+      { id: 'carico.stock_item_id', label: 'ID Articolo', type: 'uuid' },
+      { id: 'carico.quantity', label: 'Quantità', type: 'number' },
     ],
     configSchema: [],
   },
@@ -669,11 +672,11 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome contatto', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome contatto', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome contatto', type: 'string' },
       { id: 'contatto.email', label: 'Email', type: 'string' },
       { id: 'campagna.id', label: 'ID Campagna', type: 'uuid' },
       { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
-      { id: 'email.oggetto', label: 'Oggetto email', type: 'string' },
     ],
     configSchema: [
       { id: 'campagna_id', label: 'Campagna specifica (opzionale)', type: 'entity_select', required: false, helpText: 'Lascia vuoto per qualsiasi campagna' },
@@ -688,7 +691,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string' },
       { id: 'contatto.email', label: 'Email', type: 'string' },
       { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
       { id: 'link.url', label: 'URL cliccato', type: 'string' },
@@ -704,9 +708,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string' },
       { id: 'contatto.email', label: 'Email', type: 'string' },
-      { id: 'contatto.telefono', label: 'Telefono', type: 'string' },
+      { id: 'contatto.phone', label: 'Telefono', type: 'string' },
       { id: 'form.nome', label: 'Nome form', type: 'string' },
       { id: 'form.pagina', label: 'Pagina di origine', type: 'string' },
     ],
@@ -726,7 +731,25 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'messaggio.testo', label: 'Testo messaggio', type: 'string' },
       { id: 'messaggio.mittente', label: 'Numero mittente', type: 'string' },
       { id: 'contatto.id', label: 'ID Contatto (se trovato)', type: 'uuid' },
-      { id: 'contatto.nome', label: 'Nome contatto', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome contatto', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome contatto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'campagna_facebook_lead',
+    label: 'Lead da campagna Facebook',
+    description: 'Scatta quando un lead arriva da una campagna Facebook/Meta',
+    icon: '📘',
+    categoria: 'marketing',
+    dbEvent: 'INSERT',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.first_name', label: 'Nome', type: 'string' },
+      { id: 'contatto.last_name', label: 'Cognome', type: 'string' },
+      { id: 'contatto.email', label: 'Email', type: 'string' },
+      { id: 'contatto.phone', label: 'Telefono', type: 'string' },
+      { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
     ],
     configSchema: [],
   },
@@ -738,13 +761,14 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando viene inserito un nuovo dipendente/collaboratore',
     icon: '👤',
     categoria: 'hr',
+    dbTable: 'employees',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
-      { id: 'dipendente.nome', label: 'Nome e cognome', type: 'string' },
+      { id: 'dipendente.first_name', label: 'Nome', type: 'string' },
+      { id: 'dipendente.last_name', label: 'Cognome', type: 'string' },
       { id: 'dipendente.email', label: 'Email', type: 'string' },
-      { id: 'dipendente.ruolo', label: 'Ruolo', type: 'string' },
-      { id: 'dipendente.data_inizio', label: 'Data inizio', type: 'date' },
+      { id: 'dipendente.role_type', label: 'Ruolo', type: 'string' },
     ],
     configSchema: [],
   },
@@ -757,7 +781,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
-      { id: 'dipendente.nome', label: 'Nome', type: 'string' },
+      { id: 'dipendente.first_name', label: 'Nome', type: 'string' },
+      { id: 'dipendente.last_name', label: 'Cognome', type: 'string' },
       { id: 'contratto.scadenza', label: 'Data scadenza contratto', type: 'date' },
       { id: 'contratto.giorni_rimanenti', label: 'Giorni rimanenti', type: 'number' },
     ],
@@ -774,7 +799,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'richiesta.id', label: 'ID Richiesta', type: 'uuid' },
-      { id: 'dipendente.nome', label: 'Nome dipendente', type: 'string' },
+      { id: 'dipendente.first_name', label: 'Nome dipendente', type: 'string' },
+      { id: 'dipendente.last_name', label: 'Cognome dipendente', type: 'string' },
       { id: 'richiesta.tipo', label: 'Tipo (ferie/permesso)', type: 'string' },
       { id: 'richiesta.data_inizio', label: 'Dal', type: 'date' },
       { id: 'richiesta.data_fine', label: 'Al', type: 'date' },
@@ -790,12 +816,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
     icon: '🏗️',
     categoria: 'cantieri',
-    // dbTable: nessuna tabella 'cantieri' nel DB — trigger schedulato/manuale
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
       { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
-      { id: 'cantiere.cliente_nome', label: 'Nome cliente', type: 'string' },
       { id: 'cantiere.indirizzo', label: 'Indirizzo', type: 'string' },
       { id: 'cantiere.importo', label: 'Importo commessa (€)', type: 'number' },
       { id: 'cantiere.data_inizio', label: 'Data inizio prevista', type: 'date' },
@@ -815,7 +839,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'fase.nome', label: 'Nome fase', type: 'string' },
       { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
       { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
-      { id: 'cantiere.cliente_nome', label: 'Nome cliente', type: 'string' },
     ],
     configSchema: [],
   },
@@ -847,11 +870,10 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'task.id', label: 'ID Task', type: 'uuid' },
-      { id: 'task.titolo', label: 'Titolo', type: 'string' },
-      { id: 'task.priorita', label: 'Priorità', type: 'string' },
-      { id: 'task.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
-      { id: 'task.scadenza', label: 'Data scadenza', type: 'date' },
-      { id: 'task.fonte', label: 'Fonte', type: 'string' },
+      { id: 'task.title', label: 'Titolo', type: 'string' },
+      { id: 'task.priority', label: 'Priorità', type: 'string' },
+      { id: 'task.assigned_to', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'task.due_date', label: 'Data scadenza', type: 'date' },
     ],
     configSchema: [
       { id: 'priorita_filtro', label: 'Solo task con priorità', type: 'select', required: false, options: [
@@ -869,9 +891,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'task.id', label: 'ID Task', type: 'uuid' },
-      { id: 'task.titolo', label: 'Titolo', type: 'string' },
+      { id: 'task.title', label: 'Titolo', type: 'string' },
       { id: 'task.completato_da', label: 'Completato da (user ID)', type: 'uuid' },
-      { id: 'task.tempo_impiegato', label: 'Tempo impiegato (min)', type: 'number' },
     ],
     configSchema: [],
   },
@@ -884,8 +905,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'task.id', label: 'ID Task', type: 'uuid' },
-      { id: 'task.titolo', label: 'Titolo', type: 'string' },
-      { id: 'task.assegnato_a', label: 'Assegnato a (user ID)', type: 'uuid' },
+      { id: 'task.title', label: 'Titolo', type: 'string' },
+      { id: 'task.assigned_to', label: 'Assegnato a (user ID)', type: 'uuid' },
       { id: 'task.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
     ],
     configSchema: [],
@@ -959,6 +980,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
 ];
 
 // ─── ACTION CATALOG ──────────────────────────────────────────────────────────
+// Placeholders use real DB variable names
 
 export const ACTION_CATALOG: ActionDefinition[] = [
 
@@ -971,7 +993,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'task',
     outputVariables: [{ id: 'task.id', label: 'ID Task creato', type: 'uuid' }],
     configSchema: [
-      { id: 'titolo', label: 'Titolo attività', type: 'text', required: true, placeholder: 'Es: Chiamare {{contatto.nome}} per follow-up', supportsVariables: true },
+      { id: 'titolo', label: 'Titolo attività', type: 'text', required: true, placeholder: 'Es: Chiamare {{contatto.first_name}} per follow-up', supportsVariables: true },
       { id: 'descrizione', label: 'Descrizione', type: 'textarea', required: false, supportsVariables: true },
       { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'media', options: [
         { value: 'urgente', label: 'Urgente 🔴' }, { value: 'alta', label: 'Alta 🟠' },
@@ -1008,8 +1030,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     icon: '🔔',
     categoria: 'comunicazione',
     configSchema: [
-      { id: 'user_id', label: 'Destinatario (user_id)', type: 'user_select', required: true, helpText: 'Puoi usare {{opportunita.assegnato_a}} per notificare il responsabile' },
-      { id: 'titolo', label: 'Titolo notifica', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Nuovo lead: {{contatto.nome}}' },
+      { id: 'user_id', label: 'Destinatario (user_id)', type: 'user_select', required: true, helpText: 'Puoi usare {{opportunita.assigned_to}} per notificare il responsabile' },
+      { id: 'titolo', label: 'Titolo notifica', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Nuovo lead: {{contatto.first_name}} {{contatto.last_name}}' },
       { id: 'testo', label: 'Testo notifica', type: 'textarea', required: false, supportsVariables: true },
       { id: 'link', label: 'URL di destinazione (opzionale)', type: 'text', required: false, supportsVariables: true },
     ],
@@ -1023,8 +1045,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'destinatario', label: 'A (indirizzo email)', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.email}}' },
       { id: 'cc', label: 'CC (opzionale)', type: 'text', required: false, supportsVariables: true },
-      { id: 'oggetto', label: 'Oggetto', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Conferma appuntamento - {{appuntamento.data_ora}}' },
-      { id: 'corpo', label: 'Corpo email (HTML supportato)', type: 'textarea', required: true, supportsVariables: true, placeholder: "Gentile {{contatto.nome}},\n\nLa tua richiesta è stata ricevuta..." },
+      { id: 'oggetto', label: 'Oggetto', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Conferma appuntamento - {{appuntamento.appointment_date}}' },
+      { id: 'corpo', label: 'Corpo email (HTML supportato)', type: 'textarea', required: true, supportsVariables: true, placeholder: "Gentile {{contatto.first_name}},\n\nLa tua richiesta è stata ricevuta..." },
       { id: 'template', label: 'Oppure usa template salvato', type: 'select', required: false, options: [{ value: '', label: 'Nessun template (usa testo sopra)' }], helpText: 'Se selezioni un template, sovrascrive il corpo sopra' },
     ],
   },
@@ -1035,8 +1057,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     icon: '💬',
     categoria: 'comunicazione',
     configSchema: [
-      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.telefono}}' },
-      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.nome}}, ti confermiamo l'appuntamento di..." },
+      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
+      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.first_name}}, ti confermiamo l'appuntamento di..." },
     ],
   },
   {
@@ -1046,7 +1068,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     icon: '📱',
     categoria: 'comunicazione',
     configSchema: [
-      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.telefono}}' },
+      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
       { id: 'testo', label: 'Testo SMS (max 160 caratteri)', type: 'textarea', required: true, supportsVariables: true },
     ],
   },
@@ -1082,8 +1104,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
-      { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Deal {{contatto.azienda}}' },
-      { id: 'valore', label: 'Valore (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.importo}}' },
+      { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Deal {{contatto.company_name}}' },
+      { id: 'valore', label: 'Valore (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
       { id: 'stage', label: 'Stage iniziale', type: 'select', required: true, defaultValue: 'nuovo_lead', options: [
         { value: 'nuovo_lead', label: 'Nuovo Lead' }, { value: 'contattato', label: 'Contattato' },
@@ -1139,7 +1161,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'orders', label: 'Ordine' }, { value: 'invoices', label: 'Fattura' }, { value: 'estimates', label: 'Preventivo' },
       ]},
       { id: 'entity_id', label: 'ID entità', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'campo', label: 'Nome campo DB', type: 'text', required: true, placeholder: 'Es: stato, assegnato_a, note' },
+      { id: 'campo', label: 'Nome campo DB', type: 'text', required: true, placeholder: 'Es: status, assigned_to, notes' },
       { id: 'valore', label: 'Nuovo valore', type: 'text', required: true, supportsVariables: true },
     ],
   },
@@ -1154,8 +1176,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     outputVariables: [{ id: 'ordine.id', label: 'ID Ordine bozza', type: 'uuid' }],
     configSchema: [
       { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}} o {{opportunita.contact_id}}' },
-      { id: 'titolo', label: 'Descrizione ordine', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Ordine da preventivo {{preventivo.numero}}' },
-      { id: 'importo', label: 'Importo (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.importo}}' },
+      { id: 'titolo', label: 'Descrizione ordine', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Ordine da preventivo {{preventivo.quote_number}}' },
+      { id: 'importo', label: 'Importo (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
       { id: 'note', label: 'Note interne', type: 'textarea', required: false, supportsVariables: true },
       { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
     ],
@@ -1169,7 +1191,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     outputVariables: [{ id: 'preventivo.id', label: 'ID Preventivo bozza', type: 'uuid' }],
     configSchema: [
       { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'titolo', label: 'Titolo preventivo', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Preventivo per {{contatto.azienda}}' },
+      { id: 'titolo', label: 'Titolo preventivo', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Preventivo per {{contatto.company_name}}' },
       { id: 'validita_giorni', label: 'Validità (giorni)', type: 'number', required: false, defaultValue: 30 },
       { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
     ],
@@ -1182,9 +1204,9 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'cantieri',
     outputVariables: [{ id: 'cantiere.id', label: 'ID Cantiere creato', type: 'uuid' }],
     configSchema: [
-      { id: 'nome', label: 'Nome cantiere', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Lavori per {{contatto.azienda}}' },
+      { id: 'nome', label: 'Nome cantiere', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Lavori per {{contatto.company_name}}' },
       { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'importo', label: 'Importo commessa (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.importo}}' },
+      { id: 'importo', label: 'Importo commessa (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
       { id: 'responsabile_id', label: 'Responsabile', type: 'user_select', required: false },
       { id: 'data_inizio', label: 'Data inizio (giorni da oggi)', type: 'number', required: false, defaultValue: 7 },
     ],
@@ -1235,7 +1257,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     outputVariables: [{ id: 'fattura.id', label: 'ID Fattura bozza', type: 'uuid' }],
     configSchema: [
       { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: true, supportsVariables: true },
-      { id: 'importo', label: 'Importo (€)', type: 'text', required: true, supportsVariables: true, placeholder: '{{ordine.importo}}' },
+      { id: 'importo', label: 'Importo (€)', type: 'text', required: true, supportsVariables: true, placeholder: '{{ordine.total_amount}}' },
       { id: 'descrizione', label: 'Descrizione prestazione', type: 'textarea', required: true, supportsVariables: true },
       { id: 'scadenza_giorni', label: 'Giorni alla scadenza', type: 'number', required: false, defaultValue: 30 },
     ],
@@ -1250,7 +1272,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'generale',
     configSchema: [
       { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Seleziona l'agente AI da eseguire" },
-      { id: 'prompt', label: 'Prompt aggiuntivo (opzionale)', type: 'textarea', required: false, supportsVariables: true, placeholder: 'Analizza il lead {{contatto.nome}} e suggerisci la strategia migliore' },
+      { id: 'prompt', label: 'Prompt aggiuntivo (opzionale)', type: 'textarea', required: false, supportsVariables: true, placeholder: 'Analizza il lead {{contatto.first_name}} {{contatto.last_name}} e suggerisci la strategia migliore' },
     ],
   },
   {
@@ -1291,7 +1313,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
     icon: '⋯',
     configSchema: [
-      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.valore}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
+      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
       { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
         { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
         { value: 'contiene', label: 'contiene' }, { value: 'non_contiene', label: 'non contiene' },
@@ -1314,7 +1336,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
         { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
         { value: 'OR', label: 'OR — almeno una condizione deve essere vera' },
       ]},
-      { id: 'condizioni', label: 'Condizioni (JSON array)', type: 'json_editor', required: true, placeholder: '[{"variabile":"{{opportunita.valore}}","operatore":"maggiore","valore":"5000"}]', helpText: 'Ogni condizione: { variabile, operatore, valore }' },
+      { id: 'condizioni', label: 'Condizioni (JSON array)', type: 'json_editor', required: true, placeholder: '[{"variabile":"{{opportunita.value}}","operatore":"maggiore","valore":"5000"}]', helpText: 'Ogni condizione: { variabile, operatore, valore }' },
     ],
   },
 ];
@@ -1340,7 +1362,6 @@ export const ACTIONS_BY_CATEGORY = ACTION_CATALOG.reduce((acc, a) => {
 }, {} as Record<string, ActionDefinition[]>);
 
 // ─── Backward-compatible bridge ─────────────────────────────────────────────
-// Consumer code (useFlowAdapter, node components, FlowBuilderPage) uses CatalogItem
 
 export type FlowNodeKind = "trigger" | "action" | "condition" | "delay" | "goal" | "split" | "note";
 

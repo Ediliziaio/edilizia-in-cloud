@@ -37,46 +37,167 @@ interface UnifiedField {
   section?: string;
 }
 
-/* ───── built-in fields ───── */
+/* ───── folder colors & labels ───── */
 const FOLDER_COLORS: Record<string, string> = {
   contact: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   general_info: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   additional_info: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   opportunity_details: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
+  appointment: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+  order: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  invoice: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
+  quote: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  ticket: "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
+  task: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  employee: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
+  warehouse: "bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300",
 };
 const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
   general_info: "General Info",
   additional_info: "Additional Info",
-  opportunity_details: "Opportunità Details",
+  opportunity_details: "Opportunità",
+  appointment: "Appuntamento",
+  order: "Ordine",
+  invoice: "Fattura",
+  quote: "Preventivo",
+  ticket: "Ticket",
+  task: "Task",
+  employee: "Dipendente",
+  warehouse: "Magazzino",
 };
 
+/* ───── helper to build system fields ───── */
+function sysField(id: string, name: string, object: string, folder: string, uniqueKey: string): UnifiedField {
+  return { id, name, object, folder, folderColor: FOLDER_COLORS[folder] || FOLDER_COLORS.additional_info, uniqueKey, createdAt: "2024-01-01", isSystem: true };
+}
+
+/* ───── built-in fields ───── */
 const BUILTIN_FIELDS: UnifiedField[] = [
-  // Contact fields
-  { id: "sys_first_name", name: "First Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.first_name }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_last_name", name: "Last Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.last_name }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_full_name", name: "Full Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.full_name }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_email", name: "Email", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.email }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_phone", name: "Phone", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.phone }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_dob", name: "Date Of Birth", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.date_of_birth }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_source", name: "Contact Source", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.source }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_type", name: "Contact Type", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.type }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_company_name", name: "Business Name", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.company_name }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_address", name: "Street Address", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.address }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_city", name: "City", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.city }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_province", name: "State", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.province }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_postal_code", name: "Postal Code", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.postal_code }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_country", name: "Country", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.country }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_website", name: "Website", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.website }}", createdAt: "2024-01-01", isSystem: true },
-  // Opportunity fields
-  { id: "sys_opp_name", name: "Opportunity Name", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.name }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_pipeline", name: "Pipeline", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.pipeline_id }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_stage", name: "Stage", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.pipeline_stage_id }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_status", name: "Status", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.status }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_value", name: "Lead Value", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.monetary_value }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_owner", name: "Opportunity Owner", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.assigned_to }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_source", name: "Opportunity Source", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.source }}", createdAt: "2024-01-01", isSystem: true },
-  { id: "sys_opp_lost_reason", name: "Lost Reason", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.lost_reason }}", createdAt: "2024-01-01", isSystem: true },
+  // ── Contatto ──
+  sysField("sys_first_name", "First Name", "Contatto", "contact", "{{ contact.first_name }}"),
+  sysField("sys_last_name", "Last Name", "Contatto", "contact", "{{ contact.last_name }}"),
+  sysField("sys_full_name", "Full Name", "Contatto", "contact", "{{ contact.full_name }}"),
+  sysField("sys_email", "Email", "Contatto", "contact", "{{ contact.email }}"),
+  sysField("sys_phone", "Phone", "Contatto", "contact", "{{ contact.phone }}"),
+  sysField("sys_dob", "Date Of Birth", "Contatto", "contact", "{{ contact.date_of_birth }}"),
+  sysField("sys_source", "Contact Source", "Contatto", "contact", "{{ contact.source }}"),
+  sysField("sys_type", "Contact Type", "Contatto", "contact", "{{ contact.type }}"),
+  sysField("sys_company_name", "Business Name", "Contatto", "general_info", "{{ contact.company_name }}"),
+  sysField("sys_address", "Street Address", "Contatto", "general_info", "{{ contact.address }}"),
+  sysField("sys_city", "City", "Contatto", "general_info", "{{ contact.city }}"),
+  sysField("sys_province", "State", "Contatto", "general_info", "{{ contact.province }}"),
+  sysField("sys_postal_code", "Postal Code", "Contatto", "general_info", "{{ contact.postal_code }}"),
+  sysField("sys_country", "Country", "Contatto", "general_info", "{{ contact.country }}"),
+  sysField("sys_website", "Website", "Contatto", "general_info", "{{ contact.website }}"),
+  sysField("sys_assigned_to", "Assigned To", "Contatto", "contact", "{{ contact.assigned_to }}"),
+
+  // ── Opportunità ──
+  sysField("sys_opp_name", "Opportunity Name", "Opportunità", "opportunity_details", "{{ opportunity.name }}"),
+  sysField("sys_opp_pipeline", "Pipeline", "Opportunità", "opportunity_details", "{{ opportunity.pipeline_id }}"),
+  sysField("sys_opp_stage", "Stage", "Opportunità", "opportunity_details", "{{ opportunity.stage_id }}"),
+  sysField("sys_opp_status", "Status", "Opportunità", "opportunity_details", "{{ opportunity.status }}"),
+  sysField("sys_opp_value", "Lead Value", "Opportunità", "opportunity_details", "{{ opportunity.value }}"),
+  sysField("sys_opp_owner", "Opportunity Owner", "Opportunità", "opportunity_details", "{{ opportunity.assigned_to }}"),
+  sysField("sys_opp_source", "Opportunity Source", "Opportunità", "opportunity_details", "{{ opportunity.source }}"),
+  sysField("sys_opp_lost_reason", "Lost Reason", "Opportunità", "opportunity_details", "{{ opportunity.loss_reason }}"),
+  sysField("sys_opp_expected_close", "Expected Close Date", "Opportunità", "opportunity_details", "{{ opportunity.expected_close_date }}"),
+  sysField("sys_opp_contact_id", "Contact ID", "Opportunità", "opportunity_details", "{{ opportunity.contact_id }}"),
+
+  // ── Appuntamento ──
+  sysField("sys_apt_id", "ID Appuntamento", "Appuntamento", "appointment", "{{ appointment.id }}"),
+  sysField("sys_apt_title", "Titolo", "Appuntamento", "appointment", "{{ appointment.title }}"),
+  sysField("sys_apt_date", "Data", "Appuntamento", "appointment", "{{ appointment.appointment_date }}"),
+  sysField("sys_apt_time", "Ora", "Appuntamento", "appointment", "{{ appointment.appointment_time }}"),
+  sysField("sys_apt_end_time", "Ora fine", "Appuntamento", "appointment", "{{ appointment.appointment_end_time }}"),
+  sysField("sys_apt_status", "Stato", "Appuntamento", "appointment", "{{ appointment.status }}"),
+  sysField("sys_apt_type", "Tipo", "Appuntamento", "appointment", "{{ appointment.appointment_type }}"),
+  sysField("sys_apt_address", "Indirizzo", "Appuntamento", "appointment", "{{ appointment.formatted_address }}"),
+  sysField("sys_apt_notes", "Note interne", "Appuntamento", "appointment", "{{ appointment.internal_notes }}"),
+  sysField("sys_apt_contact", "ID Contatto", "Appuntamento", "appointment", "{{ appointment.contact_id }}"),
+  sysField("sys_apt_assigned", "Assegnato a", "Appuntamento", "appointment", "{{ appointment.assigned_to }}"),
+  sysField("sys_apt_description", "Descrizione", "Appuntamento", "appointment", "{{ appointment.description }}"),
+
+  // ── Ordine ──
+  sysField("sys_ord_id", "ID Ordine", "Ordine", "order", "{{ order.id }}"),
+  sysField("sys_ord_code", "Codice Ordine", "Ordine", "order", "{{ order.order_code }}"),
+  sysField("sys_ord_total", "Importo Totale", "Ordine", "order", "{{ order.total_amount }}"),
+  sysField("sys_ord_desc", "Descrizione", "Ordine", "order", "{{ order.description }}"),
+  sysField("sys_ord_expected", "Data Prevista", "Ordine", "order", "{{ order.expected_date }}"),
+  sysField("sys_ord_status", "Stato (ID)", "Ordine", "order", "{{ order.current_status_id }}"),
+  sysField("sys_ord_customer", "ID Cliente", "Ordine", "order", "{{ order.customer_id }}"),
+  sysField("sys_ord_assigned", "Assegnato a", "Ordine", "order", "{{ order.assigned_to }}"),
+  sysField("sys_ord_deposit", "Acconto", "Ordine", "order", "{{ order.deposit_amount }}"),
+  sysField("sys_ord_balance", "Saldo", "Ordine", "order", "{{ order.balance_amount }}"),
+  sysField("sys_ord_work_start", "Data Inizio Lavori", "Ordine", "order", "{{ order.work_start_date }}"),
+
+  // ── Fattura ──
+  sysField("sys_inv_id", "ID Fattura", "Fattura", "invoice", "{{ invoice.id }}"),
+  sysField("sys_inv_number", "Numero Fattura", "Fattura", "invoice", "{{ invoice.invoice_number }}"),
+  sysField("sys_inv_total", "Totale", "Fattura", "invoice", "{{ invoice.total }}"),
+  sysField("sys_inv_subtotal", "Subtotale", "Fattura", "invoice", "{{ invoice.subtotal }}"),
+  sysField("sys_inv_tax", "IVA", "Fattura", "invoice", "{{ invoice.tax_amount }}"),
+  sysField("sys_inv_status", "Stato", "Fattura", "invoice", "{{ invoice.status }}"),
+  sysField("sys_inv_due", "Data Scadenza", "Fattura", "invoice", "{{ invoice.due_date }}"),
+  sysField("sys_inv_issue", "Data Emissione", "Fattura", "invoice", "{{ invoice.issue_date }}"),
+  sysField("sys_inv_paid", "Importo Pagato", "Fattura", "invoice", "{{ invoice.paid_amount }}"),
+  sysField("sys_inv_client_name", "Nome Cliente", "Fattura", "invoice", "{{ invoice.client_company_name }}"),
+  sysField("sys_inv_client_email", "Email Cliente", "Fattura", "invoice", "{{ invoice.client_email }}"),
+  sysField("sys_inv_client_vat", "P.IVA Cliente", "Fattura", "invoice", "{{ invoice.client_vat_number }}"),
+  sysField("sys_inv_payment", "Metodo Pagamento", "Fattura", "invoice", "{{ invoice.payment_method }}"),
+  sysField("sys_inv_doc_type", "Tipo Documento", "Fattura", "invoice", "{{ invoice.document_type }}"),
+
+  // ── Preventivo ──
+  sysField("sys_qt_id", "ID Preventivo", "Preventivo", "quote", "{{ quote.id }}"),
+  sysField("sys_qt_number", "Numero Preventivo", "Preventivo", "quote", "{{ quote.quote_number }}"),
+  sysField("sys_qt_title", "Titolo", "Preventivo", "quote", "{{ quote.title }}"),
+  sysField("sys_qt_total", "Totale", "Preventivo", "quote", "{{ quote.total }}"),
+  sysField("sys_qt_status", "Stato", "Preventivo", "quote", "{{ quote.status }}"),
+  sysField("sys_qt_client_name", "Nome Cliente", "Preventivo", "quote", "{{ quote.client_name }}"),
+  sysField("sys_qt_client_email", "Email Cliente", "Preventivo", "quote", "{{ quote.client_email }}"),
+  sysField("sys_qt_client_phone", "Telefono Cliente", "Preventivo", "quote", "{{ quote.client_phone }}"),
+  sysField("sys_qt_expires", "Scadenza", "Preventivo", "quote", "{{ quote.expires_at }}"),
+  sysField("sys_qt_validity", "Giorni Validità", "Preventivo", "quote", "{{ quote.validity_days }}"),
+  sysField("sys_qt_contact", "ID Contatto", "Preventivo", "quote", "{{ quote.contact_id }}"),
+
+  // ── Ticket ──
+  sysField("sys_tk_id", "ID Ticket", "Ticket", "ticket", "{{ ticket.id }}"),
+  sysField("sys_tk_subject", "Oggetto", "Ticket", "ticket", "{{ ticket.subject }}"),
+  sysField("sys_tk_status", "Stato", "Ticket", "ticket", "{{ ticket.status }}"),
+  sysField("sys_tk_priority", "Priorità", "Ticket", "ticket", "{{ ticket.priority }}"),
+  sysField("sys_tk_category", "Categoria", "Ticket", "ticket", "{{ ticket.category }}"),
+  sysField("sys_tk_customer", "ID Cliente", "Ticket", "ticket", "{{ ticket.customer_id }}"),
+  sysField("sys_tk_assigned", "Assegnato a", "Ticket", "ticket", "{{ ticket.assigned_to }}"),
+  sysField("sys_tk_notes", "Note Interne", "Ticket", "ticket", "{{ ticket.internal_notes }}"),
+
+  // ── Task ──
+  sysField("sys_tsk_id", "ID Task", "Task", "task", "{{ task.id }}"),
+  sysField("sys_tsk_title", "Titolo", "Task", "task", "{{ task.title }}"),
+  sysField("sys_tsk_status", "Stato", "Task", "task", "{{ task.status }}"),
+  sysField("sys_tsk_priority", "Priorità", "Task", "task", "{{ task.priority }}"),
+  sysField("sys_tsk_due", "Data Scadenza", "Task", "task", "{{ task.due_date }}"),
+  sysField("sys_tsk_assigned", "Assegnato a", "Task", "task", "{{ task.assigned_to }}"),
+  sysField("sys_tsk_notes", "Note", "Task", "task", "{{ task.notes }}"),
+  sysField("sys_tsk_category", "Categoria", "Task", "task", "{{ task.category }}"),
+  sysField("sys_tsk_contact", "ID Contatto", "Task", "task", "{{ task.contact_id }}"),
+
+  // ── Dipendente ──
+  sysField("sys_emp_id", "ID Dipendente", "Dipendente", "employee", "{{ employee.id }}"),
+  sysField("sys_emp_first", "Nome", "Dipendente", "employee", "{{ employee.first_name }}"),
+  sysField("sys_emp_last", "Cognome", "Dipendente", "employee", "{{ employee.last_name }}"),
+  sysField("sys_emp_email", "Email", "Dipendente", "employee", "{{ employee.email }}"),
+  sysField("sys_emp_phone", "Telefono", "Dipendente", "employee", "{{ employee.phone }}"),
+  sysField("sys_emp_role", "Ruolo", "Dipendente", "employee", "{{ employee.role_type }}"),
+  sysField("sys_emp_gross", "RAL Lorda", "Dipendente", "employee", "{{ employee.gross_salary }}"),
+  sysField("sys_emp_net", "Netto Mensile", "Dipendente", "employee", "{{ employee.net_salary }}"),
+
+  // ── Magazzino ──
+  sysField("sys_wh_id", "ID Articolo", "Magazzino", "warehouse", "{{ warehouse.id }}"),
+  sysField("sys_wh_name", "Nome", "Magazzino", "warehouse", "{{ warehouse.name }}"),
+  sysField("sys_wh_qty", "Quantità", "Magazzino", "warehouse", "{{ warehouse.quantity }}"),
+  sysField("sys_wh_min", "Scorta Minima", "Magazzino", "warehouse", "{{ warehouse.min_stock_level }}"),
+  sysField("sys_wh_cost", "Costo Unitario", "Magazzino", "warehouse", "{{ warehouse.unit_cost }}"),
+  sysField("sys_wh_available", "Quantità Disponibile", "Magazzino", "warehouse", "{{ warehouse.quantity_available }}"),
 ];
 
 const FIELD_TYPES = [
@@ -94,6 +215,33 @@ const CONTACT_SECTIONS = [
 const OPPORTUNITY_SECTIONS = [
   { value: "opportunity_details", label: "Opportunità Details" },
 ];
+
+const GROUP_OPTIONS = [
+  { value: "all", label: "Tutto" },
+  { value: "contact", label: "Contatto" },
+  { value: "opportunity", label: "Opportunità" },
+  { value: "appointment", label: "Appuntamento" },
+  { value: "order", label: "Ordine" },
+  { value: "invoice", label: "Fattura" },
+  { value: "quote", label: "Preventivo" },
+  { value: "ticket", label: "Ticket" },
+  { value: "task", label: "Task" },
+  { value: "employee", label: "Dipendente" },
+  { value: "warehouse", label: "Magazzino" },
+];
+
+const OBJECT_NAME_MAP: Record<string, string> = {
+  contact: "Contatto",
+  opportunity: "Opportunità",
+  appointment: "Appuntamento",
+  order: "Ordine",
+  invoice: "Fattura",
+  quote: "Preventivo",
+  ticket: "Ticket",
+  task: "Task",
+  employee: "Dipendente",
+  warehouse: "Magazzino",
+};
 
 function toSnakeCase(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -156,13 +304,12 @@ export function CustomFieldsConfig() {
 
   const filtered = useMemo(() => {
     let result = allFields;
-    // Filter by group
-    if (groupBy === "contact") {
-      result = result.filter((f) => f.object === "Contatto");
-    } else if (groupBy === "opportunity") {
-      result = result.filter((f) => f.object === "Opportunità");
+    if (groupBy !== "all") {
+      const objectName = OBJECT_NAME_MAP[groupBy];
+      if (objectName) {
+        result = result.filter((f) => f.object === objectName);
+      }
     }
-    // Filter by search
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -176,7 +323,6 @@ export function CustomFieldsConfig() {
     return result;
   }, [allFields, search, groupBy]);
 
-  // When objectType changes, reset section to a valid default
   const handleObjectTypeChange = (val: "contact" | "opportunity") => {
     setObjectType(val);
     setSection(val === "opportunity" ? "opportunity_details" : "general_info");
@@ -277,13 +423,13 @@ export function CustomFieldsConfig() {
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <span>Raggruppa per:</span>
           <Select value={groupBy} onValueChange={setGroupBy}>
-            <SelectTrigger className="h-8 w-[140px] text-sm">
+            <SelectTrigger className="h-8 w-[160px] text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutto</SelectItem>
-              <SelectItem value="contact">Contatto</SelectItem>
-              <SelectItem value="opportunity">Opportunità</SelectItem>
+              {GROUP_OPTIONS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
