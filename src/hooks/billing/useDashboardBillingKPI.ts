@@ -137,7 +137,7 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5) {
 
       const { data, error } = await supabase
         .from("documenti_fiscali")
-        .select("anagrafica_id, imponibile, stato")
+        .select("anagrafica_id, imponibile_totale, stato")
         .eq("company_id", companyId!)
         .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
         .neq("stato", "annullata")
