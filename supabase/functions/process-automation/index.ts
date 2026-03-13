@@ -636,7 +636,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         return { success: false, error: "Contatto senza numero di telefono" };
       }
 
-      const smsBody = cfg.sms_body || cfg.message || "Messaggio automatico";
+      const smsBody = ncfg.sms_body || ncfg.message || "Messaggio automatico";
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
