@@ -1022,7 +1022,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📨 COMUNICAZIONI ═══
+  // ═══ COMUNICAZIONI ═══
   {
     id: 'invia_notifica_inapp',
     label: 'Invia notifica in-app',
