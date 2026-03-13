@@ -10,6 +10,8 @@ import { TempisticheScorecard } from "./TempisticheScorecard";
 import { AgentRadarProfile } from "./AgentRadarProfile";
 import { VenditoriFunnel } from "./VenditoriFunnel";
 import { VenditoriRanking } from "./VenditoriRanking";
+import { VenditoriTrend } from "./VenditoriTrend";
+import { VenditoriInsights } from "./VenditoriInsights";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -154,6 +156,8 @@ const VenditoriPerformanceReport = () => {
           </div>
 
           <VenditoriFunnel stages={funnel} />
+
+          <VenditoriInsights kpi={kpiSelected} trend={trend} kpiList={kpiList} />
         </TabsContent>
 
         <TabsContent value="ranking" className="mt-4">
@@ -161,13 +165,7 @@ const VenditoriPerformanceReport = () => {
         </TabsContent>
 
         <TabsContent value="trend" className="mt-4">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <TrendingUp className="h-12 w-12 text-muted-foreground/40 mb-4" />
-              <h3 className="font-medium text-muted-foreground">Trend Temporale</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1">In arrivo con VENDOR-REP-04</p>
-            </CardContent>
-          </Card>
+          <VenditoriTrend trend={trend} agentId={agentId} />
         </TabsContent>
       </Tabs>
     </div>
