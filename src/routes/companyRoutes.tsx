@@ -55,6 +55,7 @@ const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const Automations = lazy(() => import("@/pages/azienda/Automations"));
 const InternalAutomations = lazy(() => import("@/pages/azienda/InternalAutomations"));
+const TaskAutomationsPage = lazy(() => import("@/pages/azienda/TaskAutomationsPage"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
