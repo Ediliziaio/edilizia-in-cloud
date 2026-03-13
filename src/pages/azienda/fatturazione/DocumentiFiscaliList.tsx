@@ -99,13 +99,31 @@ export default function DocumentiFiscaliList() {
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
   const isTrash = activeTab === "annullate";
 
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
   const handleTabChange = (tabId: string) => {
     setSearchParams(tabId === "fattura" ? {} : { tipo: tabId }, { replace: true });
     setPage(0);
     setStatoFilter("all");
     setSelectedMonth(null);
     setSearchRaw("");
+    clearSelection();
   };
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === docs.length && docs.length > 0) return new Set();
+      return new Set(docs.map((d) => d.id));
+    });
+  }, [docs]);
 
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
