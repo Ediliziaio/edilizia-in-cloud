@@ -169,6 +169,10 @@ export default function DocumentiFiscaliList() {
         break;
       case "xml":
         try {
+          if (!azienda) {
+            toast.error("Anagrafica azienda non configurata");
+            return;
+          }
           const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
           const blob = new Blob([xml], { type: "application/xml" });
           const url = URL.createObjectURL(blob);
