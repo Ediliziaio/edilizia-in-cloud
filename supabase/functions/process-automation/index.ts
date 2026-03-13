@@ -493,7 +493,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "assign_user": {
-      const userId = cfg.assign_to_user_id;
+      const userId = ncfg.assign_to_user_id || ncfg.agente_id;
       if (!userId) return { success: false, error: "No assign_to_user_id configured" };
       await supabase
         .from("marketing_contacts")
