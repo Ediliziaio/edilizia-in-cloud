@@ -4,6 +4,7 @@ import { BarChart3 } from "lucide-react";
 import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsReport";
 import AttributionReport from "@/components/reporting/attribution/AttributionReport";
 import VenditoriPerformanceReport from "@/components/reporting/venditori/VenditoriPerformanceReport";
+import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport";
 
 const TABS = [
   { key: "facebook-ads", label: "Report di Facebook Ads" },
