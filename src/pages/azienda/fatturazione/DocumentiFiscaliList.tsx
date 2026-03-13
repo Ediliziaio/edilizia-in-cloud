@@ -191,15 +191,10 @@ export default function DocumentiFiscaliList() {
         }
         break;
       case "pagata":
-        updateMutation.mutate({
-          id: doc.id,
-          stato: "pagata",
-          importo_pagato: doc.totale_da_pagare,
-          pagato_at: new Date().toISOString(),
-        });
+        setPayTarget(doc);
         break;
       case "delete":
-        deleteMutation.mutate(doc.id);
+        setDeleteTarget(doc);
         break;
     }
   };
