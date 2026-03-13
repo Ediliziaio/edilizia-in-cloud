@@ -215,7 +215,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_vinta',
     label: 'Opportunità vinta',
     description: 'Scatta quando un deal viene marcato come "Vinto"',
-    icon: '🏆',
+    icon: 'Trophy',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
