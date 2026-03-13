@@ -158,6 +158,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Documento non trovato" }), { status: 404, headers: corsHeaders });
     }
 
+    // Verify user belongs to this company
+    try {
+      await verifyCompanyAccess(supabase, userId, doc.company_id);
+    } catch {
+      return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: corsHeaders });
+    }
+
     // Verify stato
     if (doc.stato !== "emessa") {
       return new Response(JSON.stringify({ error: "Il documento deve essere in stato 'emessa' per inviare a SDI" }), { status: 422, headers: corsHeaders });
