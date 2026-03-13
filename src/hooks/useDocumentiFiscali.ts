@@ -92,7 +92,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     ddt_causale_trasporto: row.ddt_causale_trasporto as string | undefined,
     ddt_aspetto_beni: row.ddt_aspetto_beni as string | undefined,
     ddt_numero_colli: row.ddt_numero_colli as number | undefined,
-    ddt_peso: row.ddt_peso as number | undefined,
+    ddt_peso: row.ddt_peso as string | undefined,
     ddt_mezzo_trasporto: row.ddt_mezzo_trasporto as string | undefined,
     ddt_data_ora_consegna: row.ddt_data_ora_consegna as string | undefined,
     ddt_indirizzo_consegna: row.ddt_indirizzo_consegna as string | undefined,
