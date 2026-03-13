@@ -19,6 +19,8 @@ import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TaskChecklist } from "./TaskChecklist";
+import { TaskComments } from "./TaskComments";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
@@ -401,6 +403,14 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </div>
             </>
           )}
+
+          {/* Checklist */}
+          <Separator />
+          <TaskChecklist taskId={task.id} />
+
+          {/* Comments */}
+          <Separator />
+          <TaskComments taskId={task.id} />
 
           {/* Meta */}
           <Separator />

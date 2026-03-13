@@ -22,6 +22,7 @@ import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
 import { MyDayView } from "@/components/attivita/MyDayView";
+import { TaskQuickAdd } from "@/components/attivita/TaskQuickAdd";
 import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +71,7 @@ export default function UnifiedTasks() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterFonte, setFilterFonte] = useState(initialFonte);
+  const [filterAssignee, setFilterAssignee] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("myday");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
@@ -116,6 +118,20 @@ export default function UnifiedTasks() {
     enabled: !!companyId,
   });
 
+  // Extract unique assignees for filter
+  const assignees = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    tasks.forEach((t) => {
+      if (t.assigned_profile && t.assigned_to) {
+        map.set(t.assigned_to, {
+          id: t.assigned_to,
+          name: `${t.assigned_profile.first_name} ${t.assigned_profile.last_name}`,
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks]);
+
   const now = new Date();
   const in48h = addHours(now, 48);
   const weekStart = startOfWeek(now, { locale: it });
@@ -136,13 +152,14 @@ export default function UnifiedTasks() {
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterFonte === "marketing" && !MARKETING_CATEGORIES.includes(t.category)) return false;
       if (filterFonte === "cantieri" && MARKETING_CATEGORIES.includes(t.category)) return false;
+      if (filterAssignee !== "all" && t.assigned_to !== filterAssignee) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
         if (!t.title?.toLowerCase().includes(q) && !t.notes?.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, debouncedSearch]);
+  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
@@ -219,6 +236,7 @@ export default function UnifiedTasks() {
 
         <TabsContent value="all">
           <div className="space-y-6">
+            <TaskQuickAdd />
             <TaskStatCards {...stats} />
 
             <div className="flex flex-wrap items-center gap-3">
@@ -263,6 +281,15 @@ export default function UnifiedTasks() {
                   <SelectItem value="all">Tutte</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  {assignees.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
