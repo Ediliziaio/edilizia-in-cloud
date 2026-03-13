@@ -803,10 +803,10 @@ Istruzione: ${aiPrompt}`;
       // When the awaited event fires, processTriggerEvents will check for waiting enrollments
       return {
         success: true,
-        output: { action: "wait_for_event", waiting: true, await_event: cfg.await_event, timeout_days: cfg.timeout_days || 7 },
+        output: { action: "wait_for_event", waiting: true, await_event: ncfg.await_event, timeout_days: ncfg.timeout_days || 7 },
         isWaiting: true,
-        awaitEvent: cfg.await_event,
-        timeoutDays: parseInt(cfg.timeout_days) || 7,
+        awaitEvent: ncfg.await_event,
+        timeoutDays: parseInt(ncfg.timeout_days) || 7,
       };
     }
 
