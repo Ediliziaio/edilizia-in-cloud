@@ -376,9 +376,9 @@ export function FlowBuilderPage() {
   }, [undo, redo, saveImmediate]);
 
   // Error / loading states
-  const isError = !isLoading && flowId && !flow && id !== "nuova";
+  const isError = !isLoading && flowId && !flow && !isNewFlowRoute;
 
-  if (isLoading || (id === "nuova" && createFlowMutation.isPending)) {
+  if (isLoading || (isNewFlowRoute && createFlowMutation.isPending)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
