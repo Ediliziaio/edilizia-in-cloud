@@ -18,7 +18,7 @@ const TABS = [
   { key: "venditori", label: "Performance Venditori" },
 ];
 
-const IMPLEMENTED_TABS = ["facebook-ads", "attribution", "venditori"];
+const IMPLEMENTED_TABS = ["facebook-ads", "attribution", "venditori", "calls"];
 
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
