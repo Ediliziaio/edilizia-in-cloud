@@ -232,7 +232,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'opportunita_persa',
     label: 'Opportunità persa',
     description: 'Scatta quando un deal viene marcato come "Perso"',
-    icon: '❌',
+    icon: 'XCircle',
     categoria: 'crm',
     dbTable: 'marketing_opportunities',
     dbEvent: 'UPDATE',
