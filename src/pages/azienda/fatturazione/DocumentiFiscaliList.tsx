@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
@@ -7,6 +7,7 @@ import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
@@ -29,7 +30,7 @@ import {
 import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
-  AlertCircle, CheckCircle2, Clock,
+  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -44,14 +45,17 @@ const TIPO_TABS: {
   label: string;
   tipos: TipoDocumento[] | null;
   icon: React.ElementType;
-  countKey: keyof ReturnType<typeof import("@/hooks/billing/useDocumentCounts").useDocumentCounts>["data"] extends infer T ? T extends null ? never : keyof NonNullable<T> : never;
+  countKey: string;
+  tabColor?: string;
+  emptyTitle: string;
+  emptyDescription: string;
 }[] = [
-  { id: "fatture", label: "Fatture", tipos: ["fattura", "fattura_pa"], icon: FileText, countKey: "fatture" as any },
-  { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma" as any },
-  { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito" as any },
-  { id: "ddt", label: "DDT", tipos: ["ddt"], icon: FileText, countKey: "ddt" as any },
-  { id: "preventivo", label: "Preventivi", tipos: ["preventivo"], icon: FileText, countKey: "preventivo" as any },
-  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate" as any },
+  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
+  { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
+  { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
+  { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
+  { id: "preventivo", label: "Preventivi", tipos: ["preventivo"], icon: FileSearch, countKey: "preventivo", emptyTitle: "Nessun preventivo trovato", emptyDescription: "Crea preventivi da inviare ai clienti. Potrai convertirli in fattura una volta accettati." },
+  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui." },
 ];
 
 const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
@@ -71,7 +75,9 @@ function getScadenzaInfo(doc: DocumentoFiscale) {
 // ─── Main Page ────────────────────────────────────────────
 export default function DocumentiFiscaliList() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("fatture");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tipo") ?? "fattura";
+
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [statoFilter, setStatoFilter] = useState<string>("all");
   const [searchRaw, setSearchRaw] = useState("");
@@ -87,6 +93,14 @@ export default function DocumentiFiscaliList() {
   // Current tab config
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
   const isTrash = activeTab === "annullate";
+
+  const handleTabChange = (tabId: string) => {
+    setSearchParams(tabId === "fattura" ? {} : { tipo: tabId }, { replace: true });
+    setPage(0);
+    setStatoFilter("all");
+    setSelectedMonth(null);
+    setSearchRaw("");
+  };
 
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
@@ -200,8 +214,36 @@ export default function DocumentiFiscaliList() {
       case "delete":
         setDeleteTarget(doc);
         break;
+      case "convert_proforma":
+        try {
+          const fattura = await convertiProformaInFattura(doc.id);
+          toast.success(`Convertito in fattura ${fattura.numero}`);
+          navigate(`/azienda/documenti/${fattura.id}/dettaglio`);
+        } catch (e: any) {
+          toast.error(e.message);
+        }
+        break;
+      case "convert_preventivo":
+        navigate(`/azienda/documenti/nuovo?tipo=fattura`, { state: { prefilled: doc } });
+        break;
+      case "accept_preventivo":
+        updateMutation.mutate({ id: doc.id, stato: "accettata" as StatoDocumento });
+        break;
+      case "restore":
+        updateMutation.mutate({ id: doc.id, stato: "bozza" as StatoDocumento });
+        break;
+      case "fattura_ddt":
+        navigate(`/azienda/documenti/nuovo?tipo=fattura&from_ddt=${doc.id}`);
+        break;
     }
   };
+
+  // ── Type-specific columns logic ─────────────────────────
+  const showColStorno = activeTab === "nota_credito";
+  const showColFatturaCollegata = activeTab === "ddt";
+  const showColValidita = activeTab === "preventivo";
+  const showColTipo = isTrash;
+  const showColScadenza = !showColStorno && !showColFatturaCollegata && !showColValidita && !isTrash;
 
   return (
     <div className="space-y-4">
@@ -249,18 +291,13 @@ export default function DocumentiFiscaliList() {
           return (
             <button
               key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setPage(0);
-                setStatoFilter("all");
-                setSelectedMonth(null);
-              }}
+              onClick={() => handleTabChange(tab.id)}
               className={cn(
                 "flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap",
                 isActive
                   ? "border-primary text-primary font-medium"
                   : "border-transparent text-muted-foreground hover:text-foreground",
-                tab.id === "annullate" && "text-destructive"
+                tab.tabColor && !isActive && tab.tabColor
               )}
             >
               <TabIcon className="h-4 w-4" />
@@ -321,14 +358,14 @@ export default function DocumentiFiscaliList() {
         </div>
       ) : docs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <FileText className="h-16 w-16 text-muted-foreground/30 mb-4" />
-          <p className="text-lg font-medium">Nessun documento trovato</p>
+          <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4" />
+          <p className="text-lg font-medium">{currentTab.emptyTitle}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            {hasFilters ? "Prova a modificare i filtri." : "Crea il tuo primo documento per iniziare."}
+            {hasFilters ? "Prova a modificare i filtri." : currentTab.emptyDescription}
           </p>
           {!hasFilters && !isTrash && (
-            <Button className="mt-4" onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>
-              <Plus className="h-4 w-4 mr-1" /> Crea la tua prima fattura
+            <Button className="mt-4" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=${currentTab.tipos?.[0] ?? "fattura"}`)}>
+              <Plus className="h-4 w-4 mr-1" /> {currentTab.label === "Fatture" ? "Crea la tua prima fattura" : `Nuovo ${currentTab.label.toLowerCase().replace(/i$/, "o")}`}
             </Button>
           )}
         </div>
@@ -338,10 +375,14 @@ export default function DocumentiFiscaliList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
                   <TableHead className="w-28">Stato</TableHead>
                   <TableHead>Cliente</TableHead>
+                  {showColStorno && <TableHead className="w-36">Storna Fattura</TableHead>}
                   <TableHead className="w-36">Data / Numero</TableHead>
-                  <TableHead className="w-40">Prox. Scadenza</TableHead>
+                  {showColScadenza && <TableHead className="w-40">Prox. Scadenza</TableHead>}
+                  {showColValidita && <TableHead className="w-36">Valido fino al</TableHead>}
+                  {showColFatturaCollegata && <TableHead className="w-36">Fattura Collegata</TableHead>}
                   <TableHead className="text-right w-28">Importo</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
@@ -349,21 +390,58 @@ export default function DocumentiFiscaliList() {
               <TableBody>
                 {docs.map((doc) => {
                   const scadenza = getScadenzaInfo(doc);
+                  const isDdt = doc.tipo === "ddt";
+                  const ddtFatturato = isDdt && !!(doc as any).ddt_fattura_id;
+
                   return (
                     <TableRow
                       key={doc.id}
                       className="cursor-pointer"
                       onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
                     >
+                      {/* Tipo (solo cestino) */}
+                      {showColTipo && (
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo" }[doc.tipo] ?? doc.tipo}
+                          </Badge>
+                        </TableCell>
+                      )}
+
                       {/* Stato */}
                       <TableCell>
-                        <StatoBadge stato={doc.stato} />
+                        {isDdt && !isTrash ? (
+                          <Badge className={cn("text-[10px]", ddtFatturato ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200")}>
+                            {ddtFatturato ? "✓ Fatturato" : "⏳ Da fatturare"}
+                          </Badge>
+                        ) : (
+                          <StatoBadge stato={doc.stato} />
+                        )}
                       </TableCell>
 
                       {/* Cliente */}
                       <TableCell className="text-sm font-medium">
                         {doc.cliente_snapshot?.ragione_sociale || "—"}
                       </TableCell>
+
+                      {/* Storna Fattura (solo NC) */}
+                      {showColStorno && (
+                        <TableCell>
+                          {doc.documento_correlato_id ? (
+                            <button
+                              className="text-xs text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
+                              }}
+                            >
+                              Vedi fattura originale
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
 
                       {/* Data / Numero */}
                       <TableCell>
@@ -372,36 +450,68 @@ export default function DocumentiFiscaliList() {
                         <span className="text-xs text-muted-foreground font-mono">{doc.numero}</span>
                       </TableCell>
 
-                      {/* Prox. Scadenza */}
-                      <TableCell>
-                        {scadenza ? (
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-xs",
-                              scadenza.scaduta
-                                ? "text-destructive font-medium"
-                                : scadenza.urgente
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-muted-foreground"
-                            )}
-                          >
-                            {scadenza.scaduta ? (
-                              <><AlertCircle className="h-3 w-3" /> Scaduta da {scadenza.giorni} gg</>
-                            ) : (
-                              <><Clock className="h-3 w-3" /> Scade in {scadenza.giorni} gg</>
-                            )}
-                          </span>
-                        ) : doc.stato === "pagata" ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 className="h-3 w-3" /> Pagata
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
+                      {/* Prox. Scadenza (fatture, proforma) */}
+                      {showColScadenza && (
+                        <TableCell>
+                          {scadenza ? (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 text-xs",
+                                scadenza.scaduta
+                                  ? "text-destructive font-medium"
+                                  : scadenza.urgente
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-muted-foreground"
+                              )}
+                            >
+                              {scadenza.scaduta ? (
+                                <><AlertCircle className="h-3 w-3" /> Scaduta da {scadenza.giorni} gg</>
+                              ) : (
+                                <><Clock className="h-3 w-3" /> Scade in {scadenza.giorni} gg</>
+                              )}
+                            </span>
+                          ) : doc.stato === "pagata" ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" /> Pagata
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+
+                      {/* Valido fino al (solo preventivi) */}
+                      {showColValidita && (
+                        <TableCell>
+                          {doc.data_validita ? (
+                            <span className="text-sm">{formatDateShort(doc.data_validita)}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+
+                      {/* Fattura Collegata (solo DDT) */}
+                      {showColFatturaCollegata && (
+                        <TableCell>
+                          {(doc as any).ddt_fattura_id ? (
+                            <button
+                              className="text-xs text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/documenti/${(doc as any).ddt_fattura_id}/dettaglio`);
+                              }}
+                            >
+                              Vedi fattura
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
 
                       {/* Importo */}
-                      <TableCell className="text-right font-mono font-semibold text-sm">
+                      <TableCell className={cn("text-right font-mono font-semibold text-sm", activeTab === "nota_credito" && "text-destructive")}>
                         {formatCurrency(doc.totale_documento)}
                       </TableCell>
 
@@ -414,45 +524,98 @@ export default function DocumentiFiscaliList() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleAction("view", doc)}>
-                              <Eye className="h-4 w-4 mr-2" /> Visualizza
-                            </DropdownMenuItem>
-                            {doc.stato === "bozza" && (
-                              <DropdownMenuItem onClick={() => handleAction("edit", doc)}>
-                                <Pencil className="h-4 w-4 mr-2" /> Modifica
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
-                              <Copy className="h-4 w-4 mr-2" /> Duplica
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
-                              <Download className="h-4 w-4 mr-2" /> Scarica PDF
-                            </DropdownMenuItem>
-                            {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
-                              <DropdownMenuItem onClick={() => handleAction("xml", doc)}>
-                                <FileText className="h-4 w-4 mr-2" /> Scarica XML
-                              </DropdownMenuItem>
-                            )}
-                            {NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa"].includes(doc.tipo) && (
+                            {isTrash ? (
                               <>
+                                <DropdownMenuItem onClick={() => handleAction("restore", doc)}>
+                                  <RotateCcw className="h-4 w-4 mr-2" /> Ripristina
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleAction("nc", doc)}>
-                                  <FileWarning className="h-4 w-4 mr-2" /> Emetti NC
+                                <DropdownMenuItem className="text-destructive font-medium" onClick={() => handleAction("delete", doc)}>
+                                  <Trash2 className="h-4 w-4 mr-2" /> Elimina definitivamente
                                 </DropdownMenuItem>
                               </>
-                            )}
-                            {PAGABILE.includes(doc.stato) && (
-                              <DropdownMenuItem onClick={() => handleAction("pagata", doc)}>
-                                <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
-                              </DropdownMenuItem>
-                            )}
-                            {doc.stato === "bozza" && (
+                            ) : (
                               <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                                <DropdownMenuItem onClick={() => handleAction("view", doc)}>
+                                  <Eye className="h-4 w-4 mr-2" /> Visualizza
                                 </DropdownMenuItem>
+                                {doc.stato === "bozza" && (
+                                  <DropdownMenuItem onClick={() => handleAction("edit", doc)}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Modifica
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
+                                  <Copy className="h-4 w-4 mr-2" /> Duplica
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
+                                  <Download className="h-4 w-4 mr-2" /> Scarica PDF
+                                </DropdownMenuItem>
+                                {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
+                                  <DropdownMenuItem onClick={() => handleAction("xml", doc)}>
+                                    <FileText className="h-4 w-4 mr-2" /> Scarica XML
+                                  </DropdownMenuItem>
+                                )}
+
+                                {/* Proforma: converti in fattura */}
+                                {doc.tipo === "proforma" && doc.stato !== "annullata" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_proforma", doc)}>
+                                      <FileText className="h-4 w-4 mr-2" /> Converti in Fattura
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+
+                                {/* Preventivo: segna accettato + converti */}
+                                {doc.tipo === "preventivo" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    {doc.stato !== "accettata" && (
+                                      <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("accept_preventivo", doc)}>
+                                        <CheckCircle2 className="h-4 w-4 mr-2" /> Segna Accettato
+                                      </DropdownMenuItem>
+                                    )}
+                                    {doc.stato === "accettata" && (
+                                      <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_preventivo", doc)}>
+                                        <FileText className="h-4 w-4 mr-2" /> Converti in Fattura
+                                      </DropdownMenuItem>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* DDT: fattura da DDT */}
+                                {doc.tipo === "ddt" && !(doc as any).ddt_fattura_id && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("fattura_ddt", doc)}>
+                                      <FileText className="h-4 w-4 mr-2" /> Fattura da questo DDT
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+
+                                {/* Fatture: NC */}
+                                {NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa"].includes(doc.tipo) && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleAction("nc", doc)}>
+                                      <FileWarning className="h-4 w-4 mr-2" /> Emetti NC
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {PAGABILE.includes(doc.stato) && (
+                                  <DropdownMenuItem onClick={() => handleAction("pagata", doc)}>
+                                    <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
+                                  </DropdownMenuItem>
+                                )}
+                                {doc.stato === "bozza" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
+                                      <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                               </>
                             )}
                           </DropdownMenuContent>

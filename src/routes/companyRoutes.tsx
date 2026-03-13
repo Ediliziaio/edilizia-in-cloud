@@ -66,12 +66,9 @@ const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/Doc
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 const CassettoSDI = lazy(() => import("@/pages/azienda/fatturazione/CassettoSDI"));
-const DDTList = lazy(() => import("@/pages/azienda/fatturazione/DDTList"));
 const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/RegistroIncassi"));
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
-const PipelinePreventivi = lazy(() => import("@/pages/azienda/fatturazione/PipelinePreventivi"));
-const NoteCreditoList = lazy(() => import("@/pages/azienda/fatturazione/NoteCreditoList"));
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
