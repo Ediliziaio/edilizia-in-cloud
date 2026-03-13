@@ -220,13 +220,17 @@ export default function DocumentiFiscaliList() {
   const handleBulkDelete = async () => {
     let ok = 0;
     for (const doc of selectedDocs) {
-      if (doc.stato !== "bozza") continue;
       try {
-        await deleteMutation.mutateAsync(doc.id);
-        ok++;
+        if (doc.stato === "bozza") {
+          await deleteMutation.mutateAsync(doc.id);
+          ok++;
+        } else {
+          await updateMutation.mutateAsync({ id: doc.id, stato: "annullata" as StatoDocumento });
+          ok++;
+        }
       } catch {}
     }
-    if (ok > 0) toast.success(`${ok} documenti eliminati`);
+    if (ok > 0) toast.success(`${ok} documenti eliminati/annullati`);
     clearSelection();
     setBulkDeleteOpen(false);
   };
