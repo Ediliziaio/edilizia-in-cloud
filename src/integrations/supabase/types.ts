@@ -11894,6 +11894,125 @@ export type Database = {
         }
         Relationships: []
       }
+      preventivo_kb_chunks: {
+        Row: {
+          azienda_id: string
+          categoria: string | null
+          chunk_index: number
+          created_at: string
+          documento_id: string
+          embedding: string | null
+          id: string
+          pagina: number | null
+          testo: string
+          testo_preview: string | null
+        }
+        Insert: {
+          azienda_id: string
+          categoria?: string | null
+          chunk_index?: number
+          created_at?: string
+          documento_id: string
+          embedding?: string | null
+          id?: string
+          pagina?: number | null
+          testo: string
+          testo_preview?: string | null
+        }
+        Update: {
+          azienda_id?: string
+          categoria?: string | null
+          chunk_index?: number
+          created_at?: string
+          documento_id?: string
+          embedding?: string | null
+          id?: string
+          pagina?: number | null
+          testo?: string
+          testo_preview?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preventivo_kb_chunks_azienda_id_fkey"
+            columns: ["azienda_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventivo_kb_chunks_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "preventivo_kb_documenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      preventivo_kb_documenti: {
+        Row: {
+          azienda_id: string
+          categoria: string
+          chunks_count: number | null
+          created_at: string
+          descrizione: string | null
+          errore_msg: string | null
+          file_size_kb: number
+          file_type: string
+          file_url: string
+          id: string
+          indicizzato_at: string | null
+          nome: string
+          pagine: number | null
+          stato: string
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          azienda_id: string
+          categoria?: string
+          chunks_count?: number | null
+          created_at?: string
+          descrizione?: string | null
+          errore_msg?: string | null
+          file_size_kb?: number
+          file_type?: string
+          file_url: string
+          id?: string
+          indicizzato_at?: string | null
+          nome: string
+          pagine?: number | null
+          stato?: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          azienda_id?: string
+          categoria?: string
+          chunks_count?: number | null
+          created_at?: string
+          descrizione?: string | null
+          errore_msg?: string | null
+          file_size_kb?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          indicizzato_at?: string | null
+          nome?: string
+          pagine?: number | null
+          stato?: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preventivo_kb_documenti_azienda_id_fkey"
+            columns: ["azienda_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prima_nota_entries: {
         Row: {
           account_label: string | null
