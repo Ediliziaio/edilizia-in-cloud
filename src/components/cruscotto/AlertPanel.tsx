@@ -84,8 +84,8 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
   const [showAll, setShowAll] = useState(false);
 
   const alerts = useMemo(
-    () => buildAlerts(marketingAlerts, operations, finance, todayData),
-    [marketingAlerts, operations, finance, todayData]
+    () => buildAlerts(marketingAlerts, operations, finance, todayData, billingKPI),
+    [marketingAlerts, operations, finance, todayData, billingKPI]
   );
 
   if (isLoading) return (
