@@ -59,12 +59,12 @@ export function usePerformanceBaseVenditori() {
   return useQuery({
     queryKey: ["performance-base-venditori", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from("performance_base_venditori" as any)
         .select("*")
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!) as any);
       if (error) throw error;
-      return data as PerformanceBaseVenditore[];
+      return (data ?? []) as PerformanceBaseVenditore[];
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
