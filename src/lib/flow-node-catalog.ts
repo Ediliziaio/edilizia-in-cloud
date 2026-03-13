@@ -662,7 +662,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 📣 MARKETING ═══
+  // ═══ MARKETING ═══
   {
     id: 'email_aperta',
     label: 'Email di marketing aperta',
