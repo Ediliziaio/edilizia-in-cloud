@@ -703,7 +703,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'form_compilato',
     label: 'Form compilato',
     description: 'Un visitatore ha compilato un form di lead generation',
-    icon: '📝',
+    icon: 'ListTodo',
     categoria: 'marketing',
     dbEvent: 'INSERT',
     outputVariables: [
