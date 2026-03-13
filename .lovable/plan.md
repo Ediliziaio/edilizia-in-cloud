@@ -1,194 +1,107 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+## AUT-FLOW-04 — Catalogo Completo + Config Panels GHL-Style
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+### Current State
+- `WorkflowRightPanel.tsx` has two modes: `catalog` (flat list with drag) and `config` (delegates to `FlowBuilderConfigPanel`)
+- `flow-node-catalog.ts` has 1483 lines with full TRIGGER_CATALOG (34 triggers), ACTION_CATALOG (22 actions), CONDITION_CATALOG (2 conditions) — all with emoji icons
+- Categories are flat strings (`crm`, `marketing`, `ordini`, etc.) grouped via `CATEGORY_LABELS` map
+- `FlowBuilderConfigPanel` renders dynamic fields from `configSchema` using generic `ConfigField` component
+- `nodeIcons.ts` already maps catalog IDs to Lucide icons (created in AUT-FLOW-03)
 
----
+### What Needs to Change
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+The user's request creates a **new catalog presentation layer** on top of the existing `flow-node-catalog.ts` data. Rather than duplicating all catalog data, we build GHL-style collapsible category panels that consume the existing `TRIGGERS_BY_CATEGORY`, `ACTIONS_BY_CATEGORY`, and Lucide icon mappings.
 
----
+### Plan
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+**1. `src/components/flow-builder/WorkflowRightPanel.tsx`** — Rewrite catalog mode:
+- Replace flat grouped list with **collapsible accordion categories** (chevron open/close)
+- Add "Recenti" section at top (stored in local state, persisted to localStorage)
+- Each trigger/action item shows: colored icon badge + label + description + chevron arrow
+- Click on item = add node to canvas (not just drag) via new `onSelectItem` prop
+- Keep drag-and-drop as secondary interaction
+- Keep config mode delegation to `FlowBuilderConfigPanel` unchanged
+- Keep Nativi/App sub-tabs
 
----
+**2. `src/components/flow-builder/catalog/TriggerCatalogList.tsx`** — New component:
+- Consumes `TRIGGERS_BY_CATEGORY` from `flow-node-catalog.ts`
+- Uses `getTriggerIcon()` from `nodeIcons.ts` for Lucide icons
+- Renders categories as collapsible sections with count badges
+- Search filtering across label + description
+- "Recenti" section with last 5 used triggers
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+**3. `src/components/flow-builder/catalog/ActionCatalogList.tsx`** — New component:
+- Consumes `ACTIONS_BY_CATEGORY` + `CONDITION_CATALOG` from `flow-node-catalog.ts`
+- Uses `getActionIcon()` from `nodeIcons.ts`
+- Same accordion pattern as triggers
+- Includes flow control items (delay, condition) in a "Controllo Flusso" category
 
----
+**4. `src/components/flow-builder/catalog/CatalogItemRow.tsx`** — Shared row component:
+- Icon badge (colored by category), label, description, chevron
+- Draggable + clickable
+- Hover highlight (blue-50)
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+**5. `src/components/flow-builder/config-panels/DelayConfigPanel.tsx`** — New:
+- Type selector (attendi/fino_a) with visual buttons
+- Duration inputs (number + unit select)
+- Day-of-week picker (7 circular buttons)
+- Specific time input for "fino_a" mode
 
----
+**6. `src/components/flow-builder/config-panels/ConditionConfigPanel.tsx`** — New:
+- AND/OR logic toggle
+- Dynamic condition rows (field select + operator select + value input)
+- Add/remove condition buttons
+- Field options from predefined list (contatto, opportunita, appuntamento fields)
+- Operator options (uguale, diverso, contiene, maggiore, etc.)
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+**7. `src/components/flow-builder/config-panels/TaskConfigPanel.tsx`** — New:
+- Title (with variable support), description, deadline days, priority select, assignee select
 
----
+**8. `src/components/flow-builder/config-panels/EmailConfigPanel.tsx`** — New:
+- Sender name/email, subject with variable chips, body textarea, variable insertion buttons, send delay
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+**9. `src/components/flow-builder/FlowBuilderConfigPanel.tsx`** — Update:
+- Detect node type (`itemId`) and render specialized config panel when available (delay, condition, task, email)
+- Fall back to generic `ConfigField` rendering for other types
 
----
+**10. `src/lib/flow-node-catalog.ts`** — Update icons:
+- Replace all emoji `icon` strings with Lucide icon name strings (e.g., `'UserPlus'`, `'Mail'`, `'Clock'`)
+- This aligns with the `nodeIcons.ts` mapping and removes all emoji from the catalog
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+### Category color mapping (for icon badges)
+Uses safe Tailwind classes (not dynamic):
+- `crm` → blue-100/blue-600
+- `marketing` → green-100/green-600  
+- `ordini` → orange-100/orange-600
+- `fatturazione` → emerald-100/emerald-600
+- `preventivi` → cyan-100/cyan-600
+- `assistenza` → rose-100/rose-600
+- `magazzino` → amber-100/amber-600
+- `hr` → violet-100/violet-600
+- `cantieri` → stone-100/stone-600
+- `task` → yellow-100/yellow-600
+- `comunicazione` → sky-100/sky-600
+- `generale` → gray-100/gray-600
 
----
+### Integration with FlowBuilderPage
+- Add `onSelectItem` callback prop to `WorkflowRightPanel` that creates a node at canvas center (same logic as current `onDrop` but with auto-position)
+- No changes to ReactFlow setup or node types
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+### Files summary
+| File | Action |
+|------|--------|
+| `WorkflowRightPanel.tsx` | Rewrite catalog rendering |
+| `catalog/TriggerCatalogList.tsx` | New |
+| `catalog/ActionCatalogList.tsx` | New |
+| `catalog/CatalogItemRow.tsx` | New |
+| `config-panels/DelayConfigPanel.tsx` | New |
+| `config-panels/ConditionConfigPanel.tsx` | New |
+| `config-panels/TaskConfigPanel.tsx` | New |
+| `config-panels/EmailConfigPanel.tsx` | New |
+| `FlowBuilderConfigPanel.tsx` | Update — specialized panel routing |
+| `flow-node-catalog.ts` | Update — replace emoji icons with Lucide names |
+| `FlowBuilderPage.tsx` | Minor — add `onSelectItem` handler |
 
----
+No DB changes needed. Zero emoji in final code.
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
