@@ -151,4 +151,4 @@ export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: 
       </CardContent>
     </Card>
   );
-}
+});

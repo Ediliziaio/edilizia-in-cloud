@@ -122,7 +122,7 @@ export function useTrendGiornaliero(periodo: PeriodoVendor, operatoreId?: string
   });
 }
 
-export function useFonteLeadPerformance(periodo: PeriodoVendor) {
+export function useFonteLeadPerformance(periodo: PeriodoVendor, enabled = true) {
   const companyId = useEffectiveCompanyId();
   const { inizio, fine } = usePeriodoDate(periodo);
   return useQuery({
@@ -136,7 +136,7 @@ export function useFonteLeadPerformance(periodo: PeriodoVendor) {
       if (error) throw error;
       return (data ?? []) as FonteLeadPerf[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 5 * 60_000,
   });
 }
