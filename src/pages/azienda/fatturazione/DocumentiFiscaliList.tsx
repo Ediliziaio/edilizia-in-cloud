@@ -742,14 +742,14 @@ export default function DocumentiFiscaliList() {
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
-                                {doc.stato === "bozza" && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
-                                      <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
+                {(doc.stato === "bozza" || ["emessa", "inviata_sdi", "consegnata", "scaduta"].includes(doc.stato)) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
+                      <Trash2 className="h-4 w-4 mr-2" /> {doc.stato === "bozza" ? "Elimina" : "Annulla documento"}
+                    </DropdownMenuItem>
+                  </>
+                )}
                               </>
                             )}
                           </DropdownMenuContent>
