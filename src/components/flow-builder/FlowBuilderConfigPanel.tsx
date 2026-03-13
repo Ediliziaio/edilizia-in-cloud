@@ -10,12 +10,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Trash2 } from "lucide-react";
 import type { Node } from "@xyflow/react";
 
+import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
+import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
+import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
+import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
+
 interface FlowBuilderConfigPanelProps {
   selectedNode: Node | null;
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
 }
+
+// Item IDs that get specialized panels
+const SPECIALIZED_PANELS = new Set([
+  "attendi", "condition_se", "condition_multi",
+  "crea_task", "aggiorna_task",
+  "invia_email",
+]);
 
 export function FlowBuilderConfigPanel({
   selectedNode,
@@ -32,10 +44,13 @@ export function FlowBuilderConfigPanel({
 
   const schema = catalog?.configSchema ?? [];
   const nodeData = selectedNode.data as Record<string, any>;
+  const itemId = nodeData.itemId as string;
 
   const handleChange = (fieldId: string, value: any) => {
     onUpdateData(selectedNode.id, { ...nodeData, [fieldId]: value });
   };
+
+  const isSpecialized = SPECIALIZED_PANELS.has(itemId);
 
   return (
     <div className="flex h-full w-[300px] flex-col border-l bg-background">
@@ -52,9 +67,9 @@ export function FlowBuilderConfigPanel({
         </Button>
       </div>
 
-      {/* Label field always */}
       <ScrollArea className="flex-1">
         <div className="space-y-4 p-4">
+          {/* Label field always */}
           <div className="space-y-1.5">
             <Label className="text-xs">Etichetta nodo</Label>
             <Input
@@ -78,8 +93,22 @@ export function FlowBuilderConfigPanel({
             </div>
           )}
 
-          {/* Dynamic fields from configSchema */}
-          {schema.map((field) => (
+          {/* Specialized panels */}
+          {itemId === "attendi" && (
+            <DelayConfigPanel config={nodeData} onChange={handleChange} />
+          )}
+          {(itemId === "condition_se" || itemId === "condition_multi") && (
+            <ConditionConfigPanel config={nodeData} onChange={handleChange} />
+          )}
+          {(itemId === "crea_task" || itemId === "aggiorna_task") && (
+            <TaskConfigPanel config={nodeData} onChange={handleChange} />
+          )}
+          {itemId === "invia_email" && (
+            <EmailConfigPanel config={nodeData} onChange={handleChange} />
+          )}
+
+          {/* Generic fields from configSchema (only if NOT specialized) */}
+          {!isSpecialized && schema.map((field) => (
             <ConfigField
               key={field.id}
               field={field}
@@ -111,7 +140,7 @@ export function FlowBuilderConfigPanel({
   );
 }
 
-// ── Dynamic config field ──
+// ── Dynamic config field (for non-specialized types) ──
 
 function ConfigField({
   field,
@@ -159,7 +188,7 @@ function ConfigField({
         />
       )}
 
-      {(field.type === "select" || field.type === "user_select" || field.type === "entity_select") && field.type === "select" && field.options && (
+      {field.type === "select" && field.options && (
         <Select value={value ?? field.defaultValue ?? ""} onValueChange={onChange}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Seleziona..." />

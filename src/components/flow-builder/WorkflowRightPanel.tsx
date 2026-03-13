@@ -1,17 +1,13 @@
-import { useState, useMemo } from "react";
-import { X, Search, Zap, AppWindow, GripVertical } from "lucide-react";
+import { useState } from "react";
+import { X, Search, Zap, AppWindow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import {
-  TRIGGER_CATALOG_ITEMS,
-  ACTION_CATALOG_ITEMS,
-  CONDITION_CATALOG_ITEMS,
-  NOTE_CATALOG_ITEM,
-  type CatalogItem,
-} from "@/lib/flow-node-catalog";
+import { type CatalogItem } from "@/lib/flow-node-catalog";
 import { FlowBuilderConfigPanel } from "./FlowBuilderConfigPanel";
+import { TriggerCatalogList } from "./catalog/TriggerCatalogList";
+import { ActionCatalogList } from "./catalog/ActionCatalogList";
 import type { Node } from "@xyflow/react";
 
 type PanelMode = "catalog" | "config";
@@ -26,6 +22,7 @@ interface WorkflowRightPanelProps {
   onDelete: (nodeId: string) => void;
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
+  onSelectItem?: (item: CatalogItem) => void;
 }
 
 const CATALOG_TABS: { key: CatalogTab; label: string }[] = [
@@ -43,8 +40,8 @@ export function WorkflowRightPanel({
   onDelete,
   onClose,
   onDragStart,
+  onSelectItem,
 }: WorkflowRightPanelProps) {
-  // Config mode — reuse existing panel
   if (mode === "config" && selectedNode) {
     return (
       <FlowBuilderConfigPanel
@@ -56,8 +53,15 @@ export function WorkflowRightPanel({
     );
   }
 
-  // Catalog mode
-  return <CatalogPanel catalogTab={catalogTab} onCatalogTabChange={onCatalogTabChange} onClose={onClose} onDragStart={onDragStart} />;
+  return (
+    <CatalogPanel
+      catalogTab={catalogTab}
+      onCatalogTabChange={onCatalogTabChange}
+      onClose={onClose}
+      onDragStart={onDragStart}
+      onSelectItem={onSelectItem}
+    />
+  );
 }
 
 function CatalogPanel({
@@ -65,47 +69,20 @@ function CatalogPanel({
   onCatalogTabChange,
   onClose,
   onDragStart,
+  onSelectItem,
 }: {
   catalogTab: CatalogTab;
   onCatalogTabChange: (tab: CatalogTab) => void;
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
+  onSelectItem?: (item: CatalogItem) => void;
 }) {
   const [search, setSearch] = useState("");
   const [subTab, setSubTab] = useState<"native" | "app">("native");
 
-  const items = useMemo(() => {
-    let source: CatalogItem[];
-    switch (catalogTab) {
-      case "trigger":
-        source = TRIGGER_CATALOG_ITEMS;
-        break;
-      case "action":
-        source = [...ACTION_CATALOG_ITEMS, NOTE_CATALOG_ITEM];
-        break;
-      case "condition":
-        source = CONDITION_CATALOG_ITEMS;
-        break;
-    }
-    if (!search.trim()) return source;
-    const q = search.toLowerCase();
-    return source.filter(
-      (i) =>
-        i.label.toLowerCase().includes(q) ||
-        i.categoryLabel.toLowerCase().includes(q) ||
-        i.description?.toLowerCase().includes(q)
-    );
-  }, [catalogTab, search]);
-
-  // Group by category
-  const grouped = useMemo(() => {
-    const map = new Map<string, CatalogItem[]>();
-    items.forEach((i) => {
-      if (!map.has(i.categoryLabel)) map.set(i.categoryLabel, []);
-      map.get(i.categoryLabel)!.push(i);
-    });
-    return map;
-  }, [items]);
+  const handleSelect = (item: CatalogItem) => {
+    onSelectItem?.(item);
+  };
 
   return (
     <div className="flex h-full w-[300px] flex-col border-l bg-background">
@@ -180,40 +157,19 @@ function CatalogPanel({
       {/* Items */}
       <ScrollArea className="flex-1">
         {subTab === "native" ? (
-          <div className="space-y-4 p-3">
-            {[...grouped.entries()].map(([category, catItems]) => (
-              <div key={category}>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {category}
-                </p>
-                <div className="space-y-1">
-                  {catItems.map((item) => (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("application/flow-node", JSON.stringify(item));
-                        e.dataTransfer.effectAllowed = "move";
-                        onDragStart(item);
-                      }}
-                      className="flex cursor-grab items-center gap-2 rounded-lg border bg-card px-2.5 py-2 text-xs transition-colors hover:bg-accent active:cursor-grabbing"
-                    >
-                      <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{item.label}</p>
-                        {item.description && (
-                          <p className="truncate text-[10px] text-muted-foreground">{item.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {items.length === 0 && (
-              <p className="py-8 text-center text-xs text-muted-foreground">Nessun risultato</p>
+          <>
+            {catalogTab === "trigger" && (
+              <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} />
             )}
-          </div>
+            {(catalogTab === "action" || catalogTab === "condition") && (
+              <ActionCatalogList
+                search={search}
+                onSelect={handleSelect}
+                onDragStart={onDragStart}
+                includeConditions={catalogTab === "condition" || catalogTab === "action"}
+              />
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 px-4">
             <AppWindow className="h-8 w-8 text-muted-foreground/40 mb-3" />
