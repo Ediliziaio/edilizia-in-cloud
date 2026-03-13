@@ -865,7 +865,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'task_creato',
     label: 'Nuova attività creata',
     description: 'Scatta alla creazione di un nuovo task/attività',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'task',
     dbEvent: 'INSERT',
     outputVariables: [
