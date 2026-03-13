@@ -241,6 +241,7 @@ Deno.serve(async (req) => {
     if (authErr || !claims?.claims) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: corsHeaders });
     }
+    const userId = claims.claims.sub as string;
 
     const { documento_id, upload } = await req.json();
     if (!documento_id) {
