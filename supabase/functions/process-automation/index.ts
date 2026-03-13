@@ -680,11 +680,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
         if (!aiContact) return { success: false, error: "Contatto non trovato" };
 
-        const aiPrompt = cfg.ai_prompt || "Scrivi un messaggio di follow-up.";
-        const aiTone = cfg.ai_tone || "professional";
-        const aiLanguage = cfg.ai_language || "it";
-        const aiMaxLength = parseInt(cfg.ai_max_length) || 500;
-        const aiChannel = cfg.ai_channel || "email";
+        const aiPrompt = ncfg.ai_prompt || ncfg.prompt || "Scrivi un messaggio di follow-up.";
+        const aiTone = ncfg.ai_tone || "professional";
+        const aiLanguage = ncfg.ai_language || "it";
+        const aiMaxLength = parseInt(ncfg.ai_max_length) || 500;
+        const aiChannel = ncfg.ai_channel || "email";
 
         const toneMap: Record<string, string> = {
           professional: "professionale e cortese",
