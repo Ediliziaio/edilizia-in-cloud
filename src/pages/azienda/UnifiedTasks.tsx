@@ -71,6 +71,7 @@ export default function UnifiedTasks() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterFonte, setFilterFonte] = useState(initialFonte);
+  const [filterAssignee, setFilterAssignee] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("myday");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
