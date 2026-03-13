@@ -299,6 +299,11 @@ export default function UnifiedTasks() {
                   </Button>
                 </CardContent>
               </Card>
+            ) : viewMode === "kanban" ? (
+              <TaskKanbanBoard
+                tasks={filteredTasks}
+                onTaskSelect={(task) => { setEditingTask(task); setDialogOpen(true); }}
+              />
             ) : (
               <>
                 <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
