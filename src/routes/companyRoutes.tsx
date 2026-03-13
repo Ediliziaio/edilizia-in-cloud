@@ -198,7 +198,7 @@ export function companyRoutes() {
         <Route path="marketing/contatti" element={<MarketingContacts />} />
         <Route path="marketing/contatti/:id" element={<MarketingContactDetail />} />
         <Route path="marketing/opportunita" element={<MarketingOpportunities />} />
-        <Route path="marketing/attivita" element={<MarketingTasks />} />
+        <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
         <Route path="marketing/calendario" element={<MarketingCalendar />} />
         <Route path="marketing/automazioni" element={<MarketingAutomations />} />
         <Route path="marketing/agente-ai/*" element={<AIAgentsModule />} />
