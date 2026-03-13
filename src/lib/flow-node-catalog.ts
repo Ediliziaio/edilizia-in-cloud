@@ -1089,7 +1089,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'rimuovi_tag',
     label: 'Rimuovi tag da contatto',
     description: 'Rimuove uno o più tag da un contatto',
-    icon: '🗑️',
+    icon: 'Tag',
     categoria: 'crm',
     configSchema: [
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
