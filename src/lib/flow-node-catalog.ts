@@ -686,7 +686,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'email_cliccata',
     label: 'Link email cliccato',
     description: "Il contatto ha cliccato un link nell'email",
-    icon: '🖱️',
+    icon: 'Mail',
     categoria: 'marketing',
     dbEvent: 'UPDATE',
     outputVariables: [
