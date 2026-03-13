@@ -1,61 +1,101 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, LayoutTemplate } from "lucide-react";
+import { CreateFolderDialog } from "@/components/email-marketing/CreateFolderDialog";
+import {
+  Plus, Search, LayoutTemplate, FolderPlus, Sparkles,
+  Users, Megaphone, ClipboardList, Coins, Package, HardHat,
+  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, Zap,
+} from "lucide-react";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
+import type { ReactNode } from "react";
 
 type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
 
-const CATEGORIE: { value: CategoriaFiltro; label: string; emoji: string }[] = [
-  { value: "tutte", label: "Tutte le categorie", emoji: "⚡" },
-  { value: "crm", label: "CRM & Vendite", emoji: "👥" },
-  { value: "marketing", label: "Marketing", emoji: "📣" },
-  { value: "preventivi", label: "Preventivi", emoji: "📋" },
-  { value: "fatturazione", label: "Fatturazione", emoji: "💰" },
-  { value: "ordini", label: "Ordini", emoji: "📦" },
-  { value: "cantieri", label: "Cantieri", emoji: "🏗️" },
-  { value: "assistenza", label: "Assistenza", emoji: "🎧" },
-  { value: "magazzino", label: "Magazzino", emoji: "🏭" },
-  { value: "hr", label: "HR", emoji: "🧑‍💼" },
-  { value: "task", label: "Task", emoji: "✅" },
-  { value: "notifiche", label: "Notifiche", emoji: "🔔" },
-  { value: "generale", label: "Generale", emoji: "⚙️" },
+const CATEGORIE: { value: CategoriaFiltro; label: string; icon: ReactNode }[] = [
+  { value: "tutte", label: "Tutte le categorie", icon: <Zap className="h-4 w-4" /> },
+  { value: "crm", label: "CRM & Vendite", icon: <Users className="h-4 w-4" /> },
+  { value: "marketing", label: "Marketing", icon: <Megaphone className="h-4 w-4" /> },
+  { value: "preventivi", label: "Preventivi", icon: <ClipboardList className="h-4 w-4" /> },
+  { value: "fatturazione", label: "Fatturazione", icon: <Coins className="h-4 w-4" /> },
+  { value: "ordini", label: "Ordini", icon: <Package className="h-4 w-4" /> },
+  { value: "cantieri", label: "Cantieri", icon: <HardHat className="h-4 w-4" /> },
+  { value: "assistenza", label: "Assistenza", icon: <Headphones className="h-4 w-4" /> },
+  { value: "magazzino", label: "Magazzino", icon: <Warehouse className="h-4 w-4" /> },
+  { value: "hr", label: "HR", icon: <UserCog className="h-4 w-4" /> },
+  { value: "task", label: "Task", icon: <CheckSquare className="h-4 w-4" /> },
+  { value: "notifiche", label: "Notifiche", icon: <Bell className="h-4 w-4" /> },
+  { value: "generale", label: "Generale", icon: <Settings className="h-4 w-4" /> },
 ];
 
 export default function AutomazioniUnified() {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [categoriaAttiva, setCategoriaAttiva] = useState<CategoriaFiltro>("tutte");
   const [searchQuery, setSearchQuery] = useState("");
   const [vistaTemplates, setVistaTemplates] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [folderId, setFolderId] = useState<string | null>(null);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const safeName = name.trim().slice(0, 100);
+      if (!safeName) throw new Error("Il nome della cartella non può essere vuoto.");
+      const { error } = await supabase.from("automation_folders").insert({
+        company_id: effectiveCompany!.id,
+        name: safeName,
+        parent_id: null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automation-folders-all"] });
+      toast({ title: "Cartella creata" });
+      setFolderDialogOpen(false);
+    },
+    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Automazioni</h1>
+          <h1 className="text-2xl font-bold">Elenco Flusso di lavoro</h1>
           <p className="text-muted-foreground text-sm">
             Crea e gestisci automazioni visuali per ogni area della tua azienda.
           </p>
         </div>
-        <Button onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          Crea Automazione
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setFolderDialogOpen(true)}>
+            <FolderPlus className="w-4 h-4 mr-1.5" />
+            Crea Cartella
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            Crea tramite AI
+          </Button>
+          <Button onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Crea Flusso di lavoro
+          </Button>
+        </div>
       </div>
 
-      {/* Filters row: Search + Category dropdown + Template toggle */}
+      {/* Filters row */}
       <div className="flex items-center gap-3">
         {!vistaTemplates && (
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca automazione..."
+              placeholder="Cerca flusso di lavoro..."
               className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -74,7 +114,7 @@ export default function AutomazioniUnified() {
             {CATEGORIE.map((cat) => (
               <SelectItem key={cat.value} value={cat.value}>
                 <span className="flex items-center gap-2">
-                  <span>{cat.emoji}</span>
+                  {cat.icon}
                   <span>{cat.label}</span>
                 </span>
               </SelectItem>
@@ -106,13 +146,17 @@ export default function AutomazioniUnified() {
         />
       ) : (
         <AutomationFlowsList
-          statusFilter={statusFilter}
           searchQuery={searchQuery}
-          folderId={folderId}
-          onNavigateFolder={setFolderId}
           categoryFilter={categoriaAttiva === "tutte" ? null : categoriaAttiva}
         />
       )}
+
+      <CreateFolderDialog
+        open={folderDialogOpen}
+        onOpenChange={setFolderDialogOpen}
+        onConfirm={(name) => createFolderMutation.mutate(name)}
+        isPending={createFolderMutation.isPending}
+      />
     </div>
   );
 }
