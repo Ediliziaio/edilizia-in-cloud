@@ -2372,6 +2372,47 @@ export type Database = {
           },
         ]
       }
+      automation_log: {
+        Row: {
+          created_at: string | null
+          durata_ms: number | null
+          errore_msg: string | null
+          esito: string
+          id: string
+          risultato: Json | null
+          rule_id: string
+          trigger_data: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          durata_ms?: number | null
+          errore_msg?: string | null
+          esito: string
+          id?: string
+          risultato?: Json | null
+          rule_id: string
+          trigger_data?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          durata_ms?: number | null
+          errore_msg?: string | null
+          esito?: string
+          id?: string
+          risultato?: Json | null
+          rule_id?: string
+          trigger_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_log_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_nodes: {
         Row: {
           company_id: string
@@ -2505,6 +2546,96 @@ export type Database = {
             columns: ["flow_id"]
             isOneToOne: false
             referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_rules: {
+        Row: {
+          attiva: boolean | null
+          azione_config: Json
+          azione_tipo: string
+          azioni_secondarie: Json | null
+          categoria: string
+          colore: string | null
+          company_id: string | null
+          condizioni: Json | null
+          created_at: string | null
+          created_by: string | null
+          descrizione: string | null
+          esecuzioni_totali: number | null
+          icona: string | null
+          id: string
+          is_template: boolean | null
+          nome: string
+          template_id: string | null
+          trigger_config: Json | null
+          trigger_tipo: string
+          ultima_esecuzione: string | null
+          ultima_esecuzione_ok: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          azione_config?: Json
+          azione_tipo?: string
+          azioni_secondarie?: Json | null
+          categoria?: string
+          colore?: string | null
+          company_id?: string | null
+          condizioni?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          descrizione?: string | null
+          esecuzioni_totali?: number | null
+          icona?: string | null
+          id?: string
+          is_template?: boolean | null
+          nome: string
+          template_id?: string | null
+          trigger_config?: Json | null
+          trigger_tipo: string
+          ultima_esecuzione?: string | null
+          ultima_esecuzione_ok?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          attiva?: boolean | null
+          azione_config?: Json
+          azione_tipo?: string
+          azioni_secondarie?: Json | null
+          categoria?: string
+          colore?: string | null
+          company_id?: string | null
+          condizioni?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          descrizione?: string | null
+          esecuzioni_totali?: number | null
+          icona?: string | null
+          id?: string
+          is_template?: boolean | null
+          nome?: string
+          template_id?: string | null
+          trigger_config?: Json | null
+          trigger_tipo?: string
+          ultima_esecuzione?: string | null
+          ultima_esecuzione_ok?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -16494,6 +16625,27 @@ export type Database = {
             }[]
           }
       get_auth_email: { Args: never; Returns: string }
+      get_automation_counts: {
+        Args: { p_company_id: string }
+        Returns: {
+          attive: number
+          categoria: string
+          totale: number
+        }[]
+      }
+      get_automation_log_recent: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: {
+          categoria: string
+          created_at: string
+          durata_ms: number
+          errore_msg: string
+          esito: string
+          log_id: string
+          rule_id: string
+          rule_nome: string
+        }[]
+      }
       get_blocked_orders: {
         Args: { p_company_id: string }
         Returns: {
