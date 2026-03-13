@@ -29,9 +29,10 @@ interface Props {
   searchQuery?: string;
   folderId?: string | null;
   onNavigateFolder?: (folderId: string | null) => void;
+  categoryFilter?: string | null;
 }
 
-export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId = null, onNavigateFolder }: Props) {
+export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null }: Props) {
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
