@@ -1263,7 +1263,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 🤖 AI & WEBHOOK ═══
+  // ═══ AI & WEBHOOK ═══
   {
     id: 'esegui_agente_ai',
     label: 'Esegui agente AI',
