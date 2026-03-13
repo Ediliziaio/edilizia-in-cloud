@@ -120,6 +120,7 @@ export default function CruscottoAziendale() {
           operations={operations}
           finance={finance}
           todayData={todayData}
+          billingKPI={billingKPI}
           isLoading={isLoading}
         />
       </SectionErrorBoundary>
