@@ -598,8 +598,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "update_contact_score": {
-      const mode = cfg.score_mode || "add";
-      const value = parseInt(cfg.score_value) || 0;
+      const mode = ncfg.score_mode || "add";
+      const value = parseInt(ncfg.score_value) || 0;
       if (mode === "set") {
         await supabase.from("marketing_contacts").update({ score: value }).eq("id", entityId);
       } else if (mode === "subtract") {
