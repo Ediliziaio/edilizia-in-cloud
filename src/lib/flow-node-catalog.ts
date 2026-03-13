@@ -1054,7 +1054,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_whatsapp',
     label: 'Invia messaggio WhatsApp',
     description: 'Invia un messaggio WhatsApp tramite API integrata',
-    icon: '💬',
+    icon: 'MessageSquare',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
