@@ -68,8 +68,37 @@ export function FlowBuilderPage() {
       setRfNodes(nodesToReactFlow(builder.nodes));
       setRfEdges(connectionsToEdges(builder.connections));
       initializedRef.current = true;
+    } else if (flowId && !isLoading && builder.nodes.length === 0) {
+      // Empty canvas placeholder: trigger + end node
+      const triggerId = "placeholder-trigger";
+      const endId = "placeholder-end";
+      setRfNodes([
+        {
+          id: triggerId,
+          type: "trigger",
+          position: { x: 300, y: 100 },
+          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger" },
+        },
+        {
+          id: endId,
+          type: "end",
+          position: { x: 300, y: 300 },
+          data: { label: "Fine", nodeType: "end" },
+        },
+      ]);
+      setRfEdges([
+        {
+          id: "e-placeholder",
+          source: triggerId,
+          target: endId,
+          type: "smoothstep",
+          animated: false,
+          style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+        },
+      ]);
+      initializedRef.current = true;
     }
-  }, [builder.nodes, builder.connections, setRfNodes, setRfEdges]);
+  }, [builder.nodes, builder.connections, setRfNodes, setRfEdges, flowId, isLoading]);
 
   // Create flow if new
   useEffect(() => {

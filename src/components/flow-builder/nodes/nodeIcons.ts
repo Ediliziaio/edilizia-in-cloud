@@ -43,6 +43,8 @@ const TRIGGER_ICON_MAP: Record<string, LucideIcon> = {
   webhook_in: Webhook,
   compleanno_cliente: Star,
   modulo_compilato: ListTodo,
+  preventivo_in_scadenza: Hourglass,
+  spesa_registrata: DollarSign,
   email_aperta: Mail,
   email_cliccata: Mail,
   risposta_sms: MessageSquare,
