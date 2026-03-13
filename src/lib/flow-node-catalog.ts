@@ -968,7 +968,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'manuale',
     label: 'Avvio manuale',
     description: 'Il flow viene avviato manualmente da un utente (pulsante "Esegui")',
-    icon: '▶️',
+    icon: 'Play',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
