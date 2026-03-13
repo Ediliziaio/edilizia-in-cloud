@@ -170,6 +170,7 @@ export function validateDocumento(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const tipo = doc.tipo ?? "fattura";
+  const isNC = tipo === "nota_credito";
 
   // Cliente required (except proforma/preventivo)
   if (!["proforma", "preventivo"].includes(tipo)) {
@@ -211,7 +212,7 @@ export function validateDocumento(
         severity: "error",
       });
     }
-    if (r.quantita <= 0) {
+    if (!isNC && r.quantita <= 0) {
       errors.push({
         field: `righe[${i}].quantita`,
         message: `Riga ${i + 1}: quantità deve essere > 0`,

@@ -196,6 +196,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       cig: state.cig,
       cup: state.cup,
       arrotondamento: state.arrotondamento,
+      data_validita: state.data_validita,
     });
 
     if (serialized === prevStateRef.current) return;
@@ -241,7 +242,8 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           causale: state.causale,
            cig: state.cig,
           cup: state.cup,
-          arrotondamento: state.arrotondamento,
+           arrotondamento: state.arrotondamento,
+          data_validita: state.data_validita,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
