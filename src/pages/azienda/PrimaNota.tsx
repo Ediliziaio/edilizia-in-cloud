@@ -180,6 +180,18 @@ export default function PrimaNota() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <ToggleGroup
+          type="single"
+          value={autoView}
+          onValueChange={(v) => v && setAutoView(v as typeof autoView)}
+          className="border rounded-md"
+        >
+          <ToggleGroupItem value="tutte" className="text-xs h-8 px-3">Tutte</ToggleGroupItem>
+          <ToggleGroupItem value="auto" className="text-xs h-8 px-3">
+            <Bot className="h-3 w-3 mr-1" /> Auto
+          </ToggleGroupItem>
+          <ToggleGroupItem value="manuali" className="text-xs h-8 px-3">Manuali</ToggleGroupItem>
+        </ToggleGroup>
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <span className="text-muted-foreground text-sm">→</span>
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
