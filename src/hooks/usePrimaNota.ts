@@ -70,6 +70,9 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       if (filters.toDate) query = query.lte("entry_date", filters.toDate);
       if (filters.direction) query = query.eq("direction", filters.direction);
       if (filters.category) query = query.eq("category", filters.category);
+      if (filters.isAuto === true) query = query.eq("is_auto", true);
+      if (filters.isAuto === false) query = query.eq("is_auto", false);
+      if (filters.autoSource) query = query.eq("auto_source", filters.autoSource);
 
       const { data, error } = await query;
       if (error) throw error;
