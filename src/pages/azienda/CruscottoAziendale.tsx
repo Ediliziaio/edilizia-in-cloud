@@ -35,6 +35,9 @@ export default function CruscottoAziendale() {
     isLoading, error, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
+  const { isNative } = useBillingMode();
+  const effectiveCompanyId = useEffectiveCompanyId();
+  const { data: billingKPI } = useDashboardBillingKPI(effectiveCompanyId, isNative);
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
