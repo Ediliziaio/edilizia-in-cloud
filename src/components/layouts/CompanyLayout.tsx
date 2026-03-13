@@ -344,6 +344,52 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   );
 }
 
+function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
+  const { data: taskCounts } = useMyTaskCount();
+  const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
+
+  return (
+    <SidebarGroup className="pb-0">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const isTaskItem = item.url === "/azienda/attivita";
+            const badgeCount = isTaskItem ? (taskCounts?.total ?? 0) : 0;
+            const badgeVariant = isTaskItem && taskCounts?.overdue ? "destructive" : isTaskItem && taskCounts?.dueToday ? "warning" : "secondary";
+
+            return (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <NavLink
+                    to={item.url}
+                    end={item.url === "/azienda"}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    activeClassName="bg-primary/10 text-primary font-medium"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span className="font-medium">{item.title}</span>
+                    {isTaskItem && badgeCount > 0 && (
+                      <Badge
+                        variant={badgeVariant === "destructive" ? "destructive" : "secondary"}
+                        className={cn(
+                          "ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold",
+                          badgeVariant === "warning" && "bg-warning/15 text-warning border-warning/30"
+                        )}
+                      >
+                        {badgeCount}
+                      </Badge>
+                    )}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
