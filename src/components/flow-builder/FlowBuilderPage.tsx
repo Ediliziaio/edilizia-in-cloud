@@ -77,7 +77,7 @@ export function FlowBuilderPage() {
           id: triggerId,
           type: "trigger",
           position: { x: 300, y: 100 },
-          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger" },
+          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger", onOpenCatalog: () => openCatalog("trigger") },
         },
         {
           id: endId,
@@ -183,7 +183,47 @@ export function FlowBuilderPage() {
 
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
-      if (!flowId || !effectiveCompany || !user) return;
+      if (!flowId || !effectiveCompany || !user) {
+        toast.error("Impossibile aggiungere il nodo: il flusso non è ancora pronto.");
+        return;
+      }
+
+      // If selecting a trigger and there's a placeholder trigger, replace it
+      if (item.kind === "trigger") {
+        const placeholder = rfNodes.find((n) => n.type === "trigger" && n.data?.isEmpty);
+        if (placeholder) {
+          const newNodeId = crypto.randomUUID();
+          setRfNodes((nds) =>
+            nds.map((n) =>
+              n.id === placeholder.id
+                ? {
+                    ...n,
+                    id: newNodeId,
+                    data: {
+                      label: item.label,
+                      nodeType: "trigger",
+                      itemId: item.id,
+                      dbNodeId: newNodeId,
+                    },
+                  }
+                : n
+            )
+          );
+          // Update edges that referenced the placeholder
+          setRfEdges((eds) =>
+            eds.map((e) => (e.source === placeholder.id ? { ...e, source: newNodeId } : e))
+          );
+          addNode({
+            id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+            node_type: "trigger",
+            position_x: Math.round(placeholder.position.x), position_y: Math.round(placeholder.position.y),
+            config_json: { item_id: item.id },
+            label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          });
+          return;
+        }
+      }
+
       const pos = position ?? { x: 300 + Math.random() * 100, y: 200 + rfNodes.length * 120 };
       const newNodeId = crypto.randomUUID();
       const rfNode: Node = {
@@ -208,7 +248,7 @@ export function FlowBuilderPage() {
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
     },
-    [flowId, effectiveCompany, user, setRfNodes, addNode, rfNodes.length]
+    [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, rfNodes]
   );
 
   const handleSelectItem = useCallback(

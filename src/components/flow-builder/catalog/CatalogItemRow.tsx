@@ -32,7 +32,7 @@ export function CatalogItemRow({ item, onSelect, onDragStart }: CatalogItemRowPr
           {item.label}
         </p>
         {item.description && (
-          <p className="text-[10px] text-muted-foreground truncate">{item.description}</p>
+          <p className="text-[10px] text-muted-foreground line-clamp-2">{item.description}</p>
         )}
       </div>
       <ChevronRight className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary shrink-0" />
