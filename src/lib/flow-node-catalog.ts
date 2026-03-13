@@ -667,7 +667,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'email_aperta',
     label: 'Email di marketing aperta',
     description: "Il contatto ha aperto un'email della campagna",
-    icon: '📧',
+    icon: 'Mail',
     categoria: 'marketing',
     dbEvent: 'UPDATE',
     outputVariables: [
