@@ -1234,7 +1234,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_ticket',
     label: 'Crea ticket assistenza',
     description: 'Apre automaticamente un ticket di supporto',
-    icon: '🎫',
+    icon: 'Ticket',
     categoria: 'assistenza',
     outputVariables: [{ id: 'ticket.id', label: 'ID Ticket creato', type: 'uuid' }],
     configSchema: [
