@@ -831,7 +831,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cantiere_fase_completata',
     label: 'Fase cantiere completata',
     description: 'Scatta quando viene completata una fase/milestone del cantiere',
-    icon: '✅',
+    icon: 'CheckSquare',
     categoria: 'cantieri',
     dbEvent: 'UPDATE',
     outputVariables: [
