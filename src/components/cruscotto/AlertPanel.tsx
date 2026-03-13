@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
 import type { OperationsData, FinanceData, TodayData } from "@/hooks/useCruscottoData";
+import type { DashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 
 interface AlertItem {
   id: string;
@@ -21,6 +22,7 @@ interface Props {
   operations: OperationsData;
   finance: FinanceData;
   todayData: TodayData | null;
+  billingKPI?: DashboardBillingKPI | null;
   isLoading?: boolean;
 }
 
@@ -28,7 +30,7 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
-function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: FinanceData, today: TodayData | null): AlertItem[] {
+function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: FinanceData, today: TodayData | null, billing?: DashboardBillingKPI | null): AlertItem[] {
   const alerts: AlertItem[] = [];
 
   // Marketing
@@ -59,6 +61,16 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   if ((today?.suppliersDue?.length ?? 0) > 0)
     alerts.push({ id: "suppliers-due", level: "warning", title: `${today!.suppliersDue!.length} fornitori da pagare nei prossimi 7 giorni`, body: `${fmtEur(today!.suppliersDueAmount)} di uscite programmate. Verifica la liquidità disponibile.`, cta: "Vedi costi", link: "/azienda/costi" });
 
+  // Billing native alerts
+  if (billing) {
+    if ((billing.fatture_scadute_count ?? 0) > 0)
+      alerts.push({ id: "billing-scadute", level: "critical", title: `${billing.fatture_scadute_count} fatture scadute — ${fmtEur(billing.scaduto)}`, body: "Fatture con scadenza superata. Sollecita il pagamento o verifica lo stato.", cta: "Gestisci scadute", link: "/azienda/fatturazione/movimenti" });
+    if ((billing.fatture_in_bozza ?? 0) > 0)
+      alerts.push({ id: "billing-bozze", level: "warning", title: `${billing.fatture_in_bozza} fatture in bozza da emettere`, body: "Completa e invia le fatture in bozza per non ritardare la fatturazione.", cta: "Emetti fatture", link: "/azienda/fatturazione/documenti?stato=bozza" });
+    if ((billing.proforma_aperti ?? 0) > 0)
+      alerts.push({ id: "billing-proforma", level: "info", title: `${billing.proforma_aperti} proforma da convertire in fattura`, body: "Converti i proforma aperti per completare il ciclo di fatturazione.", cta: "Vedi proforma", link: "/azienda/fatturazione/documenti?tipo=proforma" });
+  }
+
   return alerts.sort((a, b) =>
     a.level === "critical" && b.level !== "critical" ? -1 :
     b.level === "critical" && a.level !== "critical" ? 1 :
@@ -67,13 +79,13 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   );
 }
 
-export function AlertPanel({ marketingAlerts, operations, finance, todayData, isLoading }: Props) {
+export function AlertPanel({ marketingAlerts, operations, finance, todayData, billingKPI, isLoading }: Props) {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
 
   const alerts = useMemo(
-    () => buildAlerts(marketingAlerts, operations, finance, todayData),
-    [marketingAlerts, operations, finance, todayData]
+    () => buildAlerts(marketingAlerts, operations, finance, todayData, billingKPI),
+    [marketingAlerts, operations, finance, todayData, billingKPI]
   );
 
   if (isLoading) return (

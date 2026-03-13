@@ -18,9 +18,14 @@ import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/Dril
 import { PuntoDiPareggio } from "@/components/cruscotto/PuntoDiPareggio";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
 import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
+import { BillingKPIWidget } from "@/components/cruscotto/BillingKPIWidget";
+import { ClienteSituazioneWidget } from "@/components/cruscotto/ClienteSituazioneWidget";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
+import { useBillingMode } from "@/contexts/BillingModeContext";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export default function CruscottoAziendale() {
   const {
@@ -30,6 +35,9 @@ export default function CruscottoAziendale() {
     isLoading, error, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
+  const { isNative } = useBillingMode();
+  const effectiveCompanyId = useEffectiveCompanyId();
+  const { data: billingKPI } = useDashboardBillingKPI(effectiveCompanyId, isNative);
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
@@ -100,6 +108,11 @@ export default function CruscottoAziendale() {
         />
       </SectionErrorBoundary>
 
+      {/* SEZIONE 1b: KPI FATTURAZIONE NATIVA */}
+      <SectionErrorBoundary sectionName="Fatturazione KPI">
+        <BillingKPIWidget />
+      </SectionErrorBoundary>
+
       {/* SEZIONE 2: ALERT PANEL */}
       <SectionErrorBoundary sectionName="Alert Panel">
         <AlertPanel
@@ -107,6 +120,7 @@ export default function CruscottoAziendale() {
           operations={operations}
           finance={finance}
           todayData={todayData}
+          billingKPI={billingKPI}
           isLoading={isLoading}
         />
       </SectionErrorBoundary>
@@ -127,7 +141,12 @@ export default function CruscottoAziendale() {
         </div>
       </SectionErrorBoundary>
 
-      {/* SEZIONE 4b: PUNTO DI PAREGGIO */}
+      {/* SEZIONE 4b: SITUAZIONE TOP CLIENTI */}
+      <SectionErrorBoundary sectionName="Top Clienti">
+        <ClienteSituazioneWidget />
+      </SectionErrorBoundary>
+
+      {/* SEZIONE 4c: PUNTO DI PAREGGIO */}
       <SectionErrorBoundary sectionName="Punto di Pareggio">
         <PuntoDiPareggio />
       </SectionErrorBoundary>
