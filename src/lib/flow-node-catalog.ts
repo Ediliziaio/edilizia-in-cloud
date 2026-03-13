@@ -1027,7 +1027,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_notifica_inapp',
     label: 'Invia notifica in-app',
     description: "Invia una notifica push all'utente nella piattaforma",
-    icon: '🔔',
+    icon: 'Bell',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'user_id', label: 'Destinatario (user_id)', type: 'user_select', required: true, helpText: 'Puoi usare {{opportunita.assigned_to}} per notificare il responsabile' },
