@@ -668,7 +668,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_ai_message": {
-      console.log(`[send_ai_message] entity=${entityId} config=`, JSON.stringify(cfg));
+      console.log(`[send_ai_message] entity=${entityId}`);
       try {
         // 1. Load contact data for context
         const { data: aiContact } = await supabase
