@@ -467,6 +467,65 @@ export default function CompanyCustomerDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Fatture Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-4 w-4" />
+                Fatture
+                {fattureCliente.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">{fattureCliente.length}</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!anagraficaCollegata ? (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">Nessuna anagrafica fiscale collegata</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => navigate("/azienda/fatturazione")}
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Vai a Riconciliazione
+                  </Button>
+                </div>
+              ) : fattureCliente.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Collegata a: {anagraficaCollegata.ragione_sociale}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Nessuna fattura emessa</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {fattureCliente.map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/azienda/documenti/${f.id}`)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{f.numero || "—"}</p>
+                        <p className="text-xs text-muted-foreground">{f.data_emissione?.substring(0, 10)}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-xs">{f.stato}</Badge>
+                        <span className="text-sm font-medium whitespace-nowrap">
+                          € {Number(f.totale_documento ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                        </span>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Messages Panel */}
           {customer && (
             <ClientMessagesPanel
