@@ -30,7 +30,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
         // 1. Documenti fiscali aggregation
         supabase
           .from("documenti_fiscali")
-          .select("tipo, stato, data_emissione, totale_da_pagare, imponibile")
+          .select("tipo, stato, data_emissione, totale_da_pagare, imponibile_totale")
           .eq("company_id", companyId!)
           .is("deleted_at", null),
 
