@@ -392,7 +392,59 @@ function executeSplit(cfg: Record<string, any>) {
 
 // ── Action ──
 async function executeAction(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
-  const actionType = cfg.action_type;
+  // ── Normalize Italian action IDs to internal handler IDs ──
+  const ACTION_ALIASES: Record<string, string> = {
+    crea_task: "create_task",
+    invia_email: "send_email",
+    invia_whatsapp: "send_whatsapp",
+    invia_sms: "send_sms",
+    invia_notifica_inapp: "send_notification",
+    aggiungi_tag: "add_tag",
+    rimuovi_tag: "remove_tag",
+    crea_opportunita: "create_opportunity",
+    sposta_opportunita: "move_opportunity",
+    assegna_agente: "assign_user",
+    aggiorna_campo: "update_field",
+    chiama_webhook: "webhook_out",
+    esegui_agente_ai: "send_ai_message",
+  };
+
+  // ── Normalize Italian config field names to internal names ──
+  function normalizeConfig(actionType: string, raw: Record<string, any>): Record<string, any> {
+    const c = { ...raw };
+    // Task fields
+    if (c.titolo && !c.task_title) c.task_title = c.titolo;
+    if (c.priorita && !c.task_priority) c.task_priority = c.priorita;
+    if (c.note && !c.task_notes) c.task_notes = c.note;
+    if (c.descrizione && !c.task_notes) c.task_notes = c.descrizione;
+    if (c.scadenza_giorni != null && !c.task_due_days) c.task_due_days = c.scadenza_giorni;
+    if (c.assegnato_a && !c.task_assigned_to) c.task_assigned_to = c.assegnato_a;
+    // Notification fields
+    if (c.titolo && !c.notification_title) c.notification_title = c.titolo;
+    if (c.testo && !c.notification_message) c.notification_message = c.testo;
+    // Email fields
+    if (c.destinatario && !c.email_to) c.email_to = c.destinatario;
+    if (c.oggetto && !c.email_subject) c.email_subject = c.oggetto;
+    if (c.corpo && !c.email_body) c.email_body = c.corpo;
+    // WhatsApp fields
+    if (c.numero && !c.whatsapp_to) c.whatsapp_to = c.numero;
+    if (c.messaggio && !c.whatsapp_body && !c.whatsapp_text) c.whatsapp_text = c.messaggio;
+    // SMS fields
+    if (c.numero && !c.sms_to) c.sms_to = c.numero;
+    if (c.testo && !c.sms_body && !c.message) c.sms_body = c.testo;
+    // Tag fields
+    if (c.tags && !c.tag_name) c.tag_name = Array.isArray(c.tags) ? c.tags[0] : c.tags;
+    // Opportunity fields
+    if (c.nome && !c.opportunity_name) c.opportunity_name = c.nome;
+    if (c.valore && !c.opportunity_value) c.opportunity_value = c.valore;
+    // Webhook fields
+    if (c.url && !c.webhook_url) c.webhook_url = c.url;
+    return c;
+  }
+
+  const rawActionType = cfg.action_type;
+  const actionType = ACTION_ALIASES[rawActionType] || rawActionType;
+  const ncfg = normalizeConfig(actionType, cfg);
 
   switch (actionType) {
     case "add_tag": {
