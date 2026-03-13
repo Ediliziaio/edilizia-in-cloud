@@ -184,6 +184,16 @@ async function handleTrigger(supabase: any, body: any) {
       output_json: { enrolled: true },
     });
 
+    // Create execution run record for tracking
+    await supabase.from("flow_execution_runs").insert({
+      flow_id: flow.id,
+      company_id,
+      enrollment_id: enrollment.id,
+      trigger_type: trigger_event,
+      trigger_data: { entity_id, entity_type, payload },
+      status: "running",
+    });
+
     enrolled++;
   }
 
