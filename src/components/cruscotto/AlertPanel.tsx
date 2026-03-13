@@ -79,7 +79,7 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   );
 }
 
-export function AlertPanel({ marketingAlerts, operations, finance, todayData, isLoading }: Props) {
+export function AlertPanel({ marketingAlerts, operations, finance, todayData, billingKPI, isLoading }: Props) {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
 
