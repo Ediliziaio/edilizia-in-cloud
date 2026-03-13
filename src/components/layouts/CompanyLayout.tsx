@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -144,6 +145,16 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? true) }));
+  };
+
+  const isGroupOpen = (label: string, items: NavItem[]) => {
+    if (label in openGroups) return openGroups[label];
+    return true; // default open
+  };
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
@@ -204,35 +215,40 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                     }
                     if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
 
+                    const renderItems = (items: NavItem[]) => items.map((item) => {
+                      const ItemIcon = item.icon;
+                      const active = isActive(item.url);
+                      return (
+                        <NavLink
+                          key={item.url}
+                          to={item.url}
+                          className={cn(
+                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            active && "bg-primary/10 text-primary font-medium"
+                          )}
+                        >
+                          <ItemIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{item.title}</span>
+                          {item.isBeta && (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                          )}
+                        </NavLink>
+                      );
+                    });
+
                     return groupedItems.map((group, gi) => (
                       <div key={group.label ?? `g${gi}`}>
-                        {group.label && (
-                          <div className={cn("px-2 pt-1.5 pb-0.5", gi > 0 && "mt-1 border-t border-sidebar-border/40")}>
-                            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/40">
-                              {group.label}
-                            </span>
-                          </div>
+                        {group.label ? (
+                          <SidebarSubcategory
+                            label={group.label}
+                            isOpen={isGroupOpen(group.label, group.items)}
+                            onToggle={() => toggleGroup(group.label!)}
+                          >
+                            {renderItems(group.items)}
+                          </SidebarSubcategory>
+                        ) : (
+                          renderItems(group.items)
                         )}
-                        {group.items.map((item) => {
-                          const ItemIcon = item.icon;
-                          const active = isActive(item.url);
-                          return (
-                            <NavLink
-                              key={item.url}
-                              to={item.url}
-                              className={cn(
-                                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                                active && "bg-primary/10 text-primary font-medium"
-                              )}
-                            >
-                              <ItemIcon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{item.title}</span>
-                              {item.isBeta && (
-                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                              )}
-                            </NavLink>
-                          );
-                        })}
                       </div>
                     ));
                   })()}
@@ -272,38 +288,43 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 }
                 if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
 
+                const renderExpandedItems = (items: NavItem[]) => items.map((item) => {
+                  const ItemIcon = item.icon;
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                            active && "bg-primary/10 text-primary font-medium"
+                          )}
+                        >
+                          <ItemIcon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          {item.isBeta && (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                });
+
                 return groupedItems.map((group, gi) => (
                   <div key={group.label ?? `g${gi}`}>
-                    {group.label && (
-                      <div className={cn("px-3 pt-2 pb-1", gi > 0 && "mt-1 border-t border-border/40")}>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                          {group.label}
-                        </span>
-                      </div>
+                    {group.label ? (
+                      <SidebarSubcategory
+                        label={group.label}
+                        isOpen={isGroupOpen(group.label, group.items)}
+                        onToggle={() => toggleGroup(group.label!)}
+                      >
+                        {renderExpandedItems(group.items)}
+                      </SidebarSubcategory>
+                    ) : (
+                      renderExpandedItems(group.items)
                     )}
-                    {group.items.map((item) => {
-                      const ItemIcon = item.icon;
-                      const active = isActive(item.url);
-                      return (
-                        <SidebarMenuItem key={item.url}>
-                          <SidebarMenuButton asChild>
-                            <NavLink
-                              to={item.url}
-                              className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                                active && "bg-primary/10 text-primary font-medium"
-                              )}
-                            >
-                              <ItemIcon className="h-4 w-4" />
-                              <span>{item.title}</span>
-                              {item.isBeta && (
-                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                              )}
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
                   </div>
                 ));
               })()}
