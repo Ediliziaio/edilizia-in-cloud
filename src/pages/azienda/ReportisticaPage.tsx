@@ -50,7 +50,6 @@ const ReportisticaPage = () => {
         <TabsContent value="venditori" className="mt-6">
           <VenditoriPerformanceReport />
         </TabsContent>
-        </TabsContent>
 
         {TABS.filter((t) => !IMPLEMENTED_TABS.includes(t.key)).map((t) => (
           <TabsContent key={t.key} value={t.key} className="mt-6">
