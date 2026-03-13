@@ -362,7 +362,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ordine_stato_cambiato',
     label: 'Stato ordine cambiato',
     description: 'Scatta quando un ordine cambia stato',
-    icon: '🔄',
+    icon: 'RotateCcw',
     categoria: 'ordini',
     dbTable: 'orders',
     dbEvent: 'UPDATE',
