@@ -10,7 +10,7 @@ interface SidebarSubcategoryProps {
 
 export function SidebarSubcategory({ label, isOpen, onToggle, children }: SidebarSubcategoryProps) {
   return (
-    <div className="mt-1 border-b border-border/40 pb-1">
+    <div>
       <button
         type="button"
         onClick={onToggle}
@@ -30,7 +30,7 @@ export function SidebarSubcategory({ label, isOpen, onToggle, children }: Sideba
         className="grid transition-all duration-200 ease-in-out"
         style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
       >
-        <div className="overflow-hidden">
+        <div className="overflow-hidden min-h-0">
           <div className="pl-2">
             {children}
           </div>
