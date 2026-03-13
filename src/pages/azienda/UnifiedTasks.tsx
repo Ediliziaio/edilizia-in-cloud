@@ -74,6 +74,7 @@ export default function UnifiedTasks() {
   const [activeTab, setActiveTab] = useState("myday");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [searchText, setSearchText] = useState("");
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   const debouncedSearch = useDebounce(searchText, 300);
 
   const toggleSelect = (id: string) => {
