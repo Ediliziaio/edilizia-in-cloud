@@ -352,7 +352,8 @@ export function useEmittiDocumento() {
       }
 
       const righe = (d.righe as unknown[]) ?? [];
-      if (righe.length === 0) {
+      const tipo = d.tipo as string;
+      if (righe.length === 0 && tipo !== "nota_credito") {
         throw new Error("Il documento deve avere almeno una riga");
       }
 

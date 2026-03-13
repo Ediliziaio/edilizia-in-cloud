@@ -247,6 +247,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           cup: state.cup,
            arrotondamento: state.arrotondamento,
           data_validita: state.data_validita,
+          probabilita_chiusura: state.probabilita_chiusura,
+          testo_intro: state.testo_intro,
+          testo_conclusivo: state.testo_conclusivo,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
