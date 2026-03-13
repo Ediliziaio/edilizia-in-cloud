@@ -794,7 +794,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ferie_richiesta',
     label: 'Richiesta ferie/permesso inviata',
     description: 'Un dipendente ha inviato una richiesta di ferie o permesso',
-    icon: '🏖️',
+    icon: 'Calendar',
     categoria: 'hr',
     dbEvent: 'INSERT',
     outputVariables: [
