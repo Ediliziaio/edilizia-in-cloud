@@ -1,194 +1,170 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+## Analisi Bug e Criticità: Sistema Fatturazione Nativa
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+### 1. SICUREZZA
+
+🔴 **CRITICO — generate-native-pdf: Nessun controllo company_id sull'utente**
+- File: `supabase/functions/generate-native-pdf/index.ts` (riga ~250)
+- Problema: L'endpoint verifica il JWT ma **non controlla che l'utente appartenga alla company** del documento. Qualsiasi utente autenticato può generare il PDF di qualsiasi documento passando un `documento_id` arbitrario (usa service role key).
+- Impatto: Leak di dati fiscali tra tenant.
+- Fix: Dopo aver caricato il documento, verificare che `doc.company_id` corrisponda alla company dell'utente (tramite query su `company_members` o `profiles`).
+
+🔴 **CRITICO — invia-sdi: Nessun controllo company_id sull'utente**
+- File: `supabase/functions/invia-sdi/index.ts` (riga ~154)
+- Problema: Stesso pattern di sopra. Un utente autenticato può inviare al SDI un documento di un'altra azienda.
+- Impatto: Invio non autorizzato di documenti fiscali, implicazioni legali gravissime.
+- Fix: Verificare `doc.company_id` contro la company dell'utente autenticato.
+
+🔴 **CRITICO — sdi_api_key in chiaro nel database**
+- File: `supabase/migrations/...` (riga ~57, colonna `sdi_api_key`)
+- Problema: La chiave API del provider SDI (Aruba) è salvata in chiaro in `anagrafica_azienda.sdi_api_key`. È leggibile da chiunque nella stessa company via RLS.
+- Impatto: Qualsiasi utente company_staff può estrarre la chiave API SDI.
+- Fix: Spostare in Vault o in una tabella con policy restrittiva solo admin.
+
+🟠 **ALTO — send-invoice-email: Auth via getUser invece di getClaims**
+- File: `supabase/functions/send-invoice-email/index.ts` (riga ~125)
+- Problema: Usa `supabase.auth.getUser()` con il service role client, che bypassa la validazione JWT (accetta qualsiasi token). Dovrebbe usare `getClaims()`.
+- Impatto: Token invalidi o scaduti potrebbero essere accettati.
+- Fix: Usare `getClaims(token)` come nelle altre edge functions.
+
+🟠 **ALTO — send-invoice-email: Nessun controllo company su invoice**
+- File: `supabase/functions/send-invoice-email/index.ts` (riga ~132)
+- Problema: Carica la fattura dalla tabella `invoices` (modulo esterno!) non da `documenti_fiscali`. Inoltre non verifica che l'utente appartenga alla company della fattura.
+- Impatto: Invio email con dati fiscali di altre aziende.
+- Fix: Verificare l'appartenenza dell'utente alla company.
+
+🟠 **ALTO — RLS policies non distinguono ruoli**
+- File: `supabase/migrations/...` (righe 325-341)
+- Problema: Le policy RLS usano solo `company_id = get_my_company_id()`. Non c'è distinzione tra `company_admin`, `company_staff`, `employee`. Un dipendente con accesso alla piattaforma può leggere e **modificare** tutti i documenti fiscali.
+- Impatto: Accesso non autorizzato a dati finanziari sensibili per ruoli non autorizzati.
+- Fix: Aggiungere policy separate per SELECT/INSERT/UPDATE/DELETE con controllo ruolo.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+### 2. CORRETTEZZA FISCALE
+
+🔴 **CRITICO — Numerazione progressiva: nessun reset annuale automatico**
+- File: `supabase/migrations/...` funzione `genera_numero_documento_native` (riga ~380)
+- Problema: La colonna `anno_corrente` e il flag `reset_numeratore_annuale` esistono nel DB ma **non sono usati** nella funzione. Il contatore `ultimo_numero_fattura` incrementa senza mai resettarsi a 0 al cambio anno. Al 1° gennaio 2027, la prima fattura sarà FT-2027-**0124** anziché FT-2027-**0001**.
+- Impatto: Violazione della normativa fiscale italiana (numerazione non progressiva per anno). Sanzioni fino a €2.000 per fattura.
+- Fix: Nella funzione `genera_numero_documento_native`, confrontare `p_anno` con `v_ana.anno_corrente`. Se diversi, resettare i contatori e aggiornare `anno_corrente`.
+
+🟠 **ALTO — Tipo "proforma" non ha contatore dedicato**
+- File: `genera_numero_documento_native` (riga ~424, ramo ELSE)
+- Problema: Il tipo `proforma` finisce nel ramo `ELSE` → riceve sempre numero `DOC-ANNO-0001` (contatore = 1, hardcoded). Tutti i proforma avranno lo stesso numero, violando il UNIQUE constraint.
+- Impatto: Errore DB alla creazione del secondo proforma.
+- Fix: Aggiungere un contatore `ultimo_numero_proforma` oppure riusare quello di preventivo, e un case specifico per "proforma".
+
+🟡 **MEDIO — UNIQUE constraint troppo rigido**
+- File: `supabase/migrations/...` (riga ~262)
+- Problema: `UNIQUE (company_id, tipo, numero, anno)` — il tipo `fattura_pa` ha contatore condiviso con `fattura` nella funzione, ma tipi diversi nel constraint. Se `fattura` e `fattura_pa` generano lo stesso numero (FT-2026-0001), non c'è conflitto perché il tipo è diverso, ma **la numerazione SDI deve essere unica per tutti i tipi fattura**.
+- Impatto: L'Agenzia delle Entrate potrebbe rigettare due documenti con lo stesso numero progressivo ma tipo diverso.
+- Fix: Unificare il constraint per fattura e fattura_pa, oppure usare prefissi distinti.
+
+🟡 **MEDIO — XML FatturaPA: PA senza codice IPA genera XML invalido**
+- File: `supabase/functions/invia-sdi/index.ts` (riga ~26)
+- Problema: `codDest = snap.codice_sdi || (isPa ? "" : "0000000")` — per clienti PA senza `codice_sdi`, il `CodiceDestinatario` è stringa vuota. Lo schema XSD richiede esattamente 6 o 7 caratteri.
+- Impatto: Scarto SDI immediato per fatture PA.
+- Fix: Per PA, il codice è **obbligatorio** e deve essere 6 caratteri. Validare prima dell'invio.
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### 3. AFFIDABILITÀ
+
+🟠 **ALTO — useDocumentCounts: query unbounded (C-5)**
+- File: `src/hooks/billing/useDocumentCounts.ts` (riga ~21)
+- Problema: `select("tipo, stato").eq("company_id", companyId!)` senza `.limit()`. Se un'azienda ha >1000 documenti, Supabase restituisce solo i primi 1000 (default limit). I conteggi saranno sbagliati.
+- Impatto: Tab con conteggio errato, utente non trova documenti.
+- Fix: Usare una RPC con `COUNT(*)` e `GROUP BY tipo, stato`, oppure aggiungere `.limit(10000)` con consapevolezza.
+
+🟠 **ALTO — useMonthlyTimeline: stessa query unbounded (C-5)**
+- File: `src/hooks/billing/useMonthlyTimeline.ts` (riga ~28)
+- Problema: Carica TUTTI i documenti (`data_emissione, totale_documento`) senza limit. Con migliaia di documenti, la query è lenta e troncata a 1000.
+- Impatto: Timeline con importi errati; performance degradata.
+- Fix: Creare una RPC con aggregazione server-side: `SELECT date_trunc('month', data_emissione), count(*), sum(totale_documento) GROUP BY 1`.
+
+🟡 **MEDIO — Nessun retry per invio SDI Aruba**
+- File: `supabase/functions/invia-sdi/index.ts` (riga ~196)
+- Problema: Se la chiamata Aruba fallisce (timeout, 5xx), l'errore viene loggato ma non c'è retry automatico. Il documento resta in stato `emessa` e l'utente deve ritentare manualmente.
+- Impatto: Fatture non inviate senza notifica proattiva.
+- Fix: Implementare un job di retry (cron edge function) oppure una coda di invio.
+
+🟡 **MEDIO — sdi_log e billing_sync_log senza retention policy**
+- File: tabelle `sdi_log`, `billing_sync_log`
+- Problema: Le tabelle crescono indefinitamente. Nessun indice su `created_at` per il pruning.
+- Impatto: Degradazione performance nel tempo.
+- Fix: Aggiungere un job periodico di cleanup (es. DELETE WHERE created_at < now() - interval '6 months').
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+### 4. DATABASE
+
+🟡 **MEDIO — Indice composto mancante**
+- File: `supabase/migrations/...` (righe 304-313)
+- Problema: Esistono indici singoli su `company_id`, `tipo`, `stato`, `data_emissione`, ma **non un indice composto** `(company_id, tipo, stato, data_emissione DESC)`. Ogni query della lista documenti filtra per tutti e 4 i campi.
+- Impatto: Full index scan lento con crescita dati.
+- Fix: `CREATE INDEX idx_documenti_compound ON documenti_fiscali(company_id, tipo, stato, data_emissione DESC)`.
+
+🟡 **MEDIO — sdi_log manca indice su sdi_id**
+- File: tabella `sdi_log`
+- Problema: Il webhook `sdi-webhook` cerca documenti per `sdi_id_trasmissione` su `documenti_fiscali` (ha indice), ma il log stesso non ha indice su `sdi_id`. Il lookup nel log per debugging è lento.
+- Fix: `CREATE INDEX idx_sdi_log_sdi_id ON sdi_log(sdi_id)`.
+
+🟢 **BASSO — Nessun trigger updated_at su documenti_fiscali**
+- File: tabella `documenti_fiscali`
+- Problema: `updated_at` viene aggiornato manualmente nel codice (`updated_at: new Date().toISOString()`). Se qualsiasi altra operazione (trigger, RPC) modifica la riga, `updated_at` resta stale.
+- Fix: Aggiungere un trigger `BEFORE UPDATE SET updated_at = NOW()`.
+
+🟢 **BASSO — Totali non verificati a livello DB**
+- Problema: Non esiste `CHECK (imponibile_totale + iva_totale = totale_documento)`. La coerenza dei totali dipende interamente dal frontend.
+- Impatto: Possibili discrepanze contabili se il calcolo client-side ha bug.
+- Fix: Trigger di validazione `BEFORE INSERT OR UPDATE`.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+### 5. UX
+
+🟡 **MEDIO — Elimina senza conferma AlertDialog**
+- File: `src/pages/azienda/fatturazione/DocumentiFiscaliList.tsx` (riga ~196)
+- Problema: `deleteMutation.mutate(doc.id)` viene chiamato direttamente dal menu, senza alcun dialog di conferma. Il `confirm()` nativo è solo nell'editor, non nella lista.
+- Impatto: Eliminazione accidentale di documenti.
+- Fix: Wrappare in `AlertDialog` con conferma esplicita.
+
+🟡 **MEDIO — "Segna pagata" senza conferma e senza importo parziale**
+- File: `DocumentiFiscaliList.tsx` (riga ~188)
+- Problema: L'azione "Segna pagata" marca immediatamente il documento come pagato al 100% senza chiedere l'importo effettivo incassato o la data.
+- Impatto: Dati contabili imprecisi; impossibile registrare pagamenti parziali dalla lista.
+- Fix: Aprire un dialog con importo e data, con default al totale.
+
+🟡 **MEDIO — Doppio click su "Emetti" non protetto**
+- File: `EditorDocumento.tsx` (riga ~78)
+- Problema: `onEmetti` non disabilita il pulsante durante la mutation. Se l'utente clicca due volte rapidamente, potrebbe tentare di emettere due volte (anche se la seconda fallirà per stato != bozza).
+- Impatto: Toast di errore confuso.
+- Fix: Passare `emittiMutation.isPending` per disabilitare il bottone.
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+### 6. PATTERN NOTI VERIFICATI
+
+| ID | Pattern | Presente nel modulo nativo? |
+|----|---------|----------------------------|
+| C-1 | Race condition token refresh | ❌ Non applicabile (il modulo nativo non usa token refresh) |
+| C-2 | Webhook bypass senza secret | ✅ **Corretto** — `sdi-webhook` e `billing-webhook` rifiutano se secret mancante |
+| C-3 | Data loss su rollback righe | ❌ Non applicabile (le righe sono in JSONB, non tabella separata) |
+| C-4 | Null dereference | ✅ Presente in `DocumentiFiscaliList.tsx` riga ~166: `azienda as AnagraficaAzienda` senza null check. Se l'anagrafica non è configurata, il download XML crasha silenziosamente |
+| C-5 | Unbounded query | ✅ **Presente** in `useDocumentCounts` e `useMonthlyTimeline` (vedi sopra) |
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+### Riepilogo per Priorità
 
----
+| Gravità | Count | Azioni immediate |
+|---------|-------|-----------------|
+| 🔴 Critico | 3 | Auth check company_id nelle edge functions; reset numerazione annuale |
+| 🟠 Alto | 5 | Fix auth send-email; RLS per ruolo; unbounded queries; proforma counter |
+| 🟡 Medio | 8 | Indici composti; conferme UX; PA codice IPA; retention logs |
+| 🟢 Basso | 2 | Trigger updated_at; CHECK totali |
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
-
----
-
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
