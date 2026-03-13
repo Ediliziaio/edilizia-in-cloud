@@ -616,7 +616,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_whatsapp": {
-      return await executeSendWhatsApp(supabase, cfg, entityId, companyId);
+      return await executeSendWhatsApp(supabase, ncfg, entityId, companyId);
     }
 
     case "send_email": {
