@@ -250,13 +250,32 @@ export default function PrimaNota() {
                     </Badge>
                   </td>
                   <td className="p-3">
-                    <p className="font-medium truncate max-w-[220px]">{e.description}</p>
-                    {e.reference_number && (
-                      <p className="text-xs text-muted-foreground">Rif: {e.reference_number}</p>
-                    )}
-                    {e.suppliers?.name && (
-                      <p className="text-xs text-muted-foreground">{e.suppliers.name}</p>
-                    )}
+                    <p className="font-medium truncate max-w-[260px]">{e.description}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {e.reference_number && (
+                        <span className="text-xs text-muted-foreground">Rif: {e.reference_number}</span>
+                      )}
+                      {e.suppliers?.name && (
+                        <span className="text-xs text-muted-foreground">{e.suppliers.name}</span>
+                      )}
+                      {e.is_auto && e.auto_source && (
+                        <Badge variant="outline" className="text-[9px] border-blue-200 text-blue-600">
+                          {e.auto_source === "fattura_emessa" ? "Fattura" :
+                           e.auto_source === "incasso_fattura" ? "Incasso" :
+                           e.auto_source === "nota_credito" ? "Nota Credito" : e.auto_source}
+                        </Badge>
+                      )}
+                      {e.documenti_fiscali?.id && (
+                        <button
+                          onClick={() => navigate(`/azienda/documenti/${e.documenti_fiscali!.id}`)}
+                          className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {e.documenti_fiscali.tipo === "nota_credito" ? "NC" : "Fatt."} #{e.documenti_fiscali.numero}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={`flex items-center justify-end gap-1 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
