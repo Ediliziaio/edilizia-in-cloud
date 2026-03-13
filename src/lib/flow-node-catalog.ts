@@ -932,7 +932,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cron_settimanale',
     label: 'Ogni settimana (giorno fisso)',
     description: 'Il flow si esegue una volta alla settimana nel giorno specificato',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
     outputVariables: [
