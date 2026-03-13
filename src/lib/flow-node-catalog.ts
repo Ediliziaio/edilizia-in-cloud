@@ -342,7 +342,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'ordine_creato',
     label: 'Nuovo ordine creato',
     description: 'Scatta alla creazione di un nuovo ordine',
-    icon: '📦',
+    icon: 'Package',
     categoria: 'ordini',
     dbTable: 'orders',
     dbEvent: 'INSERT',
