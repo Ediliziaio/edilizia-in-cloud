@@ -1118,7 +1118,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'sposta_opportunita',
     label: 'Sposta opportunità a stage',
     description: 'Cambia lo stage di una opportunità esistente nella pipeline',
-    icon: '📊',
+    icon: 'BarChart3',
     categoria: 'crm',
     configSchema: [
       { id: 'opportunita_id', label: 'ID Opportunità', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.id}}' },
