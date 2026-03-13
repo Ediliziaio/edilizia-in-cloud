@@ -93,6 +93,7 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Cruscotto Aziendale", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
+      { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
     ],
   },
 
@@ -106,7 +107,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Ticket Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets" },
-      { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders" },
+      
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast" },
       { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },
@@ -160,7 +161,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail" },
       { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp" },
-      { title: "Attività CRM", url: "/azienda/marketing/attivita", icon: ListTodo, permissionKey: "canViewMarketingActivities" },
+      
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewMarketingOpportunities" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
@@ -218,7 +219,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Report", url: "/azienda/documenti/report", icon: BarChart3, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
-  { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_team" },
+  
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
   { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal", subcategory: "gi_team" },
@@ -242,7 +243,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketingContacts", category: "marketing", subcategory: "mkt_crm" },
   { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_crm" },
   { title: "Preventivi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_crm" },
-  { title: "Attività", url: "/azienda/marketing/attivita", icon: CheckSquare, permissionKey: "canViewMarketingActivities", category: "marketing", subcategory: "mkt_crm" },
+  
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing", subcategory: "mkt_comunicazione" },

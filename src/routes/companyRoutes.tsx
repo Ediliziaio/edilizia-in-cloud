@@ -49,6 +49,7 @@ const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
+const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
@@ -159,7 +160,7 @@ export function companyRoutes() {
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
-        <Route path="attivita" element={<Tasks />} />
+        <Route path="attivita" element={<UnifiedTasks />} />
         <Route path="errori" element={<GlobalErrors />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
@@ -197,7 +198,7 @@ export function companyRoutes() {
         <Route path="marketing/contatti" element={<MarketingContacts />} />
         <Route path="marketing/contatti/:id" element={<MarketingContactDetail />} />
         <Route path="marketing/opportunita" element={<MarketingOpportunities />} />
-        <Route path="marketing/attivita" element={<MarketingTasks />} />
+        <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
         <Route path="marketing/calendario" element={<MarketingCalendar />} />
         <Route path="marketing/automazioni" element={<MarketingAutomations />} />
         <Route path="marketing/agente-ai/*" element={<AIAgentsModule />} />
