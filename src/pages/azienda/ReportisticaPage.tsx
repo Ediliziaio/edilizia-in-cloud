@@ -52,6 +52,10 @@ const ReportisticaPage = () => {
           <VenditoriPerformanceReport />
         </TabsContent>
 
+        <TabsContent value="calls" className="mt-6">
+          <CallCenterReport />
+        </TabsContent>
+
         {TABS.filter((t) => !IMPLEMENTED_TABS.includes(t.key)).map((t) => (
           <TabsContent key={t.key} value={t.key} className="mt-6">
             <div className="flex flex-col items-center justify-center py-20 text-center">
