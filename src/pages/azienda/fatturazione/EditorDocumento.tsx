@@ -21,6 +21,8 @@ import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
 
 export default function EditorDocumento() {
@@ -33,6 +35,23 @@ export default function EditorDocumento() {
   const location = useLocation();
   const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
+  const ordineParam = searchParams.get("ordine");
+
+  // Fetch order data for pre-fill when creating from an order
+  const { data: ordineData } = useQuery({
+    queryKey: ["order-prefill", ordineParam],
+    enabled: isCreate && !!ordineParam,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, description, total_amount")
+        .eq("id", ordineParam!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createMutation = useCreateDocumento();
   const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
   const emittiMutation = useEmittiDocumento();
@@ -41,17 +60,30 @@ export default function EditorDocumento() {
   // Auto-create on mount for /nuovo
   useEffect(() => {
     if (isCreate && !createdRef.current) {
+      // If ordine param specified, wait for order data
+      if (ordineParam && !ordineData) return;
+
       createdRef.current = true;
+
+      // Build prefilled data from order if available
+      let mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
+      if (ordineData) {
+        mergedPrefill.note_documento = ordineData.description || undefined;
+      }
+
       createMutation.mutate(
-        { tipo: tipoParam, ...prefilled },
+        { tipo: tipoParam, ...mergedPrefill },
         {
           onSuccess: (doc) => {
-            navigate(`/azienda/documenti/${doc.id}`, { replace: true });
+            const newUrl = ordineParam
+              ? `/azienda/documenti/${doc.id}?ordine_link=${ordineParam}`
+              : `/azienda/documenti/${doc.id}`;
+            navigate(newUrl, { replace: true });
           },
         }
       );
     }
-  }, [isCreate, tipoParam, createMutation, navigate]);
+  }, [isCreate, tipoParam, createMutation, navigate, ordineParam, ordineData]);
 
   const { state, dispatch, isSaving, lastSaved } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Package, Search, X, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,8 @@ interface Props {
 export function EditorOrdineSection({ state, disabled }: Props) {
   const companyId = useEffectiveCompanyId();
   const fatturaId = state.id;
+  const [searchParams] = useSearchParams();
+  const autoLinkRef = useRef(false);
   const { data: linkedOrdini = [], isLoading } = useOrdiniByFattura(fatturaId);
   const linkMutation = useLinkFatturaOrdine();
   const unlinkMutation = useUnlinkFatturaOrdine();
@@ -32,6 +35,18 @@ export function EditorOrdineSection({ state, disabled }: Props) {
   const [search, setSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const { data: searchResults = [] } = useSearchOrders(companyId, search);
+
+  // Auto-link order when created from order CTA
+  const ordineLinkParam = searchParams.get("ordine_link");
+  useEffect(() => {
+    if (ordineLinkParam && fatturaId && companyId && !autoLinkRef.current && !isLoading) {
+      const alreadyLinked = linkedOrdini.some((l: any) => l.ordine_id === ordineLinkParam);
+      if (!alreadyLinked) {
+        autoLinkRef.current = true;
+        linkMutation.mutate({ fatturaId, ordineId: ordineLinkParam, companyId });
+      }
+    }
+  }, [ordineLinkParam, fatturaId, companyId, isLoading, linkedOrdini]);
 
   // Filter out already linked
   const linkedIds = new Set(linkedOrdini.map((l: any) => l.ordine_id));

@@ -766,7 +766,7 @@ export default function OrderDetail() {
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura`)}
+                onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)}
               >
                 <Receipt className="h-3.5 w-3.5 mr-1.5" />
                 Crea fattura per questo ordine

@@ -32,7 +32,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
           .from("documenti_fiscali")
           .select("tipo, stato, data_emissione, totale_da_pagare, imponibile_totale")
           .eq("company_id", companyId!)
-          .is("deleted_at", null),
+          .neq("stato", "annullata"),
 
         // 2. Incassi mese (movimenti_cassa_native entrata linked to documento)
         supabase
@@ -128,10 +128,10 @@ export interface TopCliente {
   daIncassare: number;
 }
 
-export function useTopClientiByFatturato(companyId: string | null, limit = 5) {
+export function useTopClientiByFatturato(companyId: string | null, limit = 5, enabled = true) {
   return useQuery({
     queryKey: ["top-clienti-fatturato", companyId, limit],
-    enabled: !!companyId,
+    enabled: enabled && !!companyId,
     queryFn: async (): Promise<TopCliente[]> => {
       const yearStart = `${new Date().getFullYear()}-01-01`;
 
@@ -141,7 +141,7 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5) {
         .eq("company_id", companyId!)
         .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
         .neq("stato", "annullata")
-        .is("deleted_at", null)
+        .neq("stato", "annullata")
         .gte("data_emissione", yearStart);
 
       if (error) throw error;
