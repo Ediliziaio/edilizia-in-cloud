@@ -92,7 +92,6 @@ export const macroAreas: MacroArea[] = [
     icon: LayoutGrid,
     items: [
       { title: "Cruscotto Aziendale", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
-      { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
     ],
   },
