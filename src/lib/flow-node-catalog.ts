@@ -403,7 +403,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione/emissione di una fattura',
     icon: '🧾',
     categoria: 'fatturazione',
-    dbTable: 'fatture_native',
+    dbTable: 'invoices',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
@@ -480,7 +480,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo preventivo/offerta',
     icon: '📋',
     categoria: 'preventivi',
-    dbTable: 'preventivi_native',
+    dbTable: 'quotes',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
@@ -498,7 +498,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Il cliente ha accettato il preventivo',
     icon: '✅',
     categoria: 'preventivi',
-    dbTable: 'preventivi_native',
+    dbTable: 'quotes',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
@@ -515,7 +515,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Il cliente ha rifiutato il preventivo',
     icon: '❌',
     categoria: 'preventivi',
-    dbTable: 'preventivi_native',
+    dbTable: 'quotes',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
@@ -551,7 +551,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando un cliente apre un nuovo ticket di supporto',
     icon: '🎫',
     categoria: 'assistenza',
-    dbTable: 'support_tickets',
+    dbTable: 'tickets',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
@@ -575,7 +575,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando un ticket cambia stato (aperto→in_lavorazione→risolto)',
     icon: '🔄',
     categoria: 'assistenza',
-    dbTable: 'support_tickets',
+    dbTable: 'tickets',
     dbEvent: 'UPDATE',
     outputVariables: [
       { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
@@ -790,7 +790,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
     icon: '🏗️',
     categoria: 'cantieri',
-    dbTable: 'cantieri',
+    // dbTable: nessuna tabella 'cantieri' nel DB — trigger schedulato/manuale
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },

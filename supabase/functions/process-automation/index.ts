@@ -392,11 +392,63 @@ function executeSplit(cfg: Record<string, any>) {
 
 // ── Action ──
 async function executeAction(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
-  const actionType = cfg.action_type;
+  // ── Normalize Italian action IDs to internal handler IDs ──
+  const ACTION_ALIASES: Record<string, string> = {
+    crea_task: "create_task",
+    invia_email: "send_email",
+    invia_whatsapp: "send_whatsapp",
+    invia_sms: "send_sms",
+    invia_notifica_inapp: "send_notification",
+    aggiungi_tag: "add_tag",
+    rimuovi_tag: "remove_tag",
+    crea_opportunita: "create_opportunity",
+    sposta_opportunita: "move_opportunity",
+    assegna_agente: "assign_user",
+    aggiorna_campo: "update_field",
+    chiama_webhook: "webhook_out",
+    esegui_agente_ai: "send_ai_message",
+  };
+
+  // ── Normalize Italian config field names to internal names ──
+  function normalizeConfig(actionType: string, raw: Record<string, any>): Record<string, any> {
+    const c = { ...raw };
+    // Task fields
+    if (c.titolo && !c.task_title) c.task_title = c.titolo;
+    if (c.priorita && !c.task_priority) c.task_priority = c.priorita;
+    if (c.note && !c.task_notes) c.task_notes = c.note;
+    if (c.descrizione && !c.task_notes) c.task_notes = c.descrizione;
+    if (c.scadenza_giorni != null && !c.task_due_days) c.task_due_days = c.scadenza_giorni;
+    if (c.assegnato_a && !c.task_assigned_to) c.task_assigned_to = c.assegnato_a;
+    // Notification fields
+    if (c.titolo && !c.notification_title) c.notification_title = c.titolo;
+    if (c.testo && !c.notification_message) c.notification_message = c.testo;
+    // Email fields
+    if (c.destinatario && !c.email_to) c.email_to = c.destinatario;
+    if (c.oggetto && !c.email_subject) c.email_subject = c.oggetto;
+    if (c.corpo && !c.email_body) c.email_body = c.corpo;
+    // WhatsApp fields
+    if (c.numero && !c.whatsapp_to) c.whatsapp_to = c.numero;
+    if (c.messaggio && !c.whatsapp_body && !c.whatsapp_text) c.whatsapp_text = c.messaggio;
+    // SMS fields
+    if (c.numero && !c.sms_to) c.sms_to = c.numero;
+    if (c.testo && !c.sms_body && !c.message) c.sms_body = c.testo;
+    // Tag fields
+    if (c.tags && !c.tag_name) c.tag_name = Array.isArray(c.tags) ? c.tags[0] : c.tags;
+    // Opportunity fields
+    if (c.nome && !c.opportunity_name) c.opportunity_name = c.nome;
+    if (c.valore && !c.opportunity_value) c.opportunity_value = c.valore;
+    // Webhook fields
+    if (c.url && !c.webhook_url) c.webhook_url = c.url;
+    return c;
+  }
+
+  const rawActionType = cfg.action_type;
+  const actionType = ACTION_ALIASES[rawActionType] || rawActionType;
+  const ncfg = normalizeConfig(actionType, cfg);
 
   switch (actionType) {
     case "add_tag": {
-      const tag = cfg.tag_name;
+      const tag = ncfg.tag_name;
       if (!tag) return { success: false, error: "No tag_name configured" };
       const { data: contact } = await supabase
         .from("marketing_contacts")
@@ -414,7 +466,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "remove_tag": {
-      const tag = cfg.tag_name;
+      const tag = ncfg.tag_name;
       if (!tag) return { success: false, error: "No tag_name configured" };
       const { data: contact } = await supabase
         .from("marketing_contacts")
@@ -430,8 +482,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "update_field": {
-      const field = cfg.field_name;
-      const value = cfg.field_value;
+      const field = ncfg.field_name || ncfg.campo;
+      const value = ncfg.field_value || ncfg.valore;
       if (!field) return { success: false, error: "No field_name configured" };
       await supabase
         .from("marketing_contacts")
@@ -441,7 +493,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "assign_user": {
-      const userId = cfg.assign_to_user_id;
+      const userId = ncfg.assign_to_user_id || ncfg.agente_id;
       if (!userId) return { success: false, error: "No assign_to_user_id configured" };
       await supabase
         .from("marketing_contacts")
@@ -451,10 +503,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "create_opportunity": {
-      const name = cfg.opportunity_name || "Nuova Opportunità";
-      const value = cfg.opportunity_value || 0;
-      const pipelineId = cfg.pipeline_id;
-      const stageId = cfg.stage_id;
+      const name = ncfg.opportunity_name || "Nuova Opportunità";
+      const value = ncfg.opportunity_value || 0;
+      const pipelineId = ncfg.pipeline_id;
+      const stageId = ncfg.stage_id || ncfg.stage;
 
       const insertData: any = {
         name,
@@ -474,7 +526,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "move_opportunity": {
-      const stageId = cfg.target_stage_id;
+      const stageId = ncfg.target_stage_id || ncfg.stage;
       if (!stageId) return { success: false, error: "No target_stage_id configured" };
       await supabase
         .from("marketing_opportunities")
@@ -488,23 +540,23 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     case "create_task": {
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId,
-        title: cfg.task_title || "Attività automatica",
-        notes: cfg.task_notes || null,
-        priority: cfg.task_priority || "normale",
-        category: cfg.task_category || "generale",
-        assigned_to: cfg.task_assigned_to || null,
+        title: ncfg.task_title || "Attività automatica",
+        notes: ncfg.task_notes || null,
+        priority: ncfg.task_priority || "normale",
+        category: ncfg.task_category || "generale",
+        assigned_to: ncfg.task_assigned_to || null,
         status: "da_fare",
         created_by: "00000000-0000-0000-0000-000000000000",
       });
       if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "create_task", title: cfg.task_title } };
+      return { success: true, output: { action: "create_task", title: ncfg.task_title } };
     }
 
     case "send_notification": {
       // Insert real notification into lifecycle_notifications
-      const title = cfg.notification_title || "Notifica automazione";
-      const message = cfg.notification_message || "";
-      const recipient = cfg.notification_recipient || "assigned";
+      const title = ncfg.notification_title || "Notifica automazione";
+      const message = ncfg.notification_message || "";
+      const recipient = ncfg.notification_recipient || "assigned";
 
       // Determine which company users should receive the notification
       let targetUserIds: string[] = [];
@@ -539,15 +591,15 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         notification_type: "automation",
         title,
         message,
-        metadata: { entity_id: entityId, automation: true, recipient_type: cfg.notification_recipient },
+        metadata: { entity_id: entityId, automation: true, recipient_type: ncfg.notification_recipient },
       });
       if (notifErr) return { success: false, error: notifErr.message };
       return { success: true, output: { action: "send_notification", title, recipients: targetUserIds.length } };
     }
 
     case "update_contact_score": {
-      const mode = cfg.score_mode || "add";
-      const value = parseInt(cfg.score_value) || 0;
+      const mode = ncfg.score_mode || "add";
+      const value = parseInt(ncfg.score_value) || 0;
       if (mode === "set") {
         await supabase.from("marketing_contacts").update({ score: value }).eq("id", entityId);
       } else if (mode === "subtract") {
@@ -564,11 +616,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_whatsapp": {
-      return await executeSendWhatsApp(supabase, cfg, entityId, companyId);
+      return await executeSendWhatsApp(supabase, ncfg, entityId, companyId);
     }
 
     case "send_email": {
-      return await executeSendEmail(supabase, cfg, entityId, companyId);
+      return await executeSendEmail(supabase, ncfg, entityId, companyId);
     }
 
     case "send_sms": {
@@ -584,7 +636,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         return { success: false, error: "Contatto senza numero di telefono" };
       }
 
-      const smsBody = cfg.sms_body || cfg.message || "Messaggio automatico";
+      const smsBody = ncfg.sms_body || ncfg.message || "Messaggio automatico";
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -616,7 +668,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_ai_message": {
-      console.log(`[send_ai_message] entity=${entityId} config=`, JSON.stringify(cfg));
+      console.log(`[send_ai_message] entity=${entityId}`);
       try {
         // 1. Load contact data for context
         const { data: aiContact } = await supabase
@@ -628,11 +680,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
         if (!aiContact) return { success: false, error: "Contatto non trovato" };
 
-        const aiPrompt = cfg.ai_prompt || "Scrivi un messaggio di follow-up.";
-        const aiTone = cfg.ai_tone || "professional";
-        const aiLanguage = cfg.ai_language || "it";
-        const aiMaxLength = parseInt(cfg.ai_max_length) || 500;
-        const aiChannel = cfg.ai_channel || "email";
+        const aiPrompt = ncfg.ai_prompt || ncfg.prompt || "Scrivi un messaggio di follow-up.";
+        const aiTone = ncfg.ai_tone || "professional";
+        const aiLanguage = ncfg.ai_language || "it";
+        const aiMaxLength = parseInt(ncfg.ai_max_length) || 500;
+        const aiChannel = ncfg.ai_channel || "email";
 
         const toneMap: Record<string, string> = {
           professional: "professionale e cortese",
@@ -695,9 +747,9 @@ Istruzione: ${aiPrompt}`;
           if (subjectMatch) subject = subjectMatch[1].trim();
           if (bodyMatch) body = bodyMatch[1].trim();
 
-          return await executeSendEmail(supabase, { ...cfg, email_subject: subject, email_body: body }, entityId, companyId);
+          return await executeSendEmail(supabase, { ...ncfg, email_subject: subject, email_body: body }, entityId, companyId);
         } else if (aiChannel === "whatsapp") {
-          return await executeSendWhatsApp(supabase, { ...cfg, whatsapp_body: generatedText }, entityId, companyId);
+          return await executeSendWhatsApp(supabase, { ...ncfg, whatsapp_body: generatedText }, entityId, companyId);
         } else if (aiChannel === "sms") {
           if (!aiContact.phone) return { success: false, error: "Contatto senza telefono" };
           const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
@@ -721,7 +773,7 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "remove_from_automation": {
-      const targetFlowId = cfg.target_flow_id;
+      const targetFlowId = ncfg.target_flow_id;
       if (!targetFlowId) return { success: false, error: "No target_flow_id configured" };
       // Remove active enrollments for this entity in the target flow
       const { data: removed, error: removeErr } = await supabase
@@ -751,22 +803,43 @@ Istruzione: ${aiPrompt}`;
       // When the awaited event fires, processTriggerEvents will check for waiting enrollments
       return {
         success: true,
-        output: { action: "wait_for_event", waiting: true, await_event: cfg.await_event, timeout_days: cfg.timeout_days || 7 },
+        output: { action: "wait_for_event", waiting: true, await_event: ncfg.await_event, timeout_days: ncfg.timeout_days || 7 },
         isWaiting: true,
-        awaitEvent: cfg.await_event,
-        timeoutDays: parseInt(cfg.timeout_days) || 7,
+        awaitEvent: ncfg.await_event,
+        timeoutDays: parseInt(ncfg.timeout_days) || 7,
       };
     }
 
     case "webhook_out": {
-      const url = cfg.webhook_url;
+      const url = ncfg.webhook_url;
       if (!url) return { success: false, error: "No webhook_url configured" };
+
+      // SSRF protection
       try {
+        const parsed = new URL(url);
+        const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "[::1]"];
+        const BLOCKED_PREFIXES = ["10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168."];
+        if (
+          BLOCKED_HOSTS.includes(parsed.hostname) ||
+          BLOCKED_PREFIXES.some(p => parsed.hostname.startsWith(p)) ||
+          parsed.protocol === "file:"
+        ) {
+          return { success: false, error: `Webhook verso indirizzo non permesso: ${parsed.hostname}` };
+        }
+      } catch {
+        return { success: false, error: `URL non valido: ${url}` };
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10_000);
         const resp = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entity_id: entityId, company_id: companyId, config: cfg }),
+          body: JSON.stringify({ entity_id: entityId, company_id: companyId, config: ncfg }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const text = await resp.text();
         return { success: resp.ok, output: { action: "webhook_out", status: resp.status, body: text.slice(0, 500) }, error: resp.ok ? undefined : `HTTP ${resp.status}` };
       } catch (e: any) {
@@ -774,17 +847,115 @@ Istruzione: ${aiPrompt}`;
       }
     }
 
+    // ── 6 New cross-domain handlers (FLOW-EXT-04) ──
+
+    case "crea_bozza_ordine": {
+      const title = ncfg.titolo || ncfg.task_title || "Nuovo ordine automatico";
+      const clienteId = ncfg.cliente_id || entityId;
+      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const { data, error } = await supabase.from("orders").insert({
+        company_id: companyId,
+        title,
+        contact_id: clienteId,
+        total_amount: importo,
+        status: "draft",
+        notes: ncfg.note || null,
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_bozza_ordine", ordine_id: data?.id } };
+    }
+
+    case "crea_bozza_preventivo": {
+      const title = ncfg.titolo || "Nuovo preventivo automatico";
+      const clienteId = ncfg.cliente_id || entityId;
+      const { data, error } = await supabase.from("quotes").insert({
+        company_id: companyId,
+        title,
+        contact_id: clienteId,
+        status: "draft",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_bozza_preventivo", preventivo_id: data?.id } };
+    }
+
+    case "crea_cantiere": {
+      // No 'cantieri' table exists — log and create a task instead
+      const nome = ncfg.nome || "Cantiere automatico";
+      const { error } = await supabase.from("tasks").insert({
+        company_id: companyId,
+        title: `🏗️ Apertura cantiere: ${nome}`,
+        notes: `Cantiere creato automaticamente. Cliente: ${ncfg.cliente_id || entityId}. Importo: €${ncfg.importo || 0}`,
+        priority: "alta",
+        category: "cantieri",
+        status: "da_fare",
+        created_by: "00000000-0000-0000-0000-000000000000",
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_cantiere", fallback: "task_created", nome } };
+    }
+
+    case "crea_appuntamento": {
+      const title = ncfg.titolo || "Appuntamento automatico";
+      const giorniDaOggi = parseInt(ncfg.giorni_da_oggi) || 1;
+      const appointmentDate = new Date();
+      appointmentDate.setDate(appointmentDate.getDate() + giorniDaOggi);
+      const { data, error } = await supabase.from("appointments").insert({
+        company_id: companyId,
+        title,
+        contact_id: ncfg.contact_id || entityId,
+        appointment_date: appointmentDate.toISOString().split("T")[0],
+        appointment_time: ncfg.orario || "10:00",
+        appointment_type: ncfg.tipo || "in_sede",
+        assigned_to: ncfg.assegnato_a || null,
+        status: "confermato",
+        created_by: "00000000-0000-0000-0000-000000000000",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_appuntamento", appuntamento_id: data?.id } };
+    }
+
+    case "crea_ticket": {
+      const oggetto = ncfg.oggetto || "Ticket automatico";
+      const { data, error } = await supabase.from("tickets").insert({
+        company_id: companyId,
+        subject: oggetto,
+        description: ncfg.descrizione || null,
+        priority: ncfg.priorita || "media",
+        contact_id: ncfg.cliente_id || entityId,
+        status: "open",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_ticket", ticket_id: data?.id } };
+    }
+
+    case "crea_fattura": {
+      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const scadenzaGiorni = parseInt(ncfg.scadenza_giorni) || 30;
+      const scadenza = new Date();
+      scadenza.setDate(scadenza.getDate() + scadenzaGiorni);
+      const { data, error } = await supabase.from("invoices").insert({
+        company_id: companyId,
+        contact_id: ncfg.cliente_id || entityId,
+        total_amount: importo,
+        description: ncfg.descrizione || "Fattura automatica",
+        due_date: scadenza.toISOString().split("T")[0],
+        status: "draft",
+      }).select("id").single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_fattura", fattura_id: data?.id } };
+    }
+
     case "end_automation":
       return { success: true, output: { action: "end_automation" } };
 
     case "sync_google":
-      return await executeSyncGoogle(supabase, cfg, entityId, companyId);
+      return await executeSyncGoogle(supabase, ncfg, entityId, companyId);
 
     case "sync_meta_lead":
-      return await executeSyncMetaLead(supabase, cfg, entityId, companyId);
+      return await executeSyncMetaLead(supabase, ncfg, entityId, companyId);
 
     case "call_with_ai_agent": {
-      const aiAgentId = cfg.ai_agent_id;
+      const aiAgentId = ncfg.ai_agent_id;
       if (!aiAgentId) return { success: false, error: "No ai_agent_id configured" };
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

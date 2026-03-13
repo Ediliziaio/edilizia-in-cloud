@@ -189,7 +189,7 @@ export function companyRoutes() {
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
-        {/* Unified Automazioni page (3 tabs: operative, task, marketing) */}
+        {/* Unified Automazioni page — flow builder visuale + template gallery */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
 
         {/* Backward-compatible redirects */}
