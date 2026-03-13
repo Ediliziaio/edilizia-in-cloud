@@ -280,13 +280,20 @@ function CompanySidebar() {
 
   // Exclusive accordion: only one macro-area open at a time
   const findActiveAreaId = useCallback((path: string): string | null => {
+    let bestAreaId: string | null = null;
+    let bestUrlLength = 0;
     for (const area of macroAreas) {
       if (area.id === "area_cruscotto") continue;
       for (const item of area.items) {
-        if (path === item.url || path.startsWith(item.url + "/")) return area.id;
+        if (path === item.url || path.startsWith(item.url + "/")) {
+          if (item.url.length > bestUrlLength) {
+            bestUrlLength = item.url.length;
+            bestAreaId = area.id;
+          }
+        }
       }
     }
-    return null;
+    return bestAreaId;
   }, []);
 
   const [openAreaId, setOpenAreaId] = useState<string | null>(() => {
