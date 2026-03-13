@@ -22,6 +22,7 @@ interface Props {
   operations: OperationsData;
   finance: FinanceData;
   todayData: TodayData | null;
+  billingKPI?: DashboardBillingKPI | null;
   isLoading?: boolean;
 }
 
