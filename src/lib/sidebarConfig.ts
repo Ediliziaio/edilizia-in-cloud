@@ -175,10 +175,7 @@ export const macroAreas: MacroArea[] = [
     icon: Zap,
     items: [
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewSettings" },
-      { title: "Automazioni Task", url: "/azienda/automazioni-task", icon: ListTodo, permissionKey: "canViewSettings" },
-      { title: "Automazioni Marketing", url: "/azienda/marketing/automazioni", icon: GitBranch, permissionKey: "canViewMarketingAutomations" },
-      { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
-      { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: BrainCircuit, permissionKey: "canViewSettings", featureKey: "ai_agents_internal" },
+      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
     ],
   },
 ];
