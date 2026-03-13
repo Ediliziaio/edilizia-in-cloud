@@ -1078,7 +1078,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'aggiungi_tag',
     label: 'Aggiungi tag a contatto',
     description: 'Aggiunge uno o più tag a un contatto per segmentazione',
-    icon: '🏷️',
+    icon: 'Tag',
     categoria: 'crm',
     configSchema: [
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
