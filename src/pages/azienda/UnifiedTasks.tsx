@@ -14,6 +14,7 @@ import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban 
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
+import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -73,6 +74,7 @@ export default function UnifiedTasks() {
   const [activeTab, setActiveTab] = useState("myday");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [searchText, setSearchText] = useState("");
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   const debouncedSearch = useDebounce(searchText, 300);
 
   const toggleSelect = (id: string) => {
@@ -302,7 +304,7 @@ export default function UnifiedTasks() {
             ) : viewMode === "kanban" ? (
               <TaskKanbanBoard
                 tasks={filteredTasks}
-                onTaskSelect={(task) => { setEditingTask(task); setDialogOpen(true); }}
+                onTaskSelect={(task) => setSelectedTask(task)}
               />
             ) : (
               <>
@@ -333,7 +335,7 @@ export default function UnifiedTasks() {
                             task.status === "completata" && "opacity-60",
                             selectedIds.has(task.id) && "bg-primary/5"
                           )}
-                          onClick={() => { setEditingTask(task); setDialogOpen(true); }}
+                          onClick={() => setSelectedTask(task)}
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
@@ -388,6 +390,11 @@ export default function UnifiedTasks() {
         onOpenChange={setDialogOpen}
         task={editingTask}
         onSaved={handleRefresh}
+      />
+
+      <TaskDetailPanel
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
       />
     </div>
   );
