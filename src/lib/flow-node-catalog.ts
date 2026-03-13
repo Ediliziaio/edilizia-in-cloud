@@ -274,7 +274,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_confermato',
     label: 'Appuntamento confermato',
     description: 'Scatta quando un appuntamento viene confermato dal cliente',
-    icon: '✅',
+    icon: 'CalendarCheck',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
