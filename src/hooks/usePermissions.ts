@@ -21,6 +21,12 @@ export interface Permissions {
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
+  canViewBilling: boolean;
+  canViewScadenzario: boolean;
+  canViewPrimaNota: boolean;
+  canViewCosts: boolean;
+  canViewPrevisionale: boolean;
+  canViewTesoreria: boolean;
   // Granular marketing permissions
   canViewMarketingDashboard: boolean;
   canViewMarketingContacts: boolean;
