@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, ListTodo, ExternalLink, CheckCircle2 } from "lucide-react";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
+import { MyDayView } from "@/components/attivita/MyDayView";
 import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +67,7 @@ export default function UnifiedTasks() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterFonte, setFilterFonte] = useState(initialFonte);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState("myday");
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -152,11 +155,7 @@ export default function UnifiedTasks() {
   const renderCorrelation = (task: any) => {
     if (task.order) {
       return (
-        <Link
-          to={`/azienda/ordini/${task.order_id}`}
-          className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <Link to={`/azienda/ordini/${task.order_id}`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
           <ExternalLink className="h-3 w-3" />
           {task.order.order_code || task.order.description?.slice(0, 20)}
         </Link>
@@ -164,11 +163,7 @@ export default function UnifiedTasks() {
     }
     if (task.contact) {
       return (
-        <Link
-          to={`/azienda/marketing/contatti/${task.contact_id}`}
-          className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <Link to={`/azienda/marketing/contatti/${task.contact_id}`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
           <ExternalLink className="h-3 w-3" />
           {task.contact.first_name} {task.contact.last_name}
         </Link>
@@ -176,22 +171,14 @@ export default function UnifiedTasks() {
     }
     if (task.opportunity) {
       return (
-        <Link
-          to={`/azienda/marketing/opportunita`}
-          className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <Link to={`/azienda/marketing/opportunita`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
           <ExternalLink className="h-3 w-3" />
           {task.opportunity.name}
         </Link>
       );
     }
-    if (task.stock_item) {
-      return <span className="text-sm text-muted-foreground">{task.stock_item.name}</span>;
-    }
-    if (task.cost) {
-      return <span className="text-sm text-muted-foreground">{task.cost.name}</span>;
-    }
+    if (task.stock_item) return <span className="text-sm text-muted-foreground">{task.stock_item.name}</span>;
+    if (task.cost) return <span className="text-sm text-muted-foreground">{task.cost.name}</span>;
     return "—";
   };
 
@@ -208,149 +195,149 @@ export default function UnifiedTasks() {
         </Button>
       </div>
 
-      <TaskStatCards {...stats} />
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="myday">La mia giornata</TabsTrigger>
+          <TabsTrigger value="all">Tutte le attività</TabsTrigger>
+        </TabsList>
 
-      <div className="flex flex-wrap gap-3">
-        <Select value={filterFonte} onValueChange={setFilterFonte}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Fonte" /></SelectTrigger>
-          <SelectContent>
-            {FONTE_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <TabsContent value="myday">
+          <MyDayView onNewTask={() => { setEditingTask(null); setDialogOpen(true); }} />
+        </TabsContent>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte</SelectItem>
-            <SelectItem value="active">Attive</SelectItem>
-            <SelectItem value="da_fare">Da fare</SelectItem>
-            <SelectItem value="in_corso">In corso</SelectItem>
-            <SelectItem value="completata">Completate</SelectItem>
-          </SelectContent>
-        </Select>
+        <TabsContent value="all">
+          <div className="space-y-6">
+            <TaskStatCards {...stats} />
 
-        <Select value={filterPriority} onValueChange={setFilterPriority}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte</SelectItem>
-            <SelectItem value="bassa">Bassa</SelectItem>
-            <SelectItem value="normale">Normale</SelectItem>
-            <SelectItem value="alta">Alta</SelectItem>
-            <SelectItem value="urgente">Urgente</SelectItem>
-          </SelectContent>
-        </Select>
+            <div className="flex flex-wrap gap-3">
+              <Select value={filterFonte} onValueChange={setFilterFonte}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectContent>
+                  {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  <SelectItem value="active">Attive</SelectItem>
+                  <SelectItem value="da_fare">Da fare</SelectItem>
+                  <SelectItem value="in_corso">In corso</SelectItem>
+                  <SelectItem value="completata">Completate</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterPriority} onValueChange={setFilterPriority}>
+                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  <SelectItem value="bassa">Bassa</SelectItem>
+                  <SelectItem value="normale">Normale</SelectItem>
+                  <SelectItem value="alta">Alta</SelectItem>
+                  <SelectItem value="urgente">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte</SelectItem>
-            {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading ? (
-        <Card><CardContent className="p-8 text-center text-muted-foreground">Caricamento...</CardContent></Card>
-      ) : filteredTasks.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
-            <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
-            <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" /> Nuova Attività
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length}
-                      onCheckedChange={toggleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead>Titolo</TableHead>
-                  <TableHead>Assegnatario</TableHead>
-                  <TableHead>Collegamento</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Priorità</TableHead>
-                  <TableHead>Scadenza</TableHead>
-                  <TableHead>Stato</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTasks.map((task) => (
-                  <TableRow
-                    key={task.id}
-                    className={cn(
-                      "cursor-pointer transition-colors",
-                      isOverdue(task) && "bg-destructive/5",
-                      task.status === "completata" && "opacity-60",
-                      selectedIds.has(task.id) && "bg-primary/5"
-                    )}
-                    onClick={() => { setEditingTask(task); setDialogOpen(true); }}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedIds.has(task.id)}
-                        onCheckedChange={() => toggleSelect(task.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {task.assigned_profile
-                        ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
-                        : "—"}
-                    </TableCell>
-                    <TableCell>{renderCorrelation(task)}</TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">{ALL_CATEGORY_LABELS[task.category] || task.category}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={PRIORITY_CONFIG[task.priority]?.className || ""}>
-                        {PRIORITY_CONFIG[task.priority]?.label || task.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {task.due_date ? (
-                        <span className={cn("text-sm", isOverdue(task) && "text-destructive font-medium")}>
-                          {format(new Date(task.due_date), "dd/MM/yyyy")}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
-                          task.status === "completata"
-                            ? "text-primary hover:bg-primary/10"
-                            : "text-muted-foreground hover:bg-muted"
-                        )}
-                        onClick={() => handleToggleComplete(task)}
-                      >
-                        <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
-                        {STATUS_LABELS[task.status] || task.status}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </>
-      )}
+            {isLoading ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">Caricamento...</CardContent></Card>
+            ) : filteredTasks.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
+                  <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
+                  <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
+                    <Plus className="h-4 w-4 mr-2" /> Nuova Attività
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
+                        </TableHead>
+                        <TableHead>Titolo</TableHead>
+                        <TableHead>Assegnatario</TableHead>
+                        <TableHead>Collegamento</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Priorità</TableHead>
+                        <TableHead>Scadenza</TableHead>
+                        <TableHead>Stato</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTasks.map((task) => (
+                        <TableRow
+                          key={task.id}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            isOverdue(task) && "bg-destructive/5",
+                            task.status === "completata" && "opacity-60",
+                            selectedIds.has(task.id) && "bg-primary/5"
+                          )}
+                          onClick={() => { setEditingTask(task); setDialogOpen(true); }}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {task.assigned_profile ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}` : "—"}
+                          </TableCell>
+                          <TableCell>{renderCorrelation(task)}</TableCell>
+                          <TableCell>
+                            <span className="text-xs text-muted-foreground">{ALL_CATEGORY_LABELS[task.category] || task.category}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={PRIORITY_CONFIG[task.priority]?.className || ""}>
+                              {PRIORITY_CONFIG[task.priority]?.label || task.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {task.due_date ? (
+                              <span className={cn("text-sm", isOverdue(task) && "text-destructive font-medium")}>
+                                {format(new Date(task.due_date), "dd/MM/yyyy")}
+                              </span>
+                            ) : "—"}
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className={cn(
+                                "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
+                                task.status === "completata" ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-muted"
+                              )}
+                              onClick={() => handleToggleComplete(task)}
+                            >
+                              <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
+                              {STATUS_LABELS[task.status] || task.status}
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <TaskDialog
         open={dialogOpen}
