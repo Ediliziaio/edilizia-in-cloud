@@ -526,7 +526,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "move_opportunity": {
-      const stageId = cfg.target_stage_id;
+      const stageId = ncfg.target_stage_id || ncfg.stage;
       if (!stageId) return { success: false, error: "No target_stage_id configured" };
       await supabase
         .from("marketing_opportunities")
