@@ -1040,7 +1040,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_email',
     label: 'Invia email',
     description: "Invia un'email a un indirizzo specifico o variabile",
-    icon: '📧',
+    icon: 'Mail',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'destinatario', label: 'A (indirizzo email)', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.email}}' },
