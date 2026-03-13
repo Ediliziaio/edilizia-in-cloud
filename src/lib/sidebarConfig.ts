@@ -223,7 +223,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal", subcategory: "gi_automation" },
-  { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
+  { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];
 
 /** @deprecated Use macroAreas instead */
