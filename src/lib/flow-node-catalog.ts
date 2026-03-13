@@ -754,7 +754,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 👤 HR & PERSONALE ═══
+  // ═══ HR & PERSONALE ═══
   {
     id: 'dipendente_creato',
     label: 'Nuovo dipendente aggiunto',
