@@ -1186,7 +1186,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_bozza_preventivo',
     label: 'Crea bozza preventivo',
     description: 'Genera automaticamente una bozza di preventivo',
-    icon: '📋',
+    icon: 'FileText',
     categoria: 'preventivi',
     outputVariables: [{ id: 'preventivo.id', label: 'ID Preventivo bozza', type: 'uuid' }],
     configSchema: [
