@@ -1200,7 +1200,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_cantiere',
     label: 'Crea cantiere/commessa',
     description: 'Apre automaticamente un nuovo cantiere (es. da preventivo accettato)',
-    icon: '🏗️',
+    icon: 'Building2',
     categoria: 'cantieri',
     outputVariables: [{ id: 'cantiere.id', label: 'ID Cantiere creato', type: 'uuid' }],
     configSchema: [
