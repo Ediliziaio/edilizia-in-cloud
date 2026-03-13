@@ -170,6 +170,7 @@ export function validateDocumento(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const tipo = doc.tipo ?? "fattura";
+  const isNC = tipo === "nota_credito";
 
   // Cliente required (except proforma/preventivo)
   if (!["proforma", "preventivo"].includes(tipo)) {
