@@ -1,4 +1,4 @@
-import { ChevronRight, GripVertical } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { getNodeIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
 import type { CatalogItem } from "@/lib/flow-node-catalog";
@@ -22,9 +22,8 @@ export function CatalogItemRow({ item, onSelect, onDragStart }: CatalogItemRowPr
         onDragStart(item);
       }}
       onClick={() => onSelect(item)}
-      className="w-full flex items-center gap-2.5 px-3 pl-7 py-2 hover:bg-accent/50 transition-colors group text-left cursor-grab active:cursor-grabbing"
+      className="w-full flex items-center gap-2.5 px-3 pl-4 py-2 hover:bg-accent/50 transition-colors group text-left cursor-grab active:cursor-grabbing"
     >
-      <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${colors.iconBg}`}>
         <Icon className={`h-3.5 w-3.5 ${colors.text}`} />
       </div>
