@@ -9,12 +9,8 @@ import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport
 const TABS = [
   { key: "facebook-ads", label: "Report di Facebook Ads" },
   { key: "google-ads", label: "Report di Google Ads" },
-  { key: "custom", label: "Report personalizzati" },
   { key: "attribution", label: "Rapporto di attribuzione" },
   { key: "calls", label: "Report sulle chiamate" },
-  { key: "agents", label: "Report sugli agenti" },
-  { key: "appointments", label: "Report sugli appuntamenti" },
-  { key: "audit", label: "Audit marketing locale" },
   { key: "venditori", label: "Performance Venditori" },
 ];
 
