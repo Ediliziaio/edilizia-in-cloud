@@ -1363,7 +1363,7 @@ export const ACTIONS_BY_CATEGORY = ACTION_CATALOG.reduce((acc, a) => {
 
 // ─── Backward-compatible bridge ─────────────────────────────────────────────
 
-export type FlowNodeKind = "trigger" | "action" | "condition" | "delay" | "goal" | "split" | "note";
+export type FlowNodeKind = "trigger" | "action" | "condition" | "delay" | "goal" | "split" | "note" | "end";
 
 export interface CatalogItem {
   id: string;
