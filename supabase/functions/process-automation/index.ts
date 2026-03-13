@@ -591,7 +591,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         notification_type: "automation",
         title,
         message,
-        metadata: { entity_id: entityId, automation: true, recipient_type: cfg.notification_recipient },
+        metadata: { entity_id: entityId, automation: true, recipient_type: ncfg.notification_recipient },
       });
       if (notifErr) return { success: false, error: notifErr.message };
       return { success: true, output: { action: "send_notification", title, recipients: targetUserIds.length } };
