@@ -1073,6 +1073,7 @@ export type Database = {
           ultimo_numero_fattura: number | null
           ultimo_numero_nc: number | null
           ultimo_numero_preventivo: number | null
+          ultimo_numero_proforma: number
           updated_at: string | null
         }
         Insert: {
@@ -1120,6 +1121,7 @@ export type Database = {
           ultimo_numero_fattura?: number | null
           ultimo_numero_nc?: number | null
           ultimo_numero_preventivo?: number | null
+          ultimo_numero_proforma?: number
           updated_at?: string | null
         }
         Update: {
@@ -1167,6 +1169,7 @@ export type Database = {
           ultimo_numero_fattura?: number | null
           ultimo_numero_nc?: number | null
           ultimo_numero_preventivo?: number | null
+          ultimo_numero_proforma?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -15781,6 +15784,11 @@ export type Database = {
           p_date_to: string
           p_status_id?: string
         }
+        Returns: Json
+      }
+      get_documenti_counts: { Args: { p_company_id: string }; Returns: Json }
+      get_documenti_monthly_timeline: {
+        Args: { p_company_id: string; p_tipos?: string[] }
         Returns: Json
       }
       get_email_stats_by_campaign: {

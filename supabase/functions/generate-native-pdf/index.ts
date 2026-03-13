@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -240,6 +241,7 @@ Deno.serve(async (req) => {
     if (authErr || !claims?.claims) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: corsHeaders });
     }
+    const userId = claims.claims.sub as string;
 
     const { documento_id, upload } = await req.json();
     if (!documento_id) {
@@ -255,6 +257,13 @@ Deno.serve(async (req) => {
 
     if (docErr || !doc) {
       return new Response(JSON.stringify({ error: "Documento non trovato" }), { status: 404, headers: corsHeaders });
+    }
+
+    // Verify user belongs to this company
+    try {
+      await verifyCompanyAccess(supabase, userId, doc.company_id);
+    } catch {
+      return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: corsHeaders });
     }
 
     // Load azienda

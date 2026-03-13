@@ -18,35 +18,15 @@ export function useDocumentCounts() {
     queryKey: ["billing-doc-counts", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("tipo, stato")
-        .eq("company_id", companyId!);
+      const { data, error } = await supabase.rpc(
+        "get_documenti_counts" as never,
+        { p_company_id: companyId! } as never
+      );
 
       if (error) throw error;
 
-      const counts: DocumentCounts = {
-        fatture: 0,
-        proforma: 0,
-        nota_credito: 0,
-        ddt: 0,
-        preventivo: 0,
-        annullate: 0,
-      };
-
-      for (const row of (data as unknown as { tipo: string; stato: string }[]) ?? []) {
-        if (row.stato === "annullata") {
-          counts.annullate++;
-          continue;
-        }
-        if (row.tipo === "fattura" || row.tipo === "fattura_pa") counts.fatture++;
-        else if (row.tipo === "proforma") counts.proforma++;
-        else if (row.tipo === "nota_credito") counts.nota_credito++;
-        else if (row.tipo === "ddt") counts.ddt++;
-        else if (row.tipo === "preventivo") counts.preventivo++;
-      }
-
-      return counts;
+      const result = (typeof data === "string" ? JSON.parse(data) : data) as DocumentCounts;
+      return result;
     },
     staleTime: 30_000,
   });

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -120,10 +121,12 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (authError || !user) return json({ error: "Unauthorized" }, 401);
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: authError } = await supabase.auth.getClaims(token);
+    if (authError || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
+    const userId = claimsData.claims.sub as string;
 
     const { invoice_id, to_email, subject, message } = await req.json();
     if (!invoice_id || !to_email) return json({ error: "invoice_id and to_email required" }, 400);
@@ -132,6 +135,13 @@ Deno.serve(async (req) => {
     const { data: invoice, error: invErr } = await supabase
       .from("invoices").select("*, invoice_lines(*)").eq("id", invoice_id).single();
     if (invErr || !invoice) return json({ error: "Invoice not found" }, 404);
+
+    // Verify user belongs to this company
+    try {
+      await verifyCompanyAccess(supabase, userId, invoice.company_id);
+    } catch {
+      return json({ error: "Non autorizzato: accesso negato a questa fattura" }, 403);
+    }
 
     // Fetch company
     const { data: company } = await supabase

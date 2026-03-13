@@ -23,6 +23,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
   AlertCircle, CheckCircle2, Clock,
@@ -73,6 +77,8 @@ export default function DocumentiFiscaliList() {
   const [searchRaw, setSearchRaw] = useState("");
   const search = useDebounce(searchRaw, 300);
   const [page, setPage] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
+  const [payTarget, setPayTarget] = useState<DocumentoFiscale | null>(null);
 
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
@@ -163,6 +169,10 @@ export default function DocumentiFiscaliList() {
         break;
       case "xml":
         try {
+          if (!azienda) {
+            toast.error("Anagrafica azienda non configurata");
+            return;
+          }
           const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
           const blob = new Blob([xml], { type: "application/xml" });
           const url = URL.createObjectURL(blob);
@@ -185,15 +195,10 @@ export default function DocumentiFiscaliList() {
         }
         break;
       case "pagata":
-        updateMutation.mutate({
-          id: doc.id,
-          stato: "pagata",
-          importo_pagato: doc.totale_da_pagare,
-          pagato_at: new Date().toISOString(),
-        });
+        setPayTarget(doc);
         break;
       case "delete":
-        deleteMutation.mutate(doc.id);
+        setDeleteTarget(doc);
         break;
     }
   };
@@ -487,6 +492,66 @@ export default function DocumentiFiscaliList() {
           </div>
         </div>
       )}
+
+      {/* ── Delete Confirmation Dialog ───────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare il documento <strong>{deleteTarget?.numero}</strong>. Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+                }
+              }}
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Payment Confirmation Dialog ──────────────── */}
+      <AlertDialog open={!!payTarget} onOpenChange={(open) => !open && setPayTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Segnare come pagata?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il documento <strong>{payTarget?.numero}</strong> verrà segnato come pagato per l'importo di{" "}
+              <strong>{payTarget ? formatCurrency(payTarget.totale_da_pagare) : ""}</strong> in data odierna.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={updateMutation.isPending}
+              onClick={() => {
+                if (payTarget) {
+                  updateMutation.mutate(
+                    {
+                      id: payTarget.id,
+                      stato: "pagata",
+                      importo_pagato: payTarget.totale_da_pagare,
+                      pagato_at: new Date().toISOString(),
+                    },
+                    { onSettled: () => setPayTarget(null) }
+                  );
+                }
+              }}
+            >
+              {updateMutation.isPending ? "Aggiornamento..." : "Conferma pagamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
