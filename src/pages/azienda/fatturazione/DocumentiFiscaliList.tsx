@@ -441,6 +441,34 @@ export default function DocumentiFiscaliList() {
         )}
       </div>
 
+      {/* ── Bulk Actions Bar ───────────────────────────── */}
+      {someSelected && (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
+          <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
+
+          <Button variant="outline" size="sm" onClick={handleBulkExport}>
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+            Esporta XLS
+          </Button>
+
+          {!isTrash && (
+            <Button variant="outline" size="sm" onClick={() => setBulkPayOpen(true)}>
+              <CreditCard className="h-4 w-4 mr-1.5" />
+              Segna pagati
+            </Button>
+          )}
+
+          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Elimina
+          </Button>
+
+          <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* ── Table ──────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-16">
