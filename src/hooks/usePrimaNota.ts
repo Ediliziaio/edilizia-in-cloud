@@ -60,7 +60,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_number)`)
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_number), documenti_fiscali!invoice_id(id, numero, tipo)`)
         .eq("company_id", companyId!)
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
