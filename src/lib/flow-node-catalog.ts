@@ -337,7 +337,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📦 ORDINI ═══
+  // ═══ ORDINI ═══
   {
     id: 'ordine_creato',
     label: 'Nuovo ordine creato',
