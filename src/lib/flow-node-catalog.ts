@@ -1311,7 +1311,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     id: 'condition_se',
     label: 'SE condizione',
     description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
-    icon: '⋯',
+    icon: 'GitBranch',
     configSchema: [
       { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
       { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
