@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
 import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
@@ -30,11 +31,12 @@ import {
 import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
-  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw,
+  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw, FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/useDebounce";
+import { exportToXLSX, type CsvColumn } from "@/lib/csvExport";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento, AnagraficaAzienda } from "@/types/fatturazione";
 
 const PER_PAGE = 25;
@@ -85,6 +87,9 @@ export default function DocumentiFiscaliList() {
   const [page, setPage] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DocumentoFiscale | null>(null);
   const [payTarget, setPayTarget] = useState<DocumentoFiscale | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkPayOpen, setBulkPayOpen] = useState(false);
 
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
@@ -94,13 +99,26 @@ export default function DocumentiFiscaliList() {
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
   const isTrash = activeTab === "annullate";
 
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
   const handleTabChange = (tabId: string) => {
     setSearchParams(tabId === "fattura" ? {} : { tipo: tabId }, { replace: true });
     setPage(0);
     setStatoFilter("all");
     setSelectedMonth(null);
     setSearchRaw("");
+    clearSelection();
   };
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // toggleSelectAll is defined after docs
 
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
@@ -140,6 +158,78 @@ export default function DocumentiFiscaliList() {
   const docs = data?.documenti ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PER_PAGE);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === docs.length && docs.length > 0) return new Set();
+      return new Set(docs.map((d) => d.id));
+    });
+  }, [docs]);
+
+  const allSelected = docs.length > 0 && selectedIds.size === docs.length;
+  const someSelected = selectedIds.size > 0;
+
+  // ── Bulk actions ──────────────────────────────────────
+  const selectedDocs = useMemo(() => docs.filter((d) => selectedIds.has(d.id)), [docs, selectedIds]);
+
+  const handleBulkExport = () => {
+    const columns: CsvColumn[] = [
+      { key: "numero", label: "Numero" },
+      { key: "tipo", label: "Tipo" },
+      { key: "data_emissione", label: "Data" },
+      { key: "cliente", label: "Cliente" },
+      { key: "stato", label: "Stato" },
+      { key: "imponibile", label: "Imponibile" },
+      { key: "iva", label: "IVA" },
+      { key: "totale", label: "Totale" },
+    ];
+    const rows = selectedDocs.map((d) => ({
+      numero: d.numero,
+      tipo: d.tipo,
+      data_emissione: d.data_emissione,
+      cliente: d.cliente_snapshot?.ragione_sociale ?? "",
+      stato: d.stato,
+      imponibile: String(d.imponibile_totale),
+      iva: String(d.iva_totale),
+      totale: String(d.totale_documento),
+    }));
+    exportToXLSX(rows, columns, `documenti_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`${rows.length} documenti esportati`);
+  };
+
+  const handleBulkPay = async () => {
+    const now = new Date().toISOString();
+    let ok = 0;
+    for (const doc of selectedDocs) {
+      if (!PAGABILE.includes(doc.stato)) continue;
+      try {
+        await updateMutation.mutateAsync({
+          id: doc.id,
+          stato: "pagata" as StatoDocumento,
+          importo_pagato: doc.totale_da_pagare,
+          pagato_at: now,
+        });
+        ok++;
+      } catch {}
+    }
+    if (ok > 0) toast.success(`${ok} documenti segnati come pagati`);
+    clearSelection();
+    setBulkPayOpen(false);
+  };
+
+  const handleBulkDelete = async () => {
+    let ok = 0;
+    for (const doc of selectedDocs) {
+      if (doc.stato !== "bozza") continue;
+      try {
+        await deleteMutation.mutateAsync(doc.id);
+        ok++;
+      } catch {}
+    }
+    if (ok > 0) toast.success(`${ok} documenti eliminati`);
+    clearSelection();
+    setBulkDeleteOpen(false);
+  };
 
   // Totals for footer
   const totals = useMemo(() => {
@@ -351,6 +441,34 @@ export default function DocumentiFiscaliList() {
         )}
       </div>
 
+      {/* ── Bulk Actions Bar ───────────────────────────── */}
+      {someSelected && (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
+          <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
+
+          <Button variant="outline" size="sm" onClick={handleBulkExport}>
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+            Esporta XLS
+          </Button>
+
+          {!isTrash && (
+            <Button variant="outline" size="sm" onClick={() => setBulkPayOpen(true)}>
+              <CreditCard className="h-4 w-4 mr-1.5" />
+              Segna pagati
+            </Button>
+          )}
+
+          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Elimina
+          </Button>
+
+          <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* ── Table ──────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -374,7 +492,14 @@ export default function DocumentiFiscaliList() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
+                 <TableRow>
+                  <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Seleziona tutti"
+                    />
+                  </TableHead>
                   {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
                   <TableHead className="w-28">Stato</TableHead>
                   <TableHead>Cliente</TableHead>
@@ -399,6 +524,15 @@ export default function DocumentiFiscaliList() {
                       className="cursor-pointer"
                       onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
                     >
+                      {/* Checkbox */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={() => toggleSelect(doc.id)}
+                          aria-label={`Seleziona ${doc.numero}`}
+                        />
+                      </TableCell>
+
                       {/* Tipo (solo cestino) */}
                       {showColTipo && (
                         <TableCell>
@@ -711,6 +845,49 @@ export default function DocumentiFiscaliList() {
               }}
             >
               {updateMutation.isPending ? "Aggiornamento..." : "Conferma pagamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Bulk Delete Confirmation ─────────────────── */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {selectedIds.size} documenti?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Solo i documenti in bozza verranno eliminati. Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={handleBulkDelete}
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Bulk Pay Confirmation ────────────────────── */}
+      <AlertDialog open={bulkPayOpen} onOpenChange={setBulkPayOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Segnare {selectedIds.size} documenti come pagati?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Solo i documenti con stato pagabile verranno aggiornati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={updateMutation.isPending}
+              onClick={handleBulkPay}
+            >
+              {updateMutation.isPending ? "Aggiornamento..." : "Conferma"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
