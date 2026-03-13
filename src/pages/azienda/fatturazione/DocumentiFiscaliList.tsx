@@ -492,7 +492,14 @@ export default function DocumentiFiscaliList() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
+                 <TableRow>
+                  <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Seleziona tutti"
+                    />
+                  </TableHead>
                   {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
                   <TableHead className="w-28">Stato</TableHead>
                   <TableHead>Cliente</TableHead>
