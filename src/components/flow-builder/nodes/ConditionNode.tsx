@@ -1,35 +1,50 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { NODE_KIND_STYLES, getCatalogItem } from "@/lib/flow-node-catalog";
-import { GitBranch } from "lucide-react";
+import { getCatalogItem } from "@/lib/flow-node-catalog";
+import { GitBranch, Check, X } from "lucide-react";
 
 function ConditionNodeComponent({ data, selected }: NodeProps) {
-  const style = NODE_KIND_STYLES.condition;
   const catalog = getCatalogItem(data.itemId as string);
+  const logica = (data.logica as string) || "AND";
 
   return (
     <div
-      className={`min-w-[200px] max-w-[260px] rounded-xl border-2 px-4 py-3 shadow-md transition-shadow ${style.bg} ${style.border} ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
+      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-amber-400 dark:border-amber-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-background" />
-      <div className="flex items-center gap-2">
-        <div className={`rounded-lg p-1.5 ${style.accent}`}>
+
+      {/* Header */}
+      <div className="flex items-center gap-2 rounded-t-[10px] bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
+        <div className="rounded-lg bg-amber-100 dark:bg-amber-900/60 p-1.5 text-amber-600 dark:text-amber-400">
           <GitBranch className="h-4 w-4" />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Condizione
-          </p>
-          <p className="truncate text-sm font-medium">
-            {(data.label as string) || catalog?.label || "If / Else"}
-          </p>
-        </div>
+        <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+          Se / Altrimenti
+        </span>
+        <span className="rounded bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
+          {logica}
+        </span>
       </div>
-      {/* Two output handles: Sì (left) / No (right) */}
-      <div className="relative mt-2 flex justify-between px-2 text-[10px] font-semibold">
-        <span className="text-emerald-600">Sì</span>
-        <span className="text-red-500">No</span>
+
+      {/* Body */}
+      <div className="px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Condizione</p>
+        <p className="truncate text-sm font-medium text-foreground mt-0.5">
+          {(data.label as string) || catalog?.label || "Configura condizione..."}
+        </p>
       </div>
+
+      {/* Branch labels */}
+      <div className="flex justify-between px-4 pb-2 text-[10px] font-bold">
+        <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+          <Check className="h-3 w-3" /> Si
+        </span>
+        <span className="flex items-center gap-0.5 text-red-500 dark:text-red-400">
+          <X className="h-3 w-3" /> No
+        </span>
+      </div>
+
+      {/* Two output handles */}
       <Handle
         type="source"
         position={Position.Bottom}
