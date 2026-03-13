@@ -886,7 +886,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'task_completato',
     label: 'Attività completata',
     description: 'Scatta quando un task viene marcato come completato',
-    icon: '☑️',
+    icon: 'ClipboardCheck',
     categoria: 'task',
     dbEvent: 'UPDATE',
     outputVariables: [
