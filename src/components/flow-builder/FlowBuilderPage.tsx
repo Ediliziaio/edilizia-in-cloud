@@ -329,7 +329,7 @@ export function FlowBuilderPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — only in builder tab */}
         {activeTab === "builder" && (
-          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} />
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} />
         )}
 
         {/* Center content */}
