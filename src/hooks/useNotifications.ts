@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { toast } from "sonner";
+import { playNotificationSound } from "@/lib/notificationSound";
 
 export interface Notification {
   id: string;
@@ -59,10 +61,21 @@ export function useNotifications() {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
+          const newNotif = payload.new as Notification;
           queryClient.setQueryData<Notification[]>(
             queryKeys.notifications.list(companyId, userId),
-            (old = []) => [payload.new as Notification, ...old]
+            (old = []) => [newNotif, ...old]
           );
+
+          // Show toast + play sound for new notifications
+          toast(newNotif.title, {
+            description: newNotif.body ?? undefined,
+            action: newNotif.action_url
+              ? { label: "Vai →", onClick: () => { window.location.href = newNotif.action_url!; } }
+              : undefined,
+            duration: 5000,
+          });
+          playNotificationSound();
         }
       )
       .subscribe();
