@@ -68,7 +68,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
   });
 
   const { data: flows, isLoading } = useQuery({
-    queryKey: ["automation-flows", effectiveCompany?.id, statusFilter, folderId],
+    queryKey: ["automation-flows", effectiveCompany?.id, statusFilter, folderId, categoryFilter],
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
