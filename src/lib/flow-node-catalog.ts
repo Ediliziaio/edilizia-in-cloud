@@ -619,7 +619,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'scorta_minima',
     label: 'Prodotto sotto scorta minima',
     description: 'Scatta quando la giacenza di un prodotto scende sotto il minimo',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'magazzino',
     dbTable: 'warehouse_stock',
     dbEvent: 'UPDATE',
