@@ -61,6 +61,9 @@ export function FlowBuilderPage() {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const initializedRef = useRef(false);
 
+  // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
+  useEffect(() => { initializedRef.current = false; }, [flowId]);
+
   // Sync DB → ReactFlow (only on initial load)
   useEffect(() => {
     if (initializedRef.current) return;
@@ -68,7 +71,7 @@ export function FlowBuilderPage() {
       setRfNodes(nodesToReactFlow(builder.nodes));
       setRfEdges(connectionsToEdges(builder.connections));
       initializedRef.current = true;
-    } else if (flowId && !isLoading && builder.nodes.length === 0) {
+    } else if (!isLoading && builder.nodes.length === 0 && (flowId || id === "nuova")) {
       // Empty canvas placeholder: trigger + end node
       const triggerId = "placeholder-trigger";
       const endId = "placeholder-end";
