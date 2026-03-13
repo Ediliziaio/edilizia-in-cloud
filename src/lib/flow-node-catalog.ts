@@ -245,7 +245,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 📅 APPUNTAMENTI & CALENDARIO ═══
+  // ═══ APPUNTAMENTI & CALENDARIO ═══
   {
     id: 'appuntamento_creato',
     label: 'Appuntamento creato',
