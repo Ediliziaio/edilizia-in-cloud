@@ -1268,7 +1268,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'esegui_agente_ai',
     label: 'Esegui agente AI',
     description: 'Esegue un agente AI con contesto del trigger per analisi/risposta',
-    icon: '🤖',
+    icon: 'Zap',
     categoria: 'generale',
     configSchema: [
       { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Seleziona l'agente AI da eseguire" },
