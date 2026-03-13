@@ -61,6 +61,16 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   if ((today?.suppliersDue?.length ?? 0) > 0)
     alerts.push({ id: "suppliers-due", level: "warning", title: `${today!.suppliersDue!.length} fornitori da pagare nei prossimi 7 giorni`, body: `${fmtEur(today!.suppliersDueAmount)} di uscite programmate. Verifica la liquidità disponibile.`, cta: "Vedi costi", link: "/azienda/costi" });
 
+  // Billing native alerts
+  if (billing) {
+    if ((billing.fatture_scadute_count ?? 0) > 0)
+      alerts.push({ id: "billing-scadute", level: "critical", title: `${billing.fatture_scadute_count} fatture scadute — ${fmtEur(billing.scaduto)}`, body: "Fatture con scadenza superata. Sollecita il pagamento o verifica lo stato.", cta: "Gestisci scadute", link: "/azienda/fatturazione/movimenti" });
+    if ((billing.fatture_in_bozza ?? 0) > 0)
+      alerts.push({ id: "billing-bozze", level: "warning", title: `${billing.fatture_in_bozza} fatture in bozza da emettere`, body: "Completa e invia le fatture in bozza per non ritardare la fatturazione.", cta: "Emetti fatture", link: "/azienda/fatturazione/documenti?stato=bozza" });
+    if ((billing.proforma_aperti ?? 0) > 0)
+      alerts.push({ id: "billing-proforma", level: "info", title: `${billing.proforma_aperti} proforma da convertire in fattura`, body: "Converti i proforma aperti per completare il ciclo di fatturazione.", cta: "Vedi proforma", link: "/azienda/fatturazione/documenti?tipo=proforma" });
+  }
+
   return alerts.sort((a, b) =>
     a.level === "critical" && b.level !== "critical" ? -1 :
     b.level === "critical" && a.level !== "critical" ? 1 :
