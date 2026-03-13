@@ -19,6 +19,8 @@ import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TaskChecklist } from "./TaskChecklist";
+import { TaskComments } from "./TaskComments";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
