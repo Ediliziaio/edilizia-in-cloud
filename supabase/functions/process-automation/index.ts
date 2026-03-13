@@ -282,6 +282,8 @@ async function processQueue(supabase: any) {
           .from("automation_enrollments")
           .update({ status: "completed", updated_at: now })
           .eq("id", item.enrollment_id);
+        // Complete the execution run
+        await completeExecutionRun(supabase, item.enrollment_id, "completed");
         continue;
       }
 
