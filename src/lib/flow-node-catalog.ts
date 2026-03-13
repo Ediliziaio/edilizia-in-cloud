@@ -423,7 +423,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'fattura_scaduta',
     label: 'Fattura scaduta non pagata',
     description: 'Scatta quando una fattura supera la data di scadenza senza pagamento',
-    icon: '⏰',
+    icon: 'Clock',
     categoria: 'fatturazione',
     dbEvent: 'SCHEDULED',
     outputVariables: [
