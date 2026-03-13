@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, ExternalLink } from "lucide-react";
+import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, ExternalLink, Receipt } from "lucide-react";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,8 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
+import { Badge } from "@/components/ui/badge";
 
 // ── Order Alert logic ────────────────────────────────────────────
 
@@ -290,6 +292,9 @@ export default function OrderDetail() {
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Fetch linked fatture
+  const { data: fattureCollegate = [] } = useFattureByOrdine(id);
 
   // Update status mutation
   const updateStatusMutation = useMutation({
@@ -709,6 +714,63 @@ export default function OrderDetail() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Fatturazione card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Receipt className="h-4 w-4" />
+                Fatturazione
+                {fattureCollegate.length > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {fattureCollegate.length}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {fattureCollegate.length > 0 ? (
+                <div className="space-y-2">
+                  {fattureCollegate.map((f: any) => (
+                    <Link
+                      key={f.id}
+                      to={`/azienda/documenti/${f.id}`}
+                      className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{f.numero}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {f.stato}
+                        </Badge>
+                      </div>
+                      <span className="text-muted-foreground">
+                        {formatCurrency(f.totale_da_pagare)}
+                      </span>
+                    </Link>
+                  ))}
+                  <div className="pt-1 border-t flex justify-between text-sm">
+                    <span className="text-muted-foreground">Totale fatturato</span>
+                    <span className="font-medium">
+                      {formatCurrency(fattureCollegate.reduce((s: number, f: any) => s + (f.totale_da_pagare ?? 0), 0))}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Nessuna fattura collegata
+                </p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura`)}
+              >
+                <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                Crea fattura per questo ordine
+              </Button>
             </CardContent>
           </Card>
 

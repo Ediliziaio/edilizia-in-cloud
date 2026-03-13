@@ -4497,6 +4497,7 @@ export type Database = {
           note_interne: string | null
           numero: string
           numero_progressivo: number
+          ordine_id: string | null
           pagato_at: string | null
           pdf_url: string | null
           probabilita_chiusura: number | null
@@ -4581,6 +4582,7 @@ export type Database = {
           note_interne?: string | null
           numero: string
           numero_progressivo: number
+          ordine_id?: string | null
           pagato_at?: string | null
           pdf_url?: string | null
           probabilita_chiusura?: number | null
@@ -4665,6 +4667,7 @@ export type Database = {
           note_interne?: string | null
           numero?: string
           numero_progressivo?: number
+          ordine_id?: string | null
           pagato_at?: string | null
           pdf_url?: string | null
           probabilita_chiusura?: number | null
@@ -4721,10 +4724,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documenti_fiscali_ddt_fattura_id_fkey"
+            columns: ["ddt_fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
+          {
             foreignKeyName: "documenti_fiscali_documento_correlato_id_fkey"
             columns: ["documento_correlato_id"]
             isOneToOne: false
             referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_documento_correlato_id_fkey"
+            columns: ["documento_correlato_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -5510,6 +5534,68 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fattura_ordine: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          fattura_id: string
+          id: string
+          importo_associato: number | null
+          note: string | null
+          ordine_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          fattura_id: string
+          id?: string
+          importo_associato?: number | null
+          note?: string | null
+          ordine_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          fattura_id?: string
+          id?: string
+          importo_associato?: number | null
+          note?: string | null
+          ordine_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fattura_ordine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_ordine_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_ordine_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
+          {
+            foreignKeyName: "fattura_ordine_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -10028,6 +10114,13 @@ export type Database = {
             referencedRelation: "documenti_fiscali"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "movimenti_cassa_native_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
         ]
       }
       multi_company_access: {
@@ -12960,6 +13053,13 @@ export type Database = {
             referencedRelation: "documenti_fiscali"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sdi_log_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
         ]
       }
       signature_requests: {
@@ -15497,6 +15597,27 @@ export type Database = {
       }
     }
     Views: {
+      fattura_pagamento_stato: {
+        Row: {
+          company_id: string | null
+          fattura_id: string | null
+          importo_incassato: number | null
+          importo_residuo: number | null
+          importo_totale: number | null
+          numero_incassi: number | null
+          stato_pagamento: string | null
+          ultimo_incasso: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_billing_summary: {
         Row: {
           agents_used: number | null
