@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Workflow, ListTodo, GitBranch, Sparkles, Plus, LayoutTemplate } from "lucide-react";
+import { Loader2, Workflow, GitBranch, Sparkles, Plus, LayoutTemplate } from "lucide-react";
 import { AutomazioniHeader } from "@/components/automazioni/AutomazioniHeader";
 import { AutomazioniList } from "@/components/automazioni/AutomazioniList";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
@@ -21,7 +21,6 @@ const Fallback = () => (
 
 const TABS = [
   { value: "operative", label: "Operative", icon: Workflow },
-  { value: "task", label: "Task", icon: ListTodo },
   { value: "marketing", label: "Marketing", icon: GitBranch },
   { value: "regole", label: "Regole", icon: Sparkles },
 ] as const;
@@ -80,12 +79,6 @@ export default function AutomazioniUnified() {
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="task">
-          <Suspense fallback={<Fallback />}>
-            <TaskAutomationsPage />
-          </Suspense>
-        </TabsContent>
-
         <TabsContent value="marketing">
           <Suspense fallback={<Fallback />}>
             <MarketingAutomations />
@@ -135,8 +128,12 @@ export default function AutomazioniUnified() {
             </div>
           </div>
 
-          {/* Content */}
-          {viewMode === "attive" ? (
+          {/* Content — show Task automations when filtered by "task" */}
+          {categoria === "task" && viewMode === "attive" ? (
+            <Suspense fallback={<Fallback />}>
+              <TaskAutomationsPage />
+            </Suspense>
+          ) : viewMode === "attive" ? (
             <AutomazioniList
               categoria={categoria}
               onEdit={rule => { setEditingRule(rule); setShowForm(true); }}
