@@ -16,7 +16,7 @@ export function SidebarSubcategory({ label, isOpen, onToggle, children }: Sideba
         onClick={onToggle}
         className="flex w-full items-center justify-between px-3 py-1.5 cursor-pointer rounded-md hover:bg-muted/50 transition-colors"
       >
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground text-left">
           {label}
         </span>
         <ChevronDown
@@ -31,7 +31,7 @@ export function SidebarSubcategory({ label, isOpen, onToggle, children }: Sideba
         style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden min-h-0">
-          <div className="pl-2">
+          <div>
             {children}
           </div>
         </div>
