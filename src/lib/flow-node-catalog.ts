@@ -517,7 +517,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'preventivo_rifiutato',
     label: 'Preventivo rifiutato',
     description: 'Il cliente ha rifiutato il preventivo',
-    icon: '❌',
+    icon: 'XCircle',
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'UPDATE',
