@@ -71,6 +71,7 @@ const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/Registro
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
 const PipelinePreventivi = lazy(() => import("@/pages/azienda/fatturazione/PipelinePreventivi"));
+const NoteCreditoList = lazy(() => import("@/pages/azienda/fatturazione/NoteCreditoList"));
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
@@ -180,7 +181,9 @@ export function companyRoutes() {
         <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche/:id" element={<BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard>} />
-        <Route path="documenti/preventivi/pipeline" element={<BillingModeGuard requiredMode="native"><PipelinePreventivi /></BillingModeGuard>} />
+        <Route path="documenti/proforma" element={<BillingModeGuard requiredMode="native"><PipelinePreventivi /></BillingModeGuard>} />
+        <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti/proforma" replace />} />
+        <Route path="documenti/note-credito" element={<BillingModeGuard requiredMode="native"><NoteCreditoList /></BillingModeGuard>} />
         <Route path="documenti/report" element={<BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard>} />
         <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
         <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
