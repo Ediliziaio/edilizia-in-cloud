@@ -302,7 +302,6 @@ export function useDeleteDocumento() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Verify it's a draft
       const { data: doc, error: fetchErr } = await supabase
         .from("documenti_fiscali" as never)
         .select("stato")
@@ -310,8 +309,9 @@ export function useDeleteDocumento() {
         .single();
 
       if (fetchErr) throw fetchErr;
-      if ((doc as Record<string, unknown>)?.stato !== "bozza") {
-        throw new Error("Solo i documenti in bozza possono essere eliminati");
+      const stato = (doc as Record<string, unknown>)?.stato;
+      if (stato !== "bozza" && stato !== "annullata") {
+        throw new Error("Solo i documenti in bozza o nel cestino possono essere eliminati definitivamente");
       }
 
       const { error } = await supabase
