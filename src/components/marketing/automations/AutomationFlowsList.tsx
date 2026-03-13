@@ -322,6 +322,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
                 <TableHead>Nome</TableHead>
+                <TableHead className="w-36">Categoria</TableHead>
                 <TableHead className="w-28">Stato</TableHead>
                 <TableHead className="w-32 text-right">Totale Iscritto</TableHead>
                 <TableHead className="w-36 text-right">Dinamico Iscritto</TableHead>
