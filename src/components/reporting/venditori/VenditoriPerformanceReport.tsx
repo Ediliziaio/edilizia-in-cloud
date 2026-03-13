@@ -69,7 +69,14 @@ const VenditoriPerformanceReport = () => {
 
   const effectiveAgentId = agentId === "tutti" ? undefined : agentId;
   const { data: kpiList = [], isLoading } = useVendorKPI(periodo, effectiveAgentId);
-  const { data: trend = [] } = useVendorTrend(new Date().getFullYear(), effectiveAgentId);
+
+  // Lazy load trend — only when overview or trend tab is active
+  const needsTrend = activeTab === "overview" || activeTab === "trend";
+  const { data: trend = [] } = useVendorTrend(
+    new Date().getFullYear(),
+    effectiveAgentId,
+    needsTrend
+  );
   const { data: funnel = [] } = useVendorFunnel(periodo, effectiveAgentId);
 
   const kpiSelected = agentId !== "tutti"

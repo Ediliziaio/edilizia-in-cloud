@@ -92,7 +92,7 @@ export function useVendorKPI(periodo: PeriodoVendor, agentId?: string) {
   });
 }
 
-export function useVendorTrend(anno?: number, agentId?: string) {
+export function useVendorTrend(anno?: number, agentId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: ["vendor-trend", companyId, anno, agentId],
@@ -105,7 +105,7 @@ export function useVendorTrend(anno?: number, agentId?: string) {
       if (error) throw error;
       return (data ?? []) as VendorTrend[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 5 * 60_000,
   });
 }
