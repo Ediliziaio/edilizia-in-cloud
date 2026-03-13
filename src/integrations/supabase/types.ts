@@ -16354,6 +16354,7 @@ export type Database = {
         }
         Returns: Json
       }
+      create_task_due_notifications: { Args: never; Returns: number }
       deduct_ai_credits: {
         Args: { p_company_id: string; p_cost: number }
         Returns: Json
