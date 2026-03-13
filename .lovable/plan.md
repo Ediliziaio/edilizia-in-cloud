@@ -1,80 +1,194 @@
+# Stato Progetto — Aggiornato
 
-
-## Analisi: Bug Report INT-01→05 vs. Codice Reale
-
-Il bug report analizza i **prompt di specifica** (documenti di design), NON il codice effettivamente implementato. Molti bug citati non esistono nel codebase attuale perche l'implementazione ha gia deviato dalle spec. Ecco l'analisi filtrata.
-
----
-
-### Bug che NON esistono nel codice attuale (gia risolti o mai introdotti)
-
-| Bug ID | Motivo |
-|--------|--------|
-| BUG-C1 | `incassi_fattura` e `conti_bancari` non esistono nel codebase. Non sono mai state create. Il sistema usa `movimenti_cassa_native` e `prima_nota_entries`. |
-| BUG-C2 | `usePianoConti` non esiste nel codebase. Non c'e nessun hook ricorsivo. |
-| BUG-C4 | `prima_nota_scritture` / `numero_scrittura` non esistono. Il sistema usa `prima_nota_entries` con schema semplice (no partita doppia). |
-| BUG-H1 | `prima_nota_righe` / CHECK(true) non esistono. Il sistema non implementa la partita doppia. |
-| BUG-H2 | `movimenti_cassa_native` esiste gia (confermato da types.ts e hook). Nessun ALTER TABLE necessario. |
-| BUG-H3 | `cashflow_previsionale` e `saldo_iniziale` non esistono nel codebase. |
-| BUG-H4 | Il codice attuale NON usa Realtime subscriptions nel cruscotto. `useDashboardBillingKPI` usa solo `staleTime + refetchOnWindowFocus`. Nessun `queryClient` mancante. |
-| BUG-M1 | `useContiBancari` non e referenziato da nessun componente attuale. |
-| BUG-M2 | `BillingKPIWidget` usa `useNavigate()` per navigazione, non `setActiveTab`. Funziona correttamente. |
-| BUG-M3 | `formatCurrencyIT` non e usato. Il sistema usa `formatCurrency` e `formatCurrencyCompact` da `src/lib/formatters.ts`. `StatoBadge` esiste gia in `src/components/fatturazione/StatoBadge.tsx`. `EmptyStateGuide` esiste in `src/components/cruscotto/EmptyStateGuide.tsx`. |
-| BUG-M4 | Il limit su `useMovimentiCassa` e `.limit(500)`, non 200. Accettabile per ora. |
-| BUG-M6 | Le RLS usano `get_my_company_id()` (funzione SECURITY DEFINER), NON query diretta su `user_profiles`. Funzionano correttamente. |
-| BUG-M7 | `create_partita_aperta_on_fattura` non esiste. Le partite sono gestite tramite la view `fattura_pagamento_stato`. |
-| BUG-M8 | `useBillingMode` esiste ed e funzionante in `src/contexts/BillingModeContext`. |
-| BUG-L1 | Non ci sono Realtime subscriptions nel cruscotto. Nessun memory leak. |
-| BUG-L3 | `PianoContiSelector` non esiste nel codebase. |
-| BUG-L5 | Threshold Jaro-Winkler non presente nel codebase attuale. |
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
 ---
 
-### Bug REALI trovati nel codice attuale (3 veri bug)
-
-**BUG REALE 1 — CRITICO: Trigger `fn_prima_nota_on_incasso` referenzia tabella inesistente**
-- File: `supabase/migrations/20260313072345_fbb3592b-6780-409d-b788-b33754ea19f4.sql`
-- Il trigger INSERT/DELETE scrive su `prima_nota` (righe 18-27, 32-33), ma la tabella si chiama `prima_nota_entries`.
-- Colonne nel trigger (`data`, `descrizione`, `importo`, `direction`, `categoria`, `documento_id`, `source_table`, `source_id`) NON corrispondono allo schema reale (`entry_date`, `description`, `amount`, `direction`, `category`, `invoice_id`, `auto_source`, etc.).
-- Il trigger fallira silenziosamente ad ogni INSERT su `movimenti_cassa_native`.
-- **Fix**: Riscrivere il trigger per usare `prima_nota_entries` con le colonne corrette.
-
-**BUG REALE 2 — MINORE: Duplicato `.neq("stato", "annullata")` su riga 143-144**
-- File: `src/hooks/billing/useDashboardBillingKPI.ts`
-- Riga 143 e 144 sono identiche. Innocuo ma da pulire.
-- **Fix**: Rimuovere la riga duplicata.
-
-**BUG REALE 3 — MINORE: Proforma count include stato non pertinenti**
-- File: `src/hooks/billing/useDashboardBillingKPI.ts` riga 82
-- `d.tipo === "proforma" && d.stato !== "annullata"` conta anche proforma gia convertiti in fattura (stato `convertito` o `accettata`).
-- Dovrebbe contare solo proforma con stato `bozza` o `inviata` (realmente "aperti").
-- **Fix**: Filtrare per stati specifici: `["bozza", "inviata"].includes(d.stato)`.
-
-**BUG dal report L4 — gia risolto**: `BillingKPIWidget` ha gia un loading skeleton (righe 32-42).
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
 ---
 
-### Piano di fix
-
-**1. Migration: Fix trigger `fn_prima_nota_on_incasso`**
-
-Nuova migration SQL che ricrea la funzione usando la tabella e le colonne corrette:
-- Tabella: `prima_nota_entries` (non `prima_nota`)
-- Colonne INSERT: `company_id`, `direction`, `category`, `description`, `amount`, `entry_date`, `invoice_id`, `is_auto`, `auto_source`
-- DELETE: `WHERE auto_source = 'incasso_fattura' AND invoice_id = OLD.documento_id` (o via un campo di tracking)
-
-**2. Hook: Fix duplicato e proforma count**
-
-File `src/hooks/billing/useDashboardBillingKPI.ts`:
-- Rimuovere `.neq("stato", "annullata")` duplicato (riga 144)
-- Cambiare riga 82: `d.tipo === "proforma" && ["bozza", "inviata"].includes(d.stato)`
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
 ---
 
-### File da modificare
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-| File | Modifica |
-|---|---|
-| Nuova migration SQL | Fix trigger `fn_prima_nota_on_incasso` → usa `prima_nota_entries` con schema corretto |
-| `src/hooks/billing/useDashboardBillingKPI.ts` | Rimuovere `.neq` duplicato + fix proforma count |
+---
 
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+
+---
+
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+
+---
+
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+
+---
+
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
+
+---
+
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+
+---
+
+## UTM Attribution Tracking ✅
+- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
+- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
+- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
+- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
+- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
+- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
+- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
+- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
+- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
+- ✅ **useContactAttribution** + **useAttributionReport** hooks
+
+---
+
+## Form Builder + Lead Capture ✅
+- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
+- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
+- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
+- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
+- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
+- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
+- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
+- ✅ **useFormBuilder** hook: CRUD form con mutations
+- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
+- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
+- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni

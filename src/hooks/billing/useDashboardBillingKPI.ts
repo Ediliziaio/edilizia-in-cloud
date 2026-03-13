@@ -79,7 +79,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
         }
 
         if (d.stato === "bozza" && isFattura) fatture_in_bozza++;
-        if (d.tipo === "proforma" && d.stato !== "annullata") proforma_aperti++;
+        if (d.tipo === "proforma" && ["bozza", "inviata"].includes(d.stato)) proforma_aperti++;
       }
 
       // Incassi
@@ -140,7 +140,6 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5, en
         .select("anagrafica_id, imponibile_totale, stato")
         .eq("company_id", companyId!)
         .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
-        .neq("stato", "annullata")
         .neq("stato", "annullata")
         .gte("data_emissione", yearStart);
 
