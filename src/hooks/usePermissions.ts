@@ -21,6 +21,12 @@ export interface Permissions {
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
+  canViewBilling: boolean;
+  canViewScadenzario: boolean;
+  canViewPrimaNota: boolean;
+  canViewCosts: boolean;
+  canViewPrevisionale: boolean;
+  canViewTesoreria: boolean;
   // Granular marketing permissions
   canViewMarketingDashboard: boolean;
   canViewMarketingContacts: boolean;
@@ -57,6 +63,12 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketing: true,
   canEditMarketing: true,
   canViewCruscotto: true,
+  canViewBilling: true,
+  canViewScadenzario: true,
+  canViewPrimaNota: true,
+  canViewCosts: true,
+  canViewPrevisionale: true,
+  canViewTesoreria: true,
   canViewMarketingDashboard: true,
   canViewMarketingContacts: true,
   canEditMarketingContacts: true,
@@ -92,6 +104,12 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketing: false,
   canEditMarketing: false,
   canViewCruscotto: false,
+  canViewBilling: false,
+  canViewScadenzario: false,
+  canViewPrimaNota: false,
+  canViewCosts: false,
+  canViewPrevisionale: false,
+  canViewTesoreria: false,
   canViewMarketingDashboard: false,
   canViewMarketingContacts: false,
   canEditMarketingContacts: false,
@@ -160,6 +178,12 @@ export function usePermissions(): Permissions {
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
       canViewCruscotto: permissions?.can_view_cruscotto ?? false,
+      canViewBilling: true,
+      canViewScadenzario: true,
+      canViewPrimaNota: true,
+      canViewCosts: true,
+      canViewPrevisionale: permissions?.can_view_forecast ?? false,
+      canViewTesoreria: true,
       canViewMarketingDashboard: permissions?.can_view_marketing_dashboard ?? false,
       canViewMarketingContacts: permissions?.can_view_marketing_contacts ?? false,
       canEditMarketingContacts: permissions?.can_edit_marketing_contacts ?? false,
