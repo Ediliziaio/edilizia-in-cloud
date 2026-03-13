@@ -80,12 +80,12 @@ export interface ConditionDefinition {
 
 export const TRIGGER_CATALOG: TriggerDefinition[] = [
 
-  // ═══ 👥 CRM & CONTATTI ═══
+  // ═══ CRM & CONTATTI ═══
   {
     id: 'contatto_creato',
     label: 'Nuovo contatto creato',
     description: 'Scatta quando viene aggiunto un nuovo contatto/lead al CRM',
-    icon: '👤',
+    icon: 'UserPlus',
     categoria: 'crm',
     dbTable: 'marketing_contacts',
     dbEvent: 'INSERT',
