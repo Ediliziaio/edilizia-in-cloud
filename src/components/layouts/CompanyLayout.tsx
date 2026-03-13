@@ -235,29 +235,54 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleItems.map((item) => {
-                const ItemIcon = item.icon;
-                const active = isActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                          active && "bg-primary/10 text-primary font-medium"
-                        )}
-                      >
-                        <ItemIcon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                        {item.isBeta && (
-                          <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
-                        )}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {(() => {
+                const groupedItems: Array<{ label: string | null; items: NavItem[] }> = [];
+                let currentGroup: { label: string | null; items: NavItem[] } = { label: null, items: [] };
+                for (const item of visibleItems) {
+                  if (item.groupLabel && item.groupLabel !== currentGroup.label) {
+                    if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
+                    currentGroup = { label: item.groupLabel, items: [item] };
+                  } else {
+                    currentGroup.items.push(item);
+                  }
+                }
+                if (currentGroup.items.length > 0) groupedItems.push(currentGroup);
+
+                return groupedItems.map((group, gi) => (
+                  <div key={group.label ?? `g${gi}`}>
+                    {group.label && (
+                      <div className={cn("px-3 pt-2 pb-1", gi > 0 && "mt-1 border-t border-border/40")}>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
+                          {group.label}
+                        </span>
+                      </div>
+                    )}
+                    {group.items.map((item) => {
+                      const ItemIcon = item.icon;
+                      const active = isActive(item.url);
+                      return (
+                        <SidebarMenuItem key={item.url}>
+                          <SidebarMenuButton asChild>
+                            <NavLink
+                              to={item.url}
+                              className={cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                                active && "bg-primary/10 text-primary font-medium"
+                              )}
+                            >
+                              <ItemIcon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                              {item.isBeta && (
+                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                              )}
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </div>
+                ));
+              })()}
             </SidebarMenu>
           </SidebarGroupContent>
         </CollapsibleContent>
