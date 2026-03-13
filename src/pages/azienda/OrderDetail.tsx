@@ -37,6 +37,8 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
+import { Badge } from "@/components/ui/badge";
 
 // ── Order Alert logic ────────────────────────────────────────────
 
