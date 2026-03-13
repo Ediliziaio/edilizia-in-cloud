@@ -614,7 +614,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📦 MAGAZZINO ═══
+  // ═══ MAGAZZINO ═══
   {
     id: 'scorta_minima',
     label: 'Prodotto sotto scorta minima',
