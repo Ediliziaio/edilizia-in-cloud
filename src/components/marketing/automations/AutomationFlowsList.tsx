@@ -349,7 +349,8 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                   </TableCell>
                    <TableCell />
                    <TableCell />
-                  <TableCell />
+                   <TableCell />
+                   <TableCell />
                   <TableCell className="text-muted-foreground text-sm">
                     {formatDate(folder.created_at)}
                   </TableCell>
