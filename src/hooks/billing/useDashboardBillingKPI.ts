@@ -141,7 +141,6 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5, en
         .eq("company_id", companyId!)
         .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
         .neq("stato", "annullata")
-        .neq("stato", "annullata")
         .gte("data_emissione", yearStart);
 
       if (error) throw error;
