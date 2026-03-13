@@ -823,30 +823,64 @@ function CompanySidebar() {
                   </SidebarMenu>
                 </div>
               )}
-              <div className="p-4">
-                <div className="flex items-center gap-3 mb-4 px-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-muted text-xs">
-                      {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {profile?.first_name} {profile?.last_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-                  onClick={handleLogoutOrExit}
-                >
-                  <LogOut className="h-4 w-4" />
-                  {isImpersonating ? "Torna a Admin" : "Esci"}
-                </Button>
+              <div className={cn("p-4", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
+                {isCollapsed ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Avatar className="h-8 w-8 cursor-default">
+                          <AvatarFallback className="bg-muted text-xs">
+                            {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {profile?.first_name} {profile?.last_name}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={handleLogoutOrExit}
+                        >
+                          <LogOut className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {isImpersonating ? "Torna a Admin" : "Esci"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-4 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-muted text-xs">
+                          {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {profile?.first_name} {profile?.last_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+                      onClick={handleLogoutOrExit}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      {isImpersonating ? "Torna a Admin" : "Esci"}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </>
