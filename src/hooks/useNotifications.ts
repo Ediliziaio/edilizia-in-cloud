@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { toast } from "sonner";
+import { playNotificationSound } from "@/lib/notificationSound";
 
 export interface Notification {
   id: string;
