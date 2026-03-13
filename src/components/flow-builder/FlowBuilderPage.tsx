@@ -65,6 +65,8 @@ export function FlowBuilderPage() {
 
   // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
   useEffect(() => { initializedRef.current = false; }, [flowId]);
+  // Reset creation guard on route change
+  useEffect(() => { if (!isNewFlowRoute) creationAttemptedRef.current = false; }, [isNewFlowRoute]);
 
   // Sync DB → ReactFlow (only on initial load)
   useEffect(() => {
