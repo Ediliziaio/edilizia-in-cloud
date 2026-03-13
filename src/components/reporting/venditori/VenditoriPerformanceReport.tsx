@@ -156,14 +156,7 @@ const VenditoriPerformanceReport = () => {
           <VenditoriFunnel stages={funnel} />
 
         <TabsContent value="ranking" className="mt-4">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
-              <h3 className="font-medium text-muted-foreground">Ranking Agenti</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1">In arrivo con VENDOR-REP-03</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <VenditoriRanking kpiList={kpiList} isLoading={isLoading} />
 
         <TabsContent value="trend" className="mt-4">
           <Card>
