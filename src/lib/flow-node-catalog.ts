@@ -1073,7 +1073,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📊 CRM ═══
+  // ═══ CRM ═══
   {
     id: 'aggiungi_tag',
     label: 'Aggiungi tag a contatto',
