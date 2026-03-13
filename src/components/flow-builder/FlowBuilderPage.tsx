@@ -61,6 +61,9 @@ export function FlowBuilderPage() {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const initializedRef = useRef(false);
 
+  // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
+  useEffect(() => { initializedRef.current = false; }, [flowId]);
+
   // Sync DB → ReactFlow (only on initial load)
   useEffect(() => {
     if (initializedRef.current) return;
