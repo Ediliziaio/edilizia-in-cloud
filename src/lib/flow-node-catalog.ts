@@ -1330,7 +1330,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     id: 'condition_multi',
     label: 'SE condizioni multiple (AND/OR)',
     description: 'Valuta più condizioni contemporaneamente con operatore AND o OR',
-    icon: '⋯',
+    icon: 'GitBranch',
     configSchema: [
       { id: 'operatore_logico', label: 'Tipo di combinazione', type: 'select', required: true, defaultValue: 'AND', options: [
         { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
