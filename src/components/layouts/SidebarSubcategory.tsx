@@ -31,7 +31,7 @@ export function SidebarSubcategory({ label, isOpen, onToggle, children }: Sideba
         style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden min-h-0">
-          <div className="pl-2">
+          <div>
             {children}
           </div>
         </div>
