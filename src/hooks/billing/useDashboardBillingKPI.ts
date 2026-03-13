@@ -128,10 +128,10 @@ export interface TopCliente {
   daIncassare: number;
 }
 
-export function useTopClientiByFatturato(companyId: string | null, limit = 5) {
+export function useTopClientiByFatturato(companyId: string | null, limit = 5, enabled = true) {
   return useQuery({
     queryKey: ["top-clienti-fatturato", companyId, limit],
-    enabled: !!companyId,
+    enabled: enabled && !!companyId,
     queryFn: async (): Promise<TopCliente[]> => {
       const yearStart = `${new Date().getFullYear()}-01-01`;
 
