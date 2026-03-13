@@ -482,8 +482,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "update_field": {
-      const field = cfg.field_name;
-      const value = cfg.field_value;
+      const field = ncfg.field_name || ncfg.campo;
+      const value = ncfg.field_value || ncfg.valore;
       if (!field) return { success: false, error: "No field_name configured" };
       await supabase
         .from("marketing_contacts")
