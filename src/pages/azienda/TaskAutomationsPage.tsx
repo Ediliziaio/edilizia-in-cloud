@@ -139,13 +139,6 @@ export default function TaskAutomationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Automazioni Task</h1>
-        <p className="text-muted-foreground">
-          Crea task automaticamente quando accadono eventi nel CRM.
-        </p>
-      </div>
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
