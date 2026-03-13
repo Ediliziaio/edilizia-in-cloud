@@ -53,6 +53,8 @@ import {
   BrainCircuit,
   LayoutGrid,
   Home,
+  FileClock,
+  FileX2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -67,6 +69,7 @@ export interface NavItem {
   isBeta?: boolean;
   category?: "internal" | "marketing";
   subcategory?: string;
+  groupLabel?: string;
 }
 
 export interface SubcategoryConfig {
