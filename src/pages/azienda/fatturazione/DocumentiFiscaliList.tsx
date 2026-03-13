@@ -1,176 +1,147 @@
 import { useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
+import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
+import { StatoBadge } from "@/components/fatturazione/StatoBadge";
+import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileText, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight, Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
+  Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
+  AlertCircle, CheckCircle2, Clock,
+} from "lucide-react";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
-import { it } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento, AnagraficaAzienda } from "@/types/fatturazione";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 const PER_PAGE = 25;
 
-function KPICards() {
-  const companyId = useEffectiveCompanyId();
-  const { data } = useQuery({
-    queryKey: ["documenti-kpi", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const now = new Date();
-      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+// ─── Tab config ───────────────────────────────────────────
+const TIPO_TABS: {
+  id: string;
+  label: string;
+  tipos: TipoDocumento[] | null;
+  icon: React.ElementType;
+  countKey: keyof ReturnType<typeof import("@/hooks/billing/useDocumentCounts").useDocumentCounts>["data"] extends infer T ? T extends null ? never : keyof NonNullable<T> : never;
+}[] = [
+  { id: "fatture", label: "Fatture", tipos: ["fattura", "fattura_pa"], icon: FileText, countKey: "fatture" as any },
+  { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma" as any },
+  { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito" as any },
+  { id: "ddt", label: "DDT", tipos: ["ddt"], icon: FileText, countKey: "ddt" as any },
+  { id: "preventivo", label: "Preventivi", tipos: ["preventivo"], icon: FileText, countKey: "preventivo" as any },
+  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate" as any },
+];
 
-      // Fatturato mese (emesse nel mese corrente, escluse bozze/annullate)
-      const { data: meseDocs } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("totale_documento, stato, tipo")
-        .eq("company_id", companyId!)
-        .gte("data_emissione", monthStart)
-        .lte("data_emissione", monthEnd)
-        .in("tipo", ["fattura", "fattura_pa"])
-        .not("stato", "in", '("bozza","annullata","stornata")');
-      const fatturatoMese = ((meseDocs as unknown as { totale_documento: number }[]) ?? [])
-        .reduce((s, d) => s + d.totale_documento, 0);
+const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
+const PAGABILE: StatoDocumento[] = ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"];
 
-      // Da incassare
-      const { data: daIncDocs } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("totale_da_pagare, importo_pagato")
-        .eq("company_id", companyId!)
-        .in("tipo", ["fattura", "fattura_pa"])
-        .in("stato", ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"]);
-      const daIncassare = ((daIncDocs as unknown as { totale_da_pagare: number; importo_pagato: number }[]) ?? [])
-        .reduce((s, d) => s + (d.totale_da_pagare - d.importo_pagato), 0);
-
-      // Scadute
-      const { count: scaduteCount } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .in("tipo", ["fattura", "fattura_pa"])
-        .in("stato", ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"])
-        .lt("data_scadenza", format(now, "yyyy-MM-dd"));
-
-      // Bozze
-      const { count: bozzeCount } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .eq("stato", "bozza");
-
-      return { fatturatoMese, daIncassare, scadute: scaduteCount ?? 0, bozze: bozzeCount ?? 0 };
-    },
-    staleTime: 30_000,
-  });
-
-  const kpi = data ?? { fatturatoMese: 0, daIncassare: 0, scadute: 0, bozze: 0 };
-
-  return (
-    <div className="grid grid-cols-4 gap-4">
-      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Fatturato (mese)</p><p className="text-lg font-semibold">€ {kpi.fatturatoMese.toFixed(2)}</p></CardContent></Card>
-      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Da incassare</p><p className="text-lg font-semibold">€ {kpi.daIncassare.toFixed(2)}</p></CardContent></Card>
-      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Scadute</p><p className="text-lg font-semibold text-destructive">{kpi.scadute}</p></CardContent></Card>
-      <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground">Bozze</p><p className="text-lg font-semibold">{kpi.bozze}</p></CardContent></Card>
-    </div>
-  );
+// ─── Scadenza helper ──────────────────────────────────────
+function getScadenzaInfo(doc: DocumentoFiscale) {
+  if (!doc.data_scadenza || doc.stato === "pagata") return null;
+  const oggi = new Date();
+  const scadenza = new Date(doc.data_scadenza);
+  const diffDays = Math.floor((oggi.getTime() - scadenza.getTime()) / (86400000));
+  if (diffDays > 0) return { scaduta: true, giorni: diffDays };
+  if (diffDays > -7) return { scaduta: false, giorni: Math.abs(diffDays), urgente: true };
+  return { scaduta: false, giorni: Math.abs(diffDays), urgente: false };
 }
 
-const TIPO_TABS: { label: string; value: TipoDocumento[] | null }[] = [
-  { label: "Tutte", value: null },
-  { label: "Fatture", value: ["fattura", "fattura_pa"] },
-  { label: "Note credito", value: ["nota_credito"] },
-  { label: "DDT", value: ["ddt"] },
-  { label: "Preventivi", value: ["preventivo"] },
-  { label: "Pro-forma", value: ["proforma"] },
-];
-
-const STATO_BADGE: Record<string, { label: string; className: string }> = {
-  bozza: { label: "Bozza", className: "bg-muted text-muted-foreground" },
-  emessa: { label: "Emessa", className: "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300" },
-  inviata_sdi: { label: "Inviata SDI", className: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
-  consegnata: { label: "Consegnata", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" },
-  accettata: { label: "Accettata", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" },
-  pagata: { label: "✓ Pagata", className: "bg-emerald-200 text-emerald-800 font-semibold dark:bg-emerald-800 dark:text-emerald-200" },
-  parzialmente_pagata: { label: "Parz. pagata", className: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
-  scaduta: { label: "Scaduta", className: "bg-destructive/10 text-destructive" },
-  rifiutata: { label: "✗ Rifiutata", className: "bg-destructive/10 text-destructive" },
-  stornata: { label: "Stornata", className: "bg-muted text-muted-foreground line-through" },
-  annullata: { label: "Annullata", className: "bg-destructive/10 text-destructive" },
-};
-
-const TIPO_LABELS: Record<string, string> = {
-  fattura: "Fattura", fattura_pa: "Fattura PA", nota_credito: "NC", nota_debito: "ND",
-  proforma: "Pro-forma", preventivo: "Preventivo", ddt: "DDT",
-};
-
-const DATE_PRESETS = [
-  { label: "Questo mese", range: () => ({ da: format(startOfMonth(new Date()), "yyyy-MM-dd"), a: format(endOfMonth(new Date()), "yyyy-MM-dd") }) },
-  { label: "Ultimo trimestre", range: () => ({ da: format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"), a: format(endOfMonth(new Date()), "yyyy-MM-dd") }) },
-  { label: "Anno corrente", range: () => ({ da: format(startOfYear(new Date()), "yyyy-MM-dd"), a: format(endOfMonth(new Date()), "yyyy-MM-dd") }) },
-];
-
-const NC_ALLOWED = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
-
+// ─── Main Page ────────────────────────────────────────────
 export default function DocumentiFiscaliList() {
   const navigate = useNavigate();
-  const [tipoFilter, setTipoFilter] = useState<TipoDocumento[] | null>(null);
-  const [statoFilter, setStatoFilter] = useState<StatoDocumento[]>([]);
-  const [search, setSearch] = useState("");
-  const [dataDa, setDataDa] = useState<string | undefined>();
-  const [dataA, setDataA] = useState<string | undefined>();
+  const [activeTab, setActiveTab] = useState("fatture");
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [statoFilter, setStatoFilter] = useState<string>("all");
+  const [searchRaw, setSearchRaw] = useState("");
+  const search = useDebounce(searchRaw, 300);
   const [page, setPage] = useState(0);
 
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
   const updateMutation = useUpdateDocumento();
 
-  const filters = useMemo(() => ({
-    tipo: tipoFilter ?? undefined,
-    stato: statoFilter.length ? statoFilter : undefined,
-    search: search || undefined,
-    data_da: dataDa,
-    data_a: dataA,
-    page,
-    perPage: PER_PAGE,
-  }), [tipoFilter, statoFilter, search, dataDa, dataA, page]);
+  // Current tab config
+  const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
+  const isTrash = activeTab === "annullate";
+
+  // Build filters for useDocumentiFiscali
+  const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
+  const statoFilterArr = isTrash
+    ? (["annullata"] as StatoDocumento[])
+    : statoFilter !== "all"
+      ? ([statoFilter] as StatoDocumento[])
+      : undefined;
+
+  // Month → date range
+  const dataDa = selectedMonth ? `${selectedMonth}-01` : undefined;
+  const dataA = selectedMonth
+    ? (() => {
+        const [y, m] = selectedMonth.split("-").map(Number);
+        const last = new Date(y, m, 0).getDate();
+        return `${selectedMonth}-${String(last).padStart(2, "0")}`;
+      })()
+    : undefined;
+
+  const filters = useMemo(
+    () => ({
+      tipo: tipoFilter,
+      stato: statoFilterArr,
+      search: search || undefined,
+      data_da: dataDa,
+      data_a: dataA,
+      page,
+      perPage: PER_PAGE,
+    }),
+    [tipoFilter, statoFilterArr, search, dataDa, dataA, page]
+  );
 
   const { data, isLoading } = useDocumentiFiscali(filters);
+  const { data: counts } = useDocumentCounts();
+  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos);
 
-  // KPI — all docs (unfiltered) would be ideal, but we compute from current page data as approximation
-  // For real KPIs we'd use separate aggregate queries; this is a reasonable starting point
   const docs = data?.documenti ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PER_PAGE);
 
-  const hasFilters = tipoFilter || statoFilter.length > 0 || search || dataDa;
+  // Totals for footer
+  const totals = useMemo(() => {
+    let imp = 0, iva = 0, tot = 0;
+    for (const d of docs) {
+      imp += d.imponibile_totale;
+      iva += d.iva_totale;
+      tot += d.totale_documento;
+    }
+    return { imp, iva, tot };
+  }, [docs]);
+
+  const hasFilters = statoFilter !== "all" || searchRaw || selectedMonth;
 
   const clearFilters = () => {
-    setTipoFilter(null);
-    setStatoFilter([]);
-    setSearch("");
-    setDataDa(undefined);
-    setDataA(undefined);
+    setStatoFilter("all");
+    setSearchRaw("");
+    setSelectedMonth(null);
     setPage(0);
   };
 
+  // ── Actions ─────────────────────────────────────────────
   const handleAction = async (action: string, doc: DocumentoFiscale) => {
     switch (action) {
       case "view":
@@ -183,26 +154,43 @@ export default function DocumentiFiscaliList() {
         navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: doc } });
         break;
       case "pdf":
-        try { await downloadNativePDF(doc.id, doc.numero); toast.success("PDF scaricato"); } catch (e: any) { toast.error(e.message); }
+        try {
+          await downloadNativePDF(doc.id, doc.numero);
+          toast.success("PDF scaricato");
+        } catch (e: any) {
+          toast.error(e.message);
+        }
         break;
       case "xml":
         try {
           const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
           const blob = new Blob([xml], { type: "application/xml" });
           const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url; a.download = `${doc.numero}.xml`; a.click();
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${doc.numero}.xml`;
+          a.click();
           URL.revokeObjectURL(url);
           toast.success("XML scaricato");
-        } catch (e: any) { toast.error(e.message); }
+        } catch (e: any) {
+          toast.error(e.message);
+        }
         break;
       case "nc":
         try {
           const prefilled = await creaNotaCredito(doc.id, "totale");
           navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
-        } catch (e: any) { toast.error(e.message); }
+        } catch (e: any) {
+          toast.error(e.message);
+        }
         break;
       case "pagata":
-        updateMutation.mutate({ id: doc.id, stato: "pagata", importo_pagato: doc.totale_da_pagare, pagato_at: new Date().toISOString() });
+        updateMutation.mutate({
+          id: doc.id,
+          stato: "pagata",
+          importo_pagato: doc.totale_da_pagare,
+          pagato_at: new Date().toISOString(),
+        });
         break;
       case "delete":
         deleteMutation.mutate(doc.id);
@@ -211,12 +199,12 @@ export default function DocumentiFiscaliList() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4">
+      {/* ── Header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fatturazione</h1>
-          <p className="text-muted-foreground">Gestisci tutti i tuoi documenti fiscali.</p>
+          <p className="text-sm text-muted-foreground">Gestisci tutti i tuoi documenti fiscali</p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -235,65 +223,97 @@ export default function DocumentiFiscaliList() {
         </DropdownMenu>
       </div>
 
-      {/* KPI Cards */}
-      <KPICards />
+      {/* ── Monthly Timeline ───────────────────────────── */}
+      {timelineMonths && timelineMonths.length > 0 && (
+        <MonthlyTimeline
+          months={timelineMonths}
+          selectedMonth={selectedMonth}
+          onSelectMonth={(m) => {
+            setSelectedMonth(m);
+            setPage(0);
+          }}
+        />
+      )}
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Type tabs */}
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {TIPO_TABS.map((tab) => (
+      {/* ── Tabs ───────────────────────────────────────── */}
+      <div className="flex items-center border-b border-border overflow-x-auto">
+        {TIPO_TABS.map((tab) => {
+          const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
+          const isActive = activeTab === tab.id;
+          const TabIcon = tab.icon;
+          return (
             <button
-              key={tab.label}
-              onClick={() => { setTipoFilter(tab.value); setPage(0); }}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                JSON.stringify(tipoFilter) === JSON.stringify(tab.value)
-                  ? "bg-background text-foreground shadow-sm font-medium"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setPage(0);
+                setStatoFilter("all");
+                setSelectedMonth(null);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap",
+                isActive
+                  ? "border-primary text-primary font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+                tab.id === "annullate" && "text-destructive"
+              )}
             >
+              <TabIcon className="h-4 w-4" />
               {tab.label}
+              {(count as number) > 0 && (
+                <Badge
+                  variant={isActive ? "default" : "secondary"}
+                  className="ml-1 h-5 min-w-[1.25rem] px-1.5 text-[10px]"
+                >
+                  {count as number}
+                </Badge>
+              )}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Date presets */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">{dataDa ? `${dataDa} → ${dataA}` : "Periodo"}</Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {DATE_PRESETS.map((p) => (
-              <DropdownMenuItem key={p.label} onClick={() => { const r = p.range(); setDataDa(r.da); setDataA(r.a); setPage(0); }}>
-                {p.label}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { setDataDa(undefined); setDataA(undefined); setPage(0); }}>Tutto il periodo</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      {/* ── Filters ────────────────────────────────────── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {!isTrash && (
+          <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); }}>
+            <SelectTrigger className="w-[140px] h-9 text-xs">
+              <SelectValue placeholder="Stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              <SelectItem value="bozza">Bozza</SelectItem>
+              <SelectItem value="emessa">Emessa</SelectItem>
+              <SelectItem value="inviata_sdi">Inviata SDI</SelectItem>
+              <SelectItem value="pagata">Pagata</SelectItem>
+              <SelectItem value="scaduta">Scaduta</SelectItem>
+              <SelectItem value="parzialmente_pagata">Parz. pagata</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
-        {/* Search */}
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca numero, cliente..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="pl-8"
+            value={searchRaw}
+            onChange={(e) => { setSearchRaw(e.target.value); setPage(0); }}
+            className="pl-8 h-9 text-sm"
           />
         </div>
 
         {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs">
             <X className="h-3 w-3" /> Azzera filtri
           </Button>
         )}
       </div>
 
-      {/* Table */}
+      {/* ── Table ──────────────────────────────────────── */}
       {isLoading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       ) : docs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <FileText className="h-16 w-16 text-muted-foreground/30 mb-4" />
@@ -301,44 +321,86 @@ export default function DocumentiFiscaliList() {
           <p className="text-sm text-muted-foreground mt-1">
             {hasFilters ? "Prova a modificare i filtri." : "Crea il tuo primo documento per iniziare."}
           </p>
-          {!hasFilters && (
+          {!hasFilters && !isTrash && (
             <Button className="mt-4" onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>
               <Plus className="h-4 w-4 mr-1" /> Crea la tua prima fattura
             </Button>
           )}
         </div>
       ) : (
-        <>
-          <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32">Numero</TableHead>
-                  <TableHead className="w-24">Tipo</TableHead>
-                  <TableHead className="w-28">Data</TableHead>
+                  <TableHead className="w-28">Stato</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right w-28">Totale</TableHead>
-                  <TableHead className="w-32">Stato</TableHead>
+                  <TableHead className="w-36">Data / Numero</TableHead>
+                  <TableHead className="w-40">Prox. Scadenza</TableHead>
+                  <TableHead className="text-right w-28">Importo</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {docs.map((doc) => {
-                  const stato = STATO_BADGE[doc.stato] ?? { label: doc.stato, className: "bg-muted" };
+                  const scadenza = getScadenzaInfo(doc);
                   return (
-                    <TableRow key={doc.id} className="cursor-pointer" onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}>
-                      <TableCell className="font-mono text-sm">{doc.numero}</TableCell>
+                    <TableRow
+                      key={doc.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
+                    >
+                      {/* Stato */}
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">{TIPO_LABELS[doc.tipo] ?? doc.tipo}</Badge>
+                        <StatoBadge stato={doc.stato} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{doc.data_emissione}</TableCell>
-                      <TableCell className="text-sm">{doc.cliente_snapshot?.ragione_sociale || "—"}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold">€ {doc.totale_documento.toFixed(2)}</TableCell>
+
+                      {/* Cliente */}
+                      <TableCell className="text-sm font-medium">
+                        {doc.cliente_snapshot?.ragione_sociale || "—"}
+                      </TableCell>
+
+                      {/* Data / Numero */}
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${stato.className}`}>
-                          {stato.label}
-                        </span>
+                        <span className="text-sm">{formatDateShort(doc.data_emissione)}</span>
+                        <br />
+                        <span className="text-xs text-muted-foreground font-mono">{doc.numero}</span>
                       </TableCell>
+
+                      {/* Prox. Scadenza */}
+                      <TableCell>
+                        {scadenza ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 text-xs",
+                              scadenza.scaduta
+                                ? "text-destructive font-medium"
+                                : scadenza.urgente
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-muted-foreground"
+                            )}
+                          >
+                            {scadenza.scaduta ? (
+                              <><AlertCircle className="h-3 w-3" /> Scaduta da {scadenza.giorni} gg</>
+                            ) : (
+                              <><Clock className="h-3 w-3" /> Scade in {scadenza.giorni} gg</>
+                            )}
+                          </span>
+                        ) : doc.stato === "pagata" ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" /> Pagata
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Importo */}
+                      <TableCell className="text-right font-mono font-semibold text-sm">
+                        {formatCurrency(doc.totale_documento)}
+                      </TableCell>
+
+                      {/* Azioni */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -375,7 +437,7 @@ export default function DocumentiFiscaliList() {
                                 </DropdownMenuItem>
                               </>
                             )}
-                            {["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato) && (
+                            {PAGABILE.includes(doc.stato) && (
                               <DropdownMenuItem onClick={() => handleAction("pagata", doc)}>
                                 <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                               </DropdownMenuItem>
@@ -398,22 +460,32 @@ export default function DocumentiFiscaliList() {
             </Table>
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {total} documenti trovati
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm">Pagina {page + 1} di {Math.max(totalPages, 1)}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* Footer */}
+          <DocumentiFooter
+            total={total}
+            documenti={docs}
+            totalImponibile={totals.imp}
+            totalIva={totals.iva}
+            totalDocumento={totals.tot}
+          />
+        </div>
+      )}
+
+      {/* ── Pagination ─────────────────────────────────── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Pagina {page + 1} di {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
