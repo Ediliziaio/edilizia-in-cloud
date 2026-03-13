@@ -53,9 +53,6 @@ const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
-const Automations = lazy(() => import("@/pages/azienda/Automations"));
-const InternalAutomations = lazy(() => import("@/pages/azienda/InternalAutomations"));
-const TaskAutomationsPage = lazy(() => import("@/pages/azienda/TaskAutomationsPage"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIUnified = lazy(() => import("@/pages/azienda/AgentiAIUnified"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
@@ -194,11 +191,9 @@ export function companyRoutes() {
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
         {/* Unified Automazioni page (3 tabs: operative, task, marketing) */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
-        <Route path="automazioni/:id" element={<InternalAutomations />} />
-        <Route path="automazioni-legacy" element={<Automations />} />
-        
+
         {/* Backward-compatible redirects */}
-        <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni?tab=task" replace />} />
+        <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
         <Route path="agenti-ai/*" element={<AgentiAIUnified />} />
@@ -212,7 +207,7 @@ export function companyRoutes() {
         <Route path="marketing/calendario" element={<MarketingCalendar />} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
-        <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni?tab=marketing" replace />} />
+        <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
         <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai?tipo=custom" replace />} />
         <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai?tipo=platform" replace />} />
         <Route path="marketing/email" element={<EmailMarketing />} />
