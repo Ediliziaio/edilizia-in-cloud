@@ -378,9 +378,9 @@ export function FlowBuilderPage() {
               )}
             </div>
           )}
-          {activeTab === "impostazioni" && <WorkflowImpostazioni />}
-          {activeTab === "cronologia" && <WorkflowCronologia />}
-          {activeTab === "registro" && <WorkflowRegistro />}
+          {activeTab === "impostazioni" && <WorkflowImpostazioni flowId={flowId} />}
+          {activeTab === "cronologia" && <WorkflowCronologia flowId={flowId} />}
+          {activeTab === "registro" && <WorkflowRegistro flowId={flowId} />}
         </div>
 
         {/* Right panel — only in builder tab */}
