@@ -318,6 +318,7 @@ export function FlowBuilderPage() {
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 deleteKeyCode={["Backspace", "Delete"]}
                 className="bg-muted/30"
