@@ -24,24 +24,20 @@ export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null) {
     queryKey: ["billing-monthly-timeline", companyId, tipoFilter],
     enabled: !!companyId,
     queryFn: async () => {
-      let query = supabase
-        .from("documenti_fiscali" as never)
-        .select("data_emissione, totale_documento, tipo")
-        .eq("company_id", companyId!)
-        .neq("stato", "annullata")
-        .order("data_emissione", { ascending: true });
+      const { data, error } = await supabase.rpc(
+        "get_documenti_monthly_timeline" as never,
+        {
+          p_company_id: companyId!,
+          p_tipos: tipoFilter && tipoFilter.length > 0 ? tipoFilter : null,
+        } as never
+      );
 
-      if (tipoFilter && tipoFilter.length > 0) {
-        query = query.in("tipo", tipoFilter);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
 
+      // Build month map for the full range (-12 to +3)
       const now = new Date();
       const monthMap = new Map<string, MonthSummary>();
 
-      // Generate 16 months: -12 to +3
       for (let i = -12; i <= 3; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -55,13 +51,16 @@ export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null) {
         });
       }
 
-      for (const row of (data as unknown as { data_emissione: string; totale_documento: number }[]) ?? []) {
-        const d = new Date(row.data_emissione);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      // Merge server-side aggregation into the map
+      const rows = (typeof data === "string" ? JSON.parse(data) : data) as
+        { year: number; month: number; doc_count: number; total_amount: number }[] | null;
+
+      for (const row of rows ?? []) {
+        const key = `${row.year}-${String(row.month).padStart(2, "0")}`;
         const month = monthMap.get(key);
         if (month) {
-          month.docCount++;
-          month.totalAmount += row.totale_documento ?? 0;
+          month.docCount = row.doc_count;
+          month.totalAmount = Number(row.total_amount);
         }
       }
 
