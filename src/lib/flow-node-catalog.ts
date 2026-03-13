@@ -790,7 +790,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
     icon: '🏗️',
     categoria: 'cantieri',
-    dbTable: 'cantieri',
+    // dbTable: nessuna tabella 'cantieri' nel DB — trigger schedulato/manuale
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },

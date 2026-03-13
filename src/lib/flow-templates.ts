@@ -44,8 +44,8 @@ const T01: FlowTemplate = {
   nodes: [
     { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50, configJson: { trigger_type: 'campagna_facebook_lead' }, label: 'Lead Facebook' },
     { id: 'action-1', nodeType: 'action', posX: 250, posY: 200, configJson: { action_type: 'assegna_agente', entity_type: 'contacts', entity_id: '{{contatto.id}}', strategia: 'round_robin' }, label: 'Assegna agente' },
-    { id: 'action-2', nodeType: 'action', posX: 250, posY: 350, configJson: { action_type: 'crea_task', titolo: '🔥 URGENTE: Chiama {{lead.nome}} entro 5 min', priorita: 'urgente', scadenza_giorni: 0, note: 'Lead da campagna: {{campagna.nome}}' }, label: 'Crea task urgente' },
-    { id: 'action-3', nodeType: 'action', posX: 250, posY: 500, configJson: { action_type: 'invia_notifica_inapp', titolo: 'Nuovo lead Facebook: {{lead.nome}}', testo: '📞 {{lead.telefono}} | Campagna: {{campagna.nome}}' }, label: 'Notifica team' },
+    { id: 'action-2', nodeType: 'action', posX: 250, posY: 350, configJson: { action_type: 'crea_task', titolo: '🔥 URGENTE: Chiama {{contatto.nome}} entro 5 min', priorita: 'urgente', scadenza_giorni: 0, note: 'Lead da campagna: {{campagna.nome}}' }, label: 'Crea task urgente' },
+    { id: 'action-3', nodeType: 'action', posX: 250, posY: 500, configJson: { action_type: 'invia_notifica_inapp', titolo: 'Nuovo lead Facebook: {{contatto.nome}}', testo: '📞 {{contatto.telefono}} | Campagna: {{campagna.nome}}' }, label: 'Notifica team' },
   ],
   connections: [
     { fromId: 'trigger-1', toId: 'action-1' },
