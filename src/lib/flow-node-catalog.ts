@@ -476,7 +476,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
-  // ═══ 📋 PREVENTIVI ═══
+  // ═══ PREVENTIVI ═══
   {
     id: 'preventivo_creato',
     label: 'Preventivo creato',
