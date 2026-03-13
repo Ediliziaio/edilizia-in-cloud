@@ -49,6 +49,7 @@ const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
+const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
