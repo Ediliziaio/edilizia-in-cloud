@@ -717,6 +717,63 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
+          {/* Fatturazione card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Receipt className="h-4 w-4" />
+                Fatturazione
+                {fattureCollegate.length > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {fattureCollegate.length}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {fattureCollegate.length > 0 ? (
+                <div className="space-y-2">
+                  {fattureCollegate.map((f: any) => (
+                    <Link
+                      key={f.id}
+                      to={`/azienda/documenti/${f.id}`}
+                      className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{f.numero}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {f.stato}
+                        </Badge>
+                      </div>
+                      <span className="text-muted-foreground">
+                        {formatCurrency(f.totale_da_pagare)}
+                      </span>
+                    </Link>
+                  ))}
+                  <div className="pt-1 border-t flex justify-between text-sm">
+                    <span className="text-muted-foreground">Totale fatturato</span>
+                    <span className="font-medium">
+                      {formatCurrency(fattureCollegate.reduce((s: number, f: any) => s + (f.totale_da_pagare ?? 0), 0))}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Nessuna fattura collegata
+                </p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura`)}
+              >
+                <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                Crea fattura per questo ordine
+              </Button>
+            </CardContent>
+          </Card>
+
           <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
           <OrderLaborCosts orderId={id!} editable={true} />
           <OrderCommissions
