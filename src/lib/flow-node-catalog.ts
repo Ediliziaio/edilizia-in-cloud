@@ -1133,7 +1133,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'assegna_agente',
     label: 'Assegna responsabile',
     description: 'Assegna un responsabile a un contatto, opportunità o ticket',
-    icon: '👤',
+    icon: 'UserCheck',
     categoria: 'crm',
     configSchema: [
       { id: 'entity_type', label: 'Tipo entità', type: 'select', required: true, options: [
