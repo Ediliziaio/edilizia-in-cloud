@@ -1166,7 +1166,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
 
-  // ═══ 📦 OPERATIVO ═══
+  // ═══ OPERATIVO ═══
   {
     id: 'crea_bozza_ordine',
     label: 'Crea bozza ordine',
