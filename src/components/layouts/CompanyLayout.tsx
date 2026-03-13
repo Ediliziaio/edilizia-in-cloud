@@ -79,6 +79,7 @@ import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
+import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 
 import { CommandPalette } from "@/components/CommandPalette";
 
