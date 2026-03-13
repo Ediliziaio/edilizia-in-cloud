@@ -161,7 +161,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
 
-  // ═══ 💼 OPPORTUNITÀ & PIPELINE ═══
+  // ═══ OPPORTUNITÀ & PIPELINE ═══
   {
     id: 'opportunita_creata',
     label: 'Nuova opportunità creata',
