@@ -13,29 +13,31 @@ import {
   type Edge,
   type OnConnect,
   BackgroundVariant,
-  Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
-import { nodesToReactFlow, connectionsToEdges, reactFlowToNodes, edgesToConnections } from "@/components/flow-builder/hooks/useFlowAdapter";
+import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes } from "@/components/flow-builder/nodes";
 import { FlowBuilderHeader } from "./FlowBuilderHeader";
 import { FlowBuilderSidebar } from "./FlowBuilderSidebar";
 import { FlowBuilderConfigPanel } from "./FlowBuilderConfigPanel";
-import { getCatalogItem, type CatalogItem, type FlowNodeKind } from "@/lib/flow-node-catalog";
-import { Loader2 } from "lucide-react";
+import { type CatalogItem } from "@/lib/flow-node-catalog";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export function FlowBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const flowId = id === "nuova" ? undefined : id;
 
   const builder = useAutomationBuilder(flowId);
   const {
     flow, isLoading, isSaving, hasUnsavedChanges, canUndo, canRedo,
     undo, redo, saveImmediate, togglePublish,
-    addNode, updateNode, removeNode, addConnection,
+    addNode, updateNode, removeNode, removeConnection, addConnection,
     effectiveCompany, user, createFlowMutation,
   } = builder;
 
@@ -68,27 +70,30 @@ export function FlowBuilderPage() {
     }
   }, [id, effectiveCompany, user]);
 
-  // Sync ReactFlow changes back to builder (debounced via builder's auto-save)
-  const syncToBuilder = useCallback(
-    (nodes: Node[], edges: Edge[]) => {
-      if (!flowId || !effectiveCompany) return;
-      const dbNodes = reactFlowToNodes(nodes, flowId, effectiveCompany.id);
-      const dbConns = edgesToConnections(edges, flowId, effectiveCompany.id);
-      // Update builder state directly
-      dbNodes.forEach((n) => {
-        const existing = builder.nodes.find((bn) => bn.id === n.id);
-        if (existing) {
-          updateNode(n.id, { position_x: n.position_x, position_y: n.position_y, config_json: n.config_json, label: n.label });
-        }
-      });
-    },
-    [flowId, effectiveCompany, builder.nodes, updateNode]
-  );
-
-  // Handle connect
+  // Handle connect — with validation
   const onConnect: OnConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
+
+      // BUG-2 fix: validate connections
+      if (params.source === params.target) return; // no self-loops
+
+      const sourceNode = rfNodes.find((n) => n.id === params.source);
+      const targetNode = rfNodes.find((n) => n.id === params.target);
+
+      // No note nodes as source/target
+      if (sourceNode?.type === "note" || targetNode?.type === "note") return;
+
+      // Trigger cannot be a target
+      if (targetNode?.type === "trigger") {
+        toast({
+          title: "Connessione non valida",
+          description: "Il trigger non può avere connessioni in ingresso.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const newEdge: Edge = {
         id: crypto.randomUUID(),
         source: params.source,
@@ -114,7 +119,29 @@ export function FlowBuilderPage() {
         });
       }
     },
-    [flowId, effectiveCompany, setRfEdges, addConnection]
+    [flowId, effectiveCompany, setRfEdges, addConnection, rfNodes, toast]
+  );
+
+  // BUG-1 fix: sync keyboard Delete with builder state
+  const onNodesDelete = useCallback(
+    (deletedNodes: Node[]) => {
+      for (const node of deletedNodes) {
+        removeNode(node.id);
+      }
+      setSelectedNodeId((prev) =>
+        deletedNodes.some((n) => n.id === prev) ? null : prev
+      );
+    },
+    [removeNode]
+  );
+
+  const onEdgesDelete = useCallback(
+    (deletedEdges: Edge[]) => {
+      for (const edge of deletedEdges) {
+        removeConnection(edge.id);
+      }
+    },
+    [removeConnection]
   );
 
   // Handle drop from sidebar
@@ -151,7 +178,6 @@ export function FlowBuilderPage() {
 
       setRfNodes((nds) => [...nds, rfNode]);
 
-      // Add to builder state
       addNode({
         id: newNodeId,
         flow_id: flowId,
@@ -237,10 +263,29 @@ export function FlowBuilderPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [undo, redo, saveImmediate]);
 
+  // BUG-6 fix: error state
+  const isError = !isLoading && flowId && !flow && id !== "nuova";
+
   if (isLoading || (id === "nuova" && createFlowMutation.isPending)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+          <p className="text-sm text-muted-foreground">
+            Errore nel caricamento del flow.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            Torna indietro
+          </Button>
+        </div>
       </div>
     );
   }
@@ -269,6 +314,8 @@ export function FlowBuilderPage() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodesDelete={onNodesDelete}
+            onEdgesDelete={onEdgesDelete}
             onInit={setReactFlowInstance}
             onDrop={onDrop}
             onDragOver={onDragOver}

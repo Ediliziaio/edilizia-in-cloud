@@ -23,9 +23,10 @@ export function FlowBuilderConfigPanel({
   onDelete,
   onClose,
 }: FlowBuilderConfigPanelProps) {
+  // BUG-3 fix: use selectedNode.id as dep so catalog recomputes on node change
   const catalog = useMemo(
     () => (selectedNode ? getCatalogItem(selectedNode.data?.itemId as string) : null),
-    [selectedNode]
+    [selectedNode?.id, selectedNode?.data?.itemId]
   );
 
   if (!selectedNode) return null;
