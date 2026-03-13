@@ -620,7 +620,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_email": {
-      return await executeSendEmail(supabase, cfg, entityId, companyId);
+      return await executeSendEmail(supabase, ncfg, entityId, companyId);
     }
 
     case "send_sms": {
