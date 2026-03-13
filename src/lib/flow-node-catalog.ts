@@ -1171,7 +1171,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_bozza_ordine',
     label: 'Crea bozza ordine',
     description: 'Genera automaticamente una bozza di ordine da preventivo o opportunità vinta',
-    icon: '📦',
+    icon: 'Package',
     categoria: 'ordini',
     outputVariables: [{ id: 'ordine.id', label: 'ID Ordine bozza', type: 'uuid' }],
     configSchema: [
