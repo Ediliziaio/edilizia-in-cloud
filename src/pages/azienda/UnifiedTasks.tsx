@@ -335,7 +335,7 @@ export default function UnifiedTasks() {
                             task.status === "completata" && "opacity-60",
                             selectedIds.has(task.id) && "bg-primary/5"
                           )}
-                          onClick={() => { setEditingTask(task); setDialogOpen(true); }}
+                          onClick={() => setSelectedTask(task)}
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
