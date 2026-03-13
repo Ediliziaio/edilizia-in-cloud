@@ -14248,6 +14248,132 @@ export type Database = {
         }
         Relationships: []
       }
+      task_automation_log: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          id: string
+          rule_id: string
+          success: boolean | null
+          task_created_id: string | null
+          trigger_data: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          rule_id: string
+          success?: boolean | null
+          task_created_id?: string | null
+          trigger_data?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          rule_id?: string
+          success?: boolean | null
+          task_created_id?: string | null
+          trigger_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_automation_log_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "task_automation_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_log_task_created_id_fkey"
+            columns: ["task_created_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_automation_rules: {
+        Row: {
+          action_assign_to: string | null
+          action_category: string | null
+          action_due_days: number | null
+          action_notes: string | null
+          action_priority: string | null
+          action_title: string
+          company_id: string
+          conditions: Json | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          executions_count: number | null
+          id: string
+          is_active: boolean | null
+          last_executed_at: string | null
+          name: string
+          trigger_config: Json | null
+          trigger_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          action_assign_to?: string | null
+          action_category?: string | null
+          action_due_days?: number | null
+          action_notes?: string | null
+          action_priority?: string | null
+          action_title: string
+          company_id: string
+          conditions?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          executions_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_executed_at?: string | null
+          name: string
+          trigger_config?: Json | null
+          trigger_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          action_assign_to?: string | null
+          action_category?: string | null
+          action_due_days?: number | null
+          action_notes?: string | null
+          action_priority?: string | null
+          action_title?: string
+          company_id?: string
+          conditions?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          executions_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_executed_at?: string | null
+          name?: string
+          trigger_config?: Json | null
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_to: string | null
