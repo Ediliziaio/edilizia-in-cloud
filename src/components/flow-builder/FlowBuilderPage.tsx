@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
+import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
