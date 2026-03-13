@@ -638,6 +638,54 @@ export type Database = {
           },
         ]
       }
+      ai_agent_templates: {
+        Row: {
+          agent_type: string
+          categoria: string
+          created_at: string
+          description: string | null
+          first_message: string
+          icona: string | null
+          id: string
+          is_active: boolean
+          name: string
+          objective: string | null
+          sort_order: number
+          suggested_voice: string | null
+          system_prompt: string
+        }
+        Insert: {
+          agent_type?: string
+          categoria?: string
+          created_at?: string
+          description?: string | null
+          first_message?: string
+          icona?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          objective?: string | null
+          sort_order?: number
+          suggested_voice?: string | null
+          system_prompt?: string
+        }
+        Update: {
+          agent_type?: string
+          categoria?: string
+          created_at?: string
+          description?: string | null
+          first_message?: string
+          icona?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          objective?: string | null
+          sort_order?: number
+          suggested_voice?: string | null
+          system_prompt?: string
+        }
+        Relationships: []
+      }
       ai_agent_tests: {
         Row: {
           agent_id: string
