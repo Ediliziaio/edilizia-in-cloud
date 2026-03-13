@@ -283,6 +283,15 @@ export default function UnifiedTasks() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  {assignees.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex rounded-md border overflow-hidden ml-auto">
                 <button
                   onClick={() => setViewMode("list")}
