@@ -102,7 +102,7 @@ export function useSpeedToLeadDistribuzione(periodo: PeriodoVendor, operatoreId?
   });
 }
 
-export function useTrendGiornaliero(periodo: PeriodoVendor, operatoreId?: string) {
+export function useTrendGiornaliero(periodo: PeriodoVendor, operatoreId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   const { inizio, fine } = usePeriodoDate(periodo);
   return useQuery({
@@ -117,7 +117,7 @@ export function useTrendGiornaliero(periodo: PeriodoVendor, operatoreId?: string
       if (error) throw error;
       return (data ?? []) as TrendGiornaliero[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 3 * 60_000,
   });
 }
