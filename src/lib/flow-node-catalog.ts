@@ -846,7 +846,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'cantiere_in_ritardo',
     label: 'Cantiere in ritardo sulla data di fine',
     description: 'Scatta quando un cantiere supera la data di fine prevista',
-    icon: '⚠️',
+    icon: 'AlertTriangle',
     categoria: 'cantieri',
     dbEvent: 'SCHEDULED',
     outputVariables: [
