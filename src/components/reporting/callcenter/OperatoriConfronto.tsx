@@ -70,7 +70,7 @@ const CompareRow = memo(function CompareRow({ field, a, b }: { field: CompareFie
   );
 });
 
-export function OperatoriConfronto({ kpiList }: { kpiList: CallCenterKPI[] }) {
+export const OperatoriConfronto = memo(function OperatoriConfronto({ kpiList }: { kpiList: CallCenterKPI[] }) {
   const [opA, setOpA] = useState<string>("");
   const [opB, setOpB] = useState<string>("");
 
@@ -151,4 +151,4 @@ export function OperatoriConfronto({ kpiList }: { kpiList: CallCenterKPI[] }) {
       </CardContent>
     </Card>
   );
-}
+});
