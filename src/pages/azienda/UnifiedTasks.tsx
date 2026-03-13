@@ -304,7 +304,7 @@ export default function UnifiedTasks() {
             ) : viewMode === "kanban" ? (
               <TaskKanbanBoard
                 tasks={filteredTasks}
-                onTaskSelect={(task) => { setEditingTask(task); setDialogOpen(true); }}
+                onTaskSelect={(task) => setSelectedTask(task)}
               />
             ) : (
               <>
