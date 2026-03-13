@@ -403,7 +403,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione/emissione di una fattura',
     icon: '🧾',
     categoria: 'fatturazione',
-    dbTable: 'fatture_native',
+    dbTable: 'invoices',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
