@@ -24,6 +24,21 @@ import { Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2,
 import { useState, useMemo } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
+const CATEGORY_MAP: Record<string, { label: string; emoji: string }> = {
+  crm: { label: "CRM & Vendite", emoji: "👥" },
+  marketing: { label: "Marketing", emoji: "📣" },
+  preventivi: { label: "Preventivi", emoji: "📋" },
+  fatturazione: { label: "Fatturazione", emoji: "💰" },
+  ordini: { label: "Ordini", emoji: "📦" },
+  cantieri: { label: "Cantieri", emoji: "🏗️" },
+  assistenza: { label: "Assistenza", emoji: "🎧" },
+  magazzino: { label: "Magazzino", emoji: "🏭" },
+  hr: { label: "HR", emoji: "🧑‍💼" },
+  task: { label: "Task", emoji: "✅" },
+  notifiche: { label: "Notifiche", emoji: "🔔" },
+  generale: { label: "Generale", emoji: "⚙️" },
+};
+
 interface Props {
   statusFilter: string;
   searchQuery?: string;
