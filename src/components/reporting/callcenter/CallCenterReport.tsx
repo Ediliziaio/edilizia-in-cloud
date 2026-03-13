@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Phone } from "lucide-react";
+import { Phone, GitCompareArrows } from "lucide-react";
 import type { PeriodoVendor } from "@/hooks/useVendorReport";
 import {
   useCallCenterKPI,
@@ -10,6 +10,8 @@ import {
   useFonteLeadPerformance,
 } from "@/hooks/useCallCenterReport";
 import { CallCenterKPISection } from "./CallCenterKPISection";
+import { CallCenterInsights } from "./CallCenterInsights";
+import { OperatoriConfronto } from "./OperatoriConfronto";
 import { SpeedToLeadChart } from "./SpeedToLeadChart";
 import { CallCenterTrendChart } from "./CallCenterTrendChart";
 import { FonteLeadTable } from "./FonteLeadTable";
@@ -30,15 +32,22 @@ export default function CallCenterReport() {
 
   const effectiveOpId = operatoreId === "tutti" ? undefined : operatoreId;
 
+  // Single KPI query — no duplicate when "tutti"
   const { data: kpiList, isLoading: kpiLoading } = useCallCenterKPI(periodo);
-  const { data: kpiFiltered, isLoading: kpiFilteredLoading } = useCallCenterKPI(periodo, effectiveOpId);
+  const { data: kpiFiltered, isLoading: kpiFilteredLoading } = useCallCenterKPI(
+    periodo,
+    effectiveOpId
+  );
+  const isIndividual = operatoreId !== "tutti";
+
+  // Only load speed/trend/fonti when their tab is active
   const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId);
   const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId);
   const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo);
 
-  // Aggregate team KPI when "tutti" selected
+  // Aggregate team KPI from kpiList — avoids duplicate query
   const currentKpi = useMemo(() => {
-    if (operatoreId !== "tutti") {
+    if (isIndividual) {
       return kpiFiltered?.[0] ?? null;
     }
     if (!kpiList?.length) return null;
@@ -85,9 +94,9 @@ export default function CallCenterReport() {
     agg.pct_oltre_24ore = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_oltre_24ore ?? 0), 0) / withSpeed.length) / 10 : 0;
 
     return agg;
-  }, [operatoreId, kpiList, kpiFiltered]);
+  }, [isIndividual, kpiList, kpiFiltered]);
 
-  const isKpiLoading = operatoreId === "tutti" ? kpiLoading : kpiFilteredLoading;
+  const isKpiLoading = isIndividual ? kpiFilteredLoading : kpiLoading;
 
   return (
     <div className="space-y-6">
@@ -132,10 +141,14 @@ export default function CallCenterReport() {
           <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
           <TabsTrigger value="trend">Trend Giornaliero</TabsTrigger>
           <TabsTrigger value="fonti">Fonti Lead</TabsTrigger>
+          <TabsTrigger value="confronto" className="gap-1.5">
+            <GitCompareArrows className="h-4 w-4" /> Confronto
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-4 space-y-6">
           <CallCenterKPISection kpi={currentKpi} isLoading={isKpiLoading} />
+          <CallCenterInsights kpi={currentKpi} />
         </TabsContent>
 
         <TabsContent value="ranking" className="mt-4">
@@ -152,6 +165,10 @@ export default function CallCenterReport() {
 
         <TabsContent value="fonti" className="mt-4">
           <FonteLeadTable data={fonteData ?? []} isLoading={fonteLoading} />
+        </TabsContent>
+
+        <TabsContent value="confronto" className="mt-4">
+          <OperatoriConfronto kpiList={kpiList ?? []} />
         </TabsContent>
       </Tabs>
     </div>
