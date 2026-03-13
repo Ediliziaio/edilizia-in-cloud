@@ -1065,7 +1065,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'invia_sms',
     label: 'Invia SMS',
     description: 'Invia un SMS al numero specificato',
-    icon: '📱',
+    icon: 'MessageSquare',
     categoria: 'comunicazione',
     configSchema: [
       { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
