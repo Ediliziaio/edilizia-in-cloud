@@ -175,10 +175,7 @@ export const macroAreas: MacroArea[] = [
     icon: Zap,
     items: [
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewSettings" },
-      { title: "Automazioni Task", url: "/azienda/automazioni-task", icon: ListTodo, permissionKey: "canViewSettings" },
-      { title: "Automazioni Marketing", url: "/azienda/marketing/automazioni", icon: GitBranch, permissionKey: "canViewMarketingAutomations" },
-      { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
-      { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: BrainCircuit, permissionKey: "canViewSettings", featureKey: "ai_agents_internal" },
+      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
     ],
   },
 ];
@@ -226,7 +223,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal", subcategory: "gi_automation" },
-  { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
+  { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];
 
 /** @deprecated Use macroAreas instead */
@@ -248,8 +245,8 @@ export const marketingNavItems: NavItem[] = [
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing", subcategory: "mkt_comunicazione" },
-  { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
-  { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
+  { title: "Automazioni", url: "/azienda/automazioni?tab=marketing", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
+  { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
 ];
