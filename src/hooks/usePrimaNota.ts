@@ -31,6 +31,7 @@ export interface PrimaNotaEntry {
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string } | null;
   orders?: { order_number: string } | null;
+  documenti_fiscali?: { id: string; numero: string; tipo: string } | null;
 }
 
 export interface PrimaNotaSaldo {
