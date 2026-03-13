@@ -53,13 +53,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
 
       if (docRes.error) throw docRes.error;
 
-      const docs = (docRes.data ?? []) as Array<{
-        tipo: string;
-        stato: string;
-        data_emissione: string;
-        totale_da_pagare: number;
-        imponibile: number;
-      }>;
+      const docs = docRes.data ?? [];
 
       const fattureTipo = ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"];
 
@@ -76,9 +70,9 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
 
         if (isFattura && isEmessa) {
           if (dataStr >= yearStart) {
-            fatturato_ytd += d.imponibile ?? 0;
+            fatturato_ytd += d.imponibile_totale ?? 0;
             if (dataStr >= monthStart && dataStr < nextMonth) {
-              fatturato_mese += d.imponibile ?? 0;
+              fatturato_mese += d.imponibile_totale ?? 0;
               fatture_emesse_mese++;
             }
           }
