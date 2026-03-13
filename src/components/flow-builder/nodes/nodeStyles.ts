@@ -35,3 +35,6 @@ export function getNodeColors(category?: string): NodeColorScheme {
   if (!category) return DEFAULT_COLORS;
   return AZIONE_COLORI[category] ?? DEFAULT_COLORS;
 }
+
+/** Alias for catalog list components */
+export const getCategoryColor = getNodeColors;

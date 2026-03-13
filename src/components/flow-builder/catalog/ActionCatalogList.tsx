@@ -69,7 +69,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
 
     // Add conditions as "Logica" category
     if (includeConditions) {
-      const condItems = CONDITION_CATALOG
+      const condItems: CatalogItem[] = CONDITION_CATALOG
         .filter(c => !q || c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
         .map(c => ({
           id: c.id, label: c.label, description: c.description, icon: c.icon,
