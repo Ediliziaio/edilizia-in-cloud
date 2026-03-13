@@ -196,6 +196,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       cig: state.cig,
       cup: state.cup,
       arrotondamento: state.arrotondamento,
+      data_validita: state.data_validita,
     });
 
     if (serialized === prevStateRef.current) return;
