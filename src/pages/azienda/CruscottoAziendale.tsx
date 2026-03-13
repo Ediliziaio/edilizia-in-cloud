@@ -23,6 +23,9 @@ import { ClienteSituazioneWidget } from "@/components/cruscotto/ClienteSituazion
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
+import { useBillingMode } from "@/contexts/BillingModeContext";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export default function CruscottoAziendale() {
   const {
