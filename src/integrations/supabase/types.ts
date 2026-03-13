@@ -16462,6 +16462,69 @@ export type Database = {
         }[]
       }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
+      get_vendor_funnel_stages: {
+        Args: {
+          p_agent_id?: string
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+        }
+        Returns: {
+          count_opp: number
+          pct_del_totale: number
+          stage: string
+          valore_totale: number
+        }[]
+      }
+      get_vendor_kpi_per_agent: {
+        Args: {
+          p_agent_id?: string
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+        }
+        Returns: {
+          agent_id: string
+          appuntamenti_effettuati: number
+          appuntamenti_fissati: number
+          appuntamenti_no_show: number
+          avg_giorni_chiusura: number
+          avg_giorni_chiusura_perse: number
+          email_agente: string
+          fatturato_generato: number
+          fatturato_perso: number
+          importo_medio_chiusura: number
+          max_giorni_chiusura: number
+          min_giorni_chiusura: number
+          nome_agente: string
+          nuovi_contatti: number
+          opp_aperte: number
+          opp_perse: number
+          opp_totali: number
+          opp_vinte: number
+          pipeline_valore: number
+          tasso_app_to_close: number
+          tasso_app_to_opp: number
+          tasso_chiusura: number
+          tasso_conversione: number
+          tasso_show_up: number
+        }[]
+      }
+      get_vendor_trend_mensile: {
+        Args: { p_agent_id?: string; p_anno?: number; p_company_id: string }
+        Returns: {
+          appuntamenti_effettuati: number
+          appuntamenti_fissati: number
+          fatturato: number
+          mese: number
+          mese_label: string
+          nuovi_contatti: number
+          opp_perse: number
+          opp_vinte: number
+          tasso_chiusura: number
+          tasso_show_up: number
+        }[]
+      }
       get_weighted_pipeline: {
         Args: { p_company_id: string }
         Returns: {

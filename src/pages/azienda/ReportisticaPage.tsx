@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BarChart3 } from "lucide-react";
 import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsReport";
 import AttributionReport from "@/components/reporting/attribution/AttributionReport";
+import VenditoriPerformanceReport from "@/components/reporting/venditori/VenditoriPerformanceReport";
 
 const TABS = [
   { key: "facebook-ads", label: "Report di Facebook Ads" },
@@ -13,9 +14,10 @@ const TABS = [
   { key: "agents", label: "Report sugli agenti" },
   { key: "appointments", label: "Report sugli appuntamenti" },
   { key: "audit", label: "Audit marketing locale" },
+  { key: "venditori", label: "Performance Venditori" },
 ];
 
-const IMPLEMENTED_TABS = ["facebook-ads", "attribution"];
+const IMPLEMENTED_TABS = ["facebook-ads", "attribution", "venditori"];
 
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,6 +45,10 @@ const ReportisticaPage = () => {
 
         <TabsContent value="attribution" className="mt-6">
           <AttributionReport />
+        </TabsContent>
+
+        <TabsContent value="venditori" className="mt-6">
+          <VenditoriPerformanceReport />
         </TabsContent>
 
         {TABS.filter((t) => !IMPLEMENTED_TABS.includes(t.key)).map((t) => (
