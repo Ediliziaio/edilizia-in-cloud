@@ -1,5 +1,11 @@
 import { useState, useMemo } from "react";
-import { TRIGGER_CATALOG, ACTION_CATALOG, NOTE_CATALOG_ITEM, type CatalogItem } from "@/lib/flow-node-catalog";
+import {
+  TRIGGER_CATALOG_ITEMS,
+  ACTION_CATALOG_ITEMS,
+  CONDITION_CATALOG_ITEMS,
+  NOTE_CATALOG_ITEM,
+  type CatalogItem,
+} from "@/lib/flow-node-catalog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, GripVertical } from "lucide-react";
@@ -9,16 +15,55 @@ interface FlowBuilderSidebarProps {
   onDragStart: (item: CatalogItem) => void;
 }
 
+type TabKey = "trigger" | "action" | "condition";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "trigger", label: "Trigger" },
+  { key: "action", label: "Azioni" },
+  { key: "condition", label: "Condizioni" },
+];
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'CRM & Vendite': '👥',
+  'Marketing': '📣',
+  'Ordini': '📦',
+  'Fatturazione': '💰',
+  'Preventivi': '📋',
+  'Assistenza': '🎫',
+  'Magazzino': '📦',
+  'HR & Personale': '👤',
+  'Cantieri': '🏗️',
+  'Task & Attività': '✅',
+  'Comunicazione': '📨',
+  'Generale': '⚙️',
+  'Logica': '🔀',
+  'Utilità': '🔧',
+};
+
 export function FlowBuilderSidebar({ onDragStart }: FlowBuilderSidebarProps) {
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"trigger" | "action">("trigger");
+  const [activeTab, setActiveTab] = useState<TabKey>("trigger");
 
   const items = useMemo(() => {
-    const source = activeTab === "trigger" ? TRIGGER_CATALOG : [...ACTION_CATALOG, NOTE_CATALOG_ITEM];
+    let source: CatalogItem[];
+    switch (activeTab) {
+      case "trigger":
+        source = TRIGGER_CATALOG_ITEMS;
+        break;
+      case "action":
+        source = [...ACTION_CATALOG_ITEMS, NOTE_CATALOG_ITEM];
+        break;
+      case "condition":
+        source = CONDITION_CATALOG_ITEMS;
+        break;
+    }
     if (!search.trim()) return source;
     const q = search.toLowerCase();
     return source.filter(
-      (i) => i.label.toLowerCase().includes(q) || i.categoryLabel.toLowerCase().includes(q)
+      (i) =>
+        i.label.toLowerCase().includes(q) ||
+        i.categoryLabel.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q)
     );
   }, [activeTab, search]);
 
@@ -36,18 +81,18 @@ export function FlowBuilderSidebar({ onDragStart }: FlowBuilderSidebarProps) {
     <div className="flex h-full w-[260px] flex-col border-r bg-background">
       {/* Tabs */}
       <div className="flex border-b">
-        {(["trigger", "action"] as const).map((tab) => (
+        {TABS.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={cn(
               "flex-1 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-              activeTab === tab
+              activeTab === tab.key
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {tab === "trigger" ? "Trigger" : "Azioni"}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -71,7 +116,7 @@ export function FlowBuilderSidebar({ onDragStart }: FlowBuilderSidebarProps) {
           {[...grouped.entries()].map(([category, catItems]) => (
             <div key={category}>
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {category}
+                {CATEGORY_ICONS[category] ?? '⚡'} {category}
               </p>
               <div className="space-y-1">
                 {catItems.map((item) => (
@@ -86,6 +131,7 @@ export function FlowBuilderSidebar({ onDragStart }: FlowBuilderSidebarProps) {
                     className="flex cursor-grab items-center gap-2 rounded-lg border bg-card px-2.5 py-2 text-xs transition-colors hover:bg-accent active:cursor-grabbing"
                   >
                     <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="text-sm shrink-0">{item.icon}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{item.label}</p>
                       {item.description && (
