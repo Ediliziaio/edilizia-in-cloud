@@ -1252,7 +1252,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_fattura',
     label: 'Crea bozza fattura',
     description: 'Genera automaticamente una bozza di fattura (es. da ordine completato)',
-    icon: '🧾',
+    icon: 'Receipt',
     categoria: 'fatturazione',
     outputVariables: [{ id: 'fattura.id', label: 'ID Fattura bozza', type: 'uuid' }],
     configSchema: [
