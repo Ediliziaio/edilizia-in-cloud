@@ -480,7 +480,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo preventivo/offerta',
     icon: '📋',
     categoria: 'preventivi',
-    dbTable: 'preventivi_native',
+    dbTable: 'quotes',
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
