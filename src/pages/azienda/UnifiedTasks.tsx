@@ -391,6 +391,11 @@ export default function UnifiedTasks() {
         task={editingTask}
         onSaved={handleRefresh}
       />
+
+      <TaskDetailPanel
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+      />
     </div>
   );
 }
