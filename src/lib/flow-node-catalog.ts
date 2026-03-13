@@ -1215,7 +1215,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     id: 'crea_appuntamento',
     label: 'Crea appuntamento',
     description: 'Fissa automaticamente un appuntamento nel calendario',
-    icon: '📅',
+    icon: 'Calendar',
     categoria: 'crm',
     outputVariables: [{ id: 'appuntamento.id', label: 'ID Appuntamento creato', type: 'uuid' }],
     configSchema: [
