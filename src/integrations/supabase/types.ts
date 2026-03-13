@@ -5933,6 +5933,76 @@ export type Database = {
           },
         ]
       }
+      flow_execution_runs: {
+        Row: {
+          company_id: string
+          duration_ms: number | null
+          ended_at: string | null
+          enrollment_id: string | null
+          error_message: string | null
+          flow_id: string
+          id: string
+          nodes_executed: number | null
+          started_at: string
+          status: string
+          steps_log: Json | null
+          trigger_data: Json | null
+          trigger_type: string | null
+        }
+        Insert: {
+          company_id: string
+          duration_ms?: number | null
+          ended_at?: string | null
+          enrollment_id?: string | null
+          error_message?: string | null
+          flow_id: string
+          id?: string
+          nodes_executed?: number | null
+          started_at?: string
+          status?: string
+          steps_log?: Json | null
+          trigger_data?: Json | null
+          trigger_type?: string | null
+        }
+        Update: {
+          company_id?: string
+          duration_ms?: number | null
+          ended_at?: string | null
+          enrollment_id?: string | null
+          error_message?: string | null
+          flow_id?: string
+          id?: string
+          nodes_executed?: number | null
+          started_at?: string
+          status?: string
+          steps_log?: Json | null
+          trigger_data?: Json | null
+          trigger_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_execution_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_execution_runs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "automation_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_execution_runs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_submissions: {
         Row: {
           company_id: string
