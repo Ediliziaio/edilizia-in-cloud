@@ -46,6 +46,8 @@ export interface PrimaNotaFilters {
   direction?: "entrata" | "uscita" | "";
   category?: string;
   search?: string;
+  isAuto?: boolean | null; // true=auto only, false=manual only, null=all
+  autoSource?: string;
 }
 
 export function usePrimaNota(filters: PrimaNotaFilters = {}) {
