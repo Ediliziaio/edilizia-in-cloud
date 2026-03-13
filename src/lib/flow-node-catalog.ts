@@ -291,7 +291,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     id: 'appuntamento_completato',
     label: 'Appuntamento completato (show-up)',
     description: "Il cliente si è presentato all'appuntamento",
-    icon: '🎯',
+    icon: 'Target',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
