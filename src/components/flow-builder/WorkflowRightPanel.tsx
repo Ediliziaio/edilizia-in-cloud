@@ -12,10 +12,12 @@ import type { Node } from "@xyflow/react";
 
 type PanelMode = "catalog" | "config";
 type CatalogTab = "trigger" | "action" | "condition";
+type CatalogContext = "trigger" | "action";
 
 interface WorkflowRightPanelProps {
   mode: PanelMode;
   catalogTab: CatalogTab;
+  catalogContext: CatalogContext;
   onCatalogTabChange: (tab: CatalogTab) => void;
   selectedNode: Node | null;
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
@@ -25,15 +27,10 @@ interface WorkflowRightPanelProps {
   onSelectItem?: (item: CatalogItem) => void;
 }
 
-const CATALOG_TABS: { key: CatalogTab; label: string }[] = [
-  { key: "trigger", label: "Trigger" },
-  { key: "action", label: "Azioni" },
-  { key: "condition", label: "Condizioni" },
-];
-
 export function WorkflowRightPanel({
   mode,
   catalogTab,
+  catalogContext,
   onCatalogTabChange,
   selectedNode,
   onUpdateData,
@@ -56,6 +53,7 @@ export function WorkflowRightPanel({
   return (
     <CatalogPanel
       catalogTab={catalogTab}
+      catalogContext={catalogContext}
       onCatalogTabChange={onCatalogTabChange}
       onClose={onClose}
       onDragStart={onDragStart}
@@ -64,14 +62,26 @@ export function WorkflowRightPanel({
   );
 }
 
+// Build visible tabs based on context
+const TRIGGER_TABS: { key: CatalogTab; label: string }[] = [
+  { key: "trigger", label: "Trigger" },
+];
+
+const ACTION_TABS: { key: CatalogTab; label: string }[] = [
+  { key: "action", label: "Azioni" },
+  { key: "condition", label: "Condizioni" },
+];
+
 function CatalogPanel({
   catalogTab,
+  catalogContext,
   onCatalogTabChange,
   onClose,
   onDragStart,
   onSelectItem,
 }: {
   catalogTab: CatalogTab;
+  catalogContext: CatalogContext;
   onCatalogTabChange: (tab: CatalogTab) => void;
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
@@ -79,9 +89,20 @@ function CatalogPanel({
 }) {
   const [search, setSearch] = useState("");
 
+  const visibleTabs = catalogContext === "trigger" ? TRIGGER_TABS : ACTION_TABS;
+
+  // Ensure current tab is valid for context
+  const effectiveTab = visibleTabs.some(t => t.key === catalogTab) ? catalogTab : visibleTabs[0].key;
+
   const handleSelect = (item: CatalogItem) => {
     onSelectItem?.(item);
   };
+
+  const headerLabel = catalogContext === "trigger"
+    ? "Aggiungi Trigger"
+    : effectiveTab === "condition"
+      ? "Aggiungi Condizione"
+      : "Aggiungi Azione";
 
   return (
     <div className="flex h-full w-[340px] flex-col border-l bg-background">
@@ -89,9 +110,7 @@ function CatalogPanel({
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">
-            {catalogTab === "trigger" ? "Aggiungi Trigger" : catalogTab === "action" ? "Aggiungi Azione" : "Aggiungi Condizione"}
-          </span>
+          <span className="text-sm font-semibold">{headerLabel}</span>
         </div>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
@@ -111,35 +130,37 @@ function CatalogPanel({
         </div>
       </div>
 
-      {/* Catalog type tabs */}
-      <div className="flex border-b">
-        {CATALOG_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => onCatalogTabChange(tab.key)}
-            className={cn(
-              "flex-1 py-2 text-xs font-semibold transition-colors",
-              catalogTab === tab.key
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Catalog type tabs — only show if more than 1 */}
+      {visibleTabs.length > 1 && (
+        <div className="flex border-b">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => onCatalogTabChange(tab.key)}
+              className={cn(
+                "flex-1 py-2 text-xs font-semibold transition-colors",
+                effectiveTab === tab.key
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Items */}
       <ScrollArea className="flex-1">
-        {catalogTab === "trigger" && (
+        {effectiveTab === "trigger" && (
           <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} />
         )}
-        {(catalogTab === "action" || catalogTab === "condition") && (
+        {(effectiveTab === "action" || effectiveTab === "condition") && (
           <ActionCatalogList
             search={search}
             onSelect={handleSelect}
             onDragStart={onDragStart}
-            includeConditions={catalogTab === "condition" || catalogTab === "action"}
+            includeConditions={effectiveTab === "condition" || effectiveTab === "action"}
           />
         )}
       </ScrollArea>

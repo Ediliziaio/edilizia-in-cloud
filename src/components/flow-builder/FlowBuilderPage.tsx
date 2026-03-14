@@ -504,6 +504,7 @@ export function FlowBuilderPage() {
           <WorkflowRightPanel
             mode={rightPanelMode}
             catalogTab={catalogTab}
+            catalogContext={catalogContext}
             onCatalogTabChange={setCatalogTab}
             selectedNode={selectedRfNode}
             onUpdateData={handleUpdateNodeData}
