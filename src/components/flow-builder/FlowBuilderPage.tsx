@@ -335,8 +335,10 @@ export function FlowBuilderPage() {
     toast.success("Workflow archiviato");
   }, [updateFlowMutation]);
 
-  // Open catalog panel
+  // Open catalog panel with context filtering
   const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setCatalogContext(ctx);
     setRightPanelOpen(true);
     setRightPanelMode("catalog");
     setSelectedNodeId(null);
