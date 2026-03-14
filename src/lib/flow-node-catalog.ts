@@ -1457,6 +1457,8 @@ function triggerToCatalogItem(t: TriggerDefinition): CatalogItem {
 function actionKind(id: string): FlowNodeKind {
   if (id === 'condition_se' || id === 'condition_multi') return 'condition';
   if (id === 'attendi') return 'delay';
+  if (id === 'goal') return 'goal';
+  if (id === 'split_ab') return 'split';
   return 'action';
 }
 
