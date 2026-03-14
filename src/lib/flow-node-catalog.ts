@@ -1339,6 +1339,53 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
       { id: 'condizioni', label: 'Condizioni (JSON array)', type: 'json_editor', required: true, placeholder: '[{"variabile":"{{opportunita.value}}","operatore":"maggiore","valore":"5000"}]', helpText: 'Ogni condizione: { variabile, operatore, valore }' },
     ],
   },
+  {
+    id: 'goal',
+    label: 'Obiettivo (Goal)',
+    description: 'Termina il ramo quando una condizione obiettivo viene raggiunta (es: il contatto ha comprato)',
+    icon: 'Target',
+    configSchema: [
+      { id: 'variabile', label: 'Variabile obiettivo', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.status}}' },
+      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
+        { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
+        { value: 'non_vuoto', label: 'non è vuoto' }, { value: 'maggiore', label: '> maggiore di' },
+      ]},
+      { id: 'valore', label: 'Valore atteso', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: vinto' },
+      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Ha comprato' },
+    ],
+  },
+  {
+    id: 'split_ab',
+    label: 'Split A/B',
+    description: 'Divide il traffico in 2 o più rami con percentuali configurabili per test A/B',
+    icon: 'Shuffle',
+    configSchema: [
+      { id: 'rami', label: 'Numero di rami', type: 'number', required: true, defaultValue: 2, min: 2, max: 5 },
+      { id: 'percentuali', label: 'Percentuali (es: 50,50 o 33,33,34)', type: 'text', required: true, defaultValue: '50,50', placeholder: '50,50', helpText: 'La somma deve essere 100%' },
+      { id: 'label', label: 'Etichetta split', type: 'text', required: false, placeholder: 'Es: Test email' },
+    ],
+  },
+  {
+    id: 'vai_a',
+    label: 'Vai a (Go To)',
+    description: 'Salta a un altro punto del flow, collegandosi a un nodo esistente',
+    icon: 'ArrowRight',
+    configSchema: [
+      { id: 'target_node_id', label: 'Nodo destinazione', type: 'text', required: true, placeholder: 'ID del nodo destinazione', helpText: 'Seleziona il nodo a cui saltare' },
+      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Torna a inizio' },
+    ],
+  },
+  {
+    id: 'drip_sequenza',
+    label: 'Sequenza Drip',
+    description: 'Invia una serie di messaggi a intervalli programmati (drip campaign)',
+    icon: 'Clock',
+    configSchema: [
+      { id: 'intervallo_ore', label: 'Intervallo tra messaggi (ore)', type: 'number', required: true, defaultValue: 24, min: 1, max: 720, helpText: 'Es: 24 = un messaggio al giorno' },
+      { id: 'num_messaggi', label: 'Numero totale messaggi', type: 'number', required: true, defaultValue: 3, min: 1, max: 20 },
+      { id: 'label', label: 'Nome sequenza', type: 'text', required: false, placeholder: 'Es: Onboarding 7 giorni' },
+    ],
+  },
 ];
 
 // ─── Helper maps ─────────────────────────────────────────────────────────────
