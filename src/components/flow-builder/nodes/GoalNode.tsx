@@ -28,9 +28,9 @@ function GoalNodeComponent({ data, selected }: NodeProps) {
         <p className="truncate text-sm font-medium text-foreground">
           {label}
         </p>
-        {data.valore && (
+        {(data.valore as string) && (
           <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-            {data.variabile} {data.operatore} {data.valore as string}
+            {String(data.variabile || '')} {String(data.operatore || '')} {String(data.valore || '')}
           </p>
         )}
       </div>
