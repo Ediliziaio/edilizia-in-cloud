@@ -74,8 +74,20 @@ export function FlowBuilderPage() {
   useEffect(() => {
     if (initializedRef.current) return;
     if (builder.nodes.length > 0 || builder.connections.length > 0) {
-      setRfNodes(nodesToReactFlow(builder.nodes));
-      setRfEdges(connectionsToEdges(builder.connections));
+      const rfNodesData = nodesToReactFlow(builder.nodes);
+      // Inject onOpenCatalog on empty triggers
+      setRfNodes(rfNodesData.map(n => {
+        if (n.type === "trigger" && !n.data?.itemId) {
+          return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
+        }
+        return n;
+      }));
+      // Inject onAddStep callback into all edges loaded from DB
+      const rfEdgesData = connectionsToEdges(builder.connections);
+      setRfEdges(rfEdgesData.map(e => ({
+        ...e,
+        data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
+      })));
       initializedRef.current = true;
     } else if (!isLoading && builder.nodes.length === 0 && (flowId || isNewFlowRoute)) {
       // Empty canvas placeholder: trigger + end node
