@@ -56,6 +56,7 @@ export function FlowBuilderPage() {
   const [catalogTab, setCatalogTab] = useState<"trigger" | "action" | "condition">("trigger");
   const [catalogContext, setCatalogContext] = useState<"trigger" | "action">("trigger");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [pendingInsertEdgeId, setPendingInsertEdgeId] = useState<string | null>(null);
 
   // ReactFlow state
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
