@@ -54,6 +54,7 @@ export function FlowBuilderPage() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<"catalog" | "config">("catalog");
   const [catalogTab, setCatalogTab] = useState<"trigger" | "action" | "condition">("trigger");
+  const [catalogContext, setCatalogContext] = useState<"trigger" | "action">("trigger");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // ReactFlow state
