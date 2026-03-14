@@ -772,6 +772,7 @@ export function FlowBuilderPage() {
             onUpdateData={handleUpdateNodeData}
             onDelete={handleDeleteNode}
             onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
+            onSave={saveImmediate}
             onDragStart={() => {}}
             onSelectItem={handleSelectItem}
             companyId={effectiveCompany?.id}
