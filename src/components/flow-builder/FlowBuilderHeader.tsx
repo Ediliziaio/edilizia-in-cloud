@@ -161,12 +161,13 @@ export function FlowBuilderHeader({
           Test
         </Button>
 
-        {hasUnsavedChanges && (
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onSave} disabled={isSaving}>
-            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Salva
-          </Button>
-        )}
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 relative" onClick={onSave} disabled={isSaving}>
+          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Salva
+          {hasUnsavedChanges && (
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-orange-500 border-2 border-background" />
+          )}
+        </Button>
 
         <Button
           size="sm"

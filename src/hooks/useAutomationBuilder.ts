@@ -136,13 +136,9 @@ export function useAutomationBuilder(flowId: string | undefined) {
     updateUndoRedoState();
   }, [updateUndoRedoState]);
 
-  // Auto-save with debounce
-  const triggerAutoSave = useCallback(() => {
+  // Mark as dirty (no auto-save — manual only)
+  const markDirty = useCallback(() => {
     setHasUnsavedChanges(true);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveAllRef.current();
-    }, 2000);
   }, []);
 
   // Immediate save (bypasses debounce)
@@ -267,8 +263,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       });
       return next;
     });
-    triggerAutoSave();
-  }, [pushHistory, triggerAutoSave]);
+    markDirty();
+  }, [pushHistory, markDirty]);
 
   // Update node
   const updateNode = useCallback((id: string, updates: Partial<AutomationNode>) => {
@@ -280,8 +276,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       });
       return next;
     });
-    triggerAutoSave();
-  }, [pushHistory, triggerAutoSave]);
+    markDirty();
+  }, [pushHistory, markDirty]);
 
   // Remove node
   const removeNode = useCallback((id: string) => {
@@ -295,8 +291,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       return next;
     });
     setSelectedNodeId(prev => prev === id ? null : prev);
-    triggerAutoSave();
-  }, [pushHistory, triggerAutoSave]);
+    markDirty();
+  }, [pushHistory, markDirty]);
 
   // Add connection
   const addConnection = useCallback((conn: AutomationConnection) => {
@@ -308,8 +304,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       });
       return next;
     });
-    triggerAutoSave();
-  }, [pushHistory, triggerAutoSave]);
+    markDirty();
+  }, [pushHistory, markDirty]);
 
   // Remove connection
   const removeConnection = useCallback((id: string) => {
@@ -321,8 +317,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       });
       return next;
     });
-    triggerAutoSave();
-  }, [pushHistory, triggerAutoSave]);
+    markDirty();
+  }, [pushHistory, markDirty]);
 
   // Update flow name/description - with input validation
   const updateFlowMutation = useMutation({
