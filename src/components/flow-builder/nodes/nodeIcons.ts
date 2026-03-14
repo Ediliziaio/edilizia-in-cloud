@@ -85,6 +85,10 @@ const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   attendi: Clock,
   condition_se: GitBranch,
   condition_multi: GitBranch,
+  goal: Target,
+  split_ab: Shuffle,
+  vai_a: ArrowRight,
+  drip_sequenza: Clock,
   note: StickyNote,
 };
 
