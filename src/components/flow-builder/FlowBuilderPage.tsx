@@ -280,7 +280,7 @@ export function FlowBuilderPage() {
           id: newNodeId,
           type: "trigger",
           position: pos,
-          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId },
+          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId, onAddTrigger: () => openCatalog("trigger") },
         };
         setRfNodes((nds) => [...nds, rfNode]);
         // Connect to the first action or end node
