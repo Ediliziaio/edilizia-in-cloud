@@ -1477,14 +1477,20 @@ function actionToCatalogItem(a: ActionDefinition): CatalogItem {
 }
 
 function conditionToCatalogItem(c: ConditionDefinition): CatalogItem {
+  const kindMap: Record<string, FlowNodeKind> = {
+    goal: 'goal',
+    split_ab: 'split',
+    vai_a: 'action',
+    drip_sequenza: 'action',
+  };
   return {
     id: c.id,
     label: c.label,
     description: c.description,
     icon: c.icon,
     category: 'logica',
-    categoryLabel: 'Logica',
-    kind: 'condition',
+    categoryLabel: 'Logica & Flusso',
+    kind: kindMap[c.id] ?? 'condition',
     configSchema: c.configSchema,
   };
 }

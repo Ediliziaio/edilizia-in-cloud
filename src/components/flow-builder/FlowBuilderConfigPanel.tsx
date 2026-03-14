@@ -271,29 +271,50 @@ export function FlowBuilderConfigPanel({
             </div>
           )}
 
-          {/* Save button */}
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full mt-2"
-            onClick={() => { onSave?.(); onClose(); }}
-          >
-            <Save className="mr-1.5 h-3.5 w-3.5" />
-            Salva configurazione
-          </Button>
-
-          {/* Delete button */}
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full"
-            onClick={() => onDelete(selectedNode.id)}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Elimina nodo
-          </Button>
+          {/* Compact action buttons on one row */}
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1"
+              onClick={handleSaveAndClose}
+            >
+              <Save className="mr-1 h-3.5 w-3.5" />
+              Salva
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-destructive hover:text-destructive"
+              onClick={() => onDelete(selectedNode.id)}
+            >
+              <Trash2 className="mr-1 h-3.5 w-3.5" />
+              Elimina
+            </Button>
+          </div>
         </div>
       </ScrollArea>
+
+      {/* Unsaved changes confirmation dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hai modifiche non salvate. Vuoi salvarle prima di chiudere?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)}>Annulla</AlertDialogCancel>
+            <Button variant="outline" size="sm" onClick={handleDiscardAndClose}>
+              Chiudi senza salvare
+            </Button>
+            <AlertDialogAction onClick={handleSaveAndClose}>
+              Salva e chiudi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
