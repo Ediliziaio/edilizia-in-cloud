@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Trash2, Filter, Save } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Node } from "@xyflow/react";
 
 import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
@@ -119,6 +129,10 @@ export function FlowBuilderConfigPanel({
     [selectedNode?.id, selectedNode?.data?.itemId]
   );
 
+  // Track unsaved changes
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
   if (!selectedNode) return null;
 
   const schema = catalog?.configSchema ?? [];
@@ -127,7 +141,29 @@ export function FlowBuilderConfigPanel({
   const nodeType = nodeData.nodeType as string;
 
   const handleChange = (fieldId: string, value: any) => {
+    setIsDirty(true);
     onUpdateData(selectedNode.id, { ...nodeData, [fieldId]: value });
+  };
+
+  const handleCloseAttempt = () => {
+    if (isDirty) {
+      setShowUnsavedDialog(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleSaveAndClose = () => {
+    onSave?.();
+    setIsDirty(false);
+    setShowUnsavedDialog(false);
+    onClose();
+  };
+
+  const handleDiscardAndClose = () => {
+    setIsDirty(false);
+    setShowUnsavedDialog(false);
+    onClose();
   };
 
   const isSpecialized = SPECIALIZED_PANELS.has(itemId);
@@ -152,7 +188,7 @@ export function FlowBuilderConfigPanel({
           </p>
           <p className="text-sm font-medium mt-0.5">{catalog?.label ?? nodeData.label}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+        <Button variant="ghost" size="icon" onClick={handleCloseAttempt} className="h-7 w-7">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -235,29 +271,50 @@ export function FlowBuilderConfigPanel({
             </div>
           )}
 
-          {/* Save button */}
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full mt-2"
-            onClick={() => { onSave?.(); onClose(); }}
-          >
-            <Save className="mr-1.5 h-3.5 w-3.5" />
-            Salva configurazione
-          </Button>
-
-          {/* Delete button */}
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full"
-            onClick={() => onDelete(selectedNode.id)}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Elimina nodo
-          </Button>
+          {/* Compact action buttons on one row */}
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1"
+              onClick={handleSaveAndClose}
+            >
+              <Save className="mr-1 h-3.5 w-3.5" />
+              Salva
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-destructive hover:text-destructive"
+              onClick={() => onDelete(selectedNode.id)}
+            >
+              <Trash2 className="mr-1 h-3.5 w-3.5" />
+              Elimina
+            </Button>
+          </div>
         </div>
       </ScrollArea>
+
+      {/* Unsaved changes confirmation dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hai modifiche non salvate. Vuoi salvarle prima di chiudere?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)}>Annulla</AlertDialogCancel>
+            <Button variant="outline" size="sm" onClick={handleDiscardAndClose}>
+              Chiudi senza salvare
+            </Button>
+            <AlertDialogAction onClick={handleSaveAndClose}>
+              Salva e chiudi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

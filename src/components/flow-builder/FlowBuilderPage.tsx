@@ -459,6 +459,52 @@ export function FlowBuilderPage() {
                 from_node_id: newNodeId, to_node_id: endNodeId,
                 label: "No", created_at: new Date().toISOString(),
               });
+            } else if (item.kind === "split") {
+              // Split A/B node: branch A goes to original target, branch B goes to new End node
+              const endNodeId = crypto.randomUUID();
+              const edge3Id = crypto.randomUUID();
+              const endPos = { x: pos.x + 200, y: pos.y + 160 };
+
+              setRfEdges((eds) => [
+                ...eds.filter((e) => e.id !== pendingInsertEdgeId),
+                makeEdge(edge1Id, edge.source, newNodeId),
+                makeEdge(edge2Id, newNodeId, edge.target, "split_0", "A: 50%"),
+                makeEdge(edge3Id, newNodeId, endNodeId, "split_1", "B: 50%"),
+              ]);
+              setRfNodes((nds) => [
+                ...nds,
+                rfNode,
+                {
+                  id: endNodeId,
+                  type: "end",
+                  position: endPos,
+                  data: { label: "Fine", nodeType: "end" },
+                },
+              ]);
+
+              addNode({
+                id: endNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: "end" as any,
+                position_x: Math.round(endPos.x), position_y: Math.round(endPos.y),
+                config_json: {}, label: "Fine",
+                created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+              removeConnection(pendingInsertEdgeId);
+              addConnection({
+                id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: edge.source, to_node_id: newNodeId,
+                label: null, created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: edge.target,
+                label: "A: 50%", created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge3Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: endNodeId,
+                label: "B: 50%", created_at: new Date().toISOString(),
+              });
             } else {
               setRfEdges((eds) => [
                 ...eds.filter((e) => e.id !== pendingInsertEdgeId),

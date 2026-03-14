@@ -4,6 +4,8 @@ import { ConditionNode } from "./ConditionNode";
 import { DelayNode } from "./DelayNode";
 import { EndNode } from "./EndNode";
 import { NoteNode } from "./NoteNode";
+import { GoalNode } from "./GoalNode";
+import { SplitNode } from "./SplitNode";
 import { AddStepEdge } from "./AddStepEdge";
 
 export const nodeTypes = {
@@ -11,8 +13,8 @@ export const nodeTypes = {
   action: ActionNode,
   condition: ConditionNode,
   delay: DelayNode,
-  goal: ActionNode,
-  split: ActionNode,
+  goal: GoalNode,
+  split: SplitNode,
   note: NoteNode,
   end: EndNode,
 };
