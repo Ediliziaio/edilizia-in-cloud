@@ -12,7 +12,7 @@ interface EmailConfigPanelProps {
 
 export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange }, ref) {
   return (
-    <div className="space-y-4">
+    <div ref={ref} className="space-y-4">
       {/* Sender */}
       <div className="space-y-1.5">
         <Label className="text-xs">Da (mittente)</Label>
