@@ -148,7 +148,7 @@ export function FlowBuilderPage() {
         type: "addStep",
         animated: true,
         style: { strokeWidth: 2 },
-        data: { onAddStep: (edgeId: string) => openCatalog("action") },
+        data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         label: params.sourceHandle === "yes" ? "Sì" : params.sourceHandle === "no" ? "No" : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
