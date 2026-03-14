@@ -111,6 +111,7 @@ export function FlowBuilderConfigPanel({
   onUpdateData,
   onDelete,
   onClose,
+  onSave,
   companyId,
 }: FlowBuilderConfigPanelProps) {
   const catalog = useMemo(
