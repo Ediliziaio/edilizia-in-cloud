@@ -645,6 +645,7 @@ export function FlowBuilderPage() {
             onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
             onDragStart={() => {}}
             onSelectItem={handleSelectItem}
+            companyId={effectiveCompany?.id}
           />
         )}
       </div>

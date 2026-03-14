@@ -25,6 +25,7 @@ interface WorkflowRightPanelProps {
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
+  companyId?: string;
 }
 
 export function WorkflowRightPanel({
@@ -38,6 +39,7 @@ export function WorkflowRightPanel({
   onClose,
   onDragStart,
   onSelectItem,
+  companyId,
 }: WorkflowRightPanelProps) {
   if (mode === "config" && selectedNode) {
     return (
@@ -46,6 +48,7 @@ export function WorkflowRightPanel({
         onUpdateData={onUpdateData}
         onDelete={onDelete}
         onClose={onClose}
+        companyId={companyId}
       />
     );
   }
@@ -105,7 +108,7 @@ function CatalogPanel({
       : "Aggiungi Azione";
 
   return (
-    <div className="flex h-full w-[340px] flex-col border-l bg-background">
+    <div className="flex h-full w-[380px] flex-col border-l bg-background">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
