@@ -388,6 +388,20 @@ export function FlowBuilderPage() {
   // Error / loading states
   const isError = !isLoading && flowId && !flow && !isNewFlowRoute;
 
+  // Guard: require company selection for super_admin
+  if (!effectiveCompany && !isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <AlertCircle className="h-10 w-10 text-warning" />
+          <p className="text-sm font-medium text-foreground">Seleziona un'azienda</p>
+          <p className="text-xs text-muted-foreground">Per utilizzare il builder delle automazioni devi prima selezionare un'azienda dal selettore in alto.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading || (isNewFlowRoute && createFlowMutation.isPending)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
