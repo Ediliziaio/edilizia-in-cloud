@@ -506,18 +506,7 @@ export function FlowBuilderPage() {
     return errs;
   }, [rfNodes]);
 
-  // Debounced auto-save (5s after last change)
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!flowId || !hasUnsavedChanges || !initializedRef.current) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveImmediate();
-    }, 5000);
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, [rfNodes, rfEdges, flowId, hasUnsavedChanges, saveImmediate]);
+  // Auto-save removed: manual save only via Ctrl+S or Save button
 
   // Keyboard shortcuts
   useEffect(() => {

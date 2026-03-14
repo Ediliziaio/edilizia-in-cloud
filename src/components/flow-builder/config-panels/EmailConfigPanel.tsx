@@ -109,4 +109,4 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       </div>
     </div>
   );
-}
+});

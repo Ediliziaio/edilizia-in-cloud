@@ -53,6 +53,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           </p>
         )}
       </div>
+      <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background !opacity-0" />
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background" />
     </div>
   );

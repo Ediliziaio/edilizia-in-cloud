@@ -34,7 +34,7 @@ export function connectionsToEdges(dbConnections: AutomationConnection[]): Edge[
     source: c.from_node_id,
     target: c.to_node_id,
     label: c.label ?? undefined,
-    type: "smoothstep",
+    type: "addStep",
     animated: true,
     style: { strokeWidth: 2 },
   }));
