@@ -180,8 +180,13 @@ export function FlowBuilderPage() {
 
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
-      for (const node of deletedNodes) removeNode(node.id);
-      setSelectedNodeId((prev) => deletedNodes.some((n) => n.id === prev) ? null : prev);
+      // Protect end nodes from deletion
+      const safeDeletions = deletedNodes.filter((n) => n.type !== "end");
+      if (safeDeletions.length < deletedNodes.length) {
+        toast.info("Il nodo Fine non può essere eliminato.");
+      }
+      for (const node of safeDeletions) removeNode(node.id);
+      setSelectedNodeId((prev) => safeDeletions.some((n) => n.id === prev) ? null : prev);
     },
     [removeNode]
   );
