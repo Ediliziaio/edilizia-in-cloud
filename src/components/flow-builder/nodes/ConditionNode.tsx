@@ -5,7 +5,7 @@ import { GitBranch, Check, X } from "lucide-react";
 
 function ConditionNodeComponent({ data, selected }: NodeProps) {
   const catalog = getCatalogItem(data.itemId as string);
-  const logica = (data.logica as string) || "AND";
+  const logica = (data.operatore_logico as string) || "AND";
 
   return (
     <div

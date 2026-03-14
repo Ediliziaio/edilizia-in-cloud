@@ -180,8 +180,13 @@ export function FlowBuilderPage() {
 
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
-      for (const node of deletedNodes) removeNode(node.id);
-      setSelectedNodeId((prev) => deletedNodes.some((n) => n.id === prev) ? null : prev);
+      // Protect end nodes from deletion
+      const safeDeletions = deletedNodes.filter((n) => n.type !== "end");
+      if (safeDeletions.length < deletedNodes.length) {
+        toast.info("Il nodo Fine non può essere eliminato.");
+      }
+      for (const node of safeDeletions) removeNode(node.id);
+      setSelectedNodeId((prev) => safeDeletions.some((n) => n.id === prev) ? null : prev);
     },
     [removeNode]
   );
@@ -392,45 +397,107 @@ export function FlowBuilderPage() {
               data: { label: item.label, nodeType, itemId: item.id, dbNodeId: newNodeId },
             };
 
-            // Remove old edge, add node, add two new edges
+            // Remove old edge, add node, add new edges
             const edge1Id = crypto.randomUUID();
             const edge2Id = crypto.randomUUID();
-            const makeEdge = (id: string, source: string, target: string): Edge => ({
+            const makeEdge = (id: string, source: string, target: string, sourceHandle?: string, label?: string): Edge => ({
               id,
               source,
               target,
+              sourceHandle,
               type: "addStep",
               animated: true,
               style: { strokeWidth: 2 },
               data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+              label,
             });
 
-            setRfEdges((eds) => [
-              ...eds.filter((e) => e.id !== pendingInsertEdgeId),
-              makeEdge(edge1Id, edge.source, newNodeId),
-              makeEdge(edge2Id, newNodeId, edge.target),
-            ]);
-            setRfNodes((nds) => [...nds, rfNode]);
+            if (item.kind === "condition") {
+              // Condition node: "yes" branch goes to original target, "no" branch goes to a new End node
+              const endNodeId = crypto.randomUUID();
+              const edge3Id = crypto.randomUUID();
+              const endPos = { x: pos.x + 200, y: pos.y + 160 };
 
-            // Persist
-            removeConnection(pendingInsertEdgeId);
-            addNode({
-              id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
-              node_type: nodeType as any,
-              position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-              config_json: { item_id: item.id },
-              label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-            });
-            addConnection({
-              id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
-              from_node_id: edge.source, to_node_id: newNodeId,
-              label: null, created_at: new Date().toISOString(),
-            });
-            addConnection({
-              id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
-              from_node_id: newNodeId, to_node_id: edge.target,
-              label: null, created_at: new Date().toISOString(),
-            });
+              setRfEdges((eds) => [
+                ...eds.filter((e) => e.id !== pendingInsertEdgeId),
+                makeEdge(edge1Id, edge.source, newNodeId),
+                makeEdge(edge2Id, newNodeId, edge.target, "yes", "Sì"),
+                makeEdge(edge3Id, newNodeId, endNodeId, "no", "No"),
+              ]);
+              setRfNodes((nds) => [
+                ...nds,
+                rfNode,
+                {
+                  id: endNodeId,
+                  type: "end",
+                  position: endPos,
+                  data: { label: "Fine", nodeType: "end" },
+                },
+              ]);
+
+              // Persist end node + 3 connections
+              addNode({
+                id: endNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: "end" as any,
+                position_x: Math.round(endPos.x), position_y: Math.round(endPos.y),
+                config_json: {}, label: "Fine",
+                created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+              removeConnection(pendingInsertEdgeId);
+              addConnection({
+                id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: edge.source, to_node_id: newNodeId,
+                label: null, created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: edge.target,
+                label: "Sì", created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge3Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: endNodeId,
+                label: "No", created_at: new Date().toISOString(),
+              });
+            } else {
+              setRfEdges((eds) => [
+                ...eds.filter((e) => e.id !== pendingInsertEdgeId),
+                makeEdge(edge1Id, edge.source, newNodeId),
+                makeEdge(edge2Id, newNodeId, edge.target),
+              ]);
+              setRfNodes((nds) => [...nds, rfNode]);
+            }
+
+            // Persist node + edges (for non-condition; condition already persisted above)
+            if (item.kind !== "condition") {
+              removeConnection(pendingInsertEdgeId);
+              addNode({
+                id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: nodeType as any,
+                position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+                config_json: { item_id: item.id },
+                label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: edge.source, to_node_id: newNodeId,
+                label: null, created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: edge.target,
+                label: null, created_at: new Date().toISOString(),
+              });
+            } else {
+              // Condition node already persisted; just persist the main node
+              addNode({
+                id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: nodeType as any,
+                position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+                config_json: { item_id: item.id },
+                label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+            }
 
             // Auto-open config for the inserted node
             setSelectedNodeId(newNodeId);
@@ -705,6 +772,7 @@ export function FlowBuilderPage() {
             onUpdateData={handleUpdateNodeData}
             onDelete={handleDeleteNode}
             onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
+            onSave={saveImmediate}
             onDragStart={() => {}}
             onSelectItem={handleSelectItem}
             companyId={effectiveCompany?.id}

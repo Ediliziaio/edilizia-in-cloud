@@ -22,6 +22,7 @@ interface FlowBuilderConfigPanelProps {
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  onSave?: () => void;
   companyId?: string;
 }
 
@@ -83,6 +84,19 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   cantiere_creato: "construction",
   cantiere_fase_completata: "construction",
   cantiere_in_ritardo: "construction",
+  // Magazzino
+  scorta_minima: "order",
+  prodotto_esaurito: "order",
+  carico_magazzino: "order",
+  // HR
+  dipendente_creato: "contact",
+  contratto_in_scadenza: "contact",
+  ferie_richiesta: "contact",
+  // Schedulati
+  cron_giornaliero: "system",
+  cron_settimanale: "system",
+  cron_mensile: "system",
+  manuale: "system",
   // Sistema
   webhook_ricevuto: "system",
   scheduler_cron: "system",
@@ -97,6 +111,7 @@ export function FlowBuilderConfigPanel({
   onUpdateData,
   onDelete,
   onClose,
+  onSave,
   companyId,
 }: FlowBuilderConfigPanelProps) {
   const catalog = useMemo(
@@ -225,7 +240,7 @@ export function FlowBuilderConfigPanel({
             variant="default"
             size="sm"
             className="w-full mt-2"
-            onClick={onClose}
+            onClick={() => { onSave?.(); onClose(); }}
           >
             <Save className="mr-1.5 h-3.5 w-3.5" />
             Salva configurazione

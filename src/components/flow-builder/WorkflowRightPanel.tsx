@@ -23,6 +23,7 @@ interface WorkflowRightPanelProps {
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  onSave?: () => void;
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
   companyId?: string;
@@ -37,6 +38,7 @@ export function WorkflowRightPanel({
   onUpdateData,
   onDelete,
   onClose,
+  onSave,
   onDragStart,
   onSelectItem,
   companyId,
@@ -48,6 +50,7 @@ export function WorkflowRightPanel({
         onUpdateData={onUpdateData}
         onDelete={onDelete}
         onClose={onClose}
+        onSave={onSave}
         companyId={companyId}
       />
     );

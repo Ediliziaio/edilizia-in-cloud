@@ -60,7 +60,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="bassa">Bassa</SelectItem>
-              <SelectItem value="normale">Normale</SelectItem>
+              <SelectItem value="media">Media</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
               <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
@@ -71,7 +71,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
       {/* Assignee */}
       <div className="space-y-1.5">
         <Label className="text-xs">Assegna a</Label>
-        <Select value={config.assegna_a || "contatto_owner"} onValueChange={v => onChange("assegna_a", v)}>
+        <Select value={config.assegnato_a || "contatto_owner"} onValueChange={v => onChange("assegnato_a", v)}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
