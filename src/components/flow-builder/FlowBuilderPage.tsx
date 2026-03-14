@@ -80,6 +80,9 @@ export function FlowBuilderPage() {
         if (n.type === "trigger" && !n.data?.itemId) {
           return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
         }
+        if (n.type === "trigger" && n.data?.itemId) {
+          return { ...n, data: { ...n.data, onAddTrigger: () => openCatalog("trigger") } };
+        }
         return n;
       }));
       // Inject onAddStep callback into all edges loaded from DB
@@ -245,6 +248,7 @@ export function FlowBuilderPage() {
                       nodeType: "trigger",
                       itemId: item.id,
                       dbNodeId: newNodeId,
+                      onAddTrigger: () => openCatalog("trigger"),
                     },
                   }
                 : n
@@ -261,6 +265,9 @@ export function FlowBuilderPage() {
             config_json: { item_id: item.id },
             label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
           });
+          // Auto-open config for the new trigger
+          setSelectedNodeId(newNodeId);
+          setRightPanelMode("config");
           return;
         }
       }
@@ -277,7 +284,7 @@ export function FlowBuilderPage() {
           id: newNodeId,
           type: "trigger",
           position: pos,
-          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId },
+          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId, onAddTrigger: () => openCatalog("trigger") },
         };
         setRfNodes((nds) => [...nds, rfNode]);
         // Connect to the first action or end node
@@ -311,6 +318,9 @@ export function FlowBuilderPage() {
           config_json: { item_id: item.id },
           label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         });
+        // Auto-open config for the new trigger
+        setSelectedNodeId(newNodeId);
+        setRightPanelMode("config");
         return;
       }
 
@@ -337,6 +347,13 @@ export function FlowBuilderPage() {
         config_json: { item_id: item.id, ...(item.kind === "note" ? { note_text: "" } : {}) },
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
+
+      // Auto-open config for non-note nodes
+      if (item.kind !== "note") {
+        setSelectedNodeId(newNodeId);
+        setRightPanelOpen(true);
+        setRightPanelMode("config");
+      }
     },
     [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, rfNodes, rfEdges, openCatalogForEdge]
   );
@@ -414,6 +431,10 @@ export function FlowBuilderPage() {
               from_node_id: newNodeId, to_node_id: edge.target,
               label: null, created_at: new Date().toISOString(),
             });
+
+            // Auto-open config for the inserted node
+            setSelectedNodeId(newNodeId);
+            setRightPanelMode("config");
           }
         }
         setPendingInsertEdgeId(null);
