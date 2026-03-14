@@ -54,6 +54,7 @@ export function FlowBuilderPage() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<"catalog" | "config">("catalog");
   const [catalogTab, setCatalogTab] = useState<"trigger" | "action" | "condition">("trigger");
+  const [catalogContext, setCatalogContext] = useState<"trigger" | "action">("trigger");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // ReactFlow state
@@ -98,9 +99,10 @@ export function FlowBuilderPage() {
           id: "e-placeholder",
           source: triggerId,
           target: endId,
-          type: "smoothstep",
+          type: "addStep",
           animated: false,
           style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+          data: { onAddStep: (edgeId: string) => openCatalog("action") },
         },
       ]);
       initializedRef.current = true;
@@ -142,9 +144,10 @@ export function FlowBuilderPage() {
         target: params.target,
         sourceHandle: params.sourceHandle ?? undefined,
         targetHandle: params.targetHandle ?? undefined,
-        type: "smoothstep",
+        type: "addStep",
         animated: true,
         style: { strokeWidth: 2 },
+        data: { onAddStep: (edgeId: string) => openCatalog("action") },
         label: params.sourceHandle === "yes" ? "Sì" : params.sourceHandle === "no" ? "No" : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
@@ -275,13 +278,28 @@ export function FlowBuilderPage() {
     [updateNode]
   );
 
-  // Node click → open config in right panel
+  // Open catalog panel with context filtering
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setCatalogContext(ctx);
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
+  // Node click → open config in right panel (but NOT for empty trigger placeholder)
   const onNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === "note") return;
+    // If clicking an empty trigger placeholder, open trigger catalog instead
+    if (node.type === "trigger" && node.data?.isEmpty) {
+      openCatalog("trigger");
+      return;
+    }
     setSelectedNodeId(node.id);
     setRightPanelOpen(true);
     setRightPanelMode("config");
-  }, []);
+  }, [openCatalog]);
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
@@ -327,14 +345,6 @@ export function FlowBuilderPage() {
     toast.success("Workflow archiviato");
   }, [updateFlowMutation]);
 
-  // Open catalog panel
-  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
-    setRightPanelOpen(true);
-    setRightPanelMode("catalog");
-    setSelectedNodeId(null);
-    if (tab) setCatalogTab(tab);
-  }, []);
-
   // Compute validation errors from nodes
   const validationErrors = useMemo<WorkflowError[]>(() => {
     const errs: WorkflowError[] = [];
@@ -377,6 +387,20 @@ export function FlowBuilderPage() {
 
   // Error / loading states
   const isError = !isLoading && flowId && !flow && !isNewFlowRoute;
+
+  // Guard: require company selection for super_admin
+  if (!effectiveCompany && !isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <AlertCircle className="h-10 w-10 text-warning" />
+          <p className="text-sm font-medium text-foreground">Seleziona un'azienda</p>
+          <p className="text-xs text-muted-foreground">Per utilizzare il builder delle automazioni devi prima selezionare un'azienda dal selettore in alto.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || (isNewFlowRoute && createFlowMutation.isPending)) {
     return (
@@ -480,6 +504,7 @@ export function FlowBuilderPage() {
           <WorkflowRightPanel
             mode={rightPanelMode}
             catalogTab={catalogTab}
+            catalogContext={catalogContext}
             onCatalogTabChange={setCatalogTab}
             selectedNode={selectedRfNode}
             onUpdateData={handleUpdateNodeData}
