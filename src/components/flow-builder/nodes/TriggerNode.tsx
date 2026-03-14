@@ -13,7 +13,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
     return (
       <div
         onClick={() => (data as any).onOpenCatalog?.()}
-        className={`min-w-[220px] max-w-[260px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-4 cursor-pointer transition-all hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-5 py-5 cursor-pointer transition-all hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
       >
         <div className="flex flex-col items-center gap-2 text-primary/60">
           <div className="rounded-full bg-primary/10 p-2">
