@@ -25,6 +25,7 @@ interface WorkflowRightPanelProps {
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
+  companyId?: string;
 }
 
 export function WorkflowRightPanel({
