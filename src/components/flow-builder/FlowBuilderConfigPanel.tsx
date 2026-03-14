@@ -129,6 +129,10 @@ export function FlowBuilderConfigPanel({
     [selectedNode?.id, selectedNode?.data?.itemId]
   );
 
+  // Track unsaved changes
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
   if (!selectedNode) return null;
 
   const schema = catalog?.configSchema ?? [];
@@ -137,7 +141,29 @@ export function FlowBuilderConfigPanel({
   const nodeType = nodeData.nodeType as string;
 
   const handleChange = (fieldId: string, value: any) => {
+    setIsDirty(true);
     onUpdateData(selectedNode.id, { ...nodeData, [fieldId]: value });
+  };
+
+  const handleCloseAttempt = () => {
+    if (isDirty) {
+      setShowUnsavedDialog(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleSaveAndClose = () => {
+    onSave?.();
+    setIsDirty(false);
+    setShowUnsavedDialog(false);
+    onClose();
+  };
+
+  const handleDiscardAndClose = () => {
+    setIsDirty(false);
+    setShowUnsavedDialog(false);
+    onClose();
   };
 
   const isSpecialized = SPECIALIZED_PANELS.has(itemId);
