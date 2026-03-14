@@ -240,7 +240,7 @@ export function FlowBuilderConfigPanel({
             variant="default"
             size="sm"
             className="w-full mt-2"
-            onClick={onClose}
+            onClick={() => { onSave?.(); onClose(); }}
           >
             <Save className="mr-1.5 h-3.5 w-3.5" />
             Salva configurazione
