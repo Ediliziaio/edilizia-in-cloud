@@ -32,6 +32,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 function actionKind(id: string): CatalogItem["kind"] {
   if (id === "condition_se" || id === "condition_multi") return "condition";
   if (id === "attendi") return "delay";
+  if (id === "goal") return "goal";
+  if (id === "split_ab") return "split";
   return "action";
 }
 
