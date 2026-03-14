@@ -44,7 +44,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           </span>
         </div>
         {/* Body */}
-        <div className="px-3 py-2">
+        <div className="px-4 py-3">
           <p className="truncate text-sm font-medium text-foreground">
             {(data.label as string) || catalog?.label || "Trigger"}
           </p>
