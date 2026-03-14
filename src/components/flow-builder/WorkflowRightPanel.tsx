@@ -23,6 +23,7 @@ interface WorkflowRightPanelProps {
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  onSave?: () => void;
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
   companyId?: string;
