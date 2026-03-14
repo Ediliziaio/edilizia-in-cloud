@@ -99,9 +99,10 @@ export function FlowBuilderPage() {
           id: "e-placeholder",
           source: triggerId,
           target: endId,
-          type: "smoothstep",
+          type: "addStep",
           animated: false,
           style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+          data: { onAddStep: (edgeId: string) => openCatalog("action") },
         },
       ]);
       initializedRef.current = true;
