@@ -188,20 +188,33 @@ function ConfigField({
         />
       )}
 
-      {field.type === "select" && field.options && (
-        <Select value={value ?? field.defaultValue ?? ""} onValueChange={onChange}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Seleziona..." />
-          </SelectTrigger>
-          <SelectContent>
-            {field.options.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+      {field.type === "select" && field.options && (() => {
+        const emptyOpt = field.options.find((o) => o.value === "");
+        const validOpts = field.options.filter((o) => o.value !== "");
+        const NONE_SENTINEL = "__none__";
+        const currentVal = value ?? field.defaultValue ?? "";
+        const selectVal = currentVal === "" ? NONE_SENTINEL : currentVal;
+        return (
+          <Select
+            value={selectVal}
+            onValueChange={(v) => onChange(v === NONE_SENTINEL ? "" : v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={emptyOpt?.label ?? "Seleziona..."} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE_SENTINEL}>
+                {emptyOpt?.label ?? "Nessuno"}
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+              {validOpts.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      })()}
 
       {field.type === "user_select" && (
         <Input

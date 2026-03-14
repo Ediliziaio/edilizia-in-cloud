@@ -56,6 +56,7 @@ export function FlowBuilderPage() {
   const [catalogTab, setCatalogTab] = useState<"trigger" | "action" | "condition">("trigger");
   const [catalogContext, setCatalogContext] = useState<"trigger" | "action">("trigger");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [pendingInsertEdgeId, setPendingInsertEdgeId] = useState<string | null>(null);
 
   // ReactFlow state
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
@@ -102,7 +103,7 @@ export function FlowBuilderPage() {
           type: "addStep",
           animated: false,
           style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
-          data: { onAddStep: (edgeId: string) => openCatalog("action") },
+          data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         },
       ]);
       initializedRef.current = true;
@@ -147,7 +148,7 @@ export function FlowBuilderPage() {
         type: "addStep",
         animated: true,
         style: { strokeWidth: 2 },
-        data: { onAddStep: (edgeId: string) => openCatalog("action") },
+        data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         label: params.sourceHandle === "yes" ? "Sì" : params.sourceHandle === "no" ? "No" : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
@@ -193,6 +194,21 @@ export function FlowBuilderPage() {
     },
     [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
   );
+  // Open catalog panel with context filtering
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setCatalogContext(ctx);
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
+  // Open catalog for edge insertion (tracks which edge was clicked)
+  const openCatalogForEdge = useCallback((edgeId: string) => {
+    setPendingInsertEdgeId(edgeId);
+    openCatalog("action");
+  }, [openCatalog]);
 
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
@@ -237,6 +253,55 @@ export function FlowBuilderPage() {
         }
       }
 
+      // If adding extra trigger (no placeholder), align horizontally
+      if (item.kind === "trigger") {
+        const existingTriggers = rfNodes.filter((n) => n.type === "trigger");
+        const firstTrigger = existingTriggers[0];
+        const baseY = firstTrigger?.position.y ?? 100;
+        const offsetX = existingTriggers.length * 280;
+        const pos = position ?? { x: 300 + offsetX, y: baseY };
+        const newNodeId = crypto.randomUUID();
+        const rfNode: Node = {
+          id: newNodeId,
+          type: "trigger",
+          position: pos,
+          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId },
+        };
+        setRfNodes((nds) => [...nds, rfNode]);
+        // Connect to the first action or end node
+        const endNode = rfNodes.find((n) => n.type === "end");
+        const firstActionEdge = rfEdges.find((e) => e.source === existingTriggers[0]?.id);
+        const targetId = firstActionEdge?.target ?? endNode?.id;
+        if (targetId) {
+          const edgeId = crypto.randomUUID();
+          const newEdge: Edge = {
+            id: edgeId,
+            source: newNodeId,
+            target: targetId,
+            type: "addStep",
+            animated: true,
+            style: { strokeWidth: 2 },
+            data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+          };
+          setRfEdges((eds) => [...eds, newEdge]);
+          if (flowId && effectiveCompany) {
+            addConnection({
+              id: edgeId, flow_id: flowId, company_id: effectiveCompany.id,
+              from_node_id: newNodeId, to_node_id: targetId,
+              label: null, created_at: new Date().toISOString(),
+            });
+          }
+        }
+        addNode({
+          id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+          node_type: "trigger",
+          position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+          config_json: { item_id: item.id },
+          label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        });
+        return;
+      }
+
       const pos = position ?? { x: 300 + Math.random() * 100, y: 200 + rfNodes.length * 120 };
       const newNodeId = crypto.randomUUID();
       const rfNode: Node = {
@@ -245,7 +310,7 @@ export function FlowBuilderPage() {
         position: pos,
         data: {
           label: item.label,
-          nodeType: item.kind === "trigger" ? "trigger" : item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
+          nodeType: item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
           itemId: item.id,
           dbNodeId: newNodeId,
           ...(item.kind === "note" ? { note_text: "" } : {}),
@@ -261,14 +326,91 @@ export function FlowBuilderPage() {
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
     },
-    [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, rfNodes]
+    [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, rfNodes, rfEdges, openCatalogForEdge]
   );
 
   const handleSelectItem = useCallback(
     (item: CatalogItem) => {
+      // If we have a pending edge insertion, insert node into that edge
+      if (pendingInsertEdgeId) {
+        const edge = rfEdges.find((e) => e.id === pendingInsertEdgeId);
+        if (edge && flowId && effectiveCompany && user) {
+          const sourceNode = rfNodes.find((n) => n.id === edge.source);
+          const targetNode = rfNodes.find((n) => n.id === edge.target);
+          if (sourceNode && targetNode) {
+            const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+            const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+            // Shift target node and all nodes below it down by 120px
+            const targetY = targetNode.position.y;
+            setRfNodes((nds) =>
+              nds.map((n) => {
+                if (n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger") {
+                  return { ...n, position: { ...n.position, y: n.position.y + 120 } };
+                }
+                return n;
+              })
+            );
+
+            const newNodeId = crypto.randomUUID();
+            const pos = { x: sourceNode.position.x, y: midY };
+            const nodeType = item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action";
+
+            const rfNode: Node = {
+              id: newNodeId,
+              type: item.kind,
+              position: pos,
+              data: { label: item.label, nodeType, itemId: item.id, dbNodeId: newNodeId },
+            };
+
+            // Remove old edge, add node, add two new edges
+            const edge1Id = crypto.randomUUID();
+            const edge2Id = crypto.randomUUID();
+            const makeEdge = (id: string, source: string, target: string): Edge => ({
+              id,
+              source,
+              target,
+              type: "addStep",
+              animated: true,
+              style: { strokeWidth: 2 },
+              data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+            });
+
+            setRfEdges((eds) => [
+              ...eds.filter((e) => e.id !== pendingInsertEdgeId),
+              makeEdge(edge1Id, edge.source, newNodeId),
+              makeEdge(edge2Id, newNodeId, edge.target),
+            ]);
+            setRfNodes((nds) => [...nds, rfNode]);
+
+            // Persist
+            removeConnection(pendingInsertEdgeId);
+            addNode({
+              id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+              node_type: nodeType as any,
+              position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+              config_json: { item_id: item.id },
+              label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+            });
+            addConnection({
+              id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+              from_node_id: edge.source, to_node_id: newNodeId,
+              label: null, created_at: new Date().toISOString(),
+            });
+            addConnection({
+              id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+              from_node_id: newNodeId, to_node_id: edge.target,
+              label: null, created_at: new Date().toISOString(),
+            });
+          }
+        }
+        setPendingInsertEdgeId(null);
+        return;
+      }
+
       addNodeFromItem(item);
     },
-    [addNodeFromItem]
+    [addNodeFromItem, pendingInsertEdgeId, rfEdges, rfNodes, flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, openCatalogForEdge]
   );
 
   const onNodeDragStop = useCallback(
@@ -278,15 +420,6 @@ export function FlowBuilderPage() {
     [updateNode]
   );
 
-  // Open catalog panel with context filtering
-  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
-    const ctx = tab === "trigger" ? "trigger" : "action";
-    setCatalogContext(ctx);
-    setRightPanelOpen(true);
-    setRightPanelMode("catalog");
-    setSelectedNodeId(null);
-    if (tab) setCatalogTab(tab);
-  }, []);
 
   // Node click → open config in right panel (but NOT for empty trigger placeholder)
   const onNodeClick = useCallback((_: any, node: Node) => {
