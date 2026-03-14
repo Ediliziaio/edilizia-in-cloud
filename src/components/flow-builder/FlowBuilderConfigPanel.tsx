@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2, Filter } from "lucide-react";
+import { X, Trash2, Filter, Save } from "lucide-react";
 import type { Node } from "@xyflow/react";
 
 import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
