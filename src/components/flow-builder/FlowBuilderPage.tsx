@@ -310,7 +310,7 @@ export function FlowBuilderPage() {
         position: pos,
         data: {
           label: item.label,
-          nodeType: item.kind === "trigger" ? "trigger" : item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
+          nodeType: item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
           itemId: item.id,
           dbNodeId: newNodeId,
           ...(item.kind === "note" ? { note_text: "" } : {}),
