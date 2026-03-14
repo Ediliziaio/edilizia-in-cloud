@@ -13,7 +13,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
     return (
       <div
         onClick={() => (data as any).onOpenCatalog?.()}
-        className={`min-w-[220px] max-w-[260px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-4 cursor-pointer transition-all hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-5 py-5 cursor-pointer transition-all hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
       >
         <div className="flex flex-col items-center gap-2 text-primary/60">
           <div className="rounded-full bg-primary/10 p-2">
@@ -32,10 +32,10 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   return (
     <div className="relative group">
       <div
-        className={`min-w-[220px] max-w-[260px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
       >
         {/* Colored header bar */}
-        <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2.5">
           <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/60 p-1.5 text-emerald-600 dark:text-emerald-400">
             <Icon className="h-4 w-4" />
           </div>
@@ -44,7 +44,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           </span>
         </div>
         {/* Body */}
-        <div className="px-3 py-2">
+        <div className="px-4 py-3">
           <p className="truncate text-sm font-medium text-foreground">
             {(data.label as string) || catalog?.label || "Trigger"}
           </p>

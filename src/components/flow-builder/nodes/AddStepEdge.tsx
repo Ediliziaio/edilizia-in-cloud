@@ -41,9 +41,9 @@ export function AddStepEdge({
         >
           <button
             onClick={() => (data as any)?.onAddStep?.(id)}
-            className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-border bg-background text-muted-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/10 hover:text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-border bg-background text-muted-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/10 hover:text-primary"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
       </EdgeLabelRenderer>

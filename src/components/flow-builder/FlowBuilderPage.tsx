@@ -100,13 +100,13 @@ export function FlowBuilderPage() {
         {
           id: triggerId,
           type: "trigger",
-          position: { x: 300, y: 100 },
+          position: { x: 300, y: 80 },
           data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger", onOpenCatalog: () => openCatalog("trigger") },
         },
         {
           id: endId,
           type: "end",
-          position: { x: 300, y: 300 },
+          position: { x: 300, y: 500 },
           data: { label: "Fine", nodeType: "end" },
         },
       ]);
@@ -370,12 +370,12 @@ export function FlowBuilderPage() {
             const midX = (sourceNode.position.x + targetNode.position.x) / 2;
             const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-            // Shift target node and all nodes below it down by 120px
+            // Shift target node and all nodes below it down by 160px
             const targetY = targetNode.position.y;
             setRfNodes((nds) =>
               nds.map((n) => {
                 if (n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger") {
-                  return { ...n, position: { ...n.position, y: n.position.y + 120 } };
+                  return { ...n, position: { ...n.position, y: n.position.y + 160 } };
                 }
                 return n;
               })
