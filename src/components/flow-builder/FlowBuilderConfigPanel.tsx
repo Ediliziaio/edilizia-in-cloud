@@ -188,7 +188,7 @@ export function FlowBuilderConfigPanel({
           </p>
           <p className="text-sm font-medium mt-0.5">{catalog?.label ?? nodeData.label}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+        <Button variant="ghost" size="icon" onClick={handleCloseAttempt} className="h-7 w-7">
           <X className="h-4 w-4" />
         </Button>
       </div>
