@@ -373,6 +373,65 @@ export const SOCIAL_MEDIA_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "tags", label: "Tag", type: "tags", group: "Contatto" },
 ];
 
+export const ORDER_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "order_number", label: "Numero ordine", type: "text", group: "Ordine" },
+  { key: "status", label: "Stato ordine", type: "select", group: "Ordine", options: [{ value: "nuovo", label: "Nuovo" }, { value: "in_lavorazione", label: "In lavorazione" }, { value: "spedito", label: "Spedito" }, { value: "consegnato", label: "Consegnato" }, { value: "annullato", label: "Annullato" }] },
+  { key: "total_amount", label: "Importo totale", type: "number", group: "Ordine" },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Ordine" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Ordine" },
+  { key: "delivery_date", label: "Data consegna prevista", type: "date", group: "Ordine" },
+  { key: "tags", label: "Tag", type: "tags", group: "Ordine" },
+  { key: "client_name", label: "Nome cliente", type: "text", group: "Ordine" },
+];
+
+export const INVOICE_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "invoice_number", label: "Numero fattura", type: "text", group: "Fattura" },
+  { key: "status", label: "Stato", type: "select", group: "Fattura", options: [{ value: "emessa", label: "Emessa" }, { value: "pagata", label: "Pagata" }, { value: "scaduta", label: "Scaduta" }, { value: "annullata", label: "Annullata" }] },
+  { key: "total_amount", label: "Importo", type: "number", group: "Fattura" },
+  { key: "due_date", label: "Data scadenza", type: "date", group: "Fattura" },
+  { key: "created_at", label: "Data emissione", type: "date", group: "Fattura" },
+  { key: "client_name", label: "Nome cliente", type: "text", group: "Fattura" },
+  { key: "payment_method", label: "Metodo pagamento", type: "text", group: "Fattura" },
+];
+
+export const TICKET_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "subject", label: "Oggetto", type: "text", group: "Ticket" },
+  { key: "status", label: "Stato", type: "select", group: "Ticket", options: [{ value: "aperto", label: "Aperto" }, { value: "in_corso", label: "In corso" }, { value: "risolto", label: "Risolto" }, { value: "chiuso", label: "Chiuso" }] },
+  { key: "priority", label: "Priorità", type: "select", group: "Ticket", options: [{ value: "bassa", label: "Bassa" }, { value: "media", label: "Media" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }] },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Ticket" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Ticket" },
+  { key: "category", label: "Categoria", type: "text", group: "Ticket" },
+];
+
+export const TASK_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "title", label: "Titolo", type: "text", group: "Attività" },
+  { key: "status", label: "Stato", type: "select", group: "Attività", options: [{ value: "da_fare", label: "Da fare" }, { value: "in_corso", label: "In corso" }, { value: "completata", label: "Completata" }, { value: "annullata", label: "Annullata" }] },
+  { key: "priority", label: "Priorità", type: "select", group: "Attività", options: [{ value: "bassa", label: "Bassa" }, { value: "media", label: "Media" }, { value: "alta", label: "Alta" }] },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Attività" },
+  { key: "due_date", label: "Data scadenza", type: "date", group: "Attività" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Attività" },
+];
+
+export const CONSTRUCTION_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "project_name", label: "Nome cantiere", type: "text", group: "Cantiere" },
+  { key: "status", label: "Stato", type: "select", group: "Cantiere", options: [{ value: "pianificazione", label: "Pianificazione" }, { value: "in_corso", label: "In corso" }, { value: "sospeso", label: "Sospeso" }, { value: "completato", label: "Completato" }] },
+  { key: "phase", label: "Fase corrente", type: "text", group: "Cantiere" },
+  { key: "assigned_to", label: "Responsabile", type: "user", group: "Cantiere" },
+  { key: "start_date", label: "Data inizio", type: "date", group: "Cantiere" },
+  { key: "end_date", label: "Data fine prevista", type: "date", group: "Cantiere" },
+  { key: "budget", label: "Budget", type: "number", group: "Cantiere" },
+  { key: "client_name", label: "Nome cliente", type: "text", group: "Cantiere" },
+];
+
+export const QUOTE_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "quote_number", label: "Numero preventivo", type: "text", group: "Preventivo" },
+  { key: "status", label: "Stato", type: "select", group: "Preventivo", options: [{ value: "bozza", label: "Bozza" }, { value: "inviato", label: "Inviato" }, { value: "accettato", label: "Accettato" }, { value: "rifiutato", label: "Rifiutato" }, { value: "scaduto", label: "Scaduto" }] },
+  { key: "total_amount", label: "Importo", type: "number", group: "Preventivo" },
+  { key: "valid_until", label: "Valido fino al", type: "date", group: "Preventivo" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Preventivo" },
+  { key: "client_name", label: "Nome cliente", type: "text", group: "Preventivo" },
+];
+
 export function getFieldsForCategory(category: string): TriggerFieldDef[] {
   switch (category) {
     case "contact": return CONTACT_TRIGGER_FIELDS;
@@ -381,6 +440,12 @@ export function getFieldsForCategory(category: string): TriggerFieldDef[] {
     case "communication": return COMMUNICATION_TRIGGER_FIELDS;
     case "system": return SYSTEM_TRIGGER_FIELDS;
     case "social_media": return SOCIAL_MEDIA_TRIGGER_FIELDS;
+    case "order": return ORDER_TRIGGER_FIELDS;
+    case "invoice": return INVOICE_TRIGGER_FIELDS;
+    case "ticket": return TICKET_TRIGGER_FIELDS;
+    case "task": return TASK_TRIGGER_FIELDS;
+    case "construction": return CONSTRUCTION_TRIGGER_FIELDS;
+    case "quote": return QUOTE_TRIGGER_FIELDS;
     default: return CONTACT_TRIGGER_FIELDS;
   }
 }
