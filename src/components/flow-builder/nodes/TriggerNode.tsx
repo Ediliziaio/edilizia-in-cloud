@@ -35,7 +35,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
         className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
       >
         {/* Colored header bar */}
-        <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2.5">
           <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/60 p-1.5 text-emerald-600 dark:text-emerald-400">
             <Icon className="h-4 w-4" />
           </div>
