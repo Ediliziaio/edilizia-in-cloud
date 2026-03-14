@@ -103,7 +103,7 @@ export function FlowBuilderPage() {
           type: "addStep",
           animated: false,
           style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
-          data: { onAddStep: (edgeId: string) => openCatalog("action") },
+          data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
         },
       ]);
       initializedRef.current = true;
