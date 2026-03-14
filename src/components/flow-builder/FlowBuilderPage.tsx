@@ -370,12 +370,12 @@ export function FlowBuilderPage() {
             const midX = (sourceNode.position.x + targetNode.position.x) / 2;
             const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-            // Shift target node and all nodes below it down by 120px
+            // Shift target node and all nodes below it down by 160px
             const targetY = targetNode.position.y;
             setRfNodes((nds) =>
               nds.map((n) => {
                 if (n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger") {
-                  return { ...n, position: { ...n.position, y: n.position.y + 120 } };
+                  return { ...n, position: { ...n.position, y: n.position.y + 160 } };
                 }
                 return n;
               })
