@@ -513,8 +513,9 @@ export function FlowBuilderPage() {
             id: newEdgeId,
             flow_id: flowId,
             company_id: effectiveCompany?.id ?? "",
-            source_node_id: inEdge.source,
-            target_node_id: outEdge.target,
+            from_node_id: inEdge.source,
+            to_node_id: outEdge.target,
+            label: null, created_at: new Date().toISOString(),
           });
         }
       }
