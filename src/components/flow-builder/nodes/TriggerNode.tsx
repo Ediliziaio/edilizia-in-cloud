@@ -32,7 +32,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   return (
     <div className="relative group">
       <div
-        className={`min-w-[220px] max-w-[260px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
       >
         {/* Colored header bar */}
         <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
