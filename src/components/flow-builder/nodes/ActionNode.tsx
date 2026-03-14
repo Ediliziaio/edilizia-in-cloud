@@ -12,7 +12,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[220px] max-w-[260px] rounded-xl border-2 shadow-sm transition-all hover:shadow-md ${colors.bg} ${colors.border} ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : ""}`}
+      className={`min-w-[260px] max-w-[300px] rounded-xl border-2 shadow-sm transition-all hover:shadow-md ${colors.bg} ${colors.border} ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : ""}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-background" />
 
