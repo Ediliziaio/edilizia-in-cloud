@@ -278,6 +278,16 @@ export function FlowBuilderPage() {
     [updateNode]
   );
 
+  // Open catalog panel with context filtering
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setCatalogContext(ctx);
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
   // Node click → open config in right panel (but NOT for empty trigger placeholder)
   const onNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === "note") return;
@@ -334,16 +344,6 @@ export function FlowBuilderPage() {
     updateFlowMutation.mutate({ status: "archived" as any });
     toast.success("Workflow archiviato");
   }, [updateFlowMutation]);
-
-  // Open catalog panel with context filtering
-  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
-    const ctx = tab === "trigger" ? "trigger" : "action";
-    setCatalogContext(ctx);
-    setRightPanelOpen(true);
-    setRightPanelMode("catalog");
-    setSelectedNodeId(null);
-    if (tab) setCatalogTab(tab);
-  }, []);
 
   // Compute validation errors from nodes
   const validationErrors = useMemo<WorkflowError[]>(() => {
