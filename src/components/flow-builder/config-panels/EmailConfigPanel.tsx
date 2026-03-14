@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,7 @@ interface EmailConfigPanelProps {
   onChange: (field: string, value: any) => void;
 }
 
-export function EmailConfigPanel({ config, onChange }: EmailConfigPanelProps) {
+export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange }, ref) {
   return (
     <div className="space-y-4">
       {/* Sender */}
