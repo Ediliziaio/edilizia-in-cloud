@@ -38,6 +38,7 @@ export function WorkflowRightPanel({
   onUpdateData,
   onDelete,
   onClose,
+  onSave,
   onDragStart,
   onSelectItem,
   companyId,
@@ -49,6 +50,7 @@ export function WorkflowRightPanel({
         onUpdateData={onUpdateData}
         onDelete={onDelete}
         onClose={onClose}
+        onSave={onSave}
         companyId={companyId}
       />
     );
