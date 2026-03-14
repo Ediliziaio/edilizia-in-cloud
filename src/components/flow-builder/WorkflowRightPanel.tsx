@@ -39,6 +39,7 @@ export function WorkflowRightPanel({
   onClose,
   onDragStart,
   onSelectItem,
+  companyId,
 }: WorkflowRightPanelProps) {
   if (mode === "config" && selectedNode) {
     return (
@@ -47,6 +48,7 @@ export function WorkflowRightPanel({
         onUpdateData={onUpdateData}
         onDelete={onDelete}
         onClose={onClose}
+        companyId={companyId}
       />
     );
   }
