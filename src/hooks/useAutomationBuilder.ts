@@ -136,13 +136,9 @@ export function useAutomationBuilder(flowId: string | undefined) {
     updateUndoRedoState();
   }, [updateUndoRedoState]);
 
-  // Auto-save with debounce
-  const triggerAutoSave = useCallback(() => {
+  // Mark as dirty (no auto-save — manual only)
+  const markDirty = useCallback(() => {
     setHasUnsavedChanges(true);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveAllRef.current();
-    }, 2000);
   }, []);
 
   // Immediate save (bypasses debounce)
