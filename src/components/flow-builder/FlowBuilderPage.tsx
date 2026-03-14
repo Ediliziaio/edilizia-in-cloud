@@ -268,6 +268,7 @@ export function FlowBuilderPage() {
           setSelectedNodeId(newNodeId);
           setRightPanelMode("config");
           return;
+        }
       }
 
       // If adding extra trigger (no placeholder), align horizontally
