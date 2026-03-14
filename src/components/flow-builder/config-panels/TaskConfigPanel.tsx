@@ -60,7 +60,7 @@ export function TaskConfigPanel({ config, onChange }: TaskConfigPanelProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="bassa">Bassa</SelectItem>
-              <SelectItem value="normale">Normale</SelectItem>
+              <SelectItem value="media">Media</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
               <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
