@@ -430,6 +430,10 @@ export function FlowBuilderPage() {
               from_node_id: newNodeId, to_node_id: edge.target,
               label: null, created_at: new Date().toISOString(),
             });
+
+            // Auto-open config for the inserted node
+            setSelectedNodeId(newNodeId);
+            setRightPanelMode("config");
           }
         }
         setPendingInsertEdgeId(null);
