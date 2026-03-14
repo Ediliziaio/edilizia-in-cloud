@@ -490,13 +490,52 @@ export function FlowBuilderPage() {
 
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
+      // Find incoming and outgoing edges to reconnect
+      const incomingEdges = rfEdges.filter((e) => e.target === nodeId);
+      const outgoingEdges = rfEdges.filter((e) => e.source === nodeId);
+
+      // Build reconnection edges: for each (source → deleted → target), create source → target
+      const newEdges: Edge[] = [];
+      for (const inEdge of incomingEdges) {
+        for (const outEdge of outgoingEdges) {
+          const newEdgeId = crypto.randomUUID();
+          newEdges.push({
+            id: newEdgeId,
+            source: inEdge.source,
+            target: outEdge.target,
+            type: "addStep",
+            animated: true,
+            style: { strokeWidth: 2 },
+            data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+          });
+          // Persist new connection
+          addConnection({
+            id: newEdgeId,
+            flow_id: flowId,
+            company_id: effectiveCompany?.id ?? "",
+            source_node_id: inEdge.source,
+            target_node_id: outEdge.target,
+          });
+        }
+      }
+
+      // Remove old edges for the deleted node, add reconnection edges
+      setRfEdges((eds) => [
+        ...eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
+        ...newEdges,
+      ]);
+
+      // Remove old connections from persistence
+      for (const e of [...incomingEdges, ...outgoingEdges]) {
+        removeConnection(e.id);
+      }
+
       setRfNodes((nds) => nds.filter((n) => n.id !== nodeId));
-      setRfEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
       removeNode(nodeId);
       setSelectedNodeId(null);
       setRightPanelOpen(false);
     },
-    [setRfNodes, setRfEdges, removeNode]
+    [setRfNodes, setRfEdges, rfEdges, removeNode, addConnection, removeConnection, flowId, effectiveCompany, openCatalogForEdge]
   );
 
   const handleUpdateName = useCallback(

@@ -220,11 +220,22 @@ export function FlowBuilderConfigPanel({
             </div>
           )}
 
+          {/* Save button */}
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full mt-2"
+            onClick={onClose}
+          >
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+            Salva configurazione
+          </Button>
+
           {/* Delete button */}
           <Button
             variant="destructive"
             size="sm"
-            className="w-full mt-2"
+            className="w-full"
             onClick={() => onDelete(selectedNode.id)}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
