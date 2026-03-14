@@ -248,6 +248,7 @@ export function FlowBuilderPage() {
                       nodeType: "trigger",
                       itemId: item.id,
                       dbNodeId: newNodeId,
+                      onAddTrigger: () => openCatalog("trigger"),
                     },
                   }
                 : n
