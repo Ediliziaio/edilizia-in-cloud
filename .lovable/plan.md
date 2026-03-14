@@ -1,194 +1,86 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+## Audit Bug UX: Flow Builder - Trigger, Azioni, Filtri, Integrazioni
+
+Dopo un'analisi approfondita di tutto il codice del flow builder, ecco i bug trovati, organizzati per gravita.
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+### BUG CRITICI (funzionalita rotta)
+
+**1. DelayNode non mostra la durata configurata**
+- `DelayNode.tsx` (riga 12-13) legge `cfg.durata` e `cfg.unita`
+- Ma `DelayConfigPanel.tsx` scrive `delay_durata` e `delay_unita`
+- Risultato: il nodo delay mostra sempre "Attesa" invece di "5 giorni"
+- **Fix**: In `DelayNode.tsx`, leggere `cfg.delay_durata` e `cfg.delay_unita`
+
+**2. ConditionNode non mostra la logica AND/OR configurata**
+- `ConditionNode.tsx` (riga 8) legge `data.logica`
+- Ma `ConditionConfigPanel.tsx` scrive `operatore_logico`
+- Risultato: il badge mostra sempre "AND" anche se si seleziona "OR"
+- **Fix**: In `ConditionNode.tsx`, leggere `data.operatore_logico`
+
+**3. Inserimento Condition da edge "+" non crea i due rami Si/No**
+- In `handleSelectItem` (riga 396-411), quando si inserisce una condition node tramite il "+" sull'edge, vengono create solo 2 edge generiche (source->condition, condition->target)
+- Ma il ConditionNode ha DUE handle source: `id="yes"` e `id="no"`. Serve una edge per "Si" (sourceHandle: "yes") verso il target, e una per "No" che vada a un nodo End o resti aperta
+- **Fix**: Quando `item.kind === "condition"`, creare edge con `sourceHandle: "yes"` verso il target, e aggiungere un nodo End separato collegato a `sourceHandle: "no"`
+
+**4. Filtri trigger: TRIGGER_CATEGORY_MAP manca diverse categorie**
+- Trigger con categoria `"magazzino"` (scorta_minima, prodotto_esaurito, carico_magazzino) non sono mappati
+- Trigger HR (dipendente_creato, contratto_in_scadenza, ferie_richiesta) non sono mappati
+- Trigger schedulati (cron_giornaliero, cron_settimanale, cron_mensile, manuale) non sono mappati
+- Risultato: per questi trigger la sezione "Filtri" nel config panel NON appare
+- **Fix**: Aggiungere le entry mancanti in `TRIGGER_CATEGORY_MAP` in `FlowBuilderConfigPanel.tsx`, e aggiungere i corrispondenti field definitions + case nel `getFieldsForCategory` in `automationBuilder.ts`
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+### BUG MEDI (UX degradata)
+
+**5. TaskConfigPanel usa chiavi diverse dal catalogo**
+- Il catalogo (`crea_task`) definisce `assegnato_a` ma il panel usa `assegna_a`
+- La priority nel catalogo ha opzione `"media"` ma il panel ha `"normale"`
+- **Fix**: Allineare le chiavi nel TaskConfigPanel a quelle del catalogo
+
+**6. `user_select` e `entity_select` sono semplici Input di testo**
+- `FlowBuilderConfigPanel.tsx` (righe 326-342) renderizza `user_select` e `entity_select` come semplici `<Input>` con placeholder "ID utente"
+- L'utente deve inserire manualmente un UUID -- inutilizzabile
+- **Fix**: Per `user_select`, usare un componente che carica `profiles` dal DB (come `UserSelect` gia presente in `ConditionValueInput.tsx`). Per `entity_select`, aggiungere un picker per agenti AI, pipeline stages, ecc. in base al contesto
+
+**7. Il nodo "Fine" puo essere eliminato accidentalmente**
+- Non c'e nessuna protezione contro l'eliminazione del nodo End tramite tasto Delete/Backspace
+- Se l'utente lo cancella, il flow resta senza nodo terminale
+- **Fix**: In `onNodesDelete`, filtrare i nodi di tipo `"end"` e impedirne la cancellazione
+
+**8. Il pulsante "Salva configurazione" nel config panel chiude il pannello ma NON salva nel DB**
+- `onClose` (riga 707) fa solo `setRightPanelOpen(false)` e `setSelectedNodeId(null)`
+- Il salvataggio effettivo avviene solo con Ctrl+S o il bottone "Salva" nell'header
+- L'utente crede di aver salvato quando preme "Salva configurazione"
+- **Fix**: Il bottone dovrebbe chiamare `saveImmediate()` prima di `onClose()`, oppure rinominarlo in "Chiudi" e lasciare il salvataggio al bottone header
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+### BUG MINORI (polish)
+
+**9. Edge caricate da DB non hanno il callback `onAddStep`**
+- Il codice gia lo inietta (righe 90-93), ma manca il label per le edge Si/No delle condizioni
+- Quando si ricarica un flow con condizioni, le edge dai rami Si/No perdono le label
+
+**10. Drag & drop dal pannello catalogo non passa per `handleSelectItem`**
+- `onDrop` chiama direttamente `addNodeFromItem` senza passare per la logica di edge-splitting
+- Il nodo viene piazzato alla posizione del mouse senza integrarsi nel flusso
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+### Piano di Fix
 
----
+| # | File | Modifica |
+|---|------|----------|
+| 1 | `DelayNode.tsx` | Leggere `delay_durata`/`delay_unita` invece di `durata`/`unita` |
+| 2 | `ConditionNode.tsx` | Leggere `data.operatore_logico` invece di `data.logica` |
+| 3 | `FlowBuilderPage.tsx` | Gestire inserimento condition: creare branch Si/No con handle dedicati |
+| 4 | `FlowBuilderConfigPanel.tsx` + `automationBuilder.ts` | Aggiungere mapping categorie mancanti (magazzino, hr, schedulati) |
+| 5 | `TaskConfigPanel.tsx` | Allineare chiavi (`assegnato_a`, rimuovere `normale`) |
+| 6 | `FlowBuilderConfigPanel.tsx` | Sostituire Input con UserSelect per `user_select` |
+| 7 | `FlowBuilderPage.tsx` | Proteggere nodo End da eliminazione |
+| 8 | `FlowBuilderConfigPanel.tsx` | Far chiamare `saveImmediate` dal bottone Salva |
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
-
----
-
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
-
----
-
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
-
----
-
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
-
----
-
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
-
----
-
-## UTM Attribution Tracking ✅
-- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
-- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
-- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
-- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
-- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
-- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
-- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
-- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
-- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
-- ✅ **useContactAttribution** + **useAttributionReport** hooks
-
----
-
-## Form Builder + Lead Capture ✅
-- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
-- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
-- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
-- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
-- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
-- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
-- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
-- ✅ **useFormBuilder** hook: CRUD form con mutations
-- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
-- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
-- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
