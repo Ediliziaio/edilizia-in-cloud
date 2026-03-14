@@ -194,6 +194,21 @@ export function FlowBuilderPage() {
     },
     [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
   );
+  // Open catalog panel with context filtering
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setCatalogContext(ctx);
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
+  // Open catalog for edge insertion (tracks which edge was clicked)
+  const openCatalogForEdge = useCallback((edgeId: string) => {
+    setPendingInsertEdgeId(edgeId);
+    openCatalog("action");
+  }, [openCatalog]);
 
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
