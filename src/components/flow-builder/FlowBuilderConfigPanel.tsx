@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2, Filter } from "lucide-react";
+import { X, Trash2, Filter, Save } from "lucide-react";
 import type { Node } from "@xyflow/react";
 
 import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
@@ -220,11 +220,22 @@ export function FlowBuilderConfigPanel({
             </div>
           )}
 
+          {/* Save button */}
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full mt-2"
+            onClick={onClose}
+          >
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+            Salva configurazione
+          </Button>
+
           {/* Delete button */}
           <Button
             variant="destructive"
             size="sm"
-            className="w-full mt-2"
+            className="w-full"
             onClick={() => onDelete(selectedNode.id)}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
