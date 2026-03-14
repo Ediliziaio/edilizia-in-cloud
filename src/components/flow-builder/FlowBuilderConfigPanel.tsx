@@ -7,19 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, Filter } from "lucide-react";
 import type { Node } from "@xyflow/react";
 
 import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
 import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
+import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
+import type { TriggerFilters } from "@/types/automationBuilder";
 
 interface FlowBuilderConfigPanelProps {
   selectedNode: Node | null;
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  companyId?: string;
 }
 
 // Item IDs that get specialized panels
@@ -29,11 +32,72 @@ const SPECIALIZED_PANELS = new Set([
   "invia_email",
 ]);
 
+// Map flow-node-catalog itemId → TriggerConditionBuilder category
+const TRIGGER_CATEGORY_MAP: Record<string, string> = {
+  // CRM / Contatti
+  contatto_creato: "contact",
+  contatto_aggiornato: "contact",
+  contatto_assegnato: "contact",
+  tag_aggiunto: "contact",
+  tag_rimosso: "contact",
+  campo_custom_aggiornato: "contact",
+  // Opportunità
+  opportunita_creata: "opportunity",
+  opportunita_stage_cambiato: "opportunity",
+  opportunita_vinta: "opportunity",
+  opportunita_persa: "opportunity",
+  // Appuntamenti
+  appuntamento_creato: "appointment",
+  appuntamento_confermato: "appointment",
+  appuntamento_completato: "appointment",
+  appuntamento_no_show: "appointment",
+  appuntamento_imminente: "appointment",
+  // Comunicazione
+  email_aperta: "communication",
+  email_cliccata: "communication",
+  whatsapp_ricevuto: "communication",
+  campagna_facebook_lead: "social_media",
+  // Ordini
+  ordine_creato: "order",
+  ordine_stato_cambiato: "order",
+  ordine_in_ritardo: "order",
+  // Fatturazione
+  fattura_creata: "invoice",
+  fattura_scaduta: "invoice",
+  pagamento_ricevuto: "invoice",
+  costo_registrato: "invoice",
+  // Preventivi
+  preventivo_creato: "quote",
+  preventivo_accettato: "quote",
+  preventivo_rifiutato: "quote",
+  preventivo_in_scadenza: "quote",
+  // Ticket
+  ticket_creato: "ticket",
+  ticket_stato_cambiato: "ticket",
+  ticket_senza_risposta: "ticket",
+  // Task
+  task_creato: "task",
+  task_completato: "task",
+  task_scaduto: "task",
+  // Cantiere
+  cantiere_creato: "construction",
+  cantiere_fase_completata: "construction",
+  cantiere_in_ritardo: "construction",
+  // Sistema
+  webhook_ricevuto: "system",
+  scheduler_cron: "system",
+  modulo_inviato: "system",
+  // AI
+  conversazione_ai_terminata: "contact",
+  appuntamento_prenotato_da_ai: "appointment",
+};
+
 export function FlowBuilderConfigPanel({
   selectedNode,
   onUpdateData,
   onDelete,
   onClose,
+  companyId,
 }: FlowBuilderConfigPanelProps) {
   const catalog = useMemo(
     () => (selectedNode ? getCatalogItem(selectedNode.data?.itemId as string) : null),
@@ -45,6 +109,7 @@ export function FlowBuilderConfigPanel({
   const schema = catalog?.configSchema ?? [];
   const nodeData = selectedNode.data as Record<string, any>;
   const itemId = nodeData.itemId as string;
+  const nodeType = nodeData.nodeType as string;
 
   const handleChange = (fieldId: string, value: any) => {
     onUpdateData(selectedNode.id, { ...nodeData, [fieldId]: value });
@@ -52,15 +117,25 @@ export function FlowBuilderConfigPanel({
 
   const isSpecialized = SPECIALIZED_PANELS.has(itemId);
 
+  // Determine trigger category for filter builder
+  const triggerCategory = TRIGGER_CATEGORY_MAP[itemId] || null;
+  const isTrigger = nodeType === "trigger" || catalog?.kind === "trigger";
+
+  // Filters state
+  const filters: TriggerFilters = nodeData.trigger_filters || { logic: "AND", conditions: [] };
+  const handleFiltersChange = (newFilters: TriggerFilters) => {
+    onUpdateData(selectedNode.id, { ...nodeData, trigger_filters: newFilters });
+  };
+
   return (
-    <div className="flex h-full w-[300px] flex-col border-l bg-background">
+    <div className="flex h-full w-[380px] flex-col border-l bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="flex items-center justify-between border-b px-5 py-3.5">
         <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {catalog?.kind ?? "Nodo"}
           </p>
-          <p className="text-sm font-medium">{catalog?.label ?? nodeData.label}</p>
+          <p className="text-sm font-medium mt-0.5">{catalog?.label ?? nodeData.label}</p>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
           <X className="h-4 w-4" />
@@ -68,27 +143,27 @@ export function FlowBuilderConfigPanel({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-4 p-4">
+        <div className="space-y-5 p-5">
           {/* Label field always */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Etichetta nodo</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Etichetta nodo</Label>
             <Input
               value={(nodeData.label as string) || ""}
               onChange={(e) => handleChange("label", e.target.value)}
               placeholder={catalog?.label ?? "Etichetta"}
-              className="h-8 text-xs"
+              className="h-9 text-sm"
             />
           </div>
 
           {/* Note text for note nodes */}
           {selectedNode.type === "note" && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Testo nota</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Testo nota</Label>
               <Textarea
                 value={(nodeData.note_text as string) || ""}
                 onChange={(e) => handleChange("note_text", e.target.value)}
                 placeholder="Scrivi una nota..."
-                className="text-xs min-h-[80px]"
+                className="text-sm min-h-[80px]"
               />
             </div>
           )}
@@ -117,10 +192,31 @@ export function FlowBuilderConfigPanel({
             />
           ))}
 
+          {/* Dynamic Filters section for triggers */}
+          {isTrigger && triggerCategory && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 border-t pt-4">
+                <Filter className="h-3.5 w-3.5 text-primary" />
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Filtri
+                </Label>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Aggiungi condizioni per filtrare quando questo trigger si attiva.
+              </p>
+              <TriggerConditionBuilder
+                triggerCategory={triggerCategory}
+                filters={filters}
+                onChange={handleFiltersChange}
+                companyId={companyId}
+              />
+            </div>
+          )}
+
           {/* Description */}
           {catalog?.description && (
-            <div className="rounded-lg border bg-muted/50 p-3">
-              <p className="text-[11px] text-muted-foreground">{catalog.description}</p>
+            <div className="rounded-lg border bg-muted/50 p-3.5">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{catalog.description}</p>
             </div>
           )}
 
@@ -128,7 +224,7 @@ export function FlowBuilderConfigPanel({
           <Button
             variant="destructive"
             size="sm"
-            className="w-full"
+            className="w-full mt-2"
             onClick={() => onDelete(selectedNode.id)}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -152,8 +248,8 @@ function ConfigField({
   onChange: (v: any) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">
+    <div className="space-y-2">
+      <Label className="text-xs font-medium">
         {field.label}
         {field.required && <span className="ml-0.5 text-destructive">*</span>}
       </Label>
@@ -163,7 +259,7 @@ function ConfigField({
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -172,7 +268,7 @@ function ConfigField({
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          className="text-xs min-h-[60px]"
+          className="text-sm min-h-[60px]"
         />
       )}
 
@@ -184,7 +280,7 @@ function ConfigField({
           min={field.min}
           max={field.max}
           placeholder={field.placeholder}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -199,7 +295,7 @@ function ConfigField({
             value={selectVal}
             onValueChange={(v) => onChange(v === NONE_SENTINEL ? "" : v)}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder={emptyOpt?.label ?? "Seleziona..."} />
             </SelectTrigger>
             <SelectContent>
@@ -221,7 +317,7 @@ function ConfigField({
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder ?? "ID utente o {{variabile}}"}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -230,7 +326,7 @@ function ConfigField({
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder ?? "ID entità o {{variabile}}"}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -243,7 +339,7 @@ function ConfigField({
           value={Array.isArray(value) ? value.join(", ") : (value ?? "")}
           onChange={(e) => onChange(e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))}
           placeholder={field.placeholder ?? "tag1, tag2, ..."}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -252,7 +348,7 @@ function ConfigField({
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder ?? "{}"}
-          className="text-xs min-h-[80px] font-mono"
+          className="text-sm min-h-[80px] font-mono"
         />
       )}
 
@@ -261,7 +357,7 @@ function ConfigField({
           type="date"
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
@@ -270,12 +366,12 @@ function ConfigField({
           type="time"
           value={value ?? field.defaultValue ?? ""}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-xs"
+          className="h-9 text-sm"
         />
       )}
 
       {field.helpText && (
-        <p className="text-[10px] text-muted-foreground">{field.helpText}</p>
+        <p className="text-[11px] text-muted-foreground">{field.helpText}</p>
       )}
     </div>
   );
