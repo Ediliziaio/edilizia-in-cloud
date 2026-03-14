@@ -80,6 +80,9 @@ export function FlowBuilderPage() {
         if (n.type === "trigger" && !n.data?.itemId) {
           return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
         }
+        if (n.type === "trigger" && n.data?.itemId) {
+          return { ...n, data: { ...n.data, onAddTrigger: () => openCatalog("trigger") } };
+        }
         return n;
       }));
       // Inject onAddStep callback into all edges loaded from DB

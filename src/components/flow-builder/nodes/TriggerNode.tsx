@@ -30,31 +30,45 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   const Icon = getTriggerIcon(data.itemId as string);
 
   return (
-    <div
-      className={`min-w-[220px] max-w-[260px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
-    >
-      {/* Colored header bar */}
-      <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
-        <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/60 p-1.5 text-emerald-600 dark:text-emerald-400">
-          <Icon className="h-4 w-4" />
+    <div className="relative group">
+      <div
+        className={`min-w-[220px] max-w-[260px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+      >
+        {/* Colored header bar */}
+        <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
+          <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/60 p-1.5 text-emerald-600 dark:text-emerald-400">
+            <Icon className="h-4 w-4" />
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+            Trigger
+          </span>
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-          Trigger
-        </span>
-      </div>
-      {/* Body */}
-      <div className="px-3 py-2">
-        <p className="truncate text-sm font-medium text-foreground">
-          {(data.label as string) || catalog?.label || "Trigger"}
-        </p>
-        {catalog?.description && (
-          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
-            {catalog.description}
+        {/* Body */}
+        <div className="px-3 py-2">
+          <p className="truncate text-sm font-medium text-foreground">
+            {(data.label as string) || catalog?.label || "Trigger"}
           </p>
-        )}
+          {catalog?.description && (
+            <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
+              {catalog.description}
+            </p>
+          )}
+        </div>
+        <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background !opacity-0" />
+        <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background" />
       </div>
-      <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background !opacity-0" />
-      <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-background" />
+
+      {/* "+" button on right side — add parallel trigger */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          (data as any).onAddTrigger?.();
+        }}
+        className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-2 border-background"
+        title="Aggiungi trigger parallelo"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
