@@ -9,9 +9,9 @@ function DelayNodeComponent({ data, selected }: NodeProps) {
   // Build duration label from config
   const cfg = (data as any);
   let label = (cfg.label as string) || catalog?.label || "Attesa";
-  if (cfg.durata && cfg.unita) {
+  if (cfg.delay_durata && cfg.delay_unita) {
     const unitaMap: Record<string, string> = { minuti: "min", ore: "ore", giorni: "g", settimane: "sett" };
-    label = `${cfg.durata} ${unitaMap[cfg.unita] || cfg.unita}`;
+    label = `${cfg.delay_durata} ${unitaMap[cfg.delay_unita] || cfg.delay_unita}`;
   }
 
   return (
