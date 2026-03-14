@@ -468,25 +468,36 @@ export function FlowBuilderPage() {
               setRfNodes((nds) => [...nds, rfNode]);
             }
 
-            // Persist
-            removeConnection(pendingInsertEdgeId);
-            addNode({
-              id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
-              node_type: nodeType as any,
-              position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-              config_json: { item_id: item.id },
-              label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-            });
-            addConnection({
-              id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
-              from_node_id: edge.source, to_node_id: newNodeId,
-              label: null, created_at: new Date().toISOString(),
-            });
-            addConnection({
-              id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
-              from_node_id: newNodeId, to_node_id: edge.target,
-              label: null, created_at: new Date().toISOString(),
-            });
+            // Persist node + edges (for non-condition; condition already persisted above)
+            if (item.kind !== "condition") {
+              removeConnection(pendingInsertEdgeId);
+              addNode({
+                id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: nodeType as any,
+                position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+                config_json: { item_id: item.id },
+                label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: edge.source, to_node_id: newNodeId,
+                label: null, created_at: new Date().toISOString(),
+              });
+              addConnection({
+                id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+                from_node_id: newNodeId, to_node_id: edge.target,
+                label: null, created_at: new Date().toISOString(),
+              });
+            } else {
+              // Condition node already persisted; just persist the main node
+              addNode({
+                id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
+                node_type: nodeType as any,
+                position_x: Math.round(pos.x), position_y: Math.round(pos.y),
+                config_json: { item_id: item.id },
+                label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              });
+            }
 
             // Auto-open config for the inserted node
             setSelectedNodeId(newNodeId);

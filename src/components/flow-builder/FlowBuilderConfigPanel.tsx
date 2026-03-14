@@ -83,6 +83,19 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   cantiere_creato: "construction",
   cantiere_fase_completata: "construction",
   cantiere_in_ritardo: "construction",
+  // Magazzino
+  scorta_minima: "order",
+  prodotto_esaurito: "order",
+  carico_magazzino: "order",
+  // HR
+  dipendente_creato: "contact",
+  contratto_in_scadenza: "contact",
+  ferie_richiesta: "contact",
+  // Schedulati
+  cron_giornaliero: "system",
+  cron_settimanale: "system",
+  cron_mensile: "system",
+  manuale: "system",
   // Sistema
   webhook_ricevuto: "system",
   scheduler_cron: "system",
