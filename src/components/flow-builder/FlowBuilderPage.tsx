@@ -264,8 +264,10 @@ export function FlowBuilderPage() {
             config_json: { item_id: item.id },
             label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
           });
+          // Auto-open config for the new trigger
+          setSelectedNodeId(newNodeId);
+          setRightPanelMode("config");
           return;
-        }
       }
 
       // If adding extra trigger (no placeholder), align horizontally
