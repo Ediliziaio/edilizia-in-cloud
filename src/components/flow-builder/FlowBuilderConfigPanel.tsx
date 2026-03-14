@@ -22,6 +22,7 @@ interface FlowBuilderConfigPanelProps {
   onUpdateData: (nodeId: string, data: Record<string, any>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  onSave?: () => void;
   companyId?: string;
 }
 
