@@ -278,13 +278,18 @@ export function FlowBuilderPage() {
     [updateNode]
   );
 
-  // Node click → open config in right panel
+  // Node click → open config in right panel (but NOT for empty trigger placeholder)
   const onNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === "note") return;
+    // If clicking an empty trigger placeholder, open trigger catalog instead
+    if (node.type === "trigger" && node.data?.isEmpty) {
+      openCatalog("trigger");
+      return;
+    }
     setSelectedNodeId(node.id);
     setRightPanelOpen(true);
     setRightPanelMode("config");
-  }, []);
+  }, [openCatalog]);
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
