@@ -289,6 +289,12 @@ export function FlowBuilderPage() {
     if (tab) setCatalogTab(tab);
   }, []);
 
+  // Open catalog for edge insertion (tracks which edge was clicked)
+  const openCatalogForEdge = useCallback((edgeId: string) => {
+    setPendingInsertEdgeId(edgeId);
+    openCatalog("action");
+  }, [openCatalog]);
+
   // Node click → open config in right panel (but NOT for empty trigger placeholder)
   const onNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === "note") return;
