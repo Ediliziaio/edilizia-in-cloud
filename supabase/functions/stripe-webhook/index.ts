@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 // ─── Helpers ───────────────────────────────────────────────
 
