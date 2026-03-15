@@ -17535,6 +17535,53 @@ export type Database = {
       }
     }
     Views: {
+      ai_elevenlabs_config_safe: {
+        Row: {
+          aggiornato_il: string | null
+          api_key_masked: string | null
+          api_key_valida: boolean | null
+          company_id: string | null
+          creato_il: string | null
+          crediti_rimanenti: number | null
+          crediti_totali: number | null
+          id: string | null
+          piano: string | null
+          ultima_verifica: string | null
+        }
+        Insert: {
+          aggiornato_il?: string | null
+          api_key_masked?: never
+          api_key_valida?: boolean | null
+          company_id?: string | null
+          creato_il?: string | null
+          crediti_rimanenti?: number | null
+          crediti_totali?: number | null
+          id?: string | null
+          piano?: string | null
+          ultima_verifica?: string | null
+        }
+        Update: {
+          aggiornato_il?: string | null
+          api_key_masked?: never
+          api_key_valida?: boolean | null
+          company_id?: string | null
+          creato_il?: string | null
+          crediti_rimanenti?: number | null
+          crediti_totali?: number | null
+          id?: string | null
+          piano?: string | null
+          ultima_verifica?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_elevenlabs_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       callcenter_lead_journey: {
         Row: {
           appuntamenti_fissati: number | null
