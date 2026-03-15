@@ -143,9 +143,9 @@ export const macroAreas: MacroArea[] = [
     title: "Persone",
     icon: Users2,
     items: [
-      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewDashboard" },
-      { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true },
-      { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare },
+      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone" },
+      { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone", featureKey: "messaging_beta", isBeta: true },
+      { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare, permissionKey: "canViewPersone" },
     ],
   },
 
@@ -219,9 +219,9 @@ export const internalNavItems: NavItem[] = [
   { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
-  { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
-  { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal", subcategory: "gi_team" },
-  { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_team" },
+  { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
+  { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal", subcategory: "gi_automation" },
   { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];

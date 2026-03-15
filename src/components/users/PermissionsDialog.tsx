@@ -6,11 +6,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Building2, LayoutDashboard, Megaphone, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, HardHat, LayoutGrid, Euro, Users2, Megaphone, Zap, ChevronDown, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  STANDALONE_SECTIONS, INTERNAL_SECTIONS, MARKETING_SECTIONS,
+  CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
+  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
   DEFAULT_PERMISSIONS,
   type PermissionSectionDef, type StaffRoleType,
@@ -47,6 +48,10 @@ export interface StaffPermissions {
   can_view_marketing_reports: boolean;
   can_view_cruscotto: boolean;
   only_assigned: boolean;
+  can_view_billing: boolean;
+  can_view_prima_nota: boolean;
+  can_view_costs: boolean;
+  can_view_persone: boolean;
 }
 
 interface PermissionsDialogProps {
@@ -219,30 +224,18 @@ export function PermissionsDialog({
         <Separator />
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
-          <PermGroup
-            label="Cruscotto Aziendale"
-            icon={Building2}
-            iconColor="text-indigo-600"
-            sections={STANDALONE_SECTIONS}
-            permissions={permissions}
-            onToggle={handleToggle}
-          />
-          <PermGroup
-            label="Gestione Interna"
-            icon={LayoutDashboard}
-            iconColor="text-blue-600"
-            sections={INTERNAL_SECTIONS}
-            permissions={permissions}
-            onToggle={handleToggle}
-          />
-          <PermGroup
-            label="Marketing e Vendite"
-            icon={Megaphone}
-            iconColor="text-purple-600"
-            sections={MARKETING_SECTIONS}
-            permissions={permissions}
-            onToggle={handleToggle}
-          />
+          <PermGroup label="Cruscotto" icon={LayoutGrid} iconColor="text-indigo-600"
+            sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Cantieri & Lavori" icon={HardHat} iconColor="text-blue-600"
+            sections={CANTIERI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Finanza" icon={Euro} iconColor="text-emerald-600"
+            sections={FINANZA_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Persone" icon={Users2} iconColor="text-amber-600"
+            sections={PERSONE_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Marketing & Vendita" icon={Megaphone} iconColor="text-purple-600"
+            sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Automazioni & AI" icon={Zap} iconColor="text-orange-600"
+            sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
 
           <Separator />
 

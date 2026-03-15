@@ -1,90 +1,194 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-## Analisi Sezione Utenti — Mismatch Permessi vs Sidebar (UNIF-USERS-03)
+---
 
-### Problema principale
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
-La sidebar aziendale è stata riorganizzata in **6 macro-aree** (Cruscotto, Cantieri & Lavori, Finanza, Persone, Marketing & Vendita, Automazioni & AI), ma il wizard di creazione utenti (Step 3) e il dialog permessi usano ancora la **vecchia struttura a 3 gruppi** (Cruscotto, Gestione Interna, Marketing e Vendite).
+---
 
-Questo crea un disallineamento critico: sezioni intere della sidebar non hanno toggle nel pannello permessi, e sono **sempre visibili** per tutti gli utenti staff.
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-### Bug confermati
+---
 
-| # | Gravita | Problema |
-|---|---------|----------|
-| 1 | **P0** | **Finanza sempre visibile**: `canViewBilling`, `canViewScadenzario`, `canViewPrimaNota`, `canViewCosts`, `canViewTesoreria` sono hardcoded `true` in `usePermissions.ts` (righe 181-186). Non esistono colonne DB corrispondenti. Un operatore senza permessi vede TUTTE le sezioni finanziarie |
-| 2 | **P1** | **Persone non controllabile**: "Personale & HR" usa `canViewDashboard`, "Chat Interna" non ha alcun `permissionKey`, "Messaggistica" usa `canViewOrders`. Un utente con solo permesso ordini vede anche la messaggistica |
-| 3 | **P1** | **Wizard Step 3 non allineato alla sidebar**: I gruppi sono "Cruscotto / Gestione Interna / Marketing" ma la sidebar ha 6 macro-aree. L'utente admin non capisce cosa sta abilitando |
-| 4 | **P2** | **"Dipendenti" nel wizard** non corrisponde a nulla nella sidebar (la voce "Personale & HR" usa `canViewDashboard`, non `canViewEmployees`) |
-| 5 | **P2** | **Automazioni & AI** nella sidebar: "Automazioni" usa `canViewSettings` e "Agenti AI" usa `canViewMarketingAiAgent`. Due sezioni diverse governate da permessi non intuitivi |
-| 6 | **P2** | **UserRolesPermissionsTab** (pagina dettaglio utente) ha la stessa struttura a 3 gruppi vecchia, disallineata dalla sidebar |
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-### Correzioni pianificate
+---
 
-#### 1. Migrazione DB — Aggiungere colonne mancanti
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
 
-Aggiungere a `staff_permissions`:
-- `can_view_billing` (boolean, default false)
-- `can_view_prima_nota` (boolean, default false)
-- `can_view_costs` (boolean, default false)
-- `can_view_persone` (boolean, default false)
+---
 
-Non servono `can_view_scadenzario` e `can_view_tesoreria` separati: useranno `can_view_billing` come la fatturazione.
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
 
-#### 2. `StaffPermissions` interface — Aggiungere nuovi campi
+---
 
-In `PermissionsDialog.tsx`, aggiungere:
-- `can_view_billing`, `can_view_prima_nota`, `can_view_costs`, `can_view_persone`
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
 
-#### 3. `permissionsDefaults.ts` — Ristrutturare in 6 gruppi
+---
 
-Sostituire `STANDALONE_SECTIONS`, `INTERNAL_SECTIONS`, `MARKETING_SECTIONS` con sezioni che rispecchiano le 6 macro-aree della sidebar:
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
 
-- **Cruscotto**: Cruscotto Aziendale (can_view_cruscotto)
-- **Cantieri & Lavori**: Dashboard, Ordini, Magazzino, Calendario, Clienti, Ticket, Dipendenti/Personale (can_view_dashboard, can_view_orders, can_view_warehouse, can_view_calendar, can_view_customers, can_view_tickets, can_view_employees)
-- **Finanza**: Fatturazione (can_view_billing), Prima Nota (can_view_prima_nota), Costi (can_view_costs), Previsionale (can_view_forecast)
-- **Persone**: Personale & HR, Chat, Messaggistica (can_view_persone)
-- **Marketing & Vendita**: tutte le sezioni marketing esistenti
-- **Automazioni & AI**: Automazioni (can_view_settings), Agenti AI (can_view_marketing_ai_agent)
+---
 
-#### 4. `usePermissions.ts` — Leggere da DB, non hardcodare
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
 
-Sostituire le righe 181-186 (hardcoded `true`) con lettura dal DB:
-```typescript
-canViewBilling: permissions?.can_view_billing ?? false,
-canViewScadenzario: permissions?.can_view_billing ?? false,
-canViewPrimaNota: permissions?.can_view_prima_nota ?? false,
-canViewCosts: permissions?.can_view_costs ?? false,
-canViewTesoreria: permissions?.can_view_billing ?? false,
-```
+---
 
-#### 5. `DEFAULT_PERMISSIONS` — Aggiungere i nuovi campi a false
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
 
-#### 6. Wizard e Dialog — Aggiornare i gruppi visivi
+---
 
-`CreateUserWizard.tsx` Step 3 e `PermissionsDialog.tsx`: mostrare 6 `PermGroup` allineati alle macro-aree.
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
 
-`UserRolesPermissionsTab.tsx`: aggiornare `PERMISSION_CATEGORIES` con le stesse 6 categorie.
+---
 
-#### 7. `ROLE_PRESETS` — Aggiornare con i nuovi campi
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
 
-Aggiungere `can_view_billing`, `can_view_prima_nota`, `can_view_costs`, `can_view_persone` ai preset appropriati.
+---
 
-#### 8. `sidebarConfig.ts` — Fix permissionKey per Persone
+## ✅ Tutte le funzionalità pianificate sono state completate!
 
-- "Personale & HR": cambiare `permissionKey` da `canViewDashboard` a `canViewPersone`
-- "Chat Interna": aggiungere `permissionKey: "canViewPersone"`
-- "Messaggistica": cambiare da `canViewOrders` a `canViewPersone`
+---
 
-### File da modificare
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
 
-| File | Azione |
-|---|---|
-| Migrazione DB | Aggiungere 4 colonne a staff_permissions |
-| `src/components/users/PermissionsDialog.tsx` | Aggiungere campi + ristrutturare 6 gruppi |
-| `src/components/users/permissionsDefaults.ts` | Ristrutturare sezioni in 6 macro-aree + aggiornare presets |
-| `src/hooks/usePermissions.ts` | Leggere da DB i campi finanza/persone + aggiungere canViewPersone |
-| `src/components/users/CreateUserWizard.tsx` | Aggiornare Step 3 con 6 gruppi |
-| `src/components/users/UserRolesPermissionsTab.tsx` | Allineare PERMISSION_CATEGORIES alle 6 aree |
-| `src/lib/sidebarConfig.ts` | Fix permissionKey per area Persone |
+---
 
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+
+---
+
+## UTM Attribution Tracking ✅
+- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
+- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
+- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
+- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
+- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
+- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
+- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
+- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
+- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
+- ✅ **useContactAttribution** + **useAttributionReport** hooks
+
+---
+
+## Form Builder + Lead Capture ✅
+- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
+- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
+- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
+- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
+- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
+- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
+- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
+- ✅ **useFormBuilder** hook: CRUD form con mutations
+- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
+- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
+- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
