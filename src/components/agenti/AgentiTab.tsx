@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Search, Bot, Phone, MessageSquare, Users, Megaphone, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -174,6 +174,7 @@ export function AgentiTab() {
               onToggleStatus={(id, stato) => updateStatus.mutate({ id, stato })}
               onDuplicate={(id) => duplicateAgent.mutate(id)}
               onNavigateConversations={handleNavigateConversations}
+              isToggling={updateStatus.isPending}
             />
           ))}
           <button

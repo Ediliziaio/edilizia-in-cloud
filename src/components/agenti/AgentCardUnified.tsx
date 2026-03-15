@@ -81,6 +81,7 @@ interface Props {
   onToggleStatus: (id: string, stato: StatoAgente) => void;
   onDuplicate: (id: string) => void;
   onNavigateConversations: (id: string) => void;
+  isToggling?: boolean;
 }
 
 export function AgentCardUnified({
@@ -91,6 +92,7 @@ export function AgentCardUnified({
   onToggleStatus,
   onDuplicate,
   onNavigateConversations,
+  isToggling = false,
 }: Props) {
   const tipoCfg = TIPO_CONFIG[agente.tipo];
   const statoCfg = STATO_CONFIG[agente.stato];
@@ -129,6 +131,7 @@ export function AgentCardUnified({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                disabled={isToggling}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleStatus(

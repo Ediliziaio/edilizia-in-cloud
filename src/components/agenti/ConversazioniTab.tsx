@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -236,6 +236,15 @@ function ConversazioneDetail({
 
   const transcript = (conv.trascrizione_json || []) as { role?: string; message?: string; time?: number }[];
   const dur = conv.durata_secondi || 0;
+
+  // Cleanup blob URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (audioSrc && audioSrc.startsWith("blob:")) {
+        URL.revokeObjectURL(audioSrc);
+      }
+    };
+  }, [audioSrc]);
 
   const fetchAudio = useCallback(async () => {
     if (audioSrc || !conv.elevenlabs_conversation_id) return;

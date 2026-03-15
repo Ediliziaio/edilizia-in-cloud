@@ -40,7 +40,18 @@ Deno.serve(async (req) => {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 
-      if (signature !== expectedSig) {
+      // Timing-safe comparison to prevent timing attacks
+      const sigBytes = new TextEncoder().encode(signature);
+      const expBytes = new TextEncoder().encode(expectedSig);
+      if (sigBytes.length !== expBytes.length) {
+        console.warn("[WEBHOOK] Invalid signature (length mismatch)");
+        return json({ error: "Invalid signature" }, 401);
+      }
+      let diff = 0;
+      for (let i = 0; i < sigBytes.length; i++) {
+        diff |= sigBytes[i] ^ expBytes[i];
+      }
+      if (diff !== 0) {
         console.warn("[WEBHOOK] Invalid signature");
         return json({ error: "Invalid signature" }, 401);
       }
