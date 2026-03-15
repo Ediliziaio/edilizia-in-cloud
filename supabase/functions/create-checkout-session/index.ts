@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,7 +20,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const stripeSecretKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
 
     if (!stripeSecretKey) {
       return new Response(

@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     // Stripe sync (if configured)
     let stripeSynced = false;
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     if (stripeKey && company.stripe_customer_id && newPlan.stripe_price_id_monthly) {
       try {
         const Stripe = (await import("npm:stripe@14")).default;

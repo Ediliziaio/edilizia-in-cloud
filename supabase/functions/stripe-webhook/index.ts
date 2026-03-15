@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const stripeSecretKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     if (!stripeSecretKey) {
       return new Response(JSON.stringify({ error: "Stripe non configurato" }), {
         status: 400,
@@ -396,7 +396,7 @@ Deno.serve(async (req) => {
     const body = await req.text();
 
     // ── Signature verification ──
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+    const webhookSecret = await getPlatformSetting("stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET");
     let event: Stripe.Event;
 
     if (webhookSecret) {

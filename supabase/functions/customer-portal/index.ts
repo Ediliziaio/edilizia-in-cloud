@@ -1,6 +1,7 @@
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -8,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     if (!stripeKey) return errorResponse("Stripe non configurato");
 
     const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
