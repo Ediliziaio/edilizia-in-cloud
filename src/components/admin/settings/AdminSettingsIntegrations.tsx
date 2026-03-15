@@ -244,16 +244,14 @@ const GOOGLE_POLICY_TOGGLES = [
   },
 ] as const;
 
-function GoogleCalendarPoliciesCard({
-  settings, isLoading, onToggle, isSaving,
-}: {
+const GoogleCalendarPoliciesCard = forwardRef<HTMLDivElement, {
   settings: SettingsMap | undefined;
   isLoading: boolean;
   onToggle: (key: string, value: boolean) => void;
   isSaving: boolean;
-}) {
+}>(function GoogleCalendarPoliciesCard({ settings, isLoading, onToggle, isSaving }, ref) {
   return (
-    <Card>
+    <Card ref={ref}>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-primary" />
@@ -286,7 +284,7 @@ function GoogleCalendarPoliciesCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ─── STRIPE SETTINGS ──────────────────────────────────────────────────────────
 
