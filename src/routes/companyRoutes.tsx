@@ -198,6 +198,7 @@ export function companyRoutes() {
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
         <Route path="agenti-ai" element={<AgentiAIPage />} />
+        <Route path="agenti-ai/:agentId" element={<AgentDetailPage />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />

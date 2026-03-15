@@ -192,7 +192,7 @@ export function AgentiTab() {
         onClose={() => setShowCreate(false)}
         onSuccess={(id) => {
           setShowCreate(false);
-          navigate(`/azienda/marketing/agente-ai/${id}`);
+          navigate(`/azienda/agenti-ai/${id}`);
         }}
       />
 

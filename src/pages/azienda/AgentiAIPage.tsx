@@ -156,9 +156,7 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="knowledge" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <PlatformKnowledgeBasePage />
-          </Suspense>
+          <KnowledgeBaseTab />
         </TabsContent>
 
         <TabsContent value="telefonia" className="mt-0 p-6">
@@ -169,6 +167,10 @@ export default function AgentiAIPage() {
           <ConversazioniTab />
         </TabsContent>
 
+        <TabsContent value="chat" className="mt-0 p-6">
+          <ChatConversazioniTab />
+        </TabsContent>
+
         <TabsContent value="campagne" className="mt-0 p-6">
           <Suspense fallback={<Fallback />}>
             <InternalCampaignsPage />
@@ -176,9 +178,7 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="whatsapp" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <AgentWhatsAppPage />
-          </Suspense>
+          <WhatsAppTabUnified />
         </TabsContent>
 
         <TabsContent value="crediti" className="mt-0 p-6">
