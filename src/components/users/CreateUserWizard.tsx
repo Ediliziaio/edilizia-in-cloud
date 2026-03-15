@@ -16,7 +16,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
-  DEFAULT_PERMISSIONS, STANDALONE_SECTIONS, INTERNAL_SECTIONS, MARKETING_SECTIONS,
+  DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
+  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
   type PermissionSectionDef, type StaffRoleType,
 } from "@/components/users/permissionsDefaults";
