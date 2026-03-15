@@ -199,11 +199,12 @@ export function useAICompanyStats() {
       const { data, error } = await supabase.rpc("get_ai_company_stats" as never, {
         p_company_id: companyId!,
         p_giorni: 30,
-      });
+      } as never);
       if (error) {
         logger.warn("Stats RPC failed:", error);
         return null;
       }
+      if (!data) return null;
       const row = Array.isArray(data) ? data[0] : data;
       return row as unknown as AICompanyStats;
     },
