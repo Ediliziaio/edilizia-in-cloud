@@ -16,7 +16,6 @@ import { CreditCard, Wallet, Clock, ShieldAlert, ArrowDown, ArrowUp, Loader2 } f
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { formatCurrency } from "@/lib/formatters";
 import { formatEur, formatMinutes, estimateConversationsRemaining } from "@/modules/ai-agents/lib/creditCalculator";
 import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } from "@/modules/ai-agents/hooks/useAgentCredits";
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";

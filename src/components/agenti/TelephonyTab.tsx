@@ -65,8 +65,8 @@ export function TelephonyTab() {
     },
   });
 
-  const { data: agents = [] } = useUnifiedAgents({ tipo: "vocale" });
-  const allAgents = [...agents, ...(useUnifiedAgents({ tipo: "campagna" }).data ?? [])];
+  const { data: allAgentsRaw = [] } = useUnifiedAgents();
+  const allAgents = allAgentsRaw.filter(a => a.tipo === "vocale" || a.tipo === "campagna");
 
   const assignAgent = useMutation({
     mutationFn: async ({ numberId, agentId }: { numberId: string; agentId: string | null }) => {

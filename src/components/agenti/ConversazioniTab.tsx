@@ -61,6 +61,11 @@ interface ConversazioniTabProps {
 export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) {
   const companyId = useEffectiveCompanyId();
   const [agentFilter, setAgentFilter] = useState(agentIdFilter || "tutti");
+
+  // Sync agentIdFilter prop changes
+  useEffect(() => {
+    setAgentFilter(agentIdFilter || "tutti");
+  }, [agentIdFilter]);
   const [selectedConv, setSelectedConv] = useState<ConversationV2 | null>(null);
 
   const { data: agents = [] } = useUnifiedAgents();

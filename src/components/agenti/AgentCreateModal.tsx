@@ -191,6 +191,19 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
       lingua: state.lingua,
       llm_model: "gemini-2.5-flash",
       elevenlabs_voice_id: state.voice_id || undefined,
+      temperatura: state.temperatura,
+      voice_nome: state.voice_nome || undefined,
+      // Vocal behavior
+      risposta_automatica: state.risposta_automatica,
+      registra_chiamate: state.registra_chiamate,
+      trascrivi_chiamate: state.trascrivi_chiamate,
+      rileva_segreteria: state.rileva_segreteria,
+      squillo_max: state.squillo_max,
+      durata_max_secondi: state.durata_max,
+      // Chat widget
+      widget_titolo: state.widget_titolo || undefined,
+      widget_colore: state.widget_colore || undefined,
+      widget_posizione: state.widget_posizione || undefined,
     };
     createAgent.mutate(input, {
       onSuccess: (data) => {

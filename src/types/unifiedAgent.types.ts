@@ -38,6 +38,18 @@ export interface UnifiedAgentInsert {
   lingua?: string;
   llm_model?: string;
   elevenlabs_voice_id?: string;
+  // Wizard-collected fields
+  temperatura?: number;
+  voice_nome?: string;
+  risposta_automatica?: boolean;
+  registra_chiamate?: boolean;
+  trascrivi_chiamate?: boolean;
+  rileva_segreteria?: boolean;
+  squillo_max?: number;
+  durata_max_secondi?: number;
+  widget_titolo?: string;
+  widget_colore?: string;
+  widget_posizione?: string;
 }
 
 export interface UnifiedAgentUpdate {

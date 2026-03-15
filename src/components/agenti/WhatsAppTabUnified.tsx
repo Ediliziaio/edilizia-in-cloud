@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import {
   MessageSquare, Plus, Phone, Bot, Settings2, Loader2,
-  CheckCircle2, AlertTriangle, Trash2,
+  CheckCircle2, AlertTriangle, Trash2, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface WANumber {
@@ -229,14 +234,27 @@ export function WhatsAppTabUnified() {
                     <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => openEdit(n)}>
                       <Settings2 className="h-3 w-3 mr-1" /> Configura
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-[11px] text-destructive"
-                      onClick={() => deleteMutation.mutate(n.id)}
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" /> Elimina
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 text-[11px] text-destructive">
+                          <Trash2 className="h-3 w-3 mr-1" /> Elimina
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Eliminare questo numero?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Il numero {n.numero} verrà rimosso. Questa azione non può essere annullata.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(n.id)}>
+                            Elimina
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
