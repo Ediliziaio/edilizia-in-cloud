@@ -126,4 +126,7 @@ export type ProxyAction =
   | "remove_kb_doc"
   | "list_kb_docs"
   | "sync_kb"
-  | "link_phone_number";
+  | "link_phone_number"
+  | "get_conversations"
+  | "get_conversation_audio"
+  | "get_phone_numbers";

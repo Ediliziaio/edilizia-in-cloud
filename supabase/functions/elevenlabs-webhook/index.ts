@@ -73,12 +73,29 @@ Deno.serve(async (req) => {
       return json({ error: "Missing agent_id or conversation_id" }, 400);
     }
 
-    // Look up internal agent
-    const { data: agent } = await adminClient
-      .from("ai_agents")
-      .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
+    // Look up internal agent (try v2 first, then legacy)
+    let agent: { id: string; company_id: string; llm_model: string; tts_model?: string | null; send_confirmation_after_booking?: boolean } | null = null;
+    let agentV2Id: string | null = null;
+
+    const { data: agentV2 } = await adminClient
+      .from("ai_agents_v2")
+      .select("id, company_id, llm_model")
       .eq("elevenlabs_agent_id", elevenlabsAgentId)
-      .single();
+      .maybeSingle();
+
+    if (agentV2) {
+      agentV2Id = agentV2.id;
+      agent = { id: agentV2.id, company_id: agentV2.company_id, llm_model: agentV2.llm_model || "gemini-2.5-flash" };
+    }
+
+    if (!agent) {
+      const { data: agentLegacy } = await adminClient
+        .from("ai_agents")
+        .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
+        .eq("elevenlabs_agent_id", elevenlabsAgentId)
+        .single();
+      agent = agentLegacy;
+    }
 
     if (!agent) {
       return json({ error: "Agent not found" }, 404);
@@ -236,6 +253,39 @@ Deno.serve(async (req) => {
 
     if (convErr) {
       console.error("Error saving conversation:", convErr);
+    }
+
+    // ============ DUAL-WRITE TO ai_conversations_v2 ============
+    if (agentV2Id) {
+      try {
+        const durationMin = Math.max(0.0167, durationSeconds / 60);
+        await adminClient.from("ai_conversations_v2").insert({
+          agent_id: agentV2Id,
+          company_id: companyId,
+          elevenlabs_conversation_id: conversationId,
+          contact_id: contactId,
+          stato: status === "completed" ? "completata" : status,
+          canale: "telefono",
+          direzione: callDirection,
+          durata_secondi: durationSeconds,
+          riassunto: summaryText,
+          trascrizione_json: transcript.length > 0 ? transcript : null,
+          numero_chiamante: metadata?.caller_phone || null,
+          numero_chiamato: metadata?.called_phone || null,
+        } as never);
+
+        // Increment v2 agent stats atomically
+        await adminClient.rpc("increment_agent_stats" as never, {
+          p_agent_id: agentV2Id,
+          p_chiamate: 1,
+          p_chiamate_completate: status === "completed" ? 1 : 0,
+          p_minuti: Number(durationMin.toFixed(2)),
+          p_chat: 0,
+          p_costo: 0, // will be set after billing calc
+        } as never);
+      } catch (v2Err) {
+        console.error("[WEBHOOK] v2 dual-write error:", v2Err);
+      }
     }
 
     // ============ UPDATE BRANCH STATS (FIX 10 A/B) ============
