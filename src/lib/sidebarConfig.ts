@@ -143,9 +143,9 @@ export const macroAreas: MacroArea[] = [
     title: "Persone",
     icon: Users2,
     items: [
-      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewDashboard" },
-      { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true },
-      { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare },
+      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone" },
+      { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone", featureKey: "messaging_beta", isBeta: true },
+      { title: "Chat Interna", url: "/azienda/chat", icon: MessagesSquare, permissionKey: "canViewPersone" },
     ],
   },
 

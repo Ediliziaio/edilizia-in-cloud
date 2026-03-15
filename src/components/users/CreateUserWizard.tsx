@@ -350,12 +350,18 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 <Badge variant="outline">{totalActive} attivi</Badge>
               </div>
 
-              <PermGroup label="Cruscotto Aziendale" icon={Building2} iconColor="text-indigo-600"
-                sections={STANDALONE_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Gestione Interna" icon={LayoutDashboard} iconColor="text-blue-600"
-                sections={INTERNAL_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Marketing e Vendite" icon={Megaphone} iconColor="text-purple-600"
+              <PermGroup label="Cruscotto" icon={Building2} iconColor="text-indigo-600"
+                sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Cantieri & Lavori" icon={LayoutDashboard} iconColor="text-blue-600"
+                sections={CANTIERI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Finanza" icon={Building2} iconColor="text-emerald-600"
+                sections={FINANZA_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Persone" icon={Building2} iconColor="text-amber-600"
+                sections={PERSONE_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Marketing & Vendita" icon={Megaphone} iconColor="text-purple-600"
                 sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Automazioni & AI" icon={Building2} iconColor="text-orange-600"
+                sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
 
               <Separator />
 
