@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -384,7 +385,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const stripeSecretKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     if (!stripeSecretKey) {
       return new Response(JSON.stringify({ error: "Stripe non configurato" }), {
         status: 400,
@@ -395,7 +396,7 @@ Deno.serve(async (req) => {
     const body = await req.text();
 
     // ── Signature verification ──
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+    const webhookSecret = await getPlatformSetting("stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET");
     let event: Stripe.Event;
 
     if (webhookSecret) {
