@@ -19,16 +19,17 @@ import { AgentiTab } from "@/components/agenti/AgentiTab";
 import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
 import { TelephonyTab } from "@/components/agenti/TelephonyTab";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
+import { KnowledgeBaseTab } from "@/components/agenti/KnowledgeBaseTab";
+import { WhatsAppTabUnified } from "@/components/agenti/WhatsAppTabUnified";
+import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
 import { useAICompanyStats } from "@/hooks/useUnifiedAgents";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Lazy-load existing tab components
-const PlatformKnowledgeBasePage = lazy(() => import("@/modules/ai-agents/pages/PlatformKnowledgeBasePage"));
+// Lazy-load remaining tab components
 const InternalCampaignsPage = lazy(() => import("@/modules/ai-agents-internal/pages/InternalCampaignsPage"));
-const AgentWhatsAppPage = lazy(() => import("@/modules/ai-agents/pages/AgentWhatsAppPage"));
 const AgentCreditsPage = lazy(() => import("@/modules/ai-agents/pages/AgentCreditsPage"));
 const PlatformSettingsPage = lazy(() => import("@/modules/ai-agents/pages/PlatformSettingsPage"));
 
@@ -38,13 +39,14 @@ const Fallback = () => (
   </div>
 );
 
-type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
 
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
-  { key: "conversazioni", label: "Conversazioni", icon: History },
+  { key: "conversazioni", label: "Chiamate", icon: History },
+  { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
@@ -154,9 +156,7 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="knowledge" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <PlatformKnowledgeBasePage />
-          </Suspense>
+          <KnowledgeBaseTab />
         </TabsContent>
 
         <TabsContent value="telefonia" className="mt-0 p-6">
@@ -167,6 +167,10 @@ export default function AgentiAIPage() {
           <ConversazioniTab />
         </TabsContent>
 
+        <TabsContent value="chat" className="mt-0 p-6">
+          <ChatConversazioniTab />
+        </TabsContent>
+
         <TabsContent value="campagne" className="mt-0 p-6">
           <Suspense fallback={<Fallback />}>
             <InternalCampaignsPage />
@@ -174,9 +178,7 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="whatsapp" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <AgentWhatsAppPage />
-          </Suspense>
+          <WhatsAppTabUnified />
         </TabsContent>
 
         <TabsContent value="crediti" className="mt-0 p-6">

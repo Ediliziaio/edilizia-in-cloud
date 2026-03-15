@@ -1072,6 +1072,112 @@ export type Database = {
           },
         ]
       }
+      ai_chat_messages: {
+        Row: {
+          contenuto: string
+          creato_il: string
+          id: string
+          metadata: Json | null
+          ruolo: string
+          session_id: string
+        }
+        Insert: {
+          contenuto: string
+          creato_il?: string
+          id?: string
+          metadata?: Json | null
+          ruolo?: string
+          session_id: string
+        }
+        Update: {
+          contenuto?: string
+          creato_il?: string
+          id?: string
+          metadata?: Json | null
+          ruolo?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_chat_sessions: {
+        Row: {
+          agent_id: string
+          canale: string
+          company_id: string
+          contact_id: string | null
+          durata_secondi: number
+          id: string
+          iniziata_il: string
+          messaggi_totali: number
+          metadata: Json | null
+          stato: string
+          terminata_il: string | null
+        }
+        Insert: {
+          agent_id: string
+          canale?: string
+          company_id: string
+          contact_id?: string | null
+          durata_secondi?: number
+          id?: string
+          iniziata_il?: string
+          messaggi_totali?: number
+          metadata?: Json | null
+          stato?: string
+          terminata_il?: string | null
+        }
+        Update: {
+          agent_id?: string
+          canale?: string
+          company_id?: string
+          contact_id?: string | null
+          durata_secondi?: number
+          id?: string
+          iniziata_il?: string
+          messaggi_totali?: number
+          metadata?: Json | null
+          stato?: string
+          terminata_il?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_chat_sessions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_chat_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_chat_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "ai_chat_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_conversations_v2: {
         Row: {
           agent_id: string
@@ -1423,44 +1529,110 @@ export type Database = {
           },
         ]
       }
+      ai_kb_categories: {
+        Row: {
+          colore: string | null
+          company_id: string
+          creato_il: string
+          descrizione: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          colore?: string | null
+          company_id: string
+          creato_il?: string
+          descrizione?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          colore?: string | null
+          company_id?: string
+          creato_il?: string
+          descrizione?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_kb_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_knowledge_base_v2: {
         Row: {
+          category_id: string | null
           company_id: string
           contenuto: string | null
           creato_il: string
           elevenlabs_doc_id: string | null
+          file_size: number | null
+          file_type: string | null
           id: string
+          parole_chiave: string[] | null
           sincronizzato_el: boolean
+          sync_error: string | null
+          sync_status: string
           tipo: string
           titolo: string
           ultima_sync: string | null
+          updated_at: string
           url: string | null
+          utilizzi: number
         }
         Insert: {
+          category_id?: string | null
           company_id: string
           contenuto?: string | null
           creato_il?: string
           elevenlabs_doc_id?: string | null
+          file_size?: number | null
+          file_type?: string | null
           id?: string
+          parole_chiave?: string[] | null
           sincronizzato_el?: boolean
+          sync_error?: string | null
+          sync_status?: string
           tipo?: string
           titolo: string
           ultima_sync?: string | null
+          updated_at?: string
           url?: string | null
+          utilizzi?: number
         }
         Update: {
+          category_id?: string | null
           company_id?: string
           contenuto?: string | null
           creato_il?: string
           elevenlabs_doc_id?: string | null
+          file_size?: number | null
+          file_type?: string | null
           id?: string
+          parole_chiave?: string[] | null
           sincronizzato_el?: boolean
+          sync_error?: string | null
+          sync_status?: string
           tipo?: string
           titolo?: string
           ultima_sync?: string | null
+          updated_at?: string
           url?: string | null
+          utilizzi?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_base_v2_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "ai_kb_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_knowledge_base_v2_company_id_fkey"
             columns: ["company_id"]
@@ -1571,38 +1743,66 @@ export type Database = {
       ai_whatsapp_numbers: {
         Row: {
           access_token_encrypted: string | null
+          agent_id: string | null
           company_id: string
           creato_il: string
           id: string
+          messaggio_benvenuto: string | null
+          messaggio_fuori_orario: string | null
           nome_account: string | null
           numero: string
+          orario_attivo: Json | null
           phone_number_id: string | null
+          provider: string | null
           stato: string | null
+          updated_at: string
           waba_id: string | null
+          webhook_verified: boolean | null
         }
         Insert: {
           access_token_encrypted?: string | null
+          agent_id?: string | null
           company_id: string
           creato_il?: string
           id?: string
+          messaggio_benvenuto?: string | null
+          messaggio_fuori_orario?: string | null
           nome_account?: string | null
           numero: string
+          orario_attivo?: Json | null
           phone_number_id?: string | null
+          provider?: string | null
           stato?: string | null
+          updated_at?: string
           waba_id?: string | null
+          webhook_verified?: boolean | null
         }
         Update: {
           access_token_encrypted?: string | null
+          agent_id?: string | null
           company_id?: string
           creato_il?: string
           id?: string
+          messaggio_benvenuto?: string | null
+          messaggio_fuori_orario?: string | null
           nome_account?: string | null
           numero?: string
+          orario_attivo?: Json | null
           phone_number_id?: string | null
+          provider?: string | null
           stato?: string | null
+          updated_at?: string
           waba_id?: string | null
+          webhook_verified?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_whatsapp_numbers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_whatsapp_numbers_company_id_fkey"
             columns: ["company_id"]
@@ -17452,6 +17652,15 @@ export type Database = {
       }
       generate_oda_number: { Args: { p_company_id: string }; Returns: string }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
+      get_agent_chat_stats: {
+        Args: { p_agent_id: string }
+        Returns: {
+          durata_media_secondi: number
+          messaggi_totali: number
+          sessioni_attive: number
+          sessioni_totali: number
+        }[]
+      }
       get_ai_company_stats: {
         Args: { p_company_id: string; p_giorni?: number }
         Returns: {
@@ -18109,6 +18318,15 @@ export type Database = {
       try_acquire_token_refresh_lock: {
         Args: { p_integration_id: string }
         Returns: boolean
+      }
+      update_kb_sync_status: {
+        Args: {
+          p_doc_id: string
+          p_el_doc_id?: string
+          p_error?: string
+          p_status: string
+        }
+        Returns: undefined
       }
       update_referrer_tier: {
         Args: { p_referrer_id: string }

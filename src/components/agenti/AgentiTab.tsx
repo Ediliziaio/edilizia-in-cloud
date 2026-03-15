@@ -63,15 +63,11 @@ export function AgentiTab() {
   };
 
   const handleNavigate = (agente: { id: string; tipo: TipoAgente }) => {
-    if (agente.tipo === "interno") {
-      navigate(`/azienda/agente-interno/${agente.id}`);
-    } else {
-      navigate(`/azienda/marketing/agente-ai/${agente.id}`);
-    }
+    navigate(`/azienda/agenti-ai/${agente.id}`);
   };
 
   const handleNavigateConversations = (id: string) => {
-    navigate(`/azienda/marketing/agente-ai/${id}/conversazioni`);
+    navigate(`/azienda/agenti-ai/${id}`);
   };
 
   return (
@@ -196,7 +192,7 @@ export function AgentiTab() {
         onClose={() => setShowCreate(false)}
         onSuccess={(id) => {
           setShowCreate(false);
-          navigate(`/azienda/marketing/agente-ai/${id}`);
+          navigate(`/azienda/agenti-ai/${id}`);
         }}
       />
 
