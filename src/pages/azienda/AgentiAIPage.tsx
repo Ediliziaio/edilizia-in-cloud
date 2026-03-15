@@ -19,16 +19,17 @@ import { AgentiTab } from "@/components/agenti/AgentiTab";
 import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
 import { TelephonyTab } from "@/components/agenti/TelephonyTab";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
+import { KnowledgeBaseTab } from "@/components/agenti/KnowledgeBaseTab";
+import { WhatsAppTabUnified } from "@/components/agenti/WhatsAppTabUnified";
+import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
 import { useAICompanyStats } from "@/hooks/useUnifiedAgents";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Lazy-load existing tab components
-const PlatformKnowledgeBasePage = lazy(() => import("@/modules/ai-agents/pages/PlatformKnowledgeBasePage"));
+// Lazy-load remaining tab components
 const InternalCampaignsPage = lazy(() => import("@/modules/ai-agents-internal/pages/InternalCampaignsPage"));
-const AgentWhatsAppPage = lazy(() => import("@/modules/ai-agents/pages/AgentWhatsAppPage"));
 const AgentCreditsPage = lazy(() => import("@/modules/ai-agents/pages/AgentCreditsPage"));
 const PlatformSettingsPage = lazy(() => import("@/modules/ai-agents/pages/PlatformSettingsPage"));
 
