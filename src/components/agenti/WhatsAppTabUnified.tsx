@@ -234,14 +234,27 @@ export function WhatsAppTabUnified() {
                     <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => openEdit(n)}>
                       <Settings2 className="h-3 w-3 mr-1" /> Configura
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-[11px] text-destructive"
-                      onClick={() => deleteMutation.mutate(n.id)}
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" /> Elimina
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 text-[11px] text-destructive">
+                          <Trash2 className="h-3 w-3 mr-1" /> Elimina
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Eliminare questo numero?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Il numero {n.numero} verrà rimosso. Questa azione non può essere annullata.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(n.id)}>
+                            Elimina
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>

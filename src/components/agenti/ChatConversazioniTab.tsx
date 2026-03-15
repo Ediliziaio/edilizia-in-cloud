@@ -202,7 +202,7 @@ export function ChatConversazioniTab() {
         </div>
       ) : (
         <div className="space-y-2">
-          {sessions.map((s) => (
+          {filteredSessions.map((s) => (
             <Card
               key={s.id}
               className="cursor-pointer hover:shadow-sm transition-shadow"

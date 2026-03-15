@@ -97,9 +97,7 @@ export function useCreateUnifiedAgent() {
 
       const { data: user } = await supabase.auth.getUser();
 
-      const { data, error } = await supabase
-        .from("ai_agents_v2" as never)
-        .insert({
+      const insertPayload: Record<string, unknown> = {
           company_id: companyId,
           nome: input.nome,
           tipo: input.tipo,
@@ -111,7 +109,24 @@ export function useCreateUnifiedAgent() {
           elevenlabs_agent_id: elAgentId,
           elevenlabs_voice_id: input.elevenlabs_voice_id || null,
           creato_da: user?.user?.id || null,
-        } as never)
+      };
+
+      // Persist wizard-collected fields
+      if (input.temperatura !== undefined) insertPayload.temperatura = input.temperatura;
+      if (input.voice_nome) insertPayload.voice_nome = input.voice_nome;
+      if (input.risposta_automatica !== undefined) insertPayload.risposta_automatica = input.risposta_automatica;
+      if (input.registra_chiamate !== undefined) insertPayload.registra_chiamate = input.registra_chiamate;
+      if (input.trascrivi_chiamate !== undefined) insertPayload.trascrivi_chiamate = input.trascrivi_chiamate;
+      if (input.rileva_segreteria !== undefined) insertPayload.rileva_segreteria = input.rileva_segreteria;
+      if (input.squillo_max !== undefined) insertPayload.squillo_max = input.squillo_max;
+      if (input.durata_max_secondi !== undefined) insertPayload.durata_max_secondi = input.durata_max_secondi;
+      if (input.widget_titolo) insertPayload.widget_titolo = input.widget_titolo;
+      if (input.widget_colore) insertPayload.widget_colore = input.widget_colore;
+      if (input.widget_posizione) insertPayload.widget_posizione = input.widget_posizione;
+
+      const { data, error } = await supabase
+        .from("ai_agents_v2" as never)
+        .insert(insertPayload as never)
         .select("id")
         .single();
 
