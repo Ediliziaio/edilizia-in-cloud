@@ -187,7 +187,7 @@ export function TelephonyTab() {
                     </TableCell>
                     <TableCell>
                       {num.elevenlabs_phone_id ? (
-                        <span className="flex items-center gap-1 text-xs text-green-600">
+                        <span className="flex items-center gap-1 text-xs text-primary">
                           <Link2 className="h-3 w-3" /> Collegato
                         </span>
                       ) : (
