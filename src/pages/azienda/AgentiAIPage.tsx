@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -8,8 +7,6 @@ import {
   Megaphone,
   MessageSquare,
   CreditCard,
-  Settings,
-  AlertTriangle,
   History,
   BarChart2,
 } from "lucide-react";
@@ -24,14 +21,12 @@ import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
 import { CampagneTab } from "@/components/agenti/CampagneTab";
 import { CreditiTab } from "@/components/agenti/CreditiTab";
 import { StatisticheTab } from "@/components/agenti/StatisticheTab";
-import { ImpostazioniTab } from "@/components/agenti/ImpostazioniTab";
 import { useAICompanyStats } from "@/hooks/useUnifiedAgents";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useAuth } from "@/contexts/AuthContext";
 
-type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "statistiche" | "crediti" | "impostazioni";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "statistiche" | "crediti";
 
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
@@ -43,23 +38,22 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
   { key: "statistiche", label: "Statistiche", icon: BarChart2 },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
-  { key: "impostazioni", label: "Impostazioni", icon: Settings },
 ];
 
 export default function AgentiAIPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as MainTab) || "agenti";
-  const { role } = useAuth();
+  const rawTab = searchParams.get("tab") as MainTab | null;
+  const activeTab: MainTab = rawTab && TABS.some((t) => t.key === rawTab) ? rawTab : "agenti";
   const companyId = useEffectiveCompanyId();
   const { data: stats } = useAICompanyStats();
 
-  // ElevenLabs config status
+  // ElevenLabs config status — read-only via safe view
   const { data: elConfig } = useQuery({
-    queryKey: ["el-config", companyId],
+    queryKey: ["el-config-safe", companyId],
     enabled: !!companyId,
     queryFn: async () => {
       const { data } = await supabase
-        .from("ai_elevenlabs_config" as never)
+        .from("ai_elevenlabs_config_safe" as never)
         .select("api_key_valida, crediti_rimanenti, piano")
         .eq("company_id", companyId!)
         .single();
@@ -70,12 +64,6 @@ export default function AgentiAIPage() {
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value }, { replace: true });
   };
-
-  // Filter tabs — hide Impostazioni for non-super_admin
-  const visibleTabs = TABS.filter((tab) => {
-    if (tab.key === "impostazioni" && role !== "super_admin") return false;
-    return true;
-  });
 
   return (
     <div className="space-y-0">
@@ -92,8 +80,8 @@ export default function AgentiAIPage() {
             </p>
           </div>
 
-          {/* ElevenLabs status badge */}
-          {elConfig?.api_key_valida ? (
+          {/* ElevenLabs status badge (read-only) */}
+          {elConfig?.api_key_valida && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-accent/50 border-accent">
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               <span className="text-xs font-medium text-foreground">ElevenLabs connesso</span>
@@ -103,14 +91,6 @@ export default function AgentiAIPage() {
                 </span>
               )}
             </div>
-          ) : (
-            <button
-              onClick={() => handleTabChange("impostazioni")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 transition-colors"
-            >
-              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-              <span className="text-xs font-medium text-destructive">Configura ElevenLabs</span>
-            </button>
           )}
         </div>
       </div>
@@ -119,7 +99,7 @@ export default function AgentiAIPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="px-6 border-b border-border">
           <TabsList className="bg-transparent h-auto p-0 gap-0">
-            {visibleTabs.map((tab) => {
+            {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
@@ -178,10 +158,6 @@ export default function AgentiAIPage() {
 
         <TabsContent value="crediti" className="mt-0 p-6">
           <CreditiTab />
-        </TabsContent>
-
-        <TabsContent value="impostazioni" className="mt-0 p-6">
-          <ImpostazioniTab />
         </TabsContent>
       </Tabs>
     </div>
