@@ -14949,7 +14949,9 @@ export type Database = {
           can_manage_suppliers: boolean
           can_manage_warehouse_items: boolean
           can_view_all_team_calendar: boolean
+          can_view_billing: boolean
           can_view_calendar: boolean | null
+          can_view_costs: boolean
           can_view_cruscotto: boolean
           can_view_customers: boolean | null
           can_view_dashboard: boolean | null
@@ -14969,6 +14971,8 @@ export type Database = {
           can_view_marketing_reports: boolean | null
           can_view_marketing_whatsapp: boolean | null
           can_view_orders: boolean | null
+          can_view_persone: boolean
+          can_view_prima_nota: boolean
           can_view_settings: boolean | null
           can_view_tickets: boolean | null
           can_view_users: boolean
@@ -14997,7 +15001,9 @@ export type Database = {
           can_manage_suppliers?: boolean
           can_manage_warehouse_items?: boolean
           can_view_all_team_calendar?: boolean
+          can_view_billing?: boolean
           can_view_calendar?: boolean | null
+          can_view_costs?: boolean
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
@@ -15017,6 +15023,8 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_orders?: boolean | null
+          can_view_persone?: boolean
+          can_view_prima_nota?: boolean
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
           can_view_users?: boolean
@@ -15045,7 +15053,9 @@ export type Database = {
           can_manage_suppliers?: boolean
           can_manage_warehouse_items?: boolean
           can_view_all_team_calendar?: boolean
+          can_view_billing?: boolean
           can_view_calendar?: boolean | null
+          can_view_costs?: boolean
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
@@ -15065,6 +15075,8 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_orders?: boolean | null
+          can_view_persone?: boolean
+          can_view_prima_nota?: boolean
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
           can_view_users?: boolean
