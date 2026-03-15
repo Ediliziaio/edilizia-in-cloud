@@ -174,6 +174,7 @@ export function AgentiTab() {
               onToggleStatus={(id, stato) => updateStatus.mutate({ id, stato })}
               onDuplicate={(id) => duplicateAgent.mutate(id)}
               onNavigateConversations={handleNavigateConversations}
+              isToggling={updateStatus.isPending}
             />
           ))}
           <button
