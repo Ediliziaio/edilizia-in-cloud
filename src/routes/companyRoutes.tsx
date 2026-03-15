@@ -54,7 +54,7 @@ const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
-const AgentiAIUnified = lazy(() => import("@/pages/azienda/AgentiAIUnified"));
+const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
@@ -196,7 +196,7 @@ export function companyRoutes() {
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
-        <Route path="agenti-ai/*" element={<AgentiAIUnified />} />
+        <Route path="agenti-ai" element={<AgentiAIPage />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />
@@ -208,8 +208,8 @@ export function companyRoutes() {
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
-        <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai?tipo=custom" replace />} />
-        <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai?tipo=platform" replace />} />
+        <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
+        <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
         <Route path="marketing/email" element={<EmailMarketing />} />
         <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
         <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />

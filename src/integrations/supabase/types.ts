@@ -556,6 +556,36 @@ export type Database = {
           },
         ]
       }
+      ai_agent_knowledge_v2: {
+        Row: {
+          agent_id: string
+          doc_id: string
+        }
+        Insert: {
+          agent_id: string
+          doc_id: string
+        }
+        Update: {
+          agent_id?: string
+          doc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_v2_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_v2_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_knowledge_base_v2"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_phone_numbers: {
         Row: {
           agent_id: string
@@ -838,6 +868,314 @@ export type Database = {
           },
         ]
       }
+      ai_agents_v2: {
+        Row: {
+          aggiornato_il: string
+          avatar_url: string | null
+          azioni_abilitate: Json
+          chat_avatar_url: string | null
+          chat_totali: number
+          chiamate_completate: number
+          chiamate_totali: number
+          company_id: string
+          costo_totale_crediti: number
+          creato_da: string | null
+          creato_il: string
+          descrizione: string | null
+          durata_max_secondi: number
+          elevenlabs_agent_id: string | null
+          elevenlabs_voice_id: string | null
+          enabled_tools: string[] | null
+          id: string
+          lingua: string
+          llm_model: string
+          minuti_totali: number
+          nome: string
+          primo_messaggio: string | null
+          registra_chiamate: boolean
+          rileva_segreteria: boolean
+          risposta_automatica: boolean
+          siti_web_autorizzati: string[] | null
+          squillo_max: number
+          stato: string
+          system_prompt: string | null
+          temperatura: number
+          tipo: Database["public"]["Enums"]["tipo_agente_enum"]
+          tools_config: Json | null
+          trascrivi_chiamate: boolean
+          voice_nome: string | null
+          whatsapp_numero_id: string | null
+          whatsapp_template_id: string | null
+          widget_colore: string | null
+          widget_posizione: string | null
+          widget_titolo: string | null
+        }
+        Insert: {
+          aggiornato_il?: string
+          avatar_url?: string | null
+          azioni_abilitate?: Json
+          chat_avatar_url?: string | null
+          chat_totali?: number
+          chiamate_completate?: number
+          chiamate_totali?: number
+          company_id: string
+          costo_totale_crediti?: number
+          creato_da?: string | null
+          creato_il?: string
+          descrizione?: string | null
+          durata_max_secondi?: number
+          elevenlabs_agent_id?: string | null
+          elevenlabs_voice_id?: string | null
+          enabled_tools?: string[] | null
+          id?: string
+          lingua?: string
+          llm_model?: string
+          minuti_totali?: number
+          nome: string
+          primo_messaggio?: string | null
+          registra_chiamate?: boolean
+          rileva_segreteria?: boolean
+          risposta_automatica?: boolean
+          siti_web_autorizzati?: string[] | null
+          squillo_max?: number
+          stato?: string
+          system_prompt?: string | null
+          temperatura?: number
+          tipo?: Database["public"]["Enums"]["tipo_agente_enum"]
+          tools_config?: Json | null
+          trascrivi_chiamate?: boolean
+          voice_nome?: string | null
+          whatsapp_numero_id?: string | null
+          whatsapp_template_id?: string | null
+          widget_colore?: string | null
+          widget_posizione?: string | null
+          widget_titolo?: string | null
+        }
+        Update: {
+          aggiornato_il?: string
+          avatar_url?: string | null
+          azioni_abilitate?: Json
+          chat_avatar_url?: string | null
+          chat_totali?: number
+          chiamate_completate?: number
+          chiamate_totali?: number
+          company_id?: string
+          costo_totale_crediti?: number
+          creato_da?: string | null
+          creato_il?: string
+          descrizione?: string | null
+          durata_max_secondi?: number
+          elevenlabs_agent_id?: string | null
+          elevenlabs_voice_id?: string | null
+          enabled_tools?: string[] | null
+          id?: string
+          lingua?: string
+          llm_model?: string
+          minuti_totali?: number
+          nome?: string
+          primo_messaggio?: string | null
+          registra_chiamate?: boolean
+          rileva_segreteria?: boolean
+          risposta_automatica?: boolean
+          siti_web_autorizzati?: string[] | null
+          squillo_max?: number
+          stato?: string
+          system_prompt?: string | null
+          temperatura?: number
+          tipo?: Database["public"]["Enums"]["tipo_agente_enum"]
+          tools_config?: Json | null
+          trascrivi_chiamate?: boolean
+          voice_nome?: string | null
+          whatsapp_numero_id?: string | null
+          whatsapp_template_id?: string | null
+          widget_colore?: string | null
+          widget_posizione?: string | null
+          widget_titolo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_v2_whatsapp_numero_id_fkey"
+            columns: ["whatsapp_numero_id"]
+            isOneToOne: false
+            referencedRelation: "ai_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_campaigns_v2: {
+        Row: {
+          agent_id: string
+          chiamate_completate: number
+          chiamate_effettuate: number
+          chiamate_no_risposta: number
+          company_id: string
+          completata_il: string | null
+          creato_il: string
+          id: string
+          nome: string
+          schedulata_il: string | null
+          stato: string
+          tipo: string
+          totale_contatti: number
+        }
+        Insert: {
+          agent_id: string
+          chiamate_completate?: number
+          chiamate_effettuate?: number
+          chiamate_no_risposta?: number
+          company_id: string
+          completata_il?: string | null
+          creato_il?: string
+          id?: string
+          nome: string
+          schedulata_il?: string | null
+          stato?: string
+          tipo?: string
+          totale_contatti?: number
+        }
+        Update: {
+          agent_id?: string
+          chiamate_completate?: number
+          chiamate_effettuate?: number
+          chiamate_no_risposta?: number
+          company_id?: string
+          completata_il?: string | null
+          creato_il?: string
+          id?: string
+          nome?: string
+          schedulata_il?: string | null
+          stato?: string
+          tipo?: string
+          totale_contatti?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_campaigns_v2_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_campaigns_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversations_v2: {
+        Row: {
+          agent_id: string
+          audio_url: string | null
+          canale: string
+          company_id: string
+          contact_id: string | null
+          costo_crediti: number | null
+          creato_il: string
+          direzione: string | null
+          durata_secondi: number | null
+          elevenlabs_conversation_id: string | null
+          id: string
+          iniziata_il: string | null
+          note_interne: string | null
+          numero_chiamante: string | null
+          numero_chiamato: string | null
+          riassunto: string | null
+          risposta_il: string | null
+          sentiment: string | null
+          stato: string
+          task_creati: Json | null
+          terminata_il: string | null
+          trascrizione_json: Json | null
+        }
+        Insert: {
+          agent_id: string
+          audio_url?: string | null
+          canale?: string
+          company_id: string
+          contact_id?: string | null
+          costo_crediti?: number | null
+          creato_il?: string
+          direzione?: string | null
+          durata_secondi?: number | null
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          iniziata_il?: string | null
+          note_interne?: string | null
+          numero_chiamante?: string | null
+          numero_chiamato?: string | null
+          riassunto?: string | null
+          risposta_il?: string | null
+          sentiment?: string | null
+          stato?: string
+          task_creati?: Json | null
+          terminata_il?: string | null
+          trascrizione_json?: Json | null
+        }
+        Update: {
+          agent_id?: string
+          audio_url?: string | null
+          canale?: string
+          company_id?: string
+          contact_id?: string | null
+          costo_crediti?: number | null
+          creato_il?: string
+          direzione?: string | null
+          durata_secondi?: number | null
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          iniziata_il?: string | null
+          note_interne?: string | null
+          numero_chiamante?: string | null
+          numero_chiamato?: string | null
+          riassunto?: string | null
+          risposta_il?: string | null
+          sentiment?: string | null
+          stato?: string
+          task_creati?: Json | null
+          terminata_il?: string | null
+          trascrizione_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_v2_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_v2_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_v2_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_credit_topups: {
         Row: {
           amount_eur: number
@@ -1038,6 +1376,154 @@ export type Database = {
           },
         ]
       }
+      ai_elevenlabs_config: {
+        Row: {
+          aggiornato_il: string
+          api_key_encrypted: string | null
+          api_key_valida: boolean | null
+          company_id: string
+          creato_il: string
+          crediti_rimanenti: number | null
+          crediti_totali: number | null
+          id: string
+          piano: string | null
+          ultima_verifica: string | null
+        }
+        Insert: {
+          aggiornato_il?: string
+          api_key_encrypted?: string | null
+          api_key_valida?: boolean | null
+          company_id: string
+          creato_il?: string
+          crediti_rimanenti?: number | null
+          crediti_totali?: number | null
+          id?: string
+          piano?: string | null
+          ultima_verifica?: string | null
+        }
+        Update: {
+          aggiornato_il?: string
+          api_key_encrypted?: string | null
+          api_key_valida?: boolean | null
+          company_id?: string
+          creato_il?: string
+          crediti_rimanenti?: number | null
+          crediti_totali?: number | null
+          id?: string
+          piano?: string | null
+          ultima_verifica?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_elevenlabs_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_knowledge_base_v2: {
+        Row: {
+          company_id: string
+          contenuto: string | null
+          creato_il: string
+          elevenlabs_doc_id: string | null
+          id: string
+          sincronizzato_el: boolean
+          tipo: string
+          titolo: string
+          ultima_sync: string | null
+          url: string | null
+        }
+        Insert: {
+          company_id: string
+          contenuto?: string | null
+          creato_il?: string
+          elevenlabs_doc_id?: string | null
+          id?: string
+          sincronizzato_el?: boolean
+          tipo?: string
+          titolo: string
+          ultima_sync?: string | null
+          url?: string | null
+        }
+        Update: {
+          company_id?: string
+          contenuto?: string | null
+          creato_il?: string
+          elevenlabs_doc_id?: string | null
+          id?: string
+          sincronizzato_el?: boolean
+          tipo?: string
+          titolo?: string
+          ultima_sync?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_base_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_phone_numbers_v2: {
+        Row: {
+          agent_id: string | null
+          attivo: boolean
+          capacita: string[] | null
+          company_id: string
+          creato_il: string
+          elevenlabs_phone_id: string | null
+          id: string
+          nome_etichetta: string | null
+          numero: string
+          provider: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          attivo?: boolean
+          capacita?: string[] | null
+          company_id: string
+          creato_il?: string
+          elevenlabs_phone_id?: string | null
+          id?: string
+          nome_etichetta?: string | null
+          numero: string
+          provider?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          attivo?: boolean
+          capacita?: string[] | null
+          company_id?: string
+          creato_il?: string
+          elevenlabs_phone_id?: string | null
+          id?: string
+          nome_etichetta?: string | null
+          numero?: string
+          provider?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_phone_numbers_v2_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_phone_numbers_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_subscriptions: {
         Row: {
           company_id: string
@@ -1077,6 +1563,50 @@ export type Database = {
             foreignKeyName: "ai_subscriptions_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_whatsapp_numbers: {
+        Row: {
+          access_token_encrypted: string | null
+          company_id: string
+          creato_il: string
+          id: string
+          nome_account: string | null
+          numero: string
+          phone_number_id: string | null
+          stato: string | null
+          waba_id: string | null
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          company_id: string
+          creato_il?: string
+          id?: string
+          nome_account?: string | null
+          numero: string
+          phone_number_id?: string | null
+          stato?: string | null
+          waba_id?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          company_id?: string
+          creato_il?: string
+          id?: string
+          nome_account?: string | null
+          numero?: string
+          phone_number_id?: string | null
+          stato?: string | null
+          waba_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_whatsapp_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -16922,6 +17452,17 @@ export type Database = {
       }
       generate_oda_number: { Args: { p_company_id: string }; Returns: string }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
+      get_ai_company_stats: {
+        Args: { p_company_id: string; p_giorni?: number }
+        Returns: {
+          agenti_attivi: number
+          chat_totali: number
+          conv_totali: number
+          crediti_usati: number
+          minuti_totali: number
+          tasso_risposta: number
+        }[]
+      }
       get_attribution_report:
         | {
             Args: {
@@ -17590,6 +18131,7 @@ export type Database = {
         | "altro"
       ticket_priority: "bassa" | "normale" | "alta" | "urgente"
       ticket_status: "aperto" | "in_lavorazione" | "risolto"
+      tipo_agente_enum: "vocale" | "chat" | "whatsapp" | "interno" | "campagna"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -17745,6 +18287,7 @@ export const Constants = {
       ],
       ticket_priority: ["bassa", "normale", "alta", "urgente"],
       ticket_status: ["aperto", "in_lavorazione", "risolto"],
+      tipo_agente_enum: ["vocale", "chat", "whatsapp", "interno", "campagna"],
     },
   },
 } as const
