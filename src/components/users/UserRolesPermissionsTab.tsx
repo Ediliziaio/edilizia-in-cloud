@@ -23,7 +23,7 @@ interface PermissionModule {
   description: string;
   viewKey: keyof StaffPermissions;
   editKey?: keyof StaffPermissions;
-  includes?: string[]; // sub-modules sharing this DB key
+  includes?: string[];
 }
 
 interface PermissionCategory {
@@ -35,43 +35,66 @@ interface PermissionCategory {
 const PERMISSION_CATEGORIES: PermissionCategory[] = [
   {
     id: "cruscotto",
-    label: "Cruscotto Aziendale",
+    label: "Cruscotto",
     modules: [
       { id: "cruscotto", label: "Cruscotto Aziendale", description: "Centro di controllo executive unificato", viewKey: "can_view_cruscotto" },
     ],
   },
   {
-    id: "internal",
-    label: "Gestione Interna",
+    id: "cantieri",
+    label: "Cantieri & Lavori",
     modules: [
       { id: "dashboard", label: "Dashboard", description: "Visualizza la dashboard principale", viewKey: "can_view_dashboard" },
-      { id: "orders", label: "Ordini", description: "Gestisci ordini e commesse", viewKey: "can_view_orders", editKey: "can_edit_orders", includes: ["Attività", "Errori", "Messaggistica"] },
+      { id: "orders", label: "Ordini e Commesse", description: "Gestisci ordini e commesse", viewKey: "can_view_orders", editKey: "can_edit_orders", includes: ["Errori"] },
       { id: "warehouse", label: "Magazzino", description: "Gestisci inventario e movimenti", viewKey: "can_view_warehouse", editKey: "can_edit_warehouse" },
       { id: "calendar", label: "Calendario", description: "Visualizza e gestisci il calendario", viewKey: "can_view_calendar" },
       { id: "customers", label: "Clienti", description: "Gestisci anagrafica clienti", viewKey: "can_view_customers", editKey: "can_edit_customers" },
-      { id: "employees", label: "Dipendenti", description: "Visualizza dati dipendenti", viewKey: "can_view_employees" },
-      { id: "tickets", label: "Ticket Clienti", description: "Gestisci ticket di supporto", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
-      { id: "forecast", label: "Previsionale", description: "Visualizza previsioni finanziarie", viewKey: "can_view_forecast", includes: ["Costi"] },
-      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", editKey: "can_edit_settings", includes: ["Automazioni"] },
+      { id: "tickets", label: "Ticket Assistenza", description: "Gestisci ticket di supporto", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
+    ],
+  },
+  {
+    id: "finanza",
+    label: "Finanza",
+    modules: [
+      { id: "billing", label: "Fatturazione e Scadenzario", description: "Fatture, scadenzario e tesoreria", viewKey: "can_view_billing", includes: ["Scadenzario", "Tesoreria"] },
+      { id: "prima-nota", label: "Prima Nota e Contabilità", description: "Registrazioni contabili", viewKey: "can_view_prima_nota" },
+      { id: "costs", label: "Costi", description: "Gestione e analisi costi", viewKey: "can_view_costs" },
+      { id: "forecast", label: "Previsionale", description: "Previsioni finanziarie e ordini acquisto", viewKey: "can_view_forecast", includes: ["Ordini Acquisto"] },
+    ],
+  },
+  {
+    id: "persone",
+    label: "Persone",
+    modules: [
+      { id: "persone", label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica", viewKey: "can_view_persone" },
+      { id: "employees", label: "Gestione Dipendenti", description: "Anagrafica e dati dipendenti", viewKey: "can_view_employees" },
     ],
   },
   {
     id: "marketing",
-    label: "Marketing e Vendita",
+    label: "Marketing & Vendita",
     modules: [
       { id: "mkt-dashboard", label: "Dashboard Marketing", description: "Panoramica performance marketing", viewKey: "can_view_marketing_dashboard" },
-      { id: "mkt-contacts", label: "Contatti", description: "Gestisci contatti marketing", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
-      { id: "mkt-opportunities", label: "Opportunità", description: "Gestisci pipeline e opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities" },
+      { id: "mkt-contacts", label: "Contatti CRM", description: "Gestisci contatti marketing", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
+      { id: "mkt-opportunities", label: "Opportunità", description: "Gestisci pipeline e opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities", includes: ["Preventivi", "Sales OS"] },
       { id: "mkt-activities", label: "Attività", description: "Visualizza attività marketing", viewKey: "can_view_marketing_activities" },
       { id: "mkt-appointments", label: "Appuntamenti", description: "Gestisci appuntamenti commerciali", viewKey: "can_view_marketing_appointments" },
-      { id: "mkt-automations", label: "Automazioni", description: "Gestisci flussi automatizzati", viewKey: "can_view_marketing_automations" },
-      { id: "mkt-ai-agent", label: "Agente AI", description: "Accedi all'agente AI", viewKey: "can_view_marketing_ai_agent" },
       { id: "mkt-email", label: "Email Marketing", description: "Campagne e template email", viewKey: "can_view_marketing_email" },
       { id: "mkt-whatsapp", label: "WhatsApp", description: "Messaggistica WhatsApp", viewKey: "can_view_marketing_whatsapp" },
       { id: "mkt-reports", label: "Reportistica", description: "Report e analisi marketing", viewKey: "can_view_marketing_reports" },
     ],
   },
+  {
+    id: "automazioni",
+    label: "Automazioni & AI",
+    modules: [
+      { id: "automations", label: "Automazioni", description: "Flussi automatizzati", viewKey: "can_view_marketing_automations" },
+      { id: "ai-agent", label: "Agenti AI", description: "Agenti AI voce e chat", viewKey: "can_view_marketing_ai_agent" },
+      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", editKey: "can_edit_settings" },
+    ],
+  },
 ];
+
 export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
 
 interface UserRolesPermissionsTabProps {
@@ -88,21 +111,20 @@ interface UserRolesPermissionsTabProps {
   isChangingRole?: boolean;
 }
 
-
 export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading, isChangingRole }: UserRolesPermissionsTabProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(["cruscotto", "internal", "marketing"]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(
+    PERMISSION_CATEGORIES.map(c => c.id)
+  );
   const [selectedRole, setSelectedRole] = useState<CompanyRole>(user.role || "company_staff");
 
-  // Store original permissions for dirty tracking
   const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
 
   useEffect(() => {
     if (user.permissions) setPermissions(user.permissions);
   }, [user.permissions]);
 
-  // Dirty state: compare current permissions with original
   const isDirty = useMemo(() => {
     const keys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
     return keys.some(key => (permissions[key] ?? false) !== (originalPermissions[key] ?? false));
@@ -127,7 +149,6 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions(prev => {
       const updated = { ...prev, [key]: value };
-      // When disabling a view permission, also disable ALL associated edit permissions
       if (!value) {
         const allModules = PERMISSION_CATEGORIES.flatMap(c => c.modules);
         allModules.forEach(mod => {
@@ -154,7 +175,6 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   }, [searchQuery]);
 
   const getCategoryPermCount = (cat: PermissionCategory) => {
-    // Count unique active DB permissions (deduplicated by viewKey)
     const uniqueKeys = new Set(cat.modules.map(m => m.viewKey));
     const total = uniqueKeys.size;
     const activeKeys = new Set(cat.modules.filter(m => permissions[m.viewKey]).map(m => m.viewKey));
@@ -170,7 +190,6 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
         allTrue[mod.viewKey] = true;
         if (mod.editKey) allTrue[mod.editKey] = true;
       });
-      allTrue.can_view_cruscotto = true;
       allTrue.can_view_marketing = true;
       allTrue.can_edit_marketing = true;
       return allTrue;
@@ -199,28 +218,16 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="company_admin">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4" />
-                    Amministratore
-                  </div>
+                  <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Amministratore</div>
                 </SelectItem>
                 <SelectItem value="company_staff">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Utente
-                  </div>
+                  <div className="flex items-center gap-2"><User className="h-4 w-4" />Utente</div>
                 </SelectItem>
                 <SelectItem value="salesperson">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Venditore
-                  </div>
+                  <div className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Venditore</div>
                 </SelectItem>
                 <SelectItem value="call_center">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    Call Center
-                  </div>
+                  <div className="flex items-center gap-2"><Phone className="h-4 w-4" />Call Center</div>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -243,14 +250,12 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
         </Card>
       ) : (
         <>
-          {/* Permissions card */}
           <Card>
             <CardHeader>
               <CardTitle>Autorizzazioni</CardTitle>
               <CardDescription>Configura i permessi di accesso ai moduli</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Only assigned toggle */}
               <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                 <div className="space-y-0.5">
                   <Label className="font-medium flex items-center gap-2">
@@ -269,27 +274,19 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
 
               <Separator />
 
-              {/* Search + bulk actions */}
               <div className="flex items-center gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cerca modulo..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
+                  <Input placeholder="Cerca modulo..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={handleSelectAll}>Seleziona tutti</Button>
                 <Button type="button" variant="outline" size="sm" onClick={handleDeselectAll}>Deseleziona tutti</Button>
               </div>
 
-              {/* Permission categories */}
               <div className="space-y-3">
                 {filteredCategories.map((category) => {
                   const isExpanded = expandedCategories.includes(category.id);
                   const { active, total } = getCategoryPermCount(category);
-
                   return (
                     <Collapsible key={category.id} open={isExpanded} onOpenChange={() => toggleCategory(category.id)}>
                       <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
@@ -297,9 +294,7 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
                           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           <span className="font-semibold text-sm">{category.label}</span>
                         </div>
-                        <Badge variant={active > 0 ? "default" : "secondary"} className="text-xs">
-                          {active}/{total}
-                        </Badge>
+                        <Badge variant={active > 0 ? "default" : "secondary"} className="text-xs">{active}/{total}</Badge>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="mt-1 ml-2 border-l-2 border-muted pl-4 space-y-1">
@@ -309,22 +304,16 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
                               <div key={mod.id} className="p-3 rounded-lg hover:bg-muted/30 transition-colors">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <Switch
-                                      checked={viewEnabled}
-                                      onCheckedChange={(checked) => handleToggle(mod.viewKey, checked)}
-                                    />
+                                    <Switch checked={viewEnabled} onCheckedChange={(checked) => handleToggle(mod.viewKey, checked)} />
                                     <div>
                                       <p className="text-sm font-medium">{mod.label}</p>
                                       <p className="text-xs text-muted-foreground">{mod.description}</p>
                                       {mod.includes && mod.includes.length > 0 && (
-                                        <p className="text-xs text-muted-foreground/70 mt-0.5">
-                                          Include: {mod.includes.join(", ")}
-                                        </p>
+                                        <p className="text-xs text-muted-foreground/70 mt-0.5">Include: {mod.includes.join(", ")}</p>
                                       )}
                                     </div>
                                   </div>
                                 </div>
-
                                 {viewEnabled && mod.editKey && (
                                   <div className="mt-2 ml-12 flex items-center gap-4">
                                     <div className="flex items-center gap-2">

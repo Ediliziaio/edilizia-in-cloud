@@ -14,6 +14,8 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_marketing_ai_agent: false, can_view_marketing_email: false,
   can_view_marketing_whatsapp: false, can_view_marketing_reports: false,
   can_view_cruscotto: false, only_assigned: false,
+  can_view_billing: false, can_view_prima_nota: false,
+  can_view_costs: false, can_view_persone: false,
 };
 
 /** Centralized permission section definitions used by PermissionsDialog and CreateUserWizard */
@@ -23,20 +25,31 @@ export interface PermissionSectionDef {
   editKey: keyof StaffPermissions | null;
 }
 
-export const STANDALONE_SECTIONS: PermissionSectionDef[] = [
-  { label: "Cruscotto — KPI e performance aziendali", viewKey: "can_view_cruscotto", editKey: null },
+// ─── 6 macro-aree allineate alla sidebar ───
+
+export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
+  { label: "Cruscotto Aziendale", viewKey: "can_view_cruscotto", editKey: null },
 ];
 
-export const INTERNAL_SECTIONS: PermissionSectionDef[] = [
+export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard", viewKey: "can_view_dashboard", editKey: null },
   { label: "Ordini e Commesse", viewKey: "can_view_orders", editKey: "can_edit_orders" },
   { label: "Magazzino", viewKey: "can_view_warehouse", editKey: "can_edit_warehouse" },
   { label: "Calendario", viewKey: "can_view_calendar", editKey: null },
   { label: "Clienti", viewKey: "can_view_customers", editKey: "can_edit_customers" },
-  { label: "Dipendenti", viewKey: "can_view_employees", editKey: null },
-  { label: "Assistenza / Ticket", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
+  { label: "Ticket Assistenza", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
+];
+
+export const FINANZA_SECTIONS: PermissionSectionDef[] = [
+  { label: "Fatturazione e Scadenzario", viewKey: "can_view_billing", editKey: null },
+  { label: "Prima Nota e Contabilità", viewKey: "can_view_prima_nota", editKey: null },
+  { label: "Costi", viewKey: "can_view_costs", editKey: null },
   { label: "Previsionale", viewKey: "can_view_forecast", editKey: null },
-  { label: "Impostazioni", viewKey: "can_view_settings", editKey: "can_edit_settings" },
+];
+
+export const PERSONE_SECTIONS: PermissionSectionDef[] = [
+  { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone", editKey: null },
+  { label: "Gestione Dipendenti", viewKey: "can_view_employees", editKey: null },
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
@@ -45,15 +58,25 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities" },
   { label: "Attività", viewKey: "can_view_marketing_activities", editKey: null },
   { label: "Appuntamenti", viewKey: "can_view_marketing_appointments", editKey: null },
-  { label: "Automazioni", viewKey: "can_view_marketing_automations", editKey: null },
-  { label: "Agente AI", viewKey: "can_view_marketing_ai_agent", editKey: null },
   { label: "Email Marketing", viewKey: "can_view_marketing_email", editKey: null },
   { label: "WhatsApp", viewKey: "can_view_marketing_whatsapp", editKey: null },
   { label: "Reportistica Marketing", viewKey: "can_view_marketing_reports", editKey: null },
 ];
 
+export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
+  { label: "Automazioni", viewKey: "can_view_marketing_automations", editKey: null },
+  { label: "Agenti AI", viewKey: "can_view_marketing_ai_agent", editKey: null },
+  { label: "Impostazioni", viewKey: "can_view_settings", editKey: "can_edit_settings" },
+];
+
+/** @deprecated Use the 6 macro-area arrays instead */
+export const STANDALONE_SECTIONS = CRUSCOTTO_SECTIONS;
+/** @deprecated Use CANTIERI_SECTIONS + FINANZA_SECTIONS instead */
+export const INTERNAL_SECTIONS = CANTIERI_SECTIONS;
+
 export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
-  ...STANDALONE_SECTIONS, ...INTERNAL_SECTIONS, ...MARKETING_SECTIONS,
+  ...CRUSCOTTO_SECTIONS, ...CANTIERI_SECTIONS, ...FINANZA_SECTIONS,
+  ...PERSONE_SECTIONS, ...MARKETING_SECTIONS, ...AUTOMAZIONI_SECTIONS,
 ];
 
 /** Role presets applied when selecting a role in the wizard */
@@ -64,7 +87,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
   company_staff: {
     can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
     can_view_warehouse: true, can_view_calendar: true, can_view_customers: true,
-    can_view_employees: true,
+    can_view_employees: true, can_view_persone: true,
+    can_view_billing: true, can_view_prima_nota: true, can_view_costs: true,
   },
   salesperson: {
     can_view_dashboard: true, can_view_orders: true, can_view_customers: true,
