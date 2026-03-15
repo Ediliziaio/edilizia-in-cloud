@@ -18016,6 +18016,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_agent_stats: {
+        Args: {
+          p_agent_id: string
+          p_chat?: number
+          p_chiamate?: number
+          p_chiamate_completate?: number
+          p_costo?: number
+          p_minuti?: number
+        }
+        Returns: undefined
+      }
       increment_referrer_clicks: {
         Args: { p_referrer_id: string }
         Returns: undefined
