@@ -73,12 +73,29 @@ Deno.serve(async (req) => {
       return json({ error: "Missing agent_id or conversation_id" }, 400);
     }
 
-    // Look up internal agent
-    const { data: agent } = await adminClient
-      .from("ai_agents")
-      .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
+    // Look up internal agent (try v2 first, then legacy)
+    let agent: { id: string; company_id: string; llm_model: string; tts_model?: string | null; send_confirmation_after_booking?: boolean } | null = null;
+    let agentV2Id: string | null = null;
+
+    const { data: agentV2 } = await adminClient
+      .from("ai_agents_v2")
+      .select("id, company_id, llm_model")
       .eq("elevenlabs_agent_id", elevenlabsAgentId)
-      .single();
+      .maybeSingle();
+
+    if (agentV2) {
+      agentV2Id = agentV2.id;
+      agent = { id: agentV2.id, company_id: agentV2.company_id, llm_model: agentV2.llm_model || "gemini-2.5-flash" };
+    }
+
+    if (!agent) {
+      const { data: agentLegacy } = await adminClient
+        .from("ai_agents")
+        .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
+        .eq("elevenlabs_agent_id", elevenlabsAgentId)
+        .single();
+      agent = agentLegacy;
+    }
 
     if (!agent) {
       return json({ error: "Agent not found" }, 404);

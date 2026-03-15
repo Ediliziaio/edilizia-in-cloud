@@ -192,6 +192,42 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "get_conversations": {
+        if (!agent_id) throw new Error("agent_id richiesto");
+        const convRes = await elFetch(
+          `/convai/conversations?agent_id=${agent_id}&page_size=${payload?.page_size || 20}${payload?.cursor ? `&cursor=${payload.cursor}` : ""}`,
+          "GET",
+          apiKey
+        );
+        result = convRes;
+        break;
+      }
+
+      case "get_conversation_audio": {
+        if (!payload?.conversation_id) throw new Error("conversation_id richiesto");
+        const audioRes = await fetch(
+          `${EL_BASE}/convai/conversations/${payload.conversation_id}/audio`,
+          {
+            headers: { "xi-api-key": apiKey },
+          }
+        );
+        if (!audioRes.ok) {
+          throw new Error(`ElevenLabs audio error ${audioRes.status}`);
+        }
+        // Return as base64
+        const audioBuffer = await audioRes.arrayBuffer();
+        const { encode: base64Encode } = await import("https://deno.land/std@0.168.0/encoding/base64.ts");
+        const base64Audio = base64Encode(audioBuffer);
+        result = { audio_base64: base64Audio, content_type: audioRes.headers.get("content-type") || "audio/mpeg" };
+        break;
+      }
+
+      case "get_phone_numbers": {
+        const phonesRes = await elFetch("/convai/phone-numbers", "GET", apiKey);
+        result = phonesRes;
+        break;
+      }
+
       case "sync_kb": {
         // Sync local docs to EL — just returns current EL docs for comparison
         if (!agent_id) throw new Error("agent_id richiesto");
