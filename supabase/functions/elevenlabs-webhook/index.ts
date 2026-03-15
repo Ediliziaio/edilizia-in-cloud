@@ -255,6 +255,39 @@ Deno.serve(async (req) => {
       console.error("Error saving conversation:", convErr);
     }
 
+    // ============ DUAL-WRITE TO ai_conversations_v2 ============
+    if (agentV2Id) {
+      try {
+        const durationMin = Math.max(0.0167, durationSeconds / 60);
+        await adminClient.from("ai_conversations_v2").insert({
+          agent_id: agentV2Id,
+          company_id: companyId,
+          elevenlabs_conversation_id: conversationId,
+          contact_id: contactId,
+          stato: status === "completed" ? "completata" : status,
+          canale: "telefono",
+          direzione: callDirection,
+          durata_secondi: durationSeconds,
+          riassunto: summaryText,
+          trascrizione_json: transcript.length > 0 ? transcript : null,
+          numero_chiamante: metadata?.caller_phone || null,
+          numero_chiamato: metadata?.called_phone || null,
+        } as never);
+
+        // Increment v2 agent stats atomically
+        await adminClient.rpc("increment_agent_stats" as never, {
+          p_agent_id: agentV2Id,
+          p_chiamate: 1,
+          p_chiamate_completate: status === "completed" ? 1 : 0,
+          p_minuti: Number(durationMin.toFixed(2)),
+          p_chat: 0,
+          p_costo: 0, // will be set after billing calc
+        } as never);
+      } catch (v2Err) {
+        console.error("[WEBHOOK] v2 dual-write error:", v2Err);
+      }
+    }
+
     // ============ UPDATE BRANCH STATS (FIX 10 A/B) ============
     if (branchId && !convErr) {
       // Increment counters
