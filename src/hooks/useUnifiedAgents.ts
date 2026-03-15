@@ -13,6 +13,7 @@ import type {
 
 const QUERY_KEY = "unified-ai-agents";
 
+// ─── List agents ───
 export function useUnifiedAgents(filters?: {
   tipo?: string;
   stato?: string;
@@ -47,6 +48,7 @@ export function useUnifiedAgents(filters?: {
   });
 }
 
+// ─── Get single agent ───
 export function useUnifiedAgent(id: string | undefined) {
   return useQuery({
     queryKey: [QUERY_KEY, "detail", id],
@@ -63,6 +65,7 @@ export function useUnifiedAgent(id: string | undefined) {
   });
 }
 
+// ─── Create agent ───
 export function useCreateUnifiedAgent() {
   const queryClient = useQueryClient();
   const companyId = useEffectiveCompanyId();
@@ -113,7 +116,6 @@ export function useCreateUnifiedAgent() {
         .single();
 
       if (error) {
-        // Cleanup orphaned ElevenLabs agent
         if (elAgentId) {
           try {
             await callElevenLabsProxy({ action: "delete_agent", agent_id: elAgentId });
@@ -134,6 +136,7 @@ export function useCreateUnifiedAgent() {
   });
 }
 
+// ─── Delete agent ───
 export function useDeleteUnifiedAgent() {
   const queryClient = useQueryClient();
 
@@ -168,6 +171,7 @@ export function useDeleteUnifiedAgent() {
   });
 }
 
+// ─── Update status ───
 export function useUpdateUnifiedAgentStatus() {
   const queryClient = useQueryClient();
 
@@ -188,6 +192,60 @@ export function useUpdateUnifiedAgentStatus() {
   });
 }
 
+// ─── Duplicate agent ───
+export function useDuplicateUnifiedAgent() {
+  const queryClient = useQueryClient();
+  const companyId = useEffectiveCompanyId();
+
+  return useMutation({
+    mutationFn: async (sourceId: string) => {
+      if (!companyId) throw new Error("Nessuna azienda associata");
+
+      const { data: source, error: fetchError } = await supabase
+        .from("ai_agents_v2" as never)
+        .select("*")
+        .eq("id", sourceId)
+        .single();
+
+      if (fetchError || !source) throw fetchError || new Error("Agente non trovato");
+
+      const s = source as unknown as UnifiedAgent;
+      const { data: user } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("ai_agents_v2" as never)
+        .insert({
+          company_id: companyId,
+          nome: `${s.nome} (copia)`,
+          tipo: s.tipo,
+          descrizione: s.descrizione,
+          system_prompt: s.system_prompt,
+          primo_messaggio: s.primo_messaggio,
+          lingua: s.lingua,
+          llm_model: s.llm_model,
+          temperatura: s.temperatura,
+          elevenlabs_voice_id: s.elevenlabs_voice_id,
+          voice_nome: s.voice_nome,
+          stato: "bozza",
+          creato_da: user?.user?.id || null,
+        } as never)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      return data as unknown as { id: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast.success("Agente duplicato come bozza");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Errore nella duplicazione");
+    },
+  });
+}
+
+// ─── Company stats ───
 export function useAICompanyStats() {
   const companyId = useEffectiveCompanyId();
 

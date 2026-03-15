@@ -15,6 +15,7 @@ import {
   useUnifiedAgents,
   useDeleteUnifiedAgent,
   useUpdateUnifiedAgentStatus,
+  useDuplicateUnifiedAgent,
 } from "@/hooks/useUnifiedAgents";
 import type { TipoAgente, StatoAgente } from "@/types/unifiedAgent.types";
 import { useNavigate } from "react-router-dom";
@@ -54,6 +55,7 @@ export function AgentiTab() {
   });
   const deleteAgent = useDeleteUnifiedAgent();
   const updateStatus = useUpdateUnifiedAgentStatus();
+  const duplicateAgent = useDuplicateUnifiedAgent();
 
   const handleCrea = (tipo?: TipoAgente) => {
     setTipoPreselezionato(tipo || null);
@@ -61,7 +63,6 @@ export function AgentiTab() {
   };
 
   const handleNavigate = (agente: { id: string; tipo: TipoAgente }) => {
-    // Route to appropriate editor based on type
     if (agente.tipo === "interno") {
       navigate(`/azienda/agente-interno/${agente.id}`);
     } else {
@@ -69,11 +70,14 @@ export function AgentiTab() {
     }
   };
 
+  const handleNavigateConversations = (id: string) => {
+    navigate(`/azienda/marketing/agente-ai/${id}/conversazioni`);
+  };
+
   return (
     <div className="px-6 py-6">
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        {/* Type chips */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {TIPO_CHIPS.map((chip) => {
             const Icon = chip.icon;
@@ -95,7 +99,6 @@ export function AgentiTab() {
 
         <div className="flex-1" />
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -106,7 +109,6 @@ export function AgentiTab() {
           />
         </div>
 
-        {/* Status filter */}
         <Select value={filtroStato} onValueChange={setFiltroStato}>
           <SelectTrigger className="w-36 h-8 text-sm">
             <SelectValue placeholder="Stato" />
@@ -119,7 +121,6 @@ export function AgentiTab() {
           </SelectContent>
         </Select>
 
-        {/* Create */}
         <Button size="sm" onClick={() => handleCrea()}>
           <Plus className="h-4 w-4 mr-1.5" /> Nuovo agente
         </Button>
@@ -147,7 +148,6 @@ export function AgentiTab() {
             <Plus className="h-4 w-4 mr-1.5" /> Crea agente
           </Button>
 
-          {/* Quick-create type cards */}
           {filtroTipo === "tutti" && (
             <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-3xl w-full">
               {TIPO_CHIPS.filter((c) => c.value !== "tutti").map((chip) => {
@@ -176,9 +176,10 @@ export function AgentiTab() {
               onArchive={(id) => updateStatus.mutate({ id, stato: "archiviato" })}
               onDelete={(id) => setDeleteId(id)}
               onToggleStatus={(id, stato) => updateStatus.mutate({ id, stato })}
+              onDuplicate={(id) => duplicateAgent.mutate(id)}
+              onNavigateConversations={handleNavigateConversations}
             />
           ))}
-          {/* Add card */}
           <button
             onClick={() => handleCrea()}
             className="h-40 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all"
@@ -189,19 +190,16 @@ export function AgentiTab() {
         </div>
       )}
 
-      {/* Create modal */}
       <AgentCreateModal
         open={showCreate}
         tipoPreselezionato={tipoPreselezionato}
         onClose={() => setShowCreate(false)}
         onSuccess={(id) => {
           setShowCreate(false);
-          // Navigate to editor for the new agent
           navigate(`/azienda/marketing/agente-ai/${id}`);
         }}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
