@@ -79,6 +79,17 @@ export function ChatConversazioniTab() {
     },
   });
 
+  // Client-side search filter
+  const filteredSessions = useMemo(() => {
+    if (!cerca.trim()) return sessions;
+    const term = cerca.toLowerCase();
+    return sessions.filter(s =>
+      (s.agent_nome?.toLowerCase().includes(term)) ||
+      s.canale.toLowerCase().includes(term) ||
+      s.stato.toLowerCase().includes(term)
+    );
+  }, [sessions, cerca]);
+
   const selectedSessionData = sessions.find(s => s.id === selectedSession);
 
   if (selectedSession && selectedSessionData) {
