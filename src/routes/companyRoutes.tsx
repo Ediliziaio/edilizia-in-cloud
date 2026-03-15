@@ -196,7 +196,7 @@ export function companyRoutes() {
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
-        <Route path="agenti-ai/*" element={<AgentiAIUnified />} />
+        <Route path="agenti-ai" element={<AgentiAIPage />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />
