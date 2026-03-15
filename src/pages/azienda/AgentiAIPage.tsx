@@ -39,13 +39,14 @@ const Fallback = () => (
   </div>
 );
 
-type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
 
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
-  { key: "conversazioni", label: "Conversazioni", icon: History },
+  { key: "conversazioni", label: "Chiamate", icon: History },
+  { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
