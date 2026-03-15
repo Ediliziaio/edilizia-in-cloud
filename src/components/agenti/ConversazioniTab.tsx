@@ -54,9 +54,13 @@ interface ConversationV2 {
   audio_url: string | null;
 }
 
-export function ConversazioniTab() {
+interface ConversazioniTabProps {
+  agentIdFilter?: string;
+}
+
+export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) {
   const companyId = useEffectiveCompanyId();
-  const [agentFilter, setAgentFilter] = useState("tutti");
+  const [agentFilter, setAgentFilter] = useState(agentIdFilter || "tutti");
   const [selectedConv, setSelectedConv] = useState<ConversationV2 | null>(null);
 
   const { data: agents = [] } = useUnifiedAgents();
