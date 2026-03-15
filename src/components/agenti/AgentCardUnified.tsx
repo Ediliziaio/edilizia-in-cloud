@@ -92,6 +92,7 @@ export function AgentCardUnified({
   onToggleStatus,
   onDuplicate,
   onNavigateConversations,
+  isToggling = false,
 }: Props) {
   const tipoCfg = TIPO_CONFIG[agente.tipo];
   const statoCfg = STATO_CONFIG[agente.stato];
