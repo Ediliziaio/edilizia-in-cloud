@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -9,10 +9,9 @@ import {
   MessageSquare,
   CreditCard,
   Settings,
-  Loader2,
   AlertTriangle,
-  Zap,
   History,
+  BarChart2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AgentiTab } from "@/components/agenti/AgentiTab";
@@ -22,24 +21,17 @@ import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { KnowledgeBaseTab } from "@/components/agenti/KnowledgeBaseTab";
 import { WhatsAppTabUnified } from "@/components/agenti/WhatsAppTabUnified";
 import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
+import { CampagneTab } from "@/components/agenti/CampagneTab";
+import { CreditiTab } from "@/components/agenti/CreditiTab";
+import { StatisticheTab } from "@/components/agenti/StatisticheTab";
+import { ImpostazioniTab } from "@/components/agenti/ImpostazioniTab";
 import { useAICompanyStats } from "@/hooks/useUnifiedAgents";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Lazy-load remaining tab components
-const InternalCampaignsPage = lazy(() => import("@/modules/ai-agents-internal/pages/InternalCampaignsPage"));
-const AgentCreditsPage = lazy(() => import("@/modules/ai-agents/pages/AgentCreditsPage"));
-const PlatformSettingsPage = lazy(() => import("@/modules/ai-agents/pages/PlatformSettingsPage"));
-
-const Fallback = () => (
-  <div className="flex items-center justify-center h-full min-h-[200px]">
-    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-  </div>
-);
-
-type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "statistiche" | "crediti" | "impostazioni";
 
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
@@ -49,6 +41,7 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
   { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
+  { key: "statistiche", label: "Statistiche", icon: BarChart2 },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
   { key: "impostazioni", label: "Impostazioni", icon: Settings },
 ];
@@ -56,7 +49,7 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
 export default function AgentiAIPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get("tab") as MainTab) || "agenti";
-  const { role, isImpersonating } = useAuth();
+  const { role } = useAuth();
   const companyId = useEffectiveCompanyId();
   const { data: stats } = useAICompanyStats();
 
@@ -78,7 +71,7 @@ export default function AgentiAIPage() {
     setSearchParams({ tab: value }, { replace: true });
   };
 
-  // Filter tabs — hide Impostazioni for non-super_admin when not impersonating
+  // Filter tabs — hide Impostazioni for non-super_admin
   const visibleTabs = TABS.filter((tab) => {
     if (tab.key === "impostazioni" && role !== "super_admin") return false;
     return true;
@@ -172,25 +165,23 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="campagne" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <InternalCampaignsPage />
-          </Suspense>
+          <CampagneTab />
         </TabsContent>
 
         <TabsContent value="whatsapp" className="mt-0 p-6">
           <WhatsAppTabUnified />
         </TabsContent>
 
+        <TabsContent value="statistiche" className="mt-0 p-6">
+          <StatisticheTab />
+        </TabsContent>
+
         <TabsContent value="crediti" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <AgentCreditsPage />
-          </Suspense>
+          <CreditiTab />
         </TabsContent>
 
         <TabsContent value="impostazioni" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <PlatformSettingsPage />
-          </Suspense>
+          <ImpostazioniTab />
         </TabsContent>
       </Tabs>
     </div>

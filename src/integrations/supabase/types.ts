@@ -1009,49 +1009,170 @@ export type Database = {
           },
         ]
       }
+      ai_campaign_contacts: {
+        Row: {
+          campaign_id: string
+          contact_id: string | null
+          creato_il: string | null
+          durata_secondi: number | null
+          id: string
+          metadata: Json | null
+          nome: string | null
+          note: string | null
+          risposta: boolean | null
+          stato: string
+          telefono: string
+          tentativo_corrente: number | null
+          ultimo_tentativo_il: string | null
+        }
+        Insert: {
+          campaign_id: string
+          contact_id?: string | null
+          creato_il?: string | null
+          durata_secondi?: number | null
+          id?: string
+          metadata?: Json | null
+          nome?: string | null
+          note?: string | null
+          risposta?: boolean | null
+          stato?: string
+          telefono: string
+          tentativo_corrente?: number | null
+          ultimo_tentativo_il?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string | null
+          creato_il?: string | null
+          durata_secondi?: number | null
+          id?: string
+          metadata?: Json | null
+          nome?: string | null
+          note?: string | null
+          risposta?: boolean | null
+          stato?: string
+          telefono?: string
+          tentativo_corrente?: number | null
+          ultimo_tentativo_il?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_campaign_contacts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ai_campaigns_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "ai_campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_campaigns_v2: {
         Row: {
           agent_id: string
+          aggiornato_il: string | null
           chiamate_completate: number
           chiamate_effettuate: number
           chiamate_no_risposta: number
           company_id: string
           completata_il: string | null
+          contatti_falliti: number | null
           creato_il: string
+          crediti_utilizzati: number | null
+          data_fine: string | null
+          data_inizio: string | null
+          descrizione: string | null
+          durata_media_secondi: number | null
+          fuso_orario: string | null
+          giorni_settimana: number[] | null
           id: string
+          intervallo_tentativi_minuti: number | null
+          messaggio_iniziale: string | null
+          metadata: Json | null
           nome: string
+          orario_fine: string | null
+          orario_inizio: string | null
           schedulata_il: string | null
           stato: string
+          tag: string[] | null
+          tasso_risposta: number | null
+          tentativi_max: number | null
           tipo: string
           totale_contatti: number
         }
         Insert: {
           agent_id: string
+          aggiornato_il?: string | null
           chiamate_completate?: number
           chiamate_effettuate?: number
           chiamate_no_risposta?: number
           company_id: string
           completata_il?: string | null
+          contatti_falliti?: number | null
           creato_il?: string
+          crediti_utilizzati?: number | null
+          data_fine?: string | null
+          data_inizio?: string | null
+          descrizione?: string | null
+          durata_media_secondi?: number | null
+          fuso_orario?: string | null
+          giorni_settimana?: number[] | null
           id?: string
+          intervallo_tentativi_minuti?: number | null
+          messaggio_iniziale?: string | null
+          metadata?: Json | null
           nome: string
+          orario_fine?: string | null
+          orario_inizio?: string | null
           schedulata_il?: string | null
           stato?: string
+          tag?: string[] | null
+          tasso_risposta?: number | null
+          tentativi_max?: number | null
           tipo?: string
           totale_contatti?: number
         }
         Update: {
           agent_id?: string
+          aggiornato_il?: string | null
           chiamate_completate?: number
           chiamate_effettuate?: number
           chiamate_no_risposta?: number
           company_id?: string
           completata_il?: string | null
+          contatti_falliti?: number | null
           creato_il?: string
+          crediti_utilizzati?: number | null
+          data_fine?: string | null
+          data_inizio?: string | null
+          descrizione?: string | null
+          durata_media_secondi?: number | null
+          fuso_orario?: string | null
+          giorni_settimana?: number[] | null
           id?: string
+          intervallo_tentativi_minuti?: number | null
+          messaggio_iniziale?: string | null
+          metadata?: Json | null
           nome?: string
+          orario_fine?: string | null
+          orario_inizio?: string | null
           schedulata_il?: string | null
           stato?: string
+          tag?: string[] | null
+          tasso_risposta?: number | null
+          tentativi_max?: number | null
           tipo?: string
           totale_contatti?: number
         }
@@ -1328,6 +1449,63 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_credit_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_credit_transactions: {
+        Row: {
+          agent_id: string | null
+          company_id: string
+          conversation_id: string | null
+          creato_il: string | null
+          crediti: number
+          descrizione: string | null
+          id: string
+          metadata: Json | null
+          saldo_dopo: number
+          saldo_prima: number
+          tipo: string
+        }
+        Insert: {
+          agent_id?: string | null
+          company_id: string
+          conversation_id?: string | null
+          creato_il?: string | null
+          crediti?: number
+          descrizione?: string | null
+          id?: string
+          metadata?: Json | null
+          saldo_dopo?: number
+          saldo_prima?: number
+          tipo?: string
+        }
+        Update: {
+          agent_id?: string | null
+          company_id?: string
+          conversation_id?: string | null
+          creato_il?: string | null
+          crediti?: number
+          descrizione?: string | null
+          id?: string
+          metadata?: Json | null
+          saldo_dopo?: number
+          saldo_prima?: number
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_credit_transactions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_transactions_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -4289,6 +4467,11 @@ export type Database = {
       }
       companies: {
         Row: {
+          ai_crediti: number | null
+          ai_crediti_bonus: number | null
+          ai_crediti_soglia_allerta: number | null
+          ai_piano: string | null
+          ai_rinnovo_at: string | null
           alert_late_orders_threshold: number | null
           alert_margin_min_pct: number | null
           alert_open_tickets_threshold: number | null
@@ -4367,6 +4550,11 @@ export type Database = {
           white_label_monthly_price: number | null
         }
         Insert: {
+          ai_crediti?: number | null
+          ai_crediti_bonus?: number | null
+          ai_crediti_soglia_allerta?: number | null
+          ai_piano?: string | null
+          ai_rinnovo_at?: string | null
           alert_late_orders_threshold?: number | null
           alert_margin_min_pct?: number | null
           alert_open_tickets_threshold?: number | null
@@ -4445,6 +4633,11 @@ export type Database = {
           white_label_monthly_price?: number | null
         }
         Update: {
+          ai_crediti?: number | null
+          ai_crediti_bonus?: number | null
+          ai_crediti_soglia_allerta?: number | null
+          ai_piano?: string | null
+          ai_rinnovo_at?: string | null
           alert_late_orders_threshold?: number | null
           alert_margin_min_pct?: number | null
           alert_open_tickets_threshold?: number | null
@@ -17570,6 +17763,16 @@ export type Database = {
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      consume_ai_credits: {
+        Args: {
+          p_agent_id?: string
+          p_amount: number
+          p_company_id: string
+          p_conversation_id?: string
+          p_descrizione?: string
+        }
+        Returns: Json
+      }
       create_notification: {
         Args: {
           p_action_url?: string
@@ -17660,6 +17863,10 @@ export type Database = {
           sessioni_attive: number
           sessioni_totali: number
         }[]
+      }
+      get_ai_analytics: {
+        Args: { p_company_id: string; p_giorni?: number }
+        Returns: Json
       }
       get_ai_company_stats: {
         Args: { p_company_id: string; p_giorni?: number }
