@@ -81,6 +81,7 @@ interface Props {
   onToggleStatus: (id: string, stato: StatoAgente) => void;
   onDuplicate: (id: string) => void;
   onNavigateConversations: (id: string) => void;
+  isToggling?: boolean;
 }
 
 export function AgentCardUnified({
