@@ -12,10 +12,13 @@ import {
   Loader2,
   AlertTriangle,
   Zap,
+  History,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AgentiTab } from "@/components/agenti/AgentiTab";
 import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
+import { TelephonyTab } from "@/components/agenti/TelephonyTab";
+import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { useAICompanyStats } from "@/hooks/useUnifiedAgents";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +27,6 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // Lazy-load existing tab components
 const PlatformKnowledgeBasePage = lazy(() => import("@/modules/ai-agents/pages/PlatformKnowledgeBasePage"));
-const AgentPhoneNumbersPage = lazy(() => import("@/modules/ai-agents/pages/AgentPhoneNumbersPage"));
 const InternalCampaignsPage = lazy(() => import("@/modules/ai-agents-internal/pages/InternalCampaignsPage"));
 const AgentWhatsAppPage = lazy(() => import("@/modules/ai-agents/pages/AgentWhatsAppPage"));
 const AgentCreditsPage = lazy(() => import("@/modules/ai-agents/pages/AgentCreditsPage"));
@@ -36,12 +38,13 @@ const Fallback = () => (
   </div>
 );
 
-type MainTab = "agenti" | "knowledge" | "telefonia" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "campagne" | "whatsapp" | "crediti" | "impostazioni";
 
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
+  { key: "conversazioni", label: "Conversazioni", icon: History },
   { key: "campagne", label: "Campagne", icon: Megaphone },
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
@@ -157,9 +160,11 @@ export default function AgentiAIPage() {
         </TabsContent>
 
         <TabsContent value="telefonia" className="mt-0 p-6">
-          <Suspense fallback={<Fallback />}>
-            <AgentPhoneNumbersPage />
-          </Suspense>
+          <TelephonyTab />
+        </TabsContent>
+
+        <TabsContent value="conversazioni" className="mt-0 p-6">
+          <ConversazioniTab />
         </TabsContent>
 
         <TabsContent value="campagne" className="mt-0 p-6">
