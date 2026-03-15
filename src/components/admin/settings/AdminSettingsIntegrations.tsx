@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -28,45 +28,47 @@ interface ApiKeyField {
 
 // ─── CONNECTION TEST ──────────────────────────────────────────────────────────
 
-function ConnectionTestButton({ integrationKey }: { integrationKey: string }) {
-  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
-  const [message, setMessage] = useState("");
+const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string }>(
+  function ConnectionTestButton({ integrationKey }, ref) {
+    const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+    const [message, setMessage] = useState("");
 
-  const handleTest = async () => {
-    setStatus("testing");
-    setMessage("");
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("test-integration", {
-        body: { integration: integrationKey },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) throw new Error(res.error.message);
-      const result = res.data;
-      setStatus(result?.ok ? "ok" : "error");
-      setMessage(result?.message || "");
-    } catch (e: any) {
-      setStatus("error");
-      setMessage(e.message);
-    }
-    setTimeout(() => { setStatus("idle"); setMessage(""); }, 5000);
-  };
+    const handleTest = async () => {
+      setStatus("testing");
+      setMessage("");
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await supabase.functions.invoke("test-integration", {
+          body: { integration: integrationKey },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        if (res.error) throw new Error(res.error.message);
+        const result = res.data;
+        setStatus(result?.ok ? "ok" : "error");
+        setMessage(result?.message || "");
+      } catch (e: any) {
+        setStatus("error");
+        setMessage(e.message);
+      }
+      setTimeout(() => { setStatus("idle"); setMessage(""); }, 5000);
+    };
 
-  return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={handleTest} disabled={status === "testing"} className="gap-2">
-        {status === "testing" && <Loader2 className="h-3 w-3 animate-spin" />}
-        {status === "ok" && <CheckCircle2 className="h-3 w-3 text-green-600" />}
-        {status === "error" && <XCircle className="h-3 w-3 text-destructive" />}
-        {status === "idle" && <Plug className="h-3 w-3" />}
-        {status === "testing" ? "Test..." : status === "ok" ? "Connesso" : status === "error" ? "Errore" : "Testa connessione"}
-      </Button>
-      {message && (
-        <span className={`text-xs ${status === "ok" ? "text-green-600" : "text-destructive"}`}>{message}</span>
-      )}
-    </div>
-  );
-}
+    return (
+      <div ref={ref} className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={handleTest} disabled={status === "testing"} className="gap-2">
+          {status === "testing" && <Loader2 className="h-3 w-3 animate-spin" />}
+          {status === "ok" && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+          {status === "error" && <XCircle className="h-3 w-3 text-destructive" />}
+          {status === "idle" && <Plug className="h-3 w-3" />}
+          {status === "testing" ? "Test..." : status === "ok" ? "Connesso" : status === "error" ? "Errore" : "Testa connessione"}
+        </Button>
+        {message && (
+          <span className={`text-xs ${status === "ok" ? "text-green-600" : "text-destructive"}`}>{message}</span>
+        )}
+      </div>
+    );
+  }
+);
 
 // ─── API KEY CARD ─────────────────────────────────────────────────────────────
 
@@ -242,16 +244,14 @@ const GOOGLE_POLICY_TOGGLES = [
   },
 ] as const;
 
-function GoogleCalendarPoliciesCard({
-  settings, isLoading, onToggle, isSaving,
-}: {
+const GoogleCalendarPoliciesCard = forwardRef<HTMLDivElement, {
   settings: SettingsMap | undefined;
   isLoading: boolean;
   onToggle: (key: string, value: boolean) => void;
   isSaving: boolean;
-}) {
+}>(function GoogleCalendarPoliciesCard({ settings, isLoading, onToggle, isSaving }, ref) {
   return (
-    <Card>
+    <Card ref={ref}>
       <CardHeader>
         <div className="flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-primary" />
@@ -284,7 +284,7 @@ function GoogleCalendarPoliciesCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ─── STRIPE SETTINGS ──────────────────────────────────────────────────────────
 

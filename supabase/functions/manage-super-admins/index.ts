@@ -368,15 +368,27 @@ Deno.serve(async (req) => {
 
     // === GET SETTINGS ===
     if (action === "get-settings") {
+      const allSettingsKeys = [
+        "meta_app_id", "meta_app_secret",
+        "google_maps_api_key", "whatsapp_verify_token",
+        "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
+        "google_calendar_client_id", "google_calendar_client_secret",
+        "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
+      ];
+
       const { data: settings } = await supabaseAdmin
         .from("platform_settings")
         .select("key, value, updated_at")
-        .in("key", ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"]);
+        .in("key", allSettingsKeys);
 
       const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
-      const secretKeys = ["meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"];
+      const secretKeys = [
+        "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token",
+        "stripe_secret_key", "stripe_webhook_secret",
+        "google_calendar_client_secret",
+      ];
       for (const s of settings || []) {
-        if (secretKeys.includes(s.key)) {
+        if (secretKeys.includes(s.key) && s.value) {
           const masked = s.value.length > 4 ? "••••" + s.value.slice(-4) : "••••";
           result[s.key] = { value: masked, masked: masked, updated_at: s.updated_at };
         } else {
@@ -398,7 +410,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      const allowedKeys = ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"];
+      const allowedKeys = [
+        "meta_app_id", "meta_app_secret",
+        "google_maps_api_key", "whatsapp_verify_token",
+        "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
+        "google_calendar_client_id", "google_calendar_client_secret",
+        "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
+      ];
       const updates: { key: string; oldValue?: string }[] = [];
 
       for (const [key, value] of Object.entries(newSettings)) {
