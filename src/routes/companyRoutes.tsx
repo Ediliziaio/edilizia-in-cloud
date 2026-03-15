@@ -54,7 +54,7 @@ const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
-const AgentiAIUnified = lazy(() => import("@/pages/azienda/AgentiAIUnified"));
+const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
