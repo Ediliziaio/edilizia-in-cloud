@@ -237,6 +237,15 @@ function ConversazioneDetail({
   const transcript = (conv.trascrizione_json || []) as { role?: string; message?: string; time?: number }[];
   const dur = conv.durata_secondi || 0;
 
+  // Cleanup blob URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (audioSrc && audioSrc.startsWith("blob:")) {
+        URL.revokeObjectURL(audioSrc);
+      }
+    };
+  }, [audioSrc]);
+
   const fetchAudio = useCallback(async () => {
     if (audioSrc || !conv.elevenlabs_conversation_id) return;
     setLoadingAudio(true);

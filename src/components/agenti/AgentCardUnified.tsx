@@ -131,6 +131,7 @@ export function AgentCardUnified({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                disabled={isToggling}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleStatus(
