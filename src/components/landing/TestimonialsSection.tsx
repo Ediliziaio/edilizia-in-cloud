@@ -91,7 +91,16 @@ export default function TestimonialsSection() {
   return (
     <section className="py-14 md:py-32 bg-[#111111] overflow-hidden relative">
       {/* Background glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F97415]/[0.06] rounded-full blur-[120px] pointer-events-none" />
+      {/* Luminous top border */}
+      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />
+      {/* Glow orbs — intensificati */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-[140px] pointer-events-none"
+        style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
 
       <div ref={ref} className="max-w-7xl mx-auto px-6 relative z-10">
 

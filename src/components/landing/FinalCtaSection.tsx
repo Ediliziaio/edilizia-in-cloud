@@ -70,8 +70,11 @@ export default function FinalCtaSection() {
 
       {/* Glow orbs */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[700px] h-[250px] pointer-events-none"
-        style={{ background: "radial-gradient(ellipse at bottom, rgba(249,116,21,0.12) 0%, transparent 70%)", filter: "blur(20px)" }} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-[#F97415]/[0.04] rounded-full blur-[100px] pointer-events-none" />
+        style={{ background: "radial-gradient(ellipse at bottom, rgba(249,116,21,0.22) 0%, transparent 65%)", filter: "blur(40px)" }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] rounded-full blur-[130px] pointer-events-none"
+        style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
+      <div className="absolute top-0 left-0 w-[400px] h-[400px] rounded-full blur-[150px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.10) 0%, transparent 65%)" }} />
 
       <div ref={ref} className="max-w-4xl mx-auto px-6 text-center relative z-10">
 

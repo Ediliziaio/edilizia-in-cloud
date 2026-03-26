@@ -147,13 +147,13 @@ export default function StatsSection() {
       <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
         style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.25) 50%, transparent 100%)" }} />
 
-      {/* Glow orbs potenziati */}
-      <div className="absolute top-0 left-1/4 w-80 h-80 rounded-full blur-[120px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 70%)" }} />
-      <div className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full blur-[100px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
+      {/* Glow orbs — intensificati */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[400px] rounded-full blur-[130px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.24) 0%, transparent 65%)" }} />
+      <div className="absolute bottom-0 right-1/4 w-[450px] h-[350px] rounded-full blur-[120px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
       <div className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(249,116,21,0.05) 0%, transparent 100%)" }} />
+        style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.09) 0%, transparent 100%)" }} />
 
       <div ref={ref} className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Heading */}

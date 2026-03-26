@@ -15,12 +15,14 @@ export default function CriteriaSection() {
     <section className="py-16 md:py-32 bg-[#111111] relative overflow-hidden">
       {/* Luminous top border */}
       <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.5) 35%, rgba(249,116,21,0.9) 50%, rgba(249,116,21,0.5) 65%, transparent 100%)" }} />
-      {/* Glow orbs */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full pointer-events-none blur-[100px]"
-        style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
-      <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full pointer-events-none blur-[120px]"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />
+      {/* Glow orbs — intensificati */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full pointer-events-none blur-[120px]"
+        style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.20) 0%, transparent 65%)" }} />
+      <div className="absolute bottom-0 right-0 w-[450px] h-[450px] rounded-full pointer-events-none blur-[140px]"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.16) 0%, transparent 65%)" }} />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full pointer-events-none blur-[100px]"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
       <div ref={ref} className="max-w-4xl mx-auto px-6 relative z-10">
         <h2
           className={`text-3xl md:text-5xl font-extrabold text-white text-center mb-4 transition-all duration-700 ${
