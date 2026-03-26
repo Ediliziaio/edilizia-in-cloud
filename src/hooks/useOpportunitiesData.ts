@@ -54,8 +54,8 @@ async function enrichPage(data: any[]) {
 
   if (oppIds.length > 0) {
     const [notesRes, docsRes] = await Promise.all([
-      supabase.from("marketing_contact_notes").select("opportunity_id").in("opportunity_id", oppIds).limit(5000),
-      supabase.from("marketing_documents").select("opportunity_id").in("opportunity_id", oppIds).limit(5000),
+      supabase.from("marketing_contact_notes").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
+      supabase.from("marketing_documents").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
     ]);
 
     let apptRes: any = null;
@@ -68,7 +68,7 @@ async function enrichPage(data: any[]) {
         .neq("status", "annullato")
         .order("appointment_date", { ascending: true })
         .order("appointment_time", { ascending: true, nullsFirst: false })
-        .limit(5000);
+        .limit(1000);
     }
 
     if (notesRes.data) {

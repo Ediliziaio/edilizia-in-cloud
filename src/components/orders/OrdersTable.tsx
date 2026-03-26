@@ -280,6 +280,10 @@ export const OrdersTable = React.memo(function OrdersTable({
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
+          {/* TODO: implement virtual scrolling with @tanstack/react-virtual for visible rows
+              when sortedItems.length > 100 to avoid rendering all rows at once.
+              Use useVirtualizer({ count: sortedItems.length, getScrollElement, estimateSize: () => 56 })
+              and render only virtualRows from virtualizer.getVirtualItems(). */}
           <TableBody>
             {sortedItems.map((order) => {
               const due = getAmountDue(order);

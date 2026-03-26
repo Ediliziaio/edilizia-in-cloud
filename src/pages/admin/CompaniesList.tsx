@@ -200,14 +200,20 @@ export default function CompaniesList() {
     return Comp;
   }, [sortKey, sortDir]);
 
+  const COMPANIES_FETCH_SIZE = 1000;
+
   const { data: allCompanies = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.admin.companiesFull,
     queryFn: async () => {
+      // Load companies in pages of COMPANIES_FETCH_SIZE using .range() to avoid unbounded fetches
+      const from = 0;
+      const to = COMPANIES_FETCH_SIZE - 1;
       const { data, error } = await supabase
         .from("companies")
         .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)")
         .eq("is_platform_admin_company", false)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
       if (error) throw error;
       return data ?? [];
     },

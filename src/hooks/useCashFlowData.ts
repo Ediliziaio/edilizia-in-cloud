@@ -46,7 +46,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .eq("order.company_id", companyId!)
         .lte("expected_date", endDate)
         .order("position", { ascending: true })
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -68,7 +68,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data as ExternalTeamPayment[];
     },
@@ -90,7 +90,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -113,7 +113,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .in("status", ["da_ordinare", "ordinato"])
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -139,7 +139,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -159,7 +159,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .eq("is_paid", false)
         .gte("cost_date", costDateFrom)
         .order("due_date", { ascending: true })
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -180,7 +180,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .eq("company_id", companyId!)
         .eq("is_paid", true)
         .order("paid_date", { ascending: true })
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -202,7 +202,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -224,7 +224,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -251,7 +251,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       // Filter only items with at least one payment made
       return (data || [])
@@ -307,7 +307,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .in("status", ["da_pagare", "parziale"])
         .lte("due_date", endDate)
         .order("due_date", { ascending: true })
-        .limit(2000);
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },

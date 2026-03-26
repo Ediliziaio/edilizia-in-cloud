@@ -147,7 +147,7 @@ export function useAdminRevenueData() {
         supabase
           .from("companies")
           .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, subscription_plans:subscription_plan_id(name, price_monthly, max_orders, max_users)")
-          .limit(10000),
+          .limit(1000),
         supabase.rpc("get_company_health_data"),
         supabase
           .from("subscription_logs")

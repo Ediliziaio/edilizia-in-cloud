@@ -108,7 +108,7 @@ export default function Calendar() {
         `)
         .eq("company_id", effectiveCompany.id)
         .order("work_start_date", { ascending: true })
-        .limit(10000);
+        .limit(1000);
       
       if (error) throw error;
       return (data || []) as CalendarOrder[];
@@ -131,7 +131,7 @@ export default function Calendar() {
         .eq("company_id", effectiveCompany.id)
         .is("calendar_id", null)
         .order("appointment_date", { ascending: true })
-        .limit(10000);
+        .limit(1000);
       if (error) throw error;
 
       // Enrich with assigned profile names
