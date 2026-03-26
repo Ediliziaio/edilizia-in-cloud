@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     // Fix 6: Strict redirect URL validation — reject unauthorized origins
     try {
       const redirectOrigin = new URL(redirect_url).origin;
-      const siteUrl = Deno.env.get("SITE_URL") || "";
+      const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
       const isAllowed =
         (siteUrl && redirectOrigin === new URL(siteUrl).origin) ||
         redirectOrigin.includes("localhost") ||

@@ -1,4 +1,4 @@
-project_id = "guqgszwelffntrgtsycm"
+project_id = "rsbrguhkodgnqfomrevo"
 
 [functions.create-customer]
 verify_jwt = false
@@ -247,4 +247,22 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.sdi-webhook]
+verify_jwt = false
+
+[functions.secure-impersonation]
+verify_jwt = false
+
+[functions.delete-company-user]
+verify_jwt = false
+
+[functions.generate-signature-token]
+verify_jwt = false
+
+[functions.kb-sync]
+verify_jwt = false
+
+[functions.manage-totp]
+verify_jwt = false
+
+[functions.manage-platform-users]
 verify_jwt = false

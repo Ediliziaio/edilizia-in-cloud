@@ -326,7 +326,7 @@ function buildCallbackHtml(status: string, error?: string): Response {
   const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
   const allowedOrigins = [
     `https://${projectRef}.supabase.co`,
-    Deno.env.get("SITE_URL") || "",
+    Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com",
   ].filter(Boolean);
   const html = `<!DOCTYPE html><html><body><script>
     var allowedOrigins = ${JSON.stringify(allowedOrigins)};
