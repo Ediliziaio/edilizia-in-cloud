@@ -9,39 +9,39 @@ interface FAQItem {
 
 const faqs: FAQItem[] = [
   {
-    question: "Devo essere esperto di informatica?",
+    question: "Devo essere esperto di informatica per usarlo?",
     answer:
-      "No. Il sistema e' progettato per imprenditori edili, non per informatici. L'interfaccia e' intuitiva e il nostro team ti configura tutto in 48 ore. Se hai dubbi, c'e' supporto italiano sempre disponibile.",
+      "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp.",
   },
   {
-    question: "Quanto tempo ci vuole per vedere i primi risultati?",
+    question: "Quanto tempo ci vuole per vedere i primi risultati concreti?",
     answer:
-      "La maggior parte delle imprese identifica le prime inefficienze gia' nelle prime 2 settimane. Risultati concreti sui margini in 60-90 giorni.",
+      "Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre.",
   },
   {
-    question: "Posso importare i dati che ho gia' su Excel?",
+    question: "Posso importare i dati che ho su Excel o altri gestionali?",
     answer:
-      "Si'. Il nostro team importa i tuoi dati esistenti gratuitamente durante l'onboarding. Excel, CSV, altri gestionali: gestiamo noi la migrazione.",
+      "Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi.",
   },
   {
-    question: "Funziona anche da cantiere con il telefono?",
+    question: "Funziona anche in cantiere, da smartphone o tablet?",
     answer:
-      "Si', e' completamente responsive e funziona offline. I tuoi operai o capocantiere possono aggiornare lo stato lavori direttamente dallo smartphone.",
+      "Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono.",
   },
   {
-    question: "Se non mi convince, posso disdire?",
+    question: "Cosa include esattamente la demo gratuita?",
     answer:
-      "Puoi disdire in qualsiasi momento, senza penali. E ricorda: se il programma non ti fa guadagnare piu' di quanto spendi, e' gratis per sempre — e' la nostra garanzia.",
+      "Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese edili. Ti mostriamo il software sul tuo caso specifico — non una demo generica — e rispondiamo a tutte le domande. Nessun obbligo d'acquisto.",
   },
   {
-    question: "E' sicuro? Dove sono i miei dati?",
+    question: "I miei dati sono al sicuro? Chi li vede?",
     answer:
-      "I dati sono conservati su server europei (GDPR compliant), con backup automatici giornalieri e cifratura end-to-end. I tuoi dati sono solo tuoi.",
+      "I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai.",
   },
   {
-    question: "Posso integrarlo con il mio commercialista?",
+    question: "Posso disdire quando voglio? Ci sono penali?",
     answer:
-      "Si'. Puoi esportare report in PDF/Excel pronti per il commercialista. Integrazione diretta con i principali gestionali contabili in arrivo.",
+      "Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta.",
   },
 ];
 
@@ -85,16 +85,16 @@ export default function FAQSection() {
             Domande Frequenti
           </p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1a2744] mb-4">
-            Hai domande? <span style={{ color: "#0fa68c" }}>Abbiamo le risposte</span>
+            Le domande più comuni. <span style={{ color: "#0fa68c" }}>Risposte dirette.</span>
           </h2>
           <p className="text-gray-500 text-sm md:text-base">
-            Hai altre domande?{" "}
+            Non hai trovato quello che cercavi?{" "}
             <a
-              href="mailto:info@ediliziaincloud.it"
+              href="mailto:info@ediliziaincloud.com"
               className="font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
               style={{ color: "#0fa68c" }}
             >
-              Scrivici su info@ediliziaincloud.it
+              Scrivici — rispondiamo entro 24 ore
             </a>
           </p>
         </div>
@@ -181,7 +181,7 @@ export default function FAQSection() {
             transform: isVisible ? "translateY(0)" : "translateY(16px)",
           }}
         >
-          <p className="text-gray-400 text-sm mb-4">Non hai ancora la risposta che cerchi?</p>
+          <p className="text-gray-400 text-sm mb-4">Preferisci parlare con una persona?</p>
           <a
             href="#cta-finale"
             onClick={(e) => {
@@ -194,7 +194,7 @@ export default function FAQSection() {
               boxShadow: "0 4px 16px rgba(26, 39, 68, 0.2)",
             }}
           >
-            Parla con noi — e' gratis
+            Prenota una call gratuita — 30 minuti
           </a>
         </div>
       </div>
