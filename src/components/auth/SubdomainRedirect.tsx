@@ -1,38 +1,44 @@
 /**
  * SubdomainRedirect — enforces subdomain-based routing.
  *
- * Mounted at the root "/" route. Reads the subdomain and redirects
- * to the appropriate section instead of the generic RoleBasedRedirect.
+ * Mounted at the root "/" route. Reads the subdomain and renders
+ * the appropriate section without a client-side redirect (avoids
+ * blank-screen flash on www.ediliziaincloud.com).
  *
- * For "www" — always lands on the marketing home page.
- * For "admin" — goes to admin login or admin dashboard.
- * For "clienti" — goes to customer portal.
- * For "app" / default — falls through to RoleBasedRedirect as usual.
+ * For "www" / bare domain — renders the Home (landing) page directly.
+ * For "admin"             — goes to admin login or admin dashboard.
+ * For "clienti"           — goes to customer portal.
+ * For "app" / default     — falls through to RoleBasedRedirect.
  */
 
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 
+// Lazy-load Home so it doesn't bloat the initial bundle for non-www subdomains
+const Home = lazy(() => import("@/pages/Home"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
 export function SubdomainRedirect() {
-  const { subdomain, defaultPath } = useSubdomainRoute();
-  const navigate = useNavigate();
+  const { subdomain } = useSubdomainRoute();
 
-  useEffect(() => {
-    if (subdomain === "www") {
-      // Always show landing page on www.
-      navigate("/home", { replace: true });
-    }
-    // admin, clienti, app/other — let RoleBasedRedirect handle it
-    // (it already routes based on the authenticated user's role)
-  }, [subdomain, navigate, defaultPath]);
-
-  // For www we navigate away immediately; for all others use the existing
-  // role-based redirect logic which works fine for admin, clienti etc.
+  // www.ediliziaincloud.com or bare ediliziaincloud.com → landing page
   if (subdomain === "www") {
-    return null;
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Home />
+      </Suspense>
+    );
   }
 
+  // admin, clienti, app, other — role-based routing handles it
   return <RoleBasedRedirect />;
 }
