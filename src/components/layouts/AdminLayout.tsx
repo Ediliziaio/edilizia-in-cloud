@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { navigateToSubdomain } from "@/utils/subdomainNav";
+import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -319,7 +319,21 @@ function AdminMainSidebar() {
   const handleImpersonate = async (companyId: string) => {
     setPopoverOpen(false);
     setCompanySearch("");
-    await impersonateCompany(companyId, permissions);
+    const impToken = await impersonateCompany(companyId, permissions);
+    if (impToken) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const params = new URLSearchParams({
+          _at: session.access_token,
+          _rt: session.refresh_token ?? '',
+          _it: impToken,
+          _ic: companyId,
+        });
+        const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
+        window.location.href = url;
+        return;
+      }
+    }
     navigateToSubdomain("/azienda", "app", navigate);
   };
 

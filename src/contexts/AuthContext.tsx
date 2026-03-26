@@ -14,7 +14,7 @@ interface AuthContextType extends AuthState {
   impersonatedCompanyId: string | null;
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
-  impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<void>;
+  impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<string | null>;
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
@@ -114,6 +114,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (impersonationToken) sessionStorage.setItem(IMP_TOKEN_KEY, impersonationToken);
     else sessionStorage.removeItem(IMP_TOKEN_KEY);
   }, [impersonatedCompanyId, impersonationToken]);
+
+  // Handle cross-subdomain impersonation handoff via URL hash
+  // When navigating from admin. to app., session + imp tokens are passed as #_at=&_rt=&_it=&_ic=
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('_at=')) return;
+
+    const params = new URLSearchParams(hash.slice(1));
+    const accessToken = params.get('_at');
+    const refreshToken = params.get('_rt');
+    const impToken = params.get('_it');
+    const impCompanyId = params.get('_ic');
+
+    if (!accessToken || !refreshToken) return;
+
+    // Clear hash immediately to avoid token exposure in browser history
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
+    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .then(() => {
+        if (impToken && impCompanyId) {
+          sessionStorage.setItem(IMP_TOKEN_KEY, impToken);
+          sessionStorage.setItem(IMP_COMPANY_KEY, impCompanyId);
+          setImpersonationToken(impToken);
+          setImpersonatedCompanyId(impCompanyId);
+        }
+      })
+      .catch(err => logger.error("Cross-subdomain session restore failed:", err));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Validate persisted impersonation token on mount
   useEffect(() => {
@@ -336,10 +365,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   
 
-  const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => {
+  const impersonateCompany = useCallback(async (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }): Promise<string | null> => {
     if (state.role !== "super_admin") {
       logger.error("Only super_admin can impersonate companies");
-      return;
+      return null;
     }
 
     if (permissions) {
@@ -349,7 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
         });
-        return;
+        return null;
       }
 
       if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
@@ -358,7 +387,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
         });
-        return;
+        return null;
       }
     }
 
@@ -370,13 +399,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error || !data?.token) {
         logger.error("Failed to start secure impersonation:", error);
         toast.error("Errore impersonazione", { description: "Impossibile avviare la sessione aziendale. Riprova." });
-        return;
+        return null;
       }
 
       setImpersonationToken(data.token);
       setImpersonatedCompanyId(companyId);
+      return data.token;
     } catch (err) {
       logger.error("Impersonation error:", err);
+      return null;
     }
   }, [state.role]);
 
