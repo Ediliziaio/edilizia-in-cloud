@@ -9,7 +9,7 @@ import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
-import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
+import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 
 // Route modules
 import { adminRoutes } from "@/routes/adminRoutes";
@@ -27,6 +27,17 @@ const PageLoader = () => (
 const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
+
+/**
+ * LoginRouter — renders the correct login page based on the current subdomain.
+ * This ensures clienti.ediliziaincloud.com/login shows ClientiLogin, etc.
+ */
+function LoginRouter() {
+  const sub = getCurrentSubdomain();
+  if (sub === "admin") return <AdminLogin />;
+  if (sub === "clienti") return <ClientiLogin />;
+  return <Login />;
+}
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Home = lazy(() => import("@/pages/Home"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
@@ -86,7 +97,7 @@ const App = () => (
             <Routes>
               {/* Public Routes */}
               <Route path="/home" element={<Home />} />
-              <Route path="/login" element={<Login />} />
+              <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
