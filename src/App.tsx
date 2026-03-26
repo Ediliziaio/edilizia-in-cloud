@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
+import ScrollToTop from "@/components/ScrollToTop";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
@@ -109,6 +110,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <SubdomainTitleSetter />
+        <ScrollToTop />
         <AuthProvider>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
