@@ -13,8 +13,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Funzionalita", type: "link", to: "/funzionalita" },
   { label: "Chi Siamo", type: "link", to: "/chi-siamo" },
-  { label: "Confronto", type: "anchor", href: "#confronto" },
-  { label: "Prezzi", type: "anchor", href: "#prezzi" },
+  { label: "Confronto", type: "link", to: "/confronto" },
+  { label: "Prezzi", type: "link", to: "/prezzi" },
 ];
 
 export default function LandingNavbar() {
