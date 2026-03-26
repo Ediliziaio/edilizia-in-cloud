@@ -53,10 +53,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
-  const { data: tickets = [], isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.companyTickets.list(effectiveCompany?.id),
+  const { data: queryResult, isLoading, isError, refetch } = useQuery({
+    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), statusFilter, priorityFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("tickets")
         .select(`
           id, subject, status, priority, created_at, updated_at, last_message_at,
@@ -64,28 +64,37 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email),
           order:orders(description),
           assignee:profiles!tickets_assigned_to_fkey(first_name, last_name)
-        `)
+        `, { count: "exact" })
         .eq("company_id", effectiveCompany?.id ?? "")
-        .order("last_message_at", { ascending: false, nullsFirst: false })
-        .range(0, 499);
+        .order("last_message_at", { ascending: false, nullsFirst: false });
+
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+      if (priorityFilter !== "all") {
+        query = query.eq("priority", priorityFilter);
+      }
+
+      const { data, error, count } = await query.range(0, 199);
 
       if (error) throw error;
-      return data as unknown as TicketListItem[];
+      return { tickets: data as unknown as TicketListItem[], totalCount: count ?? 0 };
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 2 * 60 * 1000,
   });
 
+  const tickets = queryResult?.tickets ?? [];
+
   const filteredTickets = tickets.filter((ticket) => {
+    if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
-    const matchesSearch =
+    return (
       ticket.subject.toLowerCase().includes(query) ||
       ticket.customer?.first_name?.toLowerCase().includes(query) ||
       ticket.customer?.last_name?.toLowerCase().includes(query) ||
-      ticket.customer?.email?.toLowerCase().includes(query);
-    const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
-    const matchesPriority = priorityFilter === "all" || ticket.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+      ticket.customer?.email?.toLowerCase().includes(query)
+    );
   });
 
   const statusCounts = {

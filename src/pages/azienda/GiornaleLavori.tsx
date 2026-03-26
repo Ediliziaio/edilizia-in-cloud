@@ -87,7 +87,8 @@ export default function GiornaleLavori() {
         .from("giornale_lavori")
         .select("*, giornale_foto(id, url)")
         .eq("company_id", companyId!)
-        .order("data_lavori", { ascending: false });
+        .order("data_lavori", { ascending: false })
+        .limit(200);
       if (selectedOrderId) q = q.eq("order_id", selectedOrderId);
       const { data } = await q;
       return data || [];

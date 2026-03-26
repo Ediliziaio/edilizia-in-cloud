@@ -114,13 +114,15 @@ export default function Warehouse() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("warehouse_stock")
-        .select("*")
+        .select("id, company_id, name, description, quantity, unit_cost, vat_rate, supplier_id, section_id, min_stock_level, created_at, updated_at")
         .eq("company_id", effectiveCompany.id)
         .order("name");
       if (error) throw error;
       return data as StockItem[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Multi-selection state for order items DnD
