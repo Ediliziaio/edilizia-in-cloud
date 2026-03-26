@@ -5,13 +5,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  ClipboardList,
+  Calendar,
+  Smartphone,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
+import { cn } from "@/lib/utils";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
 type ViewMode = "login" | "forgot" | "2fa";
+
+const features = [
+  { icon: ClipboardList, text: "Gestione ordini e cantieri in tempo reale" },
+  { icon: Calendar, text: "Calendario, scadenzari e prima nota integrati" },
+  { icon: Smartphone, text: "Accesso da qualsiasi dispositivo, ovunque" },
+];
 
 export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, ref) {
   const [view, setView] = useState<ViewMode>("login");
@@ -21,6 +40,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -72,10 +92,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsLoading(true);
     try {
       const { error } = await signIn(email, password);
       if (error) {
+        setFormError("Email o password non validi. Riprova.");
         toast({
           variant: "destructive",
           title: "Errore di accesso",
@@ -100,6 +122,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
       toast({ title: "Accesso effettuato", description: "Benvenuto!" });
     } catch {
+      setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({
         variant: "destructive",
         title: "Errore",
@@ -137,12 +160,14 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) {
+        setFormError("Impossibile inviare l'email di reset. Riprova.");
         toast({
           variant: "destructive",
           title: "Errore",
@@ -152,6 +177,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         setResetSent(true);
       }
     } catch {
+      setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({
         variant: "destructive",
         title: "Errore",
@@ -166,11 +192,13 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     setView("forgot");
     setResetSent(false);
     setPassword("");
+    setFormError(null);
   };
 
   const switchToLogin = () => {
     setView("login");
     setResetSent(false);
+    setFormError(null);
   };
 
   const handle2FAVerified = () => {
@@ -184,14 +212,26 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     toast({ title: "Accesso annullato", description: "Verifica 2FA richiesta." });
   };
 
+  const gradientStyle = loginBgColor
+    ? { background: loginBgColor }
+    : undefined;
+
+  const gradientClass = !loginBgColor
+    ? "bg-gradient-to-br from-primary via-primary/90 to-primary/70"
+    : "";
+
   return (
     <div ref={ref} className="min-h-screen flex flex-col lg:flex-row bg-background">
-      {/* Left branding panel — dynamic */}
+      {/* ─── Left branding panel (desktop only) ─── */}
       <div
-        className="hidden lg:flex lg:w-1/2 items-center justify-center p-12"
-        style={{ backgroundColor: loginBgColor || "hsl(var(--primary))" }}
+        className={cn(
+          "hidden lg:flex lg:w-[45%] items-center justify-center p-12 shrink-0",
+          gradientClass
+        )}
+        style={gradientStyle}
       >
-        <div className="max-w-md text-center space-y-8">
+        <div className="max-w-sm w-full text-center space-y-10 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
+          {/* Logo */}
           {loginLogoUrl ? (
             <img
               src={loginLogoUrl}
@@ -205,55 +245,96 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
               className="h-14 mx-auto brightness-0 invert"
             />
           )}
-          <h1 className="text-3xl font-bold text-white">
-            {isWhiteLabel ? platformName : "La piattaforma per l'edilizia moderna"}
-          </h1>
-          <p className="text-white/70 text-lg leading-relaxed">
-            {isWhiteLabel
-              ? loginSubtitle
-              : "Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto."}
-          </p>
+
+          {/* Headline */}
+          <div className="space-y-3">
+            <h1 className="text-3xl font-bold text-white leading-tight">
+              {isWhiteLabel ? platformName : "La piattaforma per l'edilizia moderna"}
+            </h1>
+            <p className="text-white/70 text-base leading-relaxed">
+              {isWhiteLabel
+                ? loginSubtitle
+                : "Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto."}
+            </p>
+          </div>
+
+          {/* Feature bullets */}
+          {!isWhiteLabel && (
+            <div className="space-y-4 text-left">
+              {features.map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-3 text-white/90">
+                  <div className="rounded-full bg-white/20 p-2 shrink-0">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm">{text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="lg:hidden mb-10">
-          {loginLogoUrl ? (
-            <img src={loginLogoUrl} alt={platformName} className="h-12 mx-auto object-contain" />
-          ) : (
-            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto" />
+      {/* ─── Right form panel (desktop) / Full-screen gradient (mobile) ─── */}
+      <div
+        className={cn(
+          "flex-1 flex items-center justify-center px-4 py-10 lg:py-12 lg:px-12",
+          // Mobile: same gradient background
+          "lg:bg-background",
+          gradientClass + " lg:bg-none"
+        )}
+        style={!loginBgColor ? undefined : gradientStyle}
+      >
+        {/* Card — glassmorphism on mobile, clean panel on desktop */}
+        <div
+          className={cn(
+            "w-full max-w-sm",
+            // Mobile card
+            "rounded-2xl bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-8",
+            // Desktop: reset to plain background
+            "lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:backdrop-blur-none lg:shadow-none lg:p-0",
+            "animate-in fade-in-0 slide-in-from-bottom-4 duration-500"
           )}
-        </div>
+        >
+          {/* Mobile logo (inside card) */}
+          <div className="lg:hidden mb-8 text-center">
+            {loginLogoUrl ? (
+              <img src={loginLogoUrl} alt={platformName} className="h-11 mx-auto object-contain" />
+            ) : (
+              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-11 mx-auto" />
+            )}
+          </div>
 
-        <div className="w-full max-w-sm space-y-8">
+          {/* ── 2FA view ── */}
           {view === "2fa" && (
-            <TwoFactorVerify onVerified={handle2FAVerified} onCancel={handle2FACancel} />
+            <div className="animate-in fade-in-0 duration-300">
+              <TwoFactorVerify onVerified={handle2FAVerified} onCancel={handle2FACancel} />
+            </div>
           )}
 
+          {/* ── Login view ── */}
           {view === "login" && (
-            <>
-              <div className="text-center space-y-2">
+            <div className="animate-in fade-in-0 duration-300 space-y-6">
+              <div className="text-center space-y-1">
                 <h2 className="text-2xl font-bold text-foreground">Bentornato</h2>
-                <p className="text-muted-foreground">Accedi al tuo account</p>
+                <p className="text-muted-foreground text-sm">Accedi al tuo account</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="email"
                       type="email"
                       placeholder="nome@azienda.it"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setFormError(null); setEmail(e.target.value); }}
                       required
                       disabled={isLoading}
                       autoComplete="email"
-                      className="pl-10 h-11"
+                      autoFocus
+                      className="pl-10 h-12 sm:h-11"
                     />
                   </div>
                 </div>
@@ -270,30 +351,43 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     </button>
                   </div>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setFormError(null); setPassword(e.target.value); }}
                       required
                       disabled={isLoading}
                       autoComplete="current-password"
-                      className="pl-10 pr-10 h-11"
+                      className="pl-10 pr-12 h-12 sm:h-11"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 p-2 -mr-0 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                {/* Inline error */}
+                {formError && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {formError}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold transition-all"
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -311,21 +405,23 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   <span className="w-full border-t border-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">oppure</span>
+                  <span className="bg-white dark:bg-zinc-900 lg:bg-background lg:dark:bg-background px-2 text-muted-foreground">
+                    oppure
+                  </span>
                 </div>
               </div>
 
               {/* Google button */}
               <Button
                 variant="outline"
-                className="w-full h-11"
+                className="w-full h-12 sm:h-11"
                 onClick={handleGoogleLogin}
                 disabled={isGoogleLoading}
               >
                 {isGoogleLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                  <svg className="mr-2 h-4 w-4 shrink-0" viewBox="0 0 24 24">
                     <path
                       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                       fill="#4285F4"
@@ -350,14 +446,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
               <p className="text-center text-xs text-muted-foreground">
                 Problemi di accesso? Contatta il tuo amministratore
               </p>
-            </>
+            </div>
           )}
 
+          {/* ── Forgot password view ── */}
           {view === "forgot" && (
-            <>
-              <div className="text-center space-y-2">
+            <div className="animate-in fade-in-0 duration-300 space-y-6">
+              <div className="text-center space-y-1">
                 <h2 className="text-2xl font-bold text-foreground">Recupera password</h2>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Inserisci la tua email per ricevere il link di reset
                 </p>
               </div>
@@ -375,22 +472,35 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   <div className="space-y-2">
                     <Label htmlFor="reset-email">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <Input
                         id="reset-email"
                         type="email"
                         placeholder="nome@azienda.it"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => { setFormError(null); setEmail(e.target.value); }}
                         required
                         disabled={isLoading}
                         autoComplete="email"
-                        className="pl-10 h-11"
+                        autoFocus
+                        className="pl-10 h-12 sm:h-11"
                       />
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                  {/* Inline error */}
+                  {formError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {formError}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold transition-all"
+                    disabled={isLoading}
+                  >
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -411,7 +521,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Torna al login
               </Button>
-            </>
+            </div>
           )}
         </div>
       </div>

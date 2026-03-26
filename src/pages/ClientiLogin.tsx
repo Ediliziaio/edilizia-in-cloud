@@ -14,6 +14,10 @@ import {
   ArrowLeft,
   CheckCircle2,
   Building2,
+  FileText,
+  Calendar,
+  MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
@@ -29,6 +33,7 @@ export default function ClientiLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Already authenticated as customer — redirect to portal
@@ -39,15 +44,17 @@ export default function ClientiLogin() {
   // Already authenticated but wrong role — block access
   if (!isLoading && user && role && role !== "customer") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="text-center space-y-4 max-w-sm">
-          <Building2 className="h-16 w-16 text-destructive mx-auto" />
-          <h1 className="text-2xl font-bold">Accesso Negato</h1>
-          <p className="text-muted-foreground">
-            Accesso riservato ai clienti. Contatta l&apos;azienda per assistenza.
-          </p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 p-4">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 text-center space-y-6 max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl p-8">
+          <Building2 className="h-14 w-14 text-red-500 mx-auto" />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">Accesso Negato</h1>
+            <p className="text-muted-foreground text-sm">
+              Accesso riservato ai clienti. Contatta l&apos;azienda per assistenza.
+            </p>
+          </div>
           <Button
-            variant="outline"
+            className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white"
             onClick={async () => {
               await signOut();
             }}
@@ -61,10 +68,10 @@ export default function ClientiLogin() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Caricamento...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-white" />
+          <p className="text-white/80 text-sm">Caricamento...</p>
         </div>
       </div>
     );
@@ -72,16 +79,13 @@ export default function ClientiLogin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsSubmitting(true);
 
     try {
       const { error } = await signIn(email, password);
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Errore di accesso",
-          description: "Email o password non validi. Riprova.",
-        });
+        setFormError("Email o password non validi. Riprova.");
         setIsSubmitting(false);
         return;
       }
@@ -101,7 +105,9 @@ export default function ClientiLogin() {
       }
 
       // Verify that the logged-in user is actually a customer
-      const { data: { user: loggedUser } } = await supabase.auth.getUser();
+      const {
+        data: { user: loggedUser },
+      } = await supabase.auth.getUser();
       if (loggedUser) {
         const { data: roles } = await supabase
           .from("user_roles")
@@ -111,12 +117,7 @@ export default function ClientiLogin() {
         const isCustomer = roles?.some((r) => r.role === "customer");
         if (!isCustomer) {
           await supabase.auth.signOut();
-          toast({
-            variant: "destructive",
-            title: "Accesso Negato",
-            description:
-              "Accesso riservato ai clienti. Contatta l'azienda per assistenza.",
-          });
+          setFormError("Accesso riservato ai clienti. Contatta l'azienda per assistenza.");
           setIsSubmitting(false);
           return;
         }
@@ -124,11 +125,7 @@ export default function ClientiLogin() {
 
       toast({ title: "Accesso effettuato", description: "Benvenuto nel portale clienti!" });
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Si è verificato un errore. Riprova più tardi.",
-      });
+      setFormError("Si è verificato un errore. Riprova più tardi.");
     } finally {
       setIsSubmitting(false);
     }
@@ -136,26 +133,19 @@ export default function ClientiLogin() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile inviare l'email di reset. Riprova.",
-        });
+        setFormError("Impossibile inviare l'email di reset. Riprova.");
       } else {
         setResetSent(true);
       }
     } catch {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Si è verificato un errore. Riprova più tardi.",
-      });
+      setFormError("Si è verificato un errore. Riprova più tardi.");
     } finally {
       setIsSubmitting(false);
     }
@@ -165,11 +155,13 @@ export default function ClientiLogin() {
     setView("forgot");
     setResetSent(false);
     setPassword("");
+    setFormError(null);
   };
 
   const switchToLogin = () => {
     setView("login");
     setResetSent(false);
+    setFormError(null);
   };
 
   const handle2FAVerified = () => {
@@ -184,60 +176,102 @@ export default function ClientiLogin() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-background">
-      {/* Left branding panel — blue/teal gradient */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500">
-        <div className="max-w-md text-center space-y-8">
-          <img
-            src={ediliziaLogo}
-            alt="Edilizia in Cloud"
-            className="h-14 mx-auto object-contain brightness-0 invert"
-          />
-          <div className="space-y-2">
-            <p className="text-white/80 text-sm font-semibold uppercase tracking-widest">
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left branding panel — desktop only */}
+      <div className="hidden lg:flex lg:w-[45%] flex-col items-center justify-center p-12 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500">
+        <div className="max-w-sm w-full space-y-10">
+          {/* Logo */}
+          <div className="flex justify-start">
+            <img
+              src={ediliziaLogo}
+              alt="Edilizia in Cloud"
+              className="h-12 object-contain brightness-0 invert"
+            />
+          </div>
+
+          {/* Title block */}
+          <div className="space-y-3">
+            <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">
               Portale Clienti
             </p>
             <h1 className="text-3xl font-bold text-white leading-tight">
-              Benvenuto nel portale clienti
+              Benvenuto nel tuo portale
             </h1>
+            <p className="text-white/80 text-base leading-relaxed">
+              Visualizza ordini, documenti e appuntamenti in tempo reale
+            </p>
           </div>
-          <p className="text-white/70 text-lg leading-relaxed">
-            Accedi per visualizzare i tuoi ordini, documenti e appuntamenti.
-          </p>
 
-          {/* Decorative icon */}
-          <div className="flex justify-center">
-            <div className="rounded-full bg-white/10 p-6">
-              <Building2 className="h-16 w-16 text-white/90" />
+          {/* Feature list */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-white/90 text-sm font-medium">
+                I tuoi ordini e documenti
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-white/90 text-sm font-medium">
+                Appuntamenti e scadenze
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
+                <MessageSquare className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-white/90 text-sm font-medium">
+                Comunicazione diretta con l&apos;azienda
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="lg:hidden mb-10 text-center space-y-2">
-          <img
-            src={ediliziaLogo}
-            alt="Edilizia in Cloud"
-            className="h-12 mx-auto object-contain"
-          />
-          <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest">
-            Portale Clienti
-          </p>
-        </div>
-
-        <div className="w-full max-w-sm space-y-8">
-          {view === "2fa" && (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-screen lg:min-h-0 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 lg:bg-none lg:bg-background p-6">
+        {/* 2FA view */}
+        {view === "2fa" && (
+          <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl p-8 space-y-6">
+            <div className="text-center space-y-3">
+              <div className="flex justify-center">
+                <div className="rounded-full bg-blue-100 dark:bg-blue-900/30 p-4">
+                  <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <h2 className="text-xl font-bold text-foreground">Verifica 2FA</h2>
+              <p className="text-sm text-muted-foreground">Portale Clienti</p>
+            </div>
             <TwoFactorVerify onVerified={handle2FAVerified} onCancel={handle2FACancel} />
-          )}
+          </div>
+        )}
 
-          {view === "login" && (
-            <>
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-foreground">Accedi</h2>
-                <p className="text-muted-foreground">
+        {/* Login view */}
+        {view === "login" && (
+          <>
+            {/* Mobile logo */}
+            <div className="lg:hidden mb-8 text-center space-y-2">
+              <img
+                src={ediliziaLogo}
+                alt="Edilizia in Cloud"
+                className="h-10 mx-auto object-contain brightness-0 invert"
+              />
+              <p className="text-xs font-semibold text-white/80 uppercase tracking-widest">
+                Portale Clienti
+              </p>
+            </div>
+
+            <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl lg:shadow-none lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:backdrop-blur-none p-8 lg:p-0 space-y-6">
+              {/* Desktop header */}
+              <div className="text-center space-y-1">
+                <h2 className="text-2xl font-bold text-foreground lg:text-foreground text-zinc-900 dark:text-white">
+                  Accedi
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:text-muted-foreground">
                   Inserisci le tue credenziali per accedere al portale
                 </p>
               </div>
@@ -252,11 +286,15 @@ export default function ClientiLogin() {
                       type="email"
                       placeholder="nome@esempio.it"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setFormError(null);
+                      }}
                       required
+                      autoFocus
                       disabled={isSubmitting}
                       autoComplete="email"
-                      className="pl-10 h-11"
+                      className="pl-10 h-12"
                     />
                   </div>
                 </div>
@@ -267,7 +305,7 @@ export default function ClientiLogin() {
                     <button
                       type="button"
                       onClick={switchToForgot}
-                      className="text-xs text-blue-600 hover:underline font-medium"
+                      className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                     >
                       Password dimenticata?
                     </button>
@@ -279,11 +317,14 @@ export default function ClientiLogin() {
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFormError(null);
+                      }}
                       required
                       disabled={isSubmitting}
                       autoComplete="current-password"
-                      className="pl-10 pr-10 h-11"
+                      className="pl-10 pr-10 h-12"
                     />
                     <button
                       type="button"
@@ -291,14 +332,25 @@ export default function ClientiLogin() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
 
+                {formError && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {formError}
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-medium shadow-md"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -315,24 +367,39 @@ export default function ClientiLogin() {
               <p className="text-center text-xs text-muted-foreground">
                 Problemi di accesso? Contatta l&apos;azienda per assistenza.
               </p>
-            </>
-          )}
+            </div>
+          </>
+        )}
 
-          {view === "forgot" && (
-            <>
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-foreground">Recupera password</h2>
-                <p className="text-muted-foreground">
+        {/* Forgot password view */}
+        {view === "forgot" && (
+          <>
+            {/* Mobile logo */}
+            <div className="lg:hidden mb-8 text-center space-y-2">
+              <img
+                src={ediliziaLogo}
+                alt="Edilizia in Cloud"
+                className="h-10 mx-auto object-contain brightness-0 invert"
+              />
+            </div>
+
+            <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl lg:shadow-none lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:backdrop-blur-none p-8 lg:p-0 space-y-6">
+              <div className="text-center space-y-1">
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white lg:text-foreground">
+                  Recupera password
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:text-muted-foreground">
                   Inserisci la tua email per ricevere il link di reset
                 </p>
               </div>
 
               {resetSent ? (
                 <div className="text-center space-y-4 py-4">
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
-                  <p className="text-foreground font-medium">Email inviata!</p>
-                  <p className="text-sm text-muted-foreground">
-                    Controlla la tua casella di posta e clicca sul link per reimpostare la password.
+                  <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto" />
+                  <p className="text-foreground font-semibold">Email inviata!</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Controlla la tua casella di posta e clicca sul link per reimpostare la
+                    password.
                   </p>
                 </div>
               ) : (
@@ -346,18 +413,29 @@ export default function ClientiLogin() {
                         type="email"
                         placeholder="nome@esempio.it"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setFormError(null);
+                        }}
                         required
+                        autoFocus
                         disabled={isSubmitting}
                         autoComplete="email"
-                        className="pl-10 h-11"
+                        className="pl-10 h-12"
                       />
                     </div>
                   </div>
 
+                  {formError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 text-sm">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {formError}
+                    </div>
+                  )}
+
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-medium shadow-md"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -372,13 +450,17 @@ export default function ClientiLogin() {
                 </form>
               )}
 
-              <Button variant="ghost" className="w-full" onClick={switchToLogin}>
+              <Button
+                variant="ghost"
+                className="w-full text-zinc-700 dark:text-zinc-300 lg:text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                onClick={switchToLogin}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Torna al login
               </Button>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
