@@ -43,6 +43,7 @@ const Home = lazy(() => import("@/pages/Home"));
 const Demo = lazy(() => import("@/pages/Demo"));
 const Funzionalita = lazy(() => import("@/pages/Funzionalita"));
 const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));
+const Confronto = lazy(() => import("@/pages/Confronto"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
 const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
@@ -103,6 +104,7 @@ const App = () => (
               <Route path="/demo" element={<Demo />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />
+              <Route path="/confronto" element={<Confronto />} />
               <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
