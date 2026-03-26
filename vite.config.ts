@@ -72,8 +72,10 @@ export default defineConfig(() => ({
           if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor")) return "charts";
           if (id.includes("@tiptap")) return "editor";
           if (id.includes("@supabase")) return "supabase";
+          // react + react-dom MUST be in the same chunk to avoid the
+          // "__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED" undefined error
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/") || id.includes("node_modules/react-is/") || id.includes("node_modules/scheduler/")) return "react-vendor";
           if (id.includes("react-router")) return "react-router";
-          if (id.includes("react-dom")) return "react-dom";
           if (id.includes("@tanstack")) return "tanstack";
           if (id.includes("@radix-ui")) return "radix";
           if (id.includes("@dnd-kit")) return "dnd";
