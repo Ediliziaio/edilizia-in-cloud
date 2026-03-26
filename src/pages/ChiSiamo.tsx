@@ -7,6 +7,125 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 /* ─────────────────────────────────────────────
+   ICONE EDILIZIA FLOATING
+───────────────────────────────────────────── */
+const EDILIZIA_ICONS = [
+  // Caschetto
+  { id: "caschetto", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 22h20v2a1 1 0 01-1 1H7a1 1 0 01-1-1v-2z"/>
+      <path d="M6 22v-1a10 10 0 0120 0v1"/>
+      <path d="M16 8v4M11 10a6 6 0 0110 0"/>
+      <path d="M4 22h24"/>
+    </svg>
+  )},
+  // Finestra infisso
+  { id: "infisso", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="24" height="24" rx="1.5"/>
+      <path d="M16 4v24M4 16h24"/>
+      <path d="M8 8v4M24 8v4M8 20v4M24 20v4"/>
+    </svg>
+  )},
+  // Pannello fotovoltaico
+  { id: "fotovoltaico", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="8" width="28" height="16" rx="1.5"/>
+      <path d="M11 8v16M21 8v16M2 13h28M2 19h28"/>
+      <path d="M13 28h6M16 24v4"/>
+    </svg>
+  )},
+  // Casa ristrutturazione
+  { id: "casa", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 13L16 3l12 10v16a1 1 0 01-1 1H5a1 1 0 01-1-1V13z"/>
+      <path d="M12 29V19h8v10"/>
+      <path d="M20 9l3 2.5M22 6v5M19 7h5"/>
+    </svg>
+  )},
+  // Gru da cantiere
+  { id: "gru", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 28V6"/>
+      <path d="M10 6h16"/>
+      <path d="M26 6v10"/>
+      <path d="M26 16l-4 4M21 16H10"/>
+      <path d="M18 20v4"/>
+      <rect x="7" y="26" width="6" height="3" rx="1"/>
+      <path d="M10 8l3 2M10 11l3 2M10 14l3 2"/>
+    </svg>
+  )},
+  // Muro / mattoni
+  { id: "muro", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="10" height="6" rx="0.8"/>
+      <rect x="16" y="5" width="14" height="6" rx="0.8"/>
+      <rect x="2" y="14" width="14" height="6" rx="0.8"/>
+      <rect x="20" y="14" width="10" height="6" rx="0.8"/>
+      <rect x="2" y="23" width="10" height="6" rx="0.8"/>
+      <rect x="16" y="23" width="14" height="6" rx="0.8"/>
+    </svg>
+  )},
+  // Chiave inglese
+  { id: "chiave", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 4a6 6 0 00-5.66 8L4 22.3 5.7 28l5.7-1.7L21 16.66A6 6 0 0020 4z"/>
+      <circle cx="21" cy="9" r="2"/>
+    </svg>
+  )},
+  // Misuratore / nastro metrico
+  { id: "metro", svg: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="11" width="28" height="10" rx="2"/>
+      <path d="M7 11v4M12 11v6M17 11v4M22 11v6M27 11v4"/>
+    </svg>
+  )},
+];
+
+type IconParticle = {
+  iconId: string;
+  size: number;
+  top: string;
+  left?: string;
+  right?: string;
+  delay: string;
+  dur: string;
+  opacity: number;
+  rotate: number;
+};
+
+function FloatingIcons({ particles }: { particles: IconParticle[] }) {
+  return (
+    <>
+      {particles.map((p, i) => {
+        const icon = EDILIZIA_ICONS.find(ic => ic.id === p.iconId) ?? EDILIZIA_ICONS[i % EDILIZIA_ICONS.length];
+        return (
+          <div
+            key={i}
+            className="absolute pointer-events-none animate-float"
+            style={{
+              width: p.size,
+              height: p.size,
+              top: p.top,
+              left: p.left,
+              right: p.right,
+              color: "#F97415",
+              opacity: p.opacity,
+              animationDelay: p.delay,
+              animationDuration: p.dur,
+              transform: `rotate(${p.rotate}deg)`,
+              filter: `drop-shadow(0 0 ${Math.round(p.size / 4)}px rgba(249,116,21,0.5))`,
+            }}
+          >
+            {icon.svg}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
    PROMO BANNER
 ───────────────────────────────────────────── */
 function PromoBanner() {
@@ -230,27 +349,17 @@ export default function ChiSiamo() {
         <div className="absolute top-[40%] left-[10%] w-[180px] h-[180px] rounded-full pointer-events-none"
           style={{ background: "radial-gradient(circle, rgba(249,116,21,0.07) 0%, transparent 70%)", filter: "blur(30px)" }} />
 
-        {/* ── Particelle floating ── */}
-        {[
-          { w: 6, h: 6, top: "18%", left: "8%", delay: "0s", dur: "6s", opacity: 0.45 },
-          { w: 4, h: 4, top: "65%", left: "14%", delay: "1.5s", dur: "8s", opacity: 0.3 },
-          { w: 8, h: 8, top: "30%", right: "10%", delay: "0.8s", dur: "7s", opacity: 0.35 },
-          { w: 3, h: 3, top: "72%", right: "18%", delay: "2.2s", dur: "5.5s", opacity: 0.5 },
-          { w: 5, h: 5, top: "12%", left: "45%", delay: "3s", dur: "9s", opacity: 0.25 },
-          { w: 7, h: 7, top: "80%", left: "60%", delay: "1s", dur: "6.5s", opacity: 0.3 },
-        ].map((p, i) => (
-          <div key={i} className="absolute rounded-full pointer-events-none animate-float"
-            style={{
-              width: p.w, height: p.h,
-              top: p.top, left: (p as any).left, right: (p as any).right,
-              background: "#F97415",
-              opacity: p.opacity,
-              animationDelay: p.delay,
-              animationDuration: p.dur,
-              boxShadow: `0 0 ${p.w * 3}px rgba(249,116,21,0.6)`,
-            }}
-          />
-        ))}
+        {/* ── Icone edilizia floating ── */}
+        <FloatingIcons particles={[
+          { iconId: "caschetto",    size: 36, top: "16%", left: "6%",   delay: "0s",   dur: "7s",   opacity: 0.30, rotate: -8  },
+          { iconId: "fotovoltaico", size: 30, top: "62%", left: "10%",  delay: "1.8s", dur: "8.5s", opacity: 0.22, rotate: 6   },
+          { iconId: "infisso",      size: 28, top: "28%", right: "8%",  delay: "0.6s", dur: "6.5s", opacity: 0.25, rotate: 10  },
+          { iconId: "gru",          size: 34, top: "70%", right: "14%", delay: "2.4s", dur: "9s",   opacity: 0.20, rotate: -5  },
+          { iconId: "casa",         size: 26, top: "10%", left: "42%",  delay: "3.2s", dur: "7.5s", opacity: 0.18, rotate: 4   },
+          { iconId: "chiave",       size: 24, top: "82%", left: "55%",  delay: "1.1s", dur: "6s",   opacity: 0.22, rotate: -12 },
+          { iconId: "muro",         size: 28, top: "45%", right: "5%",  delay: "4s",   dur: "8s",   opacity: 0.18, rotate: 0   },
+          { iconId: "metro",        size: 26, top: "88%", left: "25%",  delay: "2s",   dur: "10s",  opacity: 0.16, rotate: 8   },
+        ]} />
 
         <div
           ref={heroAnim.ref}
@@ -802,29 +911,17 @@ export default function ChiSiamo() {
         <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
           style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.6) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.6) 60%, transparent 100%)" }} />
 
-        {/* Particelle floating */}
-        {[
-          { size: 5,  top: "15%", left: "6%",   delay: "0s",   dur: "7s",   op: 0.4 },
-          { size: 3,  top: "70%", left: "10%",  delay: "2s",   dur: "5.5s", op: 0.3 },
-          { size: 7,  top: "25%", left: "20%",  delay: "1s",   dur: "8s",   op: 0.2 },
-          { size: 4,  top: "80%", left: "40%",  delay: "3.5s", dur: "6s",   op: 0.35 },
-          { size: 6,  top: "10%", right: "8%",  delay: "0.5s", dur: "9s",   op: 0.25 },
-          { size: 3,  top: "60%", right: "12%", delay: "1.8s", dur: "6.5s", op: 0.4 },
-          { size: 5,  top: "40%", right: "25%", delay: "2.8s", dur: "7.5s", op: 0.2 },
-          { size: 8,  top: "85%", right: "35%", delay: "4s",   dur: "5s",   op: 0.15 },
-        ].map((p, i) => (
-          <div key={i} className="absolute rounded-full pointer-events-none animate-float"
-            style={{
-              width: p.size, height: p.size,
-              top: p.top, left: (p as any).left, right: (p as any).right,
-              background: "#F97415",
-              opacity: p.op,
-              animationDelay: p.delay,
-              animationDuration: p.dur,
-              boxShadow: `0 0 ${p.size * 2}px rgba(249,116,21,0.7)`,
-            }}
-          />
-        ))}
+        {/* Icone edilizia floating */}
+        <FloatingIcons particles={[
+          { iconId: "caschetto",    size: 30, top: "14%", left: "5%",   delay: "0s",   dur: "7s",   opacity: 0.20, rotate: -6  },
+          { iconId: "casa",         size: 26, top: "68%", left: "8%",   delay: "2s",   dur: "8.5s", opacity: 0.18, rotate: 5   },
+          { iconId: "fotovoltaico", size: 28, top: "22%", left: "18%",  delay: "1.2s", dur: "6.5s", opacity: 0.16, rotate: -10 },
+          { iconId: "muro",         size: 24, top: "78%", left: "38%",  delay: "3.5s", dur: "9s",   opacity: 0.15, rotate: 0   },
+          { iconId: "gru",          size: 32, top: "8%",  right: "6%",  delay: "0.5s", dur: "7.5s", opacity: 0.18, rotate: 8   },
+          { iconId: "infisso",      size: 26, top: "58%", right: "10%", delay: "1.8s", dur: "6s",   opacity: 0.20, rotate: -4  },
+          { iconId: "chiave",       size: 22, top: "38%", right: "22%", delay: "2.8s", dur: "8s",   opacity: 0.15, rotate: 15  },
+          { iconId: "metro",        size: 28, top: "82%", right: "32%", delay: "4s",   dur: "7s",   opacity: 0.14, rotate: -8  },
+        ]} />
 
         <div
           ref={ctaAnim.ref}
