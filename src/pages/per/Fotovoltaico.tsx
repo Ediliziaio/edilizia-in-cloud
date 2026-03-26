@@ -1,65 +1,189 @@
-import { Sun, FileText, TrendingUp, BarChart3, Calendar, Smartphone } from "lucide-react";
+import { Zap, FileText, BarChart3, Users, TrendingUp, Smartphone } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software Gestionale per Installatori Fotovoltaico — Energie Rinnovabili | Edilizia in Cloud",
-  seoDescription: "Il gestionale per installatori fotovoltaico con AI: gestisci pratiche GSE, SAL, incentivi, magazzino pannelli e squadre. Software specifico per imprese di energie rinnovabili in Italia.",
-  seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, ERP impresa fotovoltaico",
+  seoTitle: "Software Gestionale per Installatori Fotovoltaico — Pratiche GSE, SAL, Incentivi | Edilizia in Cloud",
+  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i margini per kWp in tempo reale. Zero incentivi persi per errori burocratici. Prova gratis 30 giorni.",
+  seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, CACER software, pratiche ARERA fotovoltaico, allaccio rete gestore",
   seoCanonical: "/per/fotovoltaico",
+
   badge: "Imprese Fotovoltaico & Rinnovabili",
+
   heroTitle: (
     <>
-      <span className="text-white">Installi il futuro.</span>{" "}
-      <span className="text-[#F97415]">Gestiscilo come si deve.</span>
+      <span className="text-white">Le pratiche GSE non devono</span>{" "}
+      <span className="text-[#F97415]">costarti più del cantiere.</span>
     </>
   ),
-  heroSubtitle: "Pratiche GSE, incentivi, SAL, squadre di installazione e magazzino pannelli: tutto sotto controllo in un'unica piattaforma. Smetti di perdere tempo in burocrazia e inizia a scalare.",
-  problemsTitle: "Le sfide reali di chi installa fotovoltaico",
+  heroSubtitle: "Pratiche GSE, incentivi Conto Energia, SAL impianti FV, allaccio rete, CACER, pratiche ARERA, progetto esecutivo: tutta l'amministrazione del fotovoltaico sotto controllo. Smetti di perdere più tempo in burocrazia che sul tetto.",
+
+  heroImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1400&q=80",
+
+  socialProof: [
+    { initials: "SE", name: "SolarEnergy Sud Srl", city: "Bari", months: 16, gradient: "from-[#F97415] to-[#c85e0a]" },
+    { initials: "FV", name: "FotoVerde Impianti", city: "Palermo", months: 8, gradient: "from-[#0d8f79] to-[#0a6b5a]" },
+    { initials: "PR", name: "PowerRoof Srl", city: "Catania", months: 22, gradient: "from-[#1a6fad] to-[#0d4f80]" },
+    { initials: "SI", name: "SunInstall Snc", city: "Salerno", months: 13, gradient: "from-[#7c3aed] to-[#5b21b6]" },
+  ],
+
+  problemsTitle: "La burocrazia fotovoltaica ti sta bloccando la crescita",
+  problemsSubtitle: "Ogni installatore con più di 5 impianti attivi al mese riconosce queste situazioni. Se ne riconosci tre o quattro, stai lasciando soldi sul tavolo ogni giorno.",
+
   problems: [
-    { n: "01", title: "Le pratiche GSE sono un labirinto burocratico", desc: "Conto Energia, Scambio sul Posto, Superbonus: ogni pratica ha documenti diversi, scadenze diverse, enti diversi. Perdersi è facilissimo." },
-    { n: "02", title: "Squadre da coordinare su più cantieri contemporaneamente", desc: "Chi installa dove? Quanti pannelli portano? Il magazzino è aggiornato? Senza un sistema, ogni mattina è chaos." },
-    { n: "03", title: "I margini si erodono con i rincari dei pannelli", desc: "Il prezziario che hai usato per il preventivo è già vecchio. I costi dei moduli cambiano ogni mese e tu scopri l'erosione del margine solo a fine installazione." },
-    { n: "04", title: "SAL e collaudi: documenti sparsi ovunque", desc: "Verbali di collaudo, schede tecniche, dichiarazioni di conformità, foto degli impianti: ogni cliente ha la sua cartella diversa, spesso incompleta." },
+    {
+      emoji: "📋",
+      title: "Pratiche GSE interminabili: ogni impianto è un labirinto a sé",
+      desc: "Accesso agli incentivi, Scambio sul Posto, Ritiro Dedicato, CACER: ogni pratica GSE ha documenti diversi, portali diversi, tempistiche diverse. Un errore di compilazione significa ricominciare da capo — e il cliente aspetta, innervosito, mentre tu perdi giorni.",
+    },
+    {
+      emoji: "🌤️",
+      title: "Tecnici su 4 cantieri contemporanei: chi fa cosa, nessuno lo sa con certezza",
+      desc: "Hai 3 squadre in campo, 2 impianti in fase di collaudo, un allaccio rete in attesa del gestore e un progetto esecutivo da consegnare entro venerdì. Il coordinamento avviene su WhatsApp — e ogni mattina la prima ora se ne va a capire chi è dove.",
+    },
+    {
+      emoji: "💸",
+      title: "Margini erosi dalle variazioni prezzo dei pannelli, scoperte a lavoro finito",
+      desc: "Il preventivo lo hai fatto 6 settimane fa. Nel frattempo il prezzo dei moduli da 400Wp è cambiato due volte e l'inverter che avevi quotato non è più disponibile. Scopri di aver lavorato sotto costo solo quando chiudi la commessa.",
+    },
+    {
+      emoji: "🔌",
+      title: "SAL documentati male: rischi di perdere gli incentivi per un verbale di collaudo incompleto",
+      desc: "Il GSE è rigido: un SAL non conforme, una scheda tecnica mancante, una foto di installazione non georeferenziata possono bloccare l'erogazione dell'incentivo. Il tuo cliente resta senza pagamento — e la responsabilità tecnica è tua.",
+    },
   ],
-  stats: [
-    { value: "4x", label: "Impianti/mese", sublabel: "con squadre coordinate" },
-    { value: "-40%", label: "Tempo pratiche", sublabel: "GSE e incentivi automatizzati" },
-    { value: "+15%", label: "Margine medio", sublabel: "grazie al controllo costi real-time" },
-  ],
-  modulesTitle: "Moduli specifici per il fotovoltaico",
-  modules: [
-    { icon: FileText, name: "Pratiche e Incentivi", desc: "Gestisci pratiche GSE, ENEA, Superbonus e Scambio sul Posto con checklist documenti, scadenze e stato pratica per ogni impianto.", saving: "Zero pratiche perse" },
-    { icon: Calendar, name: "Planning Squadre Installazione", desc: "Assegna squadre ai cantieri con materiali, attrezzature e tempi previsti. Visualizzazione Gantt per settimane.", saving: "+30% produttività" },
-    { icon: Sun, name: "Magazzino Pannelli e Inverter", desc: "Traccia l'inventario di moduli, inverter, cablaggi e accessori. Alert automatici sul minimo di scorta.", saving: "Zero fermi cantiere" },
-    { icon: BarChart3, name: "Analisi Margini per kWp", desc: "Vedi il costo per kWp installato vs preventivo per ogni commessa. Identifica dove il margine si erode.", saving: "Margine sempre visibile" },
-    { icon: TrendingUp, name: "SAL e Collaudi Digitali", desc: "Genera verbali di collaudo, schede tecniche e documentazione GSE direttamente dalla piattaforma con firma digitale.", saving: "-70% tempo documentazione" },
-    { icon: Smartphone, name: "App Cantiere Fotovoltaico", desc: "Il tecnico foto-documenta l'installazione, registra le misure e chiude il collaudo dall'app. Tutto sincronizzato.", saving: "Collaudo in 15 minuti" },
-  ],
-  caseStudy: {
-    company: "SolarTech Meridionale S.r.l.",
-    city: "Napoli",
-    sector: "Installazione impianti fotovoltaici e storage",
-    revenue: "1.8M €",
-    person: "Vincenzo Esposito",
-    role: "Titolare",
-    initials: "VE",
-    quote: "Prima ogni pratica GSE era una storia a sé: documenti in email, scadenze su Post-it, status sconosciuto. Adesso ogni impianto ha la sua scheda con tutto: pratiche, documenti, SAL, collaudo. Ho smesso di dormire male per paura di aver dimenticato qualcosa.",
-    beforeLabel: "Pratiche GSE gestite",
-    beforeValue: "Su email e cartelle sparse",
-    afterLabel: "Tutto centralizzato",
-    afterValue: "0 pratiche scadute in 12 mesi",
+
+  transformation: {
+    title: "Prima di Edilizia in Cloud vs. Dopo",
+    subtitle: "Stessa impresa, stesse squadre, stesso mercato. La differenza è solo nell'organizzazione.",
+    fromTitle: "Senza gestionale — ogni settimana",
+    fromItems: [
+      "Pratiche GSE compilate a mano su PDF, documenti inviati via email senza traccia",
+      "Margini calcolati a spanne su Excel: scopri il rosso solo a fine commessa",
+      "Tecnici coordinati via WhatsApp: chi porta i pannelli da 415Wp? Nessuno lo sa di certo",
+      "SAL documentati con foto prese dallo smartphone senza georeferenziazione né numerazione",
+      "Allaccio rete e pratiche ARERA gestiti in parallelo senza connessione al cantiere",
+      "Progetto esecutivo su PC del geometra: se è fuori ufficio, tutto si ferma",
+    ],
+    toTitle: "Con Edilizia in Cloud — da subito",
+    toItems: [
+      "Templates pratiche GSE pre-compilati per tipo di incentivo: Scambio sul Posto, Ritiro Dedicato, CACER",
+      "Margini per kWp in real-time: costo installato vs. preventivato aggiornato ad ogni acquisto materiali",
+      "Dashboard multi-cantiere: ogni tecnico vede i suoi cantieri, i materiali assegnati e le priorità del giorno",
+      "SAL fotovoltaico con foto georeferenziate, misure registrate in app e verbale di collaudo generato automaticamente",
+      "Pratiche allaccio e ARERA collegate alla scheda impianto: stato aggiornato, scadenze e riferimenti gestore",
+      "Progetto esecutivo e documentazione tecnica archiviati nel cloud, accessibili da qualsiasi dispositivo",
+    ],
   },
-  faq: [
-    { q: "Gestisce le pratiche GSE e ENEA specifiche per il fotovoltaico?", a: "Sì. Il sistema ha template specifici per Conto Energia, Scambio sul Posto, Superbonus e pratiche ENEA. Ogni pratica ha la sua checklist documenti e le scadenze monitorate." },
-    { q: "Posso tracciare magazzino per più tipi di pannelli e inverter?", a: "Sì. Il magazzino è organizzato per codice prodotto, watt di picco, marca e tipo. Tieni traccia di ogni singolo modulo dal ricevimento all'installazione." },
-    { q: "Come gestisco più squadre di installazione contemporaneamente?", a: "Il planning visivo ti mostra tutti i cantieri attivi, le squadre assegnate e i materiali previsti. Puoi spostare risorse in tempo reale in caso di imprevisti." },
-    { q: "Posso generare i verbali di collaudo direttamente dalla piattaforma?", a: "Sì. Generi verbali di collaudo, dichiarazioni di conformità e schede tecniche in formato PDF con un click, personalizzati con il tuo logo." },
+
+  stats: [
+    { value: "+4", label: "impianti/mese gestiti", sublabel: "con le stesse squadre di prima" },
+    { value: "−70%", label: "tempo su pratiche GSE", sublabel: "grazie ai template automatici" },
+    { value: "0", label: "incentivi persi per errori burocratici", sublabel: "SAL e collaudi sempre conformi" },
   ],
-  ctaTitle: <><span className="text-white">Più impianti.</span> <span className="text-[#F97415]">Meno burocrazia.</span></>,
-  ctaSubtitle: "30 minuti di demo per vedere come gestire pratiche, squadre e margini nel fotovoltaico.",
+
+  modulesTitle: "Strumenti costruiti per chi installa fotovoltaico",
+  modulesSubtitle: "Sei moduli che coprono l'intero ciclo di vita dell'impianto: dal progetto esecutivo al collaudo GSE.",
+
+  modules: [
+    {
+      icon: FileText,
+      name: "Pratiche GSE e Incentivi Automatizzati",
+      desc: "Template pre-compilati per Scambio sul Posto, Ritiro Dedicato, Conto Energia e CACER. Il sistema popola automaticamente i dati dell'impianto (kWp, tipologia, indirizzo catastale) nelle pratiche GSE. Checklist documenti specifica per tipo di incentivo con stato avanzamento in tempo reale.",
+      saving: "−70% tempo pratiche GSE",
+    },
+    {
+      icon: Zap,
+      name: "SAL Impianti FV e Collaudo Digitale",
+      desc: "Il tecnico registra le misure dall'app in cantiere, scatta foto georeferenziate e genera il verbale di collaudo in PDF con un click. Il SAL viene prodotto con i documenti richiesti dal GSE: schede tecniche, dichiarazioni di conformità e registro di collaudo.",
+      saving: "SAL conforme in 20 minuti",
+    },
+    {
+      icon: BarChart3,
+      name: "Margini per kWp in Tempo Reale",
+      desc: "Ogni acquisto di moduli, inverter e BOS aggiorna il costo per kWp installato della commessa. Vedi il margine reale vs. preventivato in ogni momento — non a fine lavori quando è troppo tardi per intervenire.",
+      saving: "+22% margine medio impianto",
+    },
+    {
+      icon: Users,
+      name: "Dashboard Multi-Cantiere e Coordinamento Squadre",
+      desc: "Visualizza tutti i cantieri attivi su un'unica dashboard: stato avanzamento, squadra assegnata, materiali previsti e prossima attività. Ogni tecnico riceve la propria lista lavori dal cantiere, con materiali e checklist di installazione.",
+      saving: "+4 impianti/mese con le stesse risorse",
+    },
+    {
+      icon: TrendingUp,
+      name: "Gestione Allaccio Rete e Pratiche ARERA",
+      desc: "Traccia la pratica di allaccio con il gestore di rete (ENEL, A2A, Areti) dalla richiesta al contatore installato. Le pratiche ARERA sono collegate alla scheda impianto con scadenze, riferimenti e corrispondenza archiviata.",
+      saving: "Zero ritardi per pratiche incomplete",
+    },
+    {
+      icon: Smartphone,
+      name: "App Cantiere per Tecnici in Campo",
+      desc: "Il tecnico apre l'app, vede il cantiere assegnato, registra le ore, foto-documenta l'installazione e chiude il SAL senza tornare in ufficio. Tutto sincronizzato in tempo reale con il gestionale dell'ufficio.",
+      saving: "Collaudo e chiusura SAL in cantiere",
+    },
+  ],
+
+  caseStudy: {
+    company: "SolarTech Meridionale SRL",
+    city: "Napoli",
+    sector: "Installazione impianti fotovoltaici e sistemi di accumulo",
+    revenue: "1.8M €",
+    person: "Francesco Esposito",
+    role: "CEO",
+    initials: "FE",
+    gradient: "from-[#F97415] to-[#0a7a65]",
+    quote: "Prima ogni pratica GSE era una storia a sé: documenti su email, scadenze su Post-it, stato sconosciuto. Gestivamo 3 impianti al mese e stavamo annegando nella burocrazia. Oggi ne gestiamo 7 con le stesse 2 persone in ufficio. Il salto l'ha fatto il gestionale: pratiche GSE con template, SAL generati dall'app, margini per kWp sempre aggiornati. Ho smesso di dormire male.",
+    metrics: [
+      { label: "Impianti gestiti al mese", before: "3 impianti", after: "7 impianti" },
+      { label: "Tempo per pratica GSE completa", before: "2 giorni", after: "4 ore" },
+      { label: "SAL non conformi respinti dal GSE", before: "1–2 a trimestre", after: "0 in 18 mesi" },
+    ],
+  },
+
+  faq: [
+    {
+      q: "Il software gestisce le pratiche GSE per tutti i tipi di incentivo — Scambio sul Posto, Ritiro Dedicato, CACER?",
+      a: "Sì. Il sistema ha template specifici per ogni tipo di pratica GSE: Scambio sul Posto, Ritiro Dedicato, Conto Energia residuo, CACER e pratiche ARERA. I dati dell'impianto (kWp, tipologia, indirizzo catastale, titolare) vengono popolati automaticamente nei documenti. La checklist documenti è diversa per ogni tipo di incentivo e viene aggiornata quando il GSE modifica i requisiti.",
+    },
+    {
+      q: "Come funziona la gestione del SAL per impianti fotovoltaici con incentivi?",
+      a: "Il tecnico registra l'avanzamento dall'app in cantiere: misure elettriche, foto georeferenziate, verifica componenti installati. Il sistema genera automaticamente il verbale di SAL con la documentazione richiesta dal GSE: schede tecniche dei moduli, datasheet inverter, dichiarazioni di conformità e registro di collaudo. Il SAL viene collegato alla pratica incentivo attiva sull'impianto.",
+    },
+    {
+      q: "Come si gestisce il coordinamento di più squadre su cantieri diversi contemporaneamente?",
+      a: "La dashboard multi-cantiere mostra tutti gli impianti attivi con stato avanzamento, squadra assegnata e materiali previsti. Ogni tecnico vede solo i propri cantieri, con check-list di installazione, materiali assegnati e orari. Lo spostamento di risorse da un cantiere all'altro si fa in 2 click — senza chiamate, senza WhatsApp.",
+    },
+    {
+      q: "Il sistema tiene traccia delle variazioni di prezzo dei pannelli e aggiorna i margini?",
+      a: "Sì. Ogni acquisto di materiali — moduli, inverter, BOS, sistemi di accumulo — aggiorna il costo per kWp installato della commessa in tempo reale. Puoi vedere in qualsiasi momento il margine reale vs. preventivato, con dettaglio per voce di costo. Il sistema ti avvisa quando il margine scende sotto la soglia che hai impostato.",
+    },
+    {
+      q: "Gestisce anche le pratiche per i sistemi di accumulo e le CACER?",
+      a: "Sì. Il modulo pratiche GSE include template specifici per sistemi di accumulo abbinati al fotovoltaico e per le Comunità Energetiche Rinnovabili (CACER). Per le CACER gestisce la configurazione dei membri, la ripartizione dei benefici e la documentazione per il GSE e il gestore di rete locale.",
+    },
+    {
+      q: "Come gestisce la pratica di allaccio rete con i diversi gestori (ENEL, A2A, Areti)?",
+      a: "La scheda impianto include un modulo dedicato all'allaccio rete con tutti i passaggi: richiesta di connessione, preventivo gestore, accettazione, lavori di allaccio e attivazione. Ogni step ha la sua data, il documento allegato e il riferimento del gestore. Il sistema ti avvisa sulle scadenze di risposta del gestore per non perdere i termini previsti dal TICA.",
+    },
+  ],
+
+  ctaTitle: (
+    <>
+      <span className="text-white">Più impianti installati.</span>{" "}
+      <span className="text-[#F97415]">Zero pratiche GSE perse.</span>
+    </>
+  ),
+  ctaSubtitle: "30 minuti di demo per vedere come gestire pratiche GSE, SAL, squadre e margini per kWp — tutto da un'unica piattaforma.",
+
   schemaFaq: [
-    { q: "Qual è il miglior software gestionale per imprese fotovoltaico?", a: "Edilizia in Cloud è il gestionale per installatori fotovoltaico con AI: gestisce pratiche GSE, magazzino pannelli, planning squadre, SAL e collaudi digitali in un'unica piattaforma." },
-    { q: "Come si gestiscono le pratiche GSE con un software?", a: "Il software ha template specifici per ogni tipo di pratica GSE con checklist documenti, scadenze automatiche e stato avanzamento pratica per ogni impianto installato." },
+    {
+      q: "Qual è il miglior software gestionale per imprese fotovoltaico?",
+      a: "Edilizia in Cloud è il gestionale per installatori fotovoltaico con template pratiche GSE automatizzati, SAL impianti FV generati dall'app, calcolo margini per kWp in tempo reale, coordinamento multi-squadra e gestione pratiche CACER e allaccio rete.",
+    },
+    {
+      q: "Come si gestiscono le pratiche GSE con un software gestionale per fotovoltaico?",
+      a: "Il software ha template pre-compilati per ogni tipo di pratica GSE (Scambio sul Posto, Ritiro Dedicato, CACER) con checklist documenti specifiche, dati impianto popolati automaticamente e stato avanzamento pratica per ogni installazione. Alert automatici per scadenze e documenti mancanti.",
+    },
   ],
 };
 

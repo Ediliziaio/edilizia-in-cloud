@@ -1,65 +1,219 @@
-import { Building2, FileText, TrendingUp, Smartphone, Users, BarChart3 } from "lucide-react";
+import { FileText, Calculator, Clock, Smartphone, BarChart3, Users } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Piccole Imprese Edili e Artigiani — Software Semplice | Edilizia in Cloud",
-  seoDescription: "Il gestionale per piccole imprese edili e artigiani: fatture, preventivi, cantieri e cassa — tutto da smartphone. Semplice come WhatsApp. Prova gratis 30 giorni senza impegno.",
-  seoKeywords: "software gestionale piccola impresa edile, gestionale artigiano edile, software muratore, software piccola impresa costruzioni, gestionale artigiani edili, software fatturazione piccola impresa edile, gestionale impresa edile mono dipendente, software edile semplice",
+  // SEO
+  seoTitle: "Software per Piccole Imprese Edili e Artigiani | Meno Burocrazia, Più Cantiere | Edilizia in Cloud",
+  seoDescription: "Il gestionale per piccole imprese edili, muratori, imbianchini e artigiani edili con 1-10 dipendenti. Fattura elettronica, preventivi in 10 minuti, SAL semplificato, scadenze F24. Prova gratis 30 giorni.",
+  seoKeywords: "software piccole imprese edili, gestionale artigiani edili, software muratori, fattura elettronica edilizia, preventivo a forfait, SAL semplificato, F24 edilizia, INAIL INPS edile, software imbianchino",
   seoCanonical: "/per/piccole-imprese",
-  badge: "Piccole Imprese & Artigiani Edili",
+
+  // Hero
+  badge: "Per Piccole Imprese Edili e Artigiani",
   heroTitle: (
     <>
-      <span className="text-white">Sei tu l'azienda.</span>{" "}
-      <span className="text-[#F97415]">Il gestionale lavora per te.</span>
+      <span className="text-white">Anche tu fai le fatture</span>{" "}
+      <span className="text-[#F97415]">la domenica sera?</span>
     </>
   ),
-  heroSubtitle: "Se fai tutto da solo — preventivi, cantiere, fatture, clienti — allora hai bisogno di uno strumento che fa lo stesso. Semplice come WhatsApp, potente come un ufficio completo.",
-  problemsTitle: "I problemi di chi lavora da solo o con pochi operai",
+  heroSubtitle:
+    "Sei un muratore, un imbianchino, un artigiano edile con 1-10 dipendenti. La burocrazia ti ruba 3 ore al giorno che potresti passare in cantiere o con la famiglia. Edilizia in Cloud fa la burocrazia al posto tuo — fattura elettronica, preventivi, F24, scadenze. Tu pensa ai lavori.",
+  heroImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1400&q=80",
+
+  // Social proof
+  socialProof: [
+    { initials: "LC", name: "Conti Murature", city: "Bergamo", months: 16, gradient: "from-[#F97415] to-[#0d8f79]" },
+    { initials: "MR", name: "Rossi Imbianchino", city: "Milano", months: 8, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "EF", name: "Edil Fontana", city: "Brescia", months: 12, gradient: "from-[#0d8f79] to-[#111111]" },
+    { initials: "GT", name: "Grandi Tinteggiature", city: "Torino", months: 6, gradient: "from-[#1a1a2e] to-[#F97415]" },
+  ],
+
+  // Problems
+  problemsTitle: "Sai davvero quanto hai guadagnato questo mese?",
+  problemsSubtitle:
+    "Se ci devi pensare su, il problema è già lì. Questi sono i quattro problemi che ci raccontano quasi tutti gli artigiani edili che incontriamo.",
   problems: [
-    { n: "01", title: "La burocrazia ti ruba ore che potresti passare in cantiere", desc: "Fatture, DDT, preventivi, F24: ogni documento richiede tempo che non hai. La sera finisci in cantiere e devi ancora fare l'amministrazione." },
-    { n: "02", title: "Non sai quanto hai guadagnato davvero questo mese", desc: "Sai quanto hai incassato, ma i costi del materiale, il carburante, i subappalti? Il guadagno netto rimane un'incognita fino a quando arriva il commercialista." },
-    { n: "03", title: "I preventivi fatti a mano ti fanno perdere lavori", desc: "Il cliente ti chiede un preventivo. Tu ci metti tre giorni a farlo su Word. Nel frattempo l'ha dato a un altro. I preventivi veloci e professionali fanno la differenza." },
-    { n: "04", title: "I clienti pagano quando vogliono e la cassa è sempre corta", desc: "Paghi i materiali prima di incassare. Poi aspetti 60-90 giorni per il saldo. Nel mezzo ci sono le spese fisse. La cassa è sempre in bilico." },
+    {
+      emoji: "⏰",
+      title: "La burocrazia ti ruba ore di cantiere ogni giorno",
+      desc: "Fatture elettroniche SDI, DDT, F24, buste paga, INAIL, INPS edile: ogni documento richiede tempo che non hai. Finisci in cantiere alle 18, e devi ancora fare l'ufficio. La domenica sera è diventata il tuo secondo turno.",
+    },
+    {
+      emoji: "💰",
+      title: "Non sai mai quanto hai guadagnato davvero",
+      desc: "Sai quanto hai incassato. Ma i costi dei materiali, il subappalto, il carburante, i contributi INPS edile? Il guadagno netto reale lo scopri solo quando arriva il commercialista — e spesso non è quello che speravi.",
+    },
+    {
+      emoji: "📝",
+      title: "I preventivi lenti ti fanno perdere lavori buoni",
+      desc: "Il cliente ti chiama, vuole un preventivo a forfait entro domani. Tu ci metti tre giorni perché lo fai a mano su Word. Nel frattempo ha già chiamato qualcun altro. I preventivi veloci e professionali fanno la differenza tra prendere o perdere il lavoro.",
+    },
+    {
+      emoji: "😰",
+      title: "I clienti pagano quando vogliono — e la cassa è sempre corta",
+      desc: "Paghi i materiali prima di iniziare. Emetti SAL a metà lavoro e aspetti. Il saldo arriva dopo 60-90 giorni. In mezzo ci sono buste paga, F24 e spese fisse. Spesso non sai se ce la fai ad arrivare a fine mese.",
+    },
   ],
-  stats: [
-    { value: "15min", label: "Per fare un preventivo", sublabel: "da 2 ore su Word" },
-    { value: "€79", label: "Al mese", sublabel: "meno di un operaio per mezz'ora" },
-    { value: "4.9★", label: "Soddisfazione", sublabel: "da 142 imprenditori attivi" },
-  ],
-  modulesTitle: "Tutto quello che ti serve, niente di superfluo",
-  modules: [
-    { icon: FileText, name: "Preventivi Professionali in 15 min", desc: "Template pronti per ogni tipo di lavoro. Prezziario integrato, margine automatico, invia via email o WhatsApp direttamente.", saving: "10x più veloci" },
-    { icon: TrendingUp, name: "Fatturazione Elettronica SDI", desc: "Emetti fatture elettroniche conformi SDI direttamente dal telefono. Zero errori, zero problemi con il commercialista.", saving: "Fattura in 2 click" },
-    { icon: BarChart3, name: "Controllo Cassa e Spese", desc: "Vedi in tempo reale quanto hai in cassa, cosa devi pagare e cosa devi incassare. Il tuo bilancio sempre chiaro.", saving: "Zero sorprese" },
-    { icon: Smartphone, name: "Tutto da Smartphone", desc: "Preventivi, fatture, note spese, foto cantiere: tutto dall'app mobile. Funziona anche offline in cantiere.", saving: "Ufficio in tasca" },
-    { icon: Building2, name: "Gestione Cantieri Semplice", desc: "Apri un cantiere, aggiungi i costi man mano, vedi il margine finale. Semplicissimo.", saving: "Controllo senza Excel" },
-    { icon: Users, name: "Gestione Clienti e Storico", desc: "Scheda per ogni cliente con storico lavori, contatti e documenti. Trova tutto in 5 secondi.", saving: "Mai più dati persi" },
-  ],
-  caseStudy: {
-    company: "Murature e Rivestimenti di Conti Paolo",
-    city: "Bergamo",
-    sector: "Piccola impresa — murature, intonaci, rivestimenti",
-    revenue: "180K €",
-    person: "Paolo Conti",
-    role: "Artigiano — lavora da solo con 2 operai",
-    initials: "PC",
-    quote: "Ero scettico. Pensavo fosse roba da grandi aziende. Invece in due giorni ho imparato tutto e ora faccio i preventivi in 15 minuti dal telefono mentre sono ancora in cantiere. Il cliente li riceve subito e risponde subito. Ho già preso tre lavori che prima avrei perso.",
-    beforeLabel: "Preventivi inviati a settimana",
-    beforeValue: "2 (fatti la sera su Word)",
-    afterLabel: "Con app mobile",
-    afterValue: "6-7 preventivi — da cantiere",
+
+  // Transformation
+  transformation: {
+    title: "Prima e dopo: la differenza è concreta",
+    subtitle:
+      "Non ti chiediamo di cambiare il modo di lavorare. Ti chiediamo solo di non perdere più tempo su cose che può fare un software.",
+    fromTitle: "Prima: il solito stress",
+    fromItems: [
+      "Fatture elettroniche fatte la domenica sera quando si è già stanchi morti",
+      "F24 dimenticati con relative sanzioni — il commercialista che chiama arrabbiato",
+      "Preventivi scritti a mano su Word o su un foglio, inviati dopo 3 giorni",
+      "Guadagno netto reale: mistero assoluto fino alla chiusura annuale",
+      "DDT e bolle cartacee da archiviare in una scatola che non trovi mai",
+      "Scadenze INAIL e INPS edile che saltano perché nessuno le ricorda",
+    ],
+    toTitle: "Dopo: testa libera",
+    toItems: [
+      "Fatturazione elettronica SDI automatica: emetti la fattura in 2 click dal telefono, anche dal cantiere",
+      "Scadenze F24, INAIL e INPS edile notificate in anticipo — mai più sanzioni",
+      "Preventivo a forfait in 10 minuti dallo smartphone, con prezziario DEI integrato",
+      "Sai ogni giorno quanto hai guadagnato su ogni lavoro, in tempo reale",
+      "DDT digitali allegati automaticamente alla commessa — archivio sempre in ordine",
+      "Il commercialista riceve tutto in un export pulito — zero telefonate di panico",
+    ],
   },
-  faq: [
-    { q: "È troppo complicato per chi non è esperto di informatica?", a: "No. Se sai usare WhatsApp, sai usare Edilizia in Cloud. L'interfaccia è pensata per chi lavora in cantiere, non per gli informatici. Setup guidato in 48h con il nostro team." },
-    { q: "Costa troppo per una piccola impresa?", a: "Il piano Starter parte da €79/mese. Se ti fa risparmiare anche solo 3 ore al mese di burocrazia, si ripaga da solo. E se non ti fa guadagnare di più, è gratis per sempre." },
-    { q: "Posso usarlo solo per la fatturazione elettronica?", a: "Sì. Puoi iniziare solo con fatturazione e preventivi, poi aggiungere i moduli che ti servono man mano. Non devi usare tutto subito." },
-    { q: "Funziona anche offline in cantiere?", a: "Sì. L'app mobile funziona offline. Quando torni in zona con connessione, tutto si sincronizza automaticamente." },
+
+  // Stats
+  stats: [
+    {
+      value: "−3h",
+      label: "Al giorno di burocrazia in meno",
+      sublabel: "Tempo che torna al cantiere o alla famiglia",
+    },
+    {
+      value: "+2",
+      label: "Lavori a settimana accettati in più",
+      sublabel: "Perché i preventivi escono in 10 minuti, non in 3 giorni",
+    },
+    {
+      value: "Sempre",
+      label: "Sai quanto guadagni davvero",
+      sublabel: "Guadagno netto in tempo reale, non a fine anno",
+    },
   ],
-  ctaTitle: <><span className="text-white">Il tuo ufficio.</span> <span className="text-[#F97415]">In tasca.</span></>,
-  ctaSubtitle: "Demo gratuita di 30 minuti. Ti mostriamo tutto — senza termini tecnici, senza complicazioni.",
+
+  // Modules
+  modulesTitle: "Solo quello che ti serve — niente di inutile",
+  modulesSubtitle:
+    "Abbiamo parlato con centinaia di artigiani edili. Questi sono i moduli che usano ogni giorno e che fanno davvero la differenza.",
+  modules: [
+    {
+      icon: FileText,
+      name: "Fatturazione Elettronica SDI",
+      desc: "Emetti fatture elettroniche conformi SDI direttamente dal telefono in cantiere. Ciclo attivo e passivo, split payment, ritenuta d'acconto: tutto gestito. Il commercialista riceve l'export pronto.",
+      saving: "Fattura in 2 click dal cantiere",
+    },
+    {
+      icon: Calculator,
+      name: "Preventivi a Forfait in 10 Minuti",
+      desc: "Prezziario DEI integrato e aggiornato. Scegli le voci di lavoro, inserisci le quantità, applica la tua percentuale e il preventivo è pronto in PDF da inviare via WhatsApp. Anche dal telefono.",
+      saving: "Da 3 giorni a 10 minuti",
+    },
+    {
+      icon: Clock,
+      name: "Scadenze Fiscali Notificate",
+      desc: "F24, INAIL, INPS edile, DURC, scadenze contributive: il sistema le conosce tutte e ti avvisa in anticipo con notifica push. Mai più sanzioni per dimenticanza.",
+      saving: "Zero sanzioni per ritardo",
+    },
+    {
+      icon: Smartphone,
+      name: "Tutto dal Telefono",
+      desc: "Preventivi, fatture, DDT, foto cantiere, note di spesa: tutto dall'app mobile. Funziona anche offline in cantiere. Quando torni in zona con segnale, si sincronizza da solo.",
+      saving: "Ufficio in tasca, sempre",
+    },
+    {
+      icon: BarChart3,
+      name: "SAL e Controllo Commessa",
+      desc: "Apri una commessa, registra i costi (materiali, subappalto, operai) man mano che avanzano i lavori. Emetti il SAL in un click. Vedi il margine netto in tempo reale su ogni cantiere.",
+      saving: "Sai sempre se stai guadagnando",
+    },
+    {
+      icon: Users,
+      name: "Gestione Operai e Presenze",
+      desc: "Registra le presenze dei tuoi operai dal cantiere, assegna le giornate per commessa e genera i dati pronti per il consulente del lavoro. Addio foglietti e chiamate dell'ultimo momento.",
+      saving: "Buste paga senza impazzire",
+    },
+  ],
+
+  // Case Study
+  caseStudy: {
+    company: "Murature e Rivestimenti Conti",
+    city: "Bergamo",
+    sector: "Piccola impresa edile — murature, intonaci, rivestimenti",
+    revenue: "180.000 €",
+    person: "Luca Conti",
+    role: "Titolare e artigiano",
+    initials: "LC",
+    gradient: "from-[#F97415] to-[#0d8f79]",
+    quote:
+      "Ero uno di quelli che faceva le fatture la domenica sera. Ci perdevo 2-3 ore, sbagliavo, rifacevo. Ora le faccio dal telefono mentre sono ancora in macchina davanti al cantiere. Ma la cosa che mi ha cambiato di più è sapere ogni giorno quanto ho guadagnato davvero su ogni lavoro — prima non lo sapevo mai.",
+    metrics: [
+      { label: "Preventivi evasi a settimana", before: "2 (fatti la sera su Word)", after: "6-7 dal telefono" },
+      { label: "Tempo su burocrazia al giorno", before: "3 ore", after: "meno di 30 minuti" },
+      { label: "Sanzioni per scadenze dimenticate", before: "2-3 all'anno", after: "0" },
+      { label: "Fatturato annuo", before: "130.000 €", after: "180.000 €" },
+    ],
+  },
+
+  // FAQ
+  faq: [
+    {
+      q: "È complicato da usare per chi non è esperto di computer?",
+      a: "No. Se sai usare WhatsApp, sai usare Edilizia in Cloud. L'app è pensata per chi lavora in cantiere con le mani, non per gli informatici. Il nostro team ti configura tutto in 48 ore e ti fa una demo guidata senza termini tecnici. Hai sempre un numero diretto a cui chiamare.",
+    },
+    {
+      q: "Gestisce davvero la fatturazione elettronica SDI?",
+      a: "Sì, completamente. Emetti fatture elettroniche B2B e B2C conformi SDI direttamente dall'app. Gestisce ciclo attivo, ciclo passivo (fatture fornitori), note di credito, split payment e ritenuta d'acconto. L'export per il commercialista è pronto con un click.",
+    },
+    {
+      q: "Posso usarlo anche per gestire preventivi a forfait e lavori in economia?",
+      a: "Sì. Puoi creare preventivi a forfait con voci fisse oppure preventivi a consuntivo per lavori in economia, con le ore e i materiali registrati man mano. Il prezziario DEI è integrato e aggiornato. Mandi il preventivo in PDF via WhatsApp direttamente dall'app.",
+    },
+    {
+      q: "Mi notifica le scadenze F24, INAIL e INPS edile?",
+      a: "Sì. Il sistema conosce il calendario fiscale completo: F24, INAIL, INPS edile, DURC e versamenti contributivi. Ti manda una notifica push sul telefono con qualche giorno di anticipo, così non dimentichi mai nulla e non prendi sanzioni.",
+    },
+    {
+      q: "Posso integrarlo con il mio commercialista?",
+      a: "Sì. Il commercialista può accedere in sola lettura con le sue credenziali e scaricare l'export contabile in formato compatibile con i principali software di contabilità (Zucchetti, TeamSystem, ecc.). Zero telefonate di panico a fine trimestre.",
+    },
+    {
+      q: "Costa troppo per una piccola impresa con 2-3 operai?",
+      a: "Il piano per piccole imprese parte da 79 euro al mese. Se ti fa risparmiare anche solo 2-3 ore di burocrazia a settimana, si ripaga da solo. E se non ti fa guadagnare di più entro il primo anno, il programma è gratis per sempre — è la nostra garanzia.",
+    },
+  ],
+
+  // CTA
+  ctaTitle: (
+    <>
+      <span className="text-white">Smetti di fare le fatture</span>{" "}
+      <span className="text-[#F97415]">la domenica sera.</span>
+    </>
+  ),
+  ctaSubtitle:
+    "Prova Edilizia in Cloud gratis per 30 giorni. Nessuna carta di credito, nessun impegno. Setup guidato in 48 ore con il tuo commercialista già collegato.",
+
+  // Schema FAQ
   schemaFaq: [
-    { q: "Qual è il miglior software gestionale per piccole imprese edili?", a: "Edilizia in Cloud è il gestionale per piccole imprese edili e artigiani più semplice in Italia: preventivi in 15 minuti, fatturazione elettronica da smartphone, controllo cassa e cantieri. Piano Starter da €79/mese." },
-    { q: "Un artigiano edile ha bisogno di un gestionale?", a: "Sì. Un gestionale semplice come Edilizia in Cloud permette a un artigiano di fare preventivi professionali veloci, emettere fatture elettroniche SDI e tenere sotto controllo cassa e margini — tutto dallo smartphone." },
+    {
+      q: "Qual è il miglior software per piccole imprese edili e artigiani?",
+      a: "Edilizia in Cloud è il gestionale più semplice per piccole imprese edili e artigiani: fatturazione elettronica SDI da smartphone, preventivi in 10 minuti, scadenze fiscali notificate, SAL semplificato e controllo margini in tempo reale.",
+    },
+    {
+      q: "Un artigiano edile ha bisogno di un gestionale?",
+      a: "Sì. Un gestionale semplice come Edilizia in Cloud permette a un artigiano edile di fare preventivi veloci, emettere fatture elettroniche SDI dal telefono, non dimenticare mai F24 e INAIL e sapere ogni giorno quanto ha guadagnato davvero — senza aspettare il commercialista.",
+    },
+    {
+      q: "Come gestisce le scadenze fiscali per artigiani edili?",
+      a: "Edilizia in Cloud conosce tutte le scadenze: F24, INAIL, INPS edile, DURC. Ti notifica in anticipo sul telefono così non dimentichi mai nulla e non prendi sanzioni.",
+    },
   ],
 };
 

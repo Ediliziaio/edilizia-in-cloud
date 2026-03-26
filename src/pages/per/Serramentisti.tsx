@@ -1,65 +1,220 @@
-import { Home, FileText, Package, Users, BarChart3, Smartphone } from "lucide-react";
+import { Ruler, Package, Calendar, FileText, TrendingUp, Smartphone } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software Gestionale per Serramentisti — Infissi, Finestre, Porte | Edilizia in Cloud",
-  seoDescription: "Il gestionale per serramentisti con AI: gestisci preventivi personalizzati per infissi, ordini a fornitore, installazioni e garanzie. Software specifico per aziende serramenti in Italia.",
-  seoKeywords: "software gestionale serramentisti, gestionale infissi serramenti, software preventivi infissi, gestionale produzione serramenti, software installazione infissi, CRM serramentisti, software azienda serramenti, gestionale finestre porte",
+  // SEO
+  seoTitle: "Software per Serramentisti | Preventivi Infissi in 20 Minuti | Edilizia in Cloud",
+  seoDescription: "Il gestionale pensato per produttori e installatori di infissi, porte, finestre e serramenti. Preventivi su misura in 20 minuti, ordini fornitori integrati, calendario installazioni. Prova gratis 30 giorni.",
+  seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
-  badge: "Serramentisti — Infissi & Porte",
+
+  // Hero
+  badge: "Per Serramentisti e Installatori di Infissi",
   heroTitle: (
     <>
-      <span className="text-white">Ogni finestra è su misura.</span>{" "}
-      <span className="text-[#F97415]">Anche il tuo gestionale.</span>
+      <span className="text-white">Un preventivo su misura</span>{" "}
+      <span className="text-[#F97415]">non dovrebbe richiedere 2 ore.</span>
     </>
   ),
-  heroSubtitle: "Preventivi per infissi personalizzati, ordini a fornitori, pianificazione installazioni e gestione garanzie — tutto integrato. Costruito per chi vende e installa serramenti.",
-  problemsTitle: "Le difficoltà quotidiane di ogni serramentista",
+  heroSubtitle:
+    "Produttori e installatori di infissi, porte, finestre e schermature solari: smettila di perdere ore sui listini cartacei del fornitore. Con Edilizia in Cloud generi preventivi configurati al millimetro in 20 minuti, gestisci gli ordini ai fornitori e pianifichi ogni installazione senza sovrapposizioni.",
+  heroImage: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1400&q=80",
+
+  // Social proof
+  socialProof: [
+    { initials: "IF", name: "Infissi Ferretti", city: "Verona", months: 14, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "SP", name: "Serramenti Pellegrini", city: "Brescia", months: 9, gradient: "from-[#0d8f79] to-[#111111]" },
+    { initials: "FC", name: "Finestre & Co.", city: "Treviso", months: 18, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "AM", name: "Alluminio Moretti", city: "Bergamo", months: 11, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
+  ],
+
+  // Problems
+  problemsTitle: "Questi problemi ti suonano familiari?",
+  problemsSubtitle:
+    "Ogni serramentista che abbiamo incontrato ci ha raccontato le stesse cose. Se riconosci anche solo uno di questi scenari, stai perdendo tempo e margine ogni giorno.",
   problems: [
-    { n: "01", title: "Preventivi infiniti per misure e configurazioni diverse", desc: "Ogni cliente ha la sua casa, le sue misure, i suoi colori. Fare un preventivo richiede ore tra listini, configuratori e calcoli. E quando cambia qualcosa, si ricomincia da capo." },
-    { n: "02", title: "Gli ordini ai fornitori sono sempre caotici", desc: "Ogni commessa ha i suoi infissi da ordinare. Misure sbagliate, ordini duplicati, spedizioni in ritardo: ogni errore ferma l'installazione e fa arrabbiare il cliente." },
-    { n: "03", title: "Le installazioni si accumulano senza una pianificazione", desc: "Troppe commesse in contemporanea, squadre non organizzate, clienti che chiamano per sapere quando arrivate. La pianificazione installazioni è sempre all'ultimo momento." },
-    { n: "04", title: "Garanzie e assistenza post-vendita non tracciate", desc: "A distanza di mesi il cliente chiama per un problema. Non sai quale prodotto ha, quale fornitore, quale data di installazione. Le garanzie si perdono nel caos." },
+    {
+      emoji: "📐",
+      title: "Preventivi su misura che richiedono ore — e spesso vengono sbagliati",
+      desc: "Ogni finestra ha il suo profilo, il suo colore RAL, la sua finitura, il suo vetrocamera. Calcolare il prezzo a mano sul listino cartaceo del fornitore significa 2-3 ore a preventivo, rischio di errori nelle misurazioni e ordini di produzione sbagliati.",
+    },
+    {
+      emoji: "📦",
+      title: "Ordini ai fornitori confusi, duplicati o dimenticati",
+      desc: "Profili PVC, alluminio, guarnizioni, accessori, vetro triplo: quando gli ordini viaggiano via email e WhatsApp, qualcosa va sempre storto. Materiali in ritardo, cantieri fermi, clienti che chiamano.",
+    },
+    {
+      emoji: "🗓️",
+      title: "Installazioni sovrapposte e sopralluoghi non pianificati",
+      desc: "Due squadre di posa in opera allo stesso indirizzo lo stesso giorno. Un sopralluogo di misurazioni fissato e dimenticato. La pianificazione su carta o su Excel non regge quando i cantieri crescono.",
+    },
+    {
+      emoji: "🔒",
+      title: "Garanzie infissi e post-vendita che nessuno traccia",
+      desc: "La garanzia decennale sul vetrocamera, la garanzia biennale sulla posa in opera, il cliente che richiama dopo 3 anni: senza un sistema, non sai cosa hai installato, quando, con quale materiale e quale fornitore.",
+    },
   ],
-  stats: [
-    { value: "-65%", label: "Tempo per preventivo", sublabel: "con configuratore integrato" },
-    { value: "0", label: "Ordini sbagliati", sublabel: "grazie al doppio controllo automatico" },
-    { value: "+28%", label: "Margine medio", sublabel: "su commesse serramenti" },
-  ],
-  modulesTitle: "Strumenti costruiti per serramentisti",
-  modules: [
-    { icon: FileText, name: "Preventivi Infissi Configurabili", desc: "Template di preventivo con misure, tipologie, colori, vetri e accessori. Calcola automaticamente il prezzo da listino e il margine.", saving: "-65% tempo preventivo" },
-    { icon: Package, name: "Ordini ai Fornitori", desc: "Genera automaticamente gli ordini ai tuoi fornitori di infissi partendo dalla commessa. Traccia conferme, tempi di consegna e DDT.", saving: "Zero errori di misura" },
-    { icon: Home, name: "Pianificazione Installazioni", desc: "Calendario visivo delle installazioni con assegnazione squadra, indirizzo, materiali da portare e tempo previsto.", saving: "Squadre sempre ottimizzate" },
-    { icon: Users, name: "Storico Cliente e Garanzie", desc: "Per ogni cliente: prodotti installati, date, garanzie scadenza e storico interventi di assistenza. Sempre a portata di mano.", saving: "Assistenza in 30 secondi" },
-    { icon: Smartphone, name: "CRM Clienti e Referral", desc: "Segui i tuoi clienti nel tempo: scadenza infissi, manutenzioni consigliate, sostituzione vetri. Genera nuove opportunità dall'esistente.", saving: "+35% riacquisti" },
-    { icon: BarChart3, name: "Analisi Margini per Linea", desc: "Quale tipologia di infisso ti rende di più? Quale fornitore ha i margini migliori? Decidi con i dati.", saving: "Catalogo sempre profittevole" },
-  ],
-  caseStudy: {
-    company: "Infissi & Serramenti Bianchi",
-    city: "Padova",
-    sector: "Vendita e installazione serramenti e infissi",
-    revenue: "620K €",
-    person: "Luca Bianchi",
-    role: "Titolare",
-    initials: "LB",
-    quote: "Prima fare un preventivo mi prendeva 2-3 ore tra misure, listini, configurazioni e calcoli. Ora in 20 minuti ho un preventivo completo con margine calcolato, pronto da inviare al cliente. Ho triplicato il numero di preventivi inviati ogni settimana.",
-    beforeLabel: "Tempo medio per preventivo",
-    beforeValue: "2-3 ore su Excel",
-    afterLabel: "Con configuratore integrato",
-    afterValue: "20 minuti — 3x più preventivi",
+
+  // Transformation
+  transformation: {
+    title: "Com'è lavorare prima e dopo Edilizia in Cloud",
+    subtitle:
+      "La differenza non è solo nel software. È nel tempo che torna a te, nella qualità dei preventivi e nell'ordine che finalmente regna in officina.",
+    fromTitle: "Prima: il solito caos",
+    fromItems: [
+      "Preventivi calcolati a mano con il listino cartaceo del fornitore — uno sbaglio e si rifa tutto da capo",
+      "Ordini ai fornitori sparsi tra email, WhatsApp e foglietti: impossibile tenere traccia",
+      "Installazioni coordinate su calendario cartaceo, sovrapposizioni quasi garantite",
+      "Misurazioni da sopralluogo trascritte a mano, errori in produzione inevitabili",
+      "Garanzie infissi su file Excel che nessuno aggiorna mai",
+      "Il cliente chiama e tu non sai cosa gli hai montato 2 anni fa",
+    ],
+    toTitle: "Dopo: controllo totale",
+    toItems: [
+      "Configuratore preventivi automatico: selezioni profilo, colore RAL, finitura e vetrocamera — il prezzo esce in secondi",
+      "Ordini fornitori generati direttamente dal preventivo approvato, zero ridigitazioni",
+      "Calendario installazioni con disponibilità squadre, tempi di posa e notifica automatica al cliente",
+      "App mobile per sopralluoghi: misuri, scatti le foto e i dati entrano direttamente nell'ordine di produzione",
+      "Archivio garanzie per ogni commessa: hai tutto in un click quando il cliente richiama",
+      "Storico completo di ogni finestra, porta e portone installato, con fornitore e data di posa",
+    ],
   },
-  faq: [
-    { q: "Posso configurare i preventivi con le misure specifiche degli infissi?", a: "Sì. Il configuratore ti permette di inserire misure, tipologia, colore, vetro e accessori. Il prezzo viene calcolato automaticamente dal tuo listino personalizzato." },
-    { q: "Gestisce gli ordini ai fornitori di infissi?", a: "Sì. Dal preventivo confermato genera automaticamente l'ordine al fornitore con tutte le specifiche tecniche. Traccia conferma d'ordine, data prevista consegna e DDT di ricevimento." },
-    { q: "Come gestisco la garanzia degli infissi installati?", a: "Ogni installazione ha la sua scheda prodotto con data, fornitore, numero di serie e scadenza garanzia. Quando il cliente chiama per assistenza, hai tutto in 10 secondi." },
-    { q: "Funziona anche per chi fa solo sostituzione vetri o riparazioni?", a: "Sì. Puoi gestire interventi rapidi di sostituzione, riparazioni e manutenzione con ticket aperti, chiusi e fatturati automaticamente." },
+
+  // Stats
+  stats: [
+    {
+      value: "20 min",
+      label: "Tempo medio per preventivo infissi",
+      sublabel: "Da 2-3 ore a 20 minuti — verificato dai nostri clienti",
+    },
+    {
+      value: "+40%",
+      label: "Preventivi evasi a settimana",
+      sublabel: "Stesso tempo, il doppio dei preventivi usciti",
+    },
+    {
+      value: "0",
+      label: "Errori di misura in produzione",
+      sublabel: "I dati del sopralluogo entrano direttamente nell'ordine",
+    },
   ],
-  ctaTitle: <><span className="text-white">Preventivo in 20 minuti.</span> <span className="text-[#F97415]">Commessa sotto controllo.</span></>,
-  ctaSubtitle: "Demo gratuita di 30 minuti: vedi il configuratore preventivi per serramentisti in azione.",
+
+  // Modules
+  modulesTitle: "Gli strumenti che ti servono davvero",
+  modulesSubtitle:
+    "Niente funzionalità inutili. Solo i moduli che riducono il tempo su ogni preventivo, ogni ordine ai fornitori e ogni installazione.",
+  modules: [
+    {
+      icon: Ruler,
+      name: "Configuratore Preventivi su Misura",
+      desc: "Seleziona tipologia (finestra, porta, portone, schermatura solare), profilo (PVC, alluminio, legno), colore RAL, finitura e vetrocamera. Il prezzo aggiornato al listino fornitore esce in automatico.",
+      saving: "Da 2h a 20min a preventivo",
+    },
+    {
+      icon: Package,
+      name: "Gestione Ordini Fornitori",
+      desc: "Dal preventivo approvato all'ordine di produzione in un click. Profili, vetri, ferramenta, accessori: tutto ordinato con le quantità esatte, senza ridigitare nulla.",
+      saving: "Risparmio: 45min per ordine",
+    },
+    {
+      icon: Calendar,
+      name: "Calendario Installazioni",
+      desc: "Pianifica sopralluoghi di misurazione, giornate di posa in opera e interventi di assistenza. Visualizza la disponibilità delle squadre, evita sovrapposizioni e invia conferma automatica al cliente.",
+      saving: "Zero cantieri sovrapposti",
+    },
+    {
+      icon: FileText,
+      name: "Archivio Garanzie e Post-Vendita",
+      desc: "Ogni commessa ha la sua scheda: prodotti installati, fornitore, data di posa in opera, garanzia infissi e garanzia manodopera. Quando il cliente chiama, hai tutto in 5 secondi.",
+      saving: "Assistenza post-vendita professionale",
+    },
+    {
+      icon: TrendingUp,
+      name: "Analisi Margini per Tipologia",
+      desc: "Scopri quale linea ti rende di più: finestre PVC, porte alluminio, schermature solari o portoni. Ottimizza il listino prezzi e smetti di vendere sotto costo senza saperlo.",
+      saving: "Margini migliorati in media del 12%",
+    },
+    {
+      icon: Smartphone,
+      name: "App Mobile per Sopralluoghi",
+      desc: "Vai dal cliente, misuri con l'app, scatti le foto e compili la scheda tecnica direttamente da smartphone. I dati arrivano in ufficio in tempo reale, pronti per l'ordine di produzione.",
+      saving: "Misurazioni senza errori di trascrizione",
+    },
+  ],
+
+  // Case Study
+  caseStudy: {
+    company: "Infissi & Serramenti Bianchi SRL",
+    city: "Padova",
+    sector: "Produzione e installazione infissi",
+    revenue: "620.000 €",
+    person: "Roberto Bianchi",
+    role: "Titolare",
+    initials: "RB",
+    gradient: "from-[#111111] to-[#F97415]",
+    quote:
+      "Facevo i preventivi la sera, dopo cena, con il listino del fornitore aperto sul tavolo e la calcolatrice in mano. Due ore a preventivo, minimo. Ora lo faccio in 20 minuti dal computer o dal telefono, mentre sono ancora dal cliente. Ho raddoppiato i preventivi evasi senza assumere nessuno.",
+    metrics: [
+      { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "20 minuti" },
+      { label: "Errori negli ordini di produzione", before: "3-4 al mese", after: "0" },
+      { label: "Installazioni pianificate digitalmente", before: "0%", after: "100%" },
+      { label: "Fatturato annuo", before: "480.000 €", after: "620.000 €" },
+    ],
+    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+  },
+
+  // FAQ
+  faq: [
+    {
+      q: "Posso importare il listino del mio fornitore di infissi?",
+      a: "Sì. Supportiamo l'importazione dei listini dai principali fornitori di profili PVC, alluminio e sistemi di schermatura solare. Il configuratore preventivi utilizza automaticamente i prezzi aggiornati. Ogni volta che il fornitore aggiorna il listino, lo aggiorni anche nel tuo configuratore in pochi minuti.",
+    },
+    {
+      q: "Come funziona il configuratore per preventivi su misura?",
+      a: "Selezioni la tipologia (finestra, porta, portone, schermatura solare), le dimensioni, il profilo (PVC, alluminio, legno), il colore RAL o la finitura, il tipo di vetrocamera e gli accessori. Il sistema calcola il prezzo applicando i tuoi coefficienti di ricarico. Il preventivo è pronto in PDF con tutte le specifiche tecniche in meno di 20 minuti.",
+    },
+    {
+      q: "L'app mobile funziona anche offline durante il sopralluogo?",
+      a: "Sì. L'app funziona offline. Puoi compilare la scheda di misurazione, scattare le foto e annotare le condizioni del cantiere anche senza connessione. Quando torni in zona con segnale, tutto si sincronizza automaticamente con il gestionale in ufficio.",
+    },
+    {
+      q: "Come gestisco le garanzie degli infissi installati?",
+      a: "Ogni commessa ha una scheda digitale con: prodotti installati (marca, modello, colore, vetrocamera), data di posa in opera, note del montatore, documenti del fornitore e scadenza garanzia. Quando il cliente chiama per un intervento in garanzia, apri la scheda e hai tutto in 5 secondi.",
+    },
+    {
+      q: "Posso pianificare le installazioni e i sopralluoghi direttamente dal software?",
+      a: "Sì. Il calendario installazioni mostra la disponibilità di ogni squadra, i tempi stimati per ogni tipo di intervento e le distanze tra i cantieri. Puoi fissare sopralluoghi di misurazione, giornate di posa e appuntamenti post-vendita. Il cliente riceve automaticamente la conferma con orario e nome del tecnico.",
+    },
+    {
+      q: "Funziona anche per chi vende sia infissi residenziali che serramenti per capannoni industriali?",
+      a: "Assolutamente. Il configuratore distingue tra diverse tipologie di prodotto (residenziale, commerciale, industriale) con listini e coefficienti separati. Puoi gestire nello stesso gestionale finestre PVC per appartamenti, portoni sezionali per capannoni e sistemi di schermatura solare per edifici commerciali.",
+    },
+  ],
+
+  // CTA
+  ctaTitle: (
+    <>
+      <span className="text-white">Smetti di fare preventivi</span>{" "}
+      <span className="text-[#F97415]">la sera con la calcolatrice.</span>
+    </>
+  ),
+  ctaSubtitle:
+    "Prova Edilizia in Cloud gratis per 30 giorni. Setup completo in 48h con il tuo listino fornitore già importato.",
+
+  // Schema FAQ
   schemaFaq: [
-    { q: "Qual è il miglior software gestionale per serramentisti?", a: "Edilizia in Cloud è il gestionale per serramentisti con AI: configura preventivi infissi in 20 minuti, gestisce ordini fornitori, pianifica installazioni e traccia garanzie." },
-    { q: "Come fare preventivi veloci per infissi e serramenti?", a: "Il configuratore integrato permette di selezionare misure, tipologia, colori e accessori con calcolo automatico del prezzo da listino personalizzato. Da 3 ore a 20 minuti per preventivo." },
+    {
+      q: "Posso importare il listino del mio fornitore di infissi?",
+      a: "Sì. Supportiamo l'importazione dei listini dai principali fornitori di profili PVC, alluminio e sistemi di schermatura solare.",
+    },
+    {
+      q: "Come funziona il configuratore per preventivi su misura?",
+      a: "Selezioni tipologia, dimensioni, profilo, colore RAL, vetrocamera e accessori. Il sistema calcola il prezzo automaticamente. Il preventivo è pronto in PDF in meno di 20 minuti.",
+    },
+    {
+      q: "Come gestisco le garanzie degli infissi installati?",
+      a: "Ogni commessa ha una scheda digitale con prodotti installati, data di posa e scadenza garanzia. Quando il cliente chiama, hai tutto in 5 secondi.",
+    },
   ],
 };
 

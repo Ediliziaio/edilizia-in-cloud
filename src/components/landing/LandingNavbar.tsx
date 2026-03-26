@@ -22,7 +22,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Funzionalita", type: "link", to: "/funzionalita" },
   { label: "Chi Siamo", type: "link", to: "/chi-siamo" },
-  { label: "Blog", type: "link", to: "/blog" },
   { label: "Confronto", type: "link", to: "/confronto" },
   { label: "Prezzi", type: "link", to: "/prezzi" },
 ];
@@ -163,9 +162,17 @@ export default function LandingNavbar() {
 
           <Link
             to="/formazione"
-            className={`${desktopLinkClass}${location.pathname === "/formazione" ? " !text-[#F97415] !opacity-100" : ""}`}
+            className={desktopLinkClass}
+            style={location.pathname === "/formazione" ? { color: "#F97415", opacity: 1 } : undefined}
           >
             Formazione
+          </Link>
+          <Link
+            to="/blog"
+            className={desktopLinkClass}
+            style={location.pathname === "/blog" ? { color: "#F97415", opacity: 1 } : undefined}
+          >
+            Blog
           </Link>
 
           <Link
@@ -262,7 +269,14 @@ export default function LandingNavbar() {
           >
             Formazione
           </Link>
-
+          <Link
+            to="/blog"
+            onClick={() => setMobileOpen(false)}
+            className="block py-2 font-medium"
+            style={location.pathname === "/blog" ? { color: "#F97415" } : { color: "#111111" }}
+          >
+            Blog
+          </Link>
           <Link
             to="/casi-studio"
             onClick={() => setMobileOpen(false)}
