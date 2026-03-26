@@ -1,6 +1,8 @@
 
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
+import StatsSection from "@/components/landing/StatsSection";
+import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import FounderLetterSection from "@/components/landing/FounderLetterSection";
 import PainPointsSection from "@/components/landing/PainPointsSection";
 import CostTableSection from "@/components/landing/CostTableSection";
@@ -12,6 +14,7 @@ import TargetSection from "@/components/landing/TargetSection";
 import CriteriaSection from "@/components/landing/CriteriaSection";
 import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
+import FAQSection from "@/components/landing/FAQSection";
 import GuaranteeSection from "@/components/landing/GuaranteeSection";
 import BonusGiftSection from "@/components/landing/BonusGiftSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
@@ -45,6 +48,8 @@ export default function Home() {
       <PromoBanner />
       <LandingNavbar />
       <HeroSection />
+      <StatsSection />
+      <HowItWorksSection />
       <FounderLetterSection />
       <BonusGiftSection />
       <PainPointsSection />
@@ -57,6 +62,7 @@ export default function Home() {
       <CriteriaSection />
       <PricingSection />
       <TestimonialsSection />
+      <FAQSection />
       <GuaranteeSection />
       <FinalCtaSection />
       <FounderLetterBottom />
