@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,7 +20,13 @@ Deno.serve(async (req) => {
 
     if (prefsErr) throw prefsErr;
 
-    const results: { company_id: string; overdue: number; upcoming: number; alerts_sent: number }[] = [];
+    // Load email provider settings once (transactional stream, fallback to marketing)
+    let emailSettings = await loadProviderSettings("transactional");
+    if (!emailSettings.apiKey) {
+      emailSettings = await loadProviderSettings("marketing");
+    }
+
+    const results: { company_id: string; overdue: number; upcoming: number; alerts_sent: number; email_sent: boolean }[] = [];
 
     for (const pref of (prefs || [])) {
       // Get overdue and upcoming scadenze
@@ -35,6 +42,7 @@ Deno.serve(async (req) => {
 
       const result = checkResult as any;
       let alertsSent = 0;
+      let emailSent = false;
 
       // Mark upcoming scadenze as alerted
       if (result.upcoming && result.upcoming.length > 0) {
@@ -46,11 +54,80 @@ Deno.serve(async (req) => {
         alertsSent = ids.length;
       }
 
-      // If there's an alert email configured, we could send notifications
-      // For now, we just log and update alert_sent_at
-      if (pref.alert_email && (result.overdue_count > 0 || alertsSent > 0)) {
+      // Send email notification if configured and there are alerts
+      if (pref.alert_email && emailSettings.apiKey && (result.overdue_count > 0 || alertsSent > 0)) {
+        try {
+          const overdueCount: number = result.overdue_count || 0;
+          const upcomingItems: any[] = result.upcoming || [];
+
+          // Build email HTML
+          let emailHtml = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #1a1a2e;">⏰ Promemoria Scadenze</h2>`;
+
+          if (overdueCount > 0) {
+            emailHtml += `
+  <div style="background: #fee2e2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+    <strong style="color: #dc2626;">⚠️ ${overdueCount} scadenz${overdueCount === 1 ? "a scaduta" : "e scadute"}</strong>
+    <p style="margin: 4px 0 0; color: #7f1d1d;">Hai scadenze già superate che richiedono attenzione immediata.</p>
+  </div>`;
+          }
+
+          if (upcomingItems.length > 0) {
+            emailHtml += `
+  <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+    <strong style="color: #d97706;">📅 ${upcomingItems.length} scadenz${upcomingItems.length === 1 ? "a in arrivo" : "e in arrivo"}</strong>
+    <ul style="margin: 8px 0 0; padding-left: 20px; color: #78350f;">`;
+
+            for (const s of upcomingItems.slice(0, 10)) {
+              const dueDate = s.data_scadenza
+                ? new Date(s.data_scadenza).toLocaleDateString("it-IT")
+                : "";
+              emailHtml += `<li>${s.descrizione || "Scadenza"} — ${dueDate}</li>`;
+            }
+
+            if (upcomingItems.length > 10) {
+              emailHtml += `<li><em>... e altre ${upcomingItems.length - 10}</em></li>`;
+            }
+
+            emailHtml += `</ul></div>`;
+          }
+
+          const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+          emailHtml += `
+  <p style="margin-top: 24px;">
+    <a href="${siteUrl}/scadenze" style="background: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+      Vai alle Scadenze →
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;">
+    Hai ricevuto questa email perché hai abilitato gli avvisi scadenze su Edilizia in Cloud.
+  </p>
+</div>`;
+
+          const emailSubject = overdueCount > 0
+            ? `⚠️ ${overdueCount} scadenz${overdueCount === 1 ? "a scaduta" : "e scadute"} — azione richiesta`
+            : `📅 ${alertsSent} scadenz${alertsSent === 1 ? "a in arrivo" : "e in arrivo"} — promemoria`;
+
+          const sendResult = await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
+            from: emailSettings.fromDefault,
+            to: [pref.alert_email],
+            subject: emailSubject,
+            html: emailHtml,
+          });
+
+          if (sendResult.ok) {
+            emailSent = true;
+            console.log(`Alert email sent to ${pref.alert_email} for company ${pref.company_id}`);
+          } else {
+            console.error(`Failed to send alert email to ${pref.alert_email}:`, sendResult.body);
+          }
+        } catch (emailErr) {
+          console.error(`Email sending error for company ${pref.company_id}:`, emailErr);
+        }
+      } else if (pref.alert_email && (result.overdue_count > 0 || alertsSent > 0)) {
+        // No email provider configured — just log
         console.log(
-          `Company ${pref.company_id}: ${result.overdue_count} overdue, ${alertsSent} upcoming alerts`
+          `Company ${pref.company_id}: ${result.overdue_count} overdue, ${alertsSent} upcoming alerts — email provider not configured`
         );
       }
 
@@ -59,6 +136,7 @@ Deno.serve(async (req) => {
         overdue: result.overdue_count || 0,
         upcoming: alertsSent,
         alerts_sent: alertsSent,
+        email_sent: emailSent,
       });
     }
 

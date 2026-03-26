@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -54,6 +55,20 @@ Deno.serve(async (req) => {
     // --- Parse request ---
     const body = await req.json();
     const { action, agent_id, payload } = body;
+
+    // Rate limit expensive AI operations: max 30 calls per minute per company
+    const expensiveActions = ["create_agent", "update_agent", "delete_agent", "get_conversations", "get_conversation_audio"];
+    if (expensiveActions.includes(action)) {
+      const rl = await checkRateLimit({
+        functionName: "elevenlabs-proxy",
+        callerId: companyId,
+        maxCalls: 30,
+        windowSeconds: 60,
+      });
+      if (!rl.allowed) {
+        return rateLimitResponse(rl.retryAfterSeconds ?? 60, corsHeaders);
+      }
+    }
 
     let result: unknown;
 

@@ -242,16 +242,30 @@ serve(async (req) => {
 });
 
 function buildRedirectHtml(status: string, detail: string): string {
+  const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
+  const allowedOriginsJson = JSON.stringify([
+    siteUrl,
+    `https://${projectRef}.supabase.co`,
+  ].filter(Boolean));
+  const safeStatus = status === "success" ? "success" : "error";
+  const safeDetail = detail ? detail.replace(/[<>"']/g, "") : "";
   return `<!DOCTYPE html>
 <html>
 <head><title>Meta OAuth</title></head>
 <body>
 <script>
+  var allowedOrigins = ${allowedOriginsJson};
   if (window.opener) {
-    window.opener.postMessage({ type: "META_OAUTH_RESULT", status: "${status}", detail: "${detail}" }, "*");
+    var msg = { type: "META_OAUTH_RESULT", status: "${safeStatus}", detail: "${safeDetail}" };
+    allowedOrigins.forEach(function(origin) {
+      try { window.opener.postMessage(msg, origin); } catch(e) {}
+    });
+    try { window.opener.postMessage(msg, window.location.origin); } catch(e) {}
     window.close();
   } else {
-    document.body.innerHTML = '<p>Autenticazione ${status === "success" ? "completata" : "fallita"}. Puoi chiudere questa finestra.</p>';
+    document.body.innerHTML = '<p>Autenticazione ${safeStatus === "success" ? "completata" : "fallita"}. Puoi chiudere questa finestra.</p>';
   }
 </script>
 <p>Elaborazione in corso...</p>

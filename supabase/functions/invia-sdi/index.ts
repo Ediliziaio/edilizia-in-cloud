@@ -15,6 +15,36 @@ function escXml(s: string | null | undefined): string {
 function fmtNum(n: number, d = 2): string { return n.toFixed(d); }
 function fmtDate(d: string | null | undefined): string { return d ? d.slice(0, 10) : ""; }
 
+/** Validate Italian P.IVA (11 digits, with Luhn-like check) */
+function isValidPartitaIva(piva: string | null | undefined): boolean {
+  if (!piva) return false;
+  const p = piva.replace(/\s/g, "");
+  if (!/^\d{11}$/.test(p)) return false;
+  let s = 0;
+  for (let i = 0; i < 10; i++) {
+    const d = parseInt(p[i]);
+    if (i % 2 === 0) {
+      s += d;
+    } else {
+      const x = d * 2;
+      s += x > 9 ? x - 9 : x;
+    }
+  }
+  return (10 - (s % 10)) % 10 === parseInt(p[10]);
+}
+
+/** Validate Italian Codice Fiscale (16 alphanumeric chars for individuals, or 11-digit P.IVA for entities) */
+function isValidCodiceFiscale(cf: string | null | undefined): boolean {
+  if (!cf) return false;
+  const c = cf.replace(/\s/g, "").toUpperCase();
+  // Individual: 16 alphanumeric characters
+  if (/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(c)) {
+    return true;
+  }
+  // Entity: same as P.IVA (11 digits)
+  return isValidPartitaIva(c);
+}
+
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
   autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
@@ -175,6 +205,44 @@ Deno.serve(async (req) => {
       .from("anagrafica_azienda").select("*").eq("company_id", doc.company_id).single();
     if (!azienda) {
       return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: corsHeaders });
+    }
+
+    // Validate mandatory fiscal data before generating XML
+    const validationErrors: string[] = [];
+    if (!azienda.partita_iva) {
+      validationErrors.push("Partita IVA azienda mancante");
+    } else if (!isValidPartitaIva(azienda.partita_iva)) {
+      validationErrors.push(`Partita IVA azienda non valida: ${azienda.partita_iva}`);
+    }
+    if (!azienda.ragione_sociale) {
+      validationErrors.push("Ragione sociale azienda mancante");
+    }
+    if (!azienda.regime_fiscale) {
+      validationErrors.push("Regime fiscale azienda mancante (es. RF01)");
+    }
+    if (!azienda.indirizzo_via || !azienda.indirizzo_cap || !azienda.indirizzo_comune) {
+      validationErrors.push("Indirizzo azienda incompleto (via, CAP, comune richiesti)");
+    }
+
+    const snap = doc.cliente_snapshot || {};
+    if (!snap.partita_iva && !snap.codice_fiscale) {
+      validationErrors.push("Il cliente deve avere Partita IVA o Codice Fiscale");
+    }
+    if (snap.partita_iva && !isValidPartitaIva(snap.partita_iva) && (snap.indirizzo_nazione || "IT") === "IT") {
+      validationErrors.push(`Partita IVA cliente non valida: ${snap.partita_iva}`);
+    }
+    if (snap.codice_fiscale && !isValidCodiceFiscale(snap.codice_fiscale)) {
+      validationErrors.push(`Codice Fiscale cliente non valido: ${snap.codice_fiscale}`);
+    }
+    if (!snap.ragione_sociale) {
+      validationErrors.push("Ragione sociale cliente mancante");
+    }
+
+    if (validationErrors.length > 0) {
+      return new Response(
+        JSON.stringify({ error: "Dati fiscali non validi", details: validationErrors }),
+        { status: 422, headers: corsHeaders }
+      );
     }
 
     // Generate XML

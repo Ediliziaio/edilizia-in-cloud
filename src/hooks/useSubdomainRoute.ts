@@ -1,0 +1,101 @@
+/**
+ * Detects the current subdomain and returns routing configuration.
+ *
+ * Subdomain → Section mapping:
+ *   www              → landing page (marketing)
+ *   app              → main company app (default)
+ *   admin            → super-admin panel
+ *   clienti          → customer portal
+ *   <anything else>  → treated like "app" (white-label or unknown)
+ */
+
+export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "other";
+
+export interface SubdomainConfig {
+  subdomain: AppSubdomain;
+  /** The default path to redirect to when visiting "/" */
+  defaultPath: string;
+  /** Login page path for this subdomain */
+  loginPath: string;
+  /** Title shown in the browser tab */
+  title: string;
+}
+
+const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
+  www: {
+    subdomain: "www",
+    defaultPath: "/home",
+    loginPath: "/login",
+    title: "Edilizia in Cloud",
+  },
+  admin: {
+    subdomain: "admin",
+    defaultPath: "/admin/dashboard",
+    loginPath: "/admin-login",
+    title: "Admin — Edilizia in Cloud",
+  },
+  clienti: {
+    subdomain: "clienti",
+    defaultPath: "/cliente/ordini",
+    loginPath: "/login",
+    title: "Portale Clienti — Edilizia in Cloud",
+  },
+  app: {
+    subdomain: "app",
+    defaultPath: "/",
+    loginPath: "/login",
+    title: "Edilizia in Cloud",
+  },
+};
+
+const DEFAULT_CONFIG: SubdomainConfig = {
+  subdomain: "other",
+  defaultPath: "/",
+  loginPath: "/login",
+  title: "Edilizia in Cloud",
+};
+
+/** Returns the current subdomain string (e.g. "app", "admin", "www", "clienti") */
+export function getCurrentSubdomain(): string {
+  if (typeof window === "undefined") return "app";
+  const hostname = window.location.hostname;
+
+  // Local development — no subdomain routing
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "app";
+  }
+
+  // Extract the first segment: "admin.ediliziaincloud.com" → "admin"
+  const parts = hostname.split(".");
+  if (parts.length >= 3) {
+    return parts[0].toLowerCase();
+  }
+
+  // Bare domain (e.g. ediliziaincloud.com) — treat as "www"
+  if (parts.length === 2) {
+    return "www";
+  }
+
+  return "app";
+}
+
+/** Returns the full subdomain config for the current hostname */
+export function useSubdomainRoute(): SubdomainConfig {
+  const sub = getCurrentSubdomain();
+  return SUBDOMAIN_MAP[sub] ?? DEFAULT_CONFIG;
+}
+
+/** True when the current subdomain should ONLY show admin routes */
+export function isAdminSubdomain(): boolean {
+  return getCurrentSubdomain() === "admin";
+}
+
+/** True when the current subdomain should ONLY show customer portal routes */
+export function isClientiSubdomain(): boolean {
+  return getCurrentSubdomain() === "clienti";
+}
+
+/** True when the current subdomain is the landing/marketing page */
+export function isWwwSubdomain(): boolean {
+  return getCurrentSubdomain() === "www";
+}

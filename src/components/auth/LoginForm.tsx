@@ -2,7 +2,6 @@ import { useState, useEffect, forwardRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,8 +50,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     const refCode = searchParams.get("ref");
     if (refCode) {
       sessionStorage.setItem("referral_code", refCode);
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "guqgszwelffntrgtsycm";
-      fetch(`https://${projectId}.supabase.co/functions/v1/track-referral-click`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co";
+      fetch(`${supabaseUrl}/functions/v1/track-referral-click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
@@ -6,9 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
-import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
+import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
+import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 
 // Route modules
 import { adminRoutes } from "@/routes/adminRoutes";
@@ -58,12 +59,25 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Sets the document title based on the current subdomain */
+function SubdomainTitleSetter() {
+  const { title } = useSubdomainRoute();
+  useEffect(() => {
+    // Only set if not already overridden by domain branding
+    if (!document.title || document.title === "Vite App" || document.title === "Edilizia in Cloud") {
+      document.title = title;
+    }
+  }, [title]);
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SubdomainTitleSetter />
         <AuthProvider>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
@@ -80,10 +94,10 @@ const App = () => (
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
-              
-              {/* Role-based Redirect */}
-              <Route path="/" element={<RoleBasedRedirect />} />
-              
+
+              {/* Root — subdomain-aware redirect */}
+              <Route path="/" element={<SubdomainRedirect />} />
+
               {/* Domain route modules */}
               {adminRoutes()}
               {companyRoutes()}
