@@ -16,7 +16,7 @@ import {
   Building2,
   FileText,
   Calendar,
-  MessageSquare,
+  HardHat,
   AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -48,9 +48,10 @@ export default function ClientiLogin() {
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 text-center space-y-6 max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl p-8">
           <Building2 className="h-14 w-14 text-red-500 mx-auto" />
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-foreground">Accesso Negato</h1>
+            <h1 className="text-2xl font-bold text-foreground">Accesso non autorizzato</h1>
             <p className="text-muted-foreground text-sm">
-              Accesso riservato ai clienti. Contatta l&apos;azienda per assistenza.
+              Questo portale è riservato ai clienti. Se hai un account aziendale, accedi da{" "}
+              <span className="font-medium">app.ediliziaincloud.com</span>
             </p>
           </div>
           <Button
@@ -59,7 +60,7 @@ export default function ClientiLogin() {
               await signOut();
             }}
           >
-            Esci e torna al login
+            Torna al login
           </Button>
         </div>
       </div>
@@ -189,44 +190,56 @@ export default function ClientiLogin() {
             />
           </div>
 
-          {/* Title block */}
-          <div className="space-y-3">
-            <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">
-              Portale Clienti
-            </p>
-            <h1 className="text-3xl font-bold text-white leading-tight">
-              Benvenuto nel tuo portale
-            </h1>
-            <p className="text-white/80 text-base leading-relaxed">
-              Visualizza ordini, documenti e appuntamenti in tempo reale
-            </p>
-          </div>
+          {/* Title block + features + trust note wrapped in flex col so mt-auto works */}
+          <div className="flex flex-col min-h-[400px] space-y-10">
+            <div className="space-y-3">
+              <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">
+                PORTALE CLIENTI
+              </p>
+              <h1 className="text-3xl font-bold text-white leading-tight">
+                Il tuo cantiere, sempre con te
+              </h1>
+              <p className="text-white/80 text-base leading-relaxed">
+                Accedi per seguire l&apos;avanzamento dei tuoi lavori in tempo reale
+              </p>
+            </div>
 
-          {/* Feature list */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
-                <FileText className="h-5 w-5 text-white" />
+            {/* Feature list */}
+            <div className="space-y-5">
+              <div className="flex items-start gap-4">
+                <div className="rounded-xl bg-white/20 p-2.5 shrink-0 mt-0.5">
+                  <HardHat className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Avanzamento cantieri e lavori</p>
+                  <p className="text-white/60 text-xs mt-0.5">Segui ogni fase del tuo progetto</p>
+                </div>
               </div>
-              <span className="text-white/90 text-sm font-medium">
-                I tuoi ordini e documenti
-              </span>
+              <div className="flex items-start gap-4">
+                <div className="rounded-xl bg-white/20 p-2.5 shrink-0 mt-0.5">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Ordini e documenti</p>
+                  <p className="text-white/60 text-xs mt-0.5">Preventivi, contratti e fatture</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="rounded-xl bg-white/20 p-2.5 shrink-0 mt-0.5">
+                  <Calendar className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">Appuntamenti e scadenze</p>
+                  <p className="text-white/60 text-xs mt-0.5">Non perdere nessuna data importante</p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
-                <Calendar className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-white/90 text-sm font-medium">
-                Appuntamenti e scadenze
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
-                <MessageSquare className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-white/90 text-sm font-medium">
-                Comunicazione diretta con l&apos;azienda
-              </span>
+
+            {/* Trust note */}
+            <div className="mt-auto pt-8 border-t border-white/20">
+              <p className="text-white/50 text-xs leading-relaxed">
+                Le tue credenziali ti sono state fornite dall&apos;impresa che gestisce i tuoi lavori.
+              </p>
             </div>
           </div>
         </div>
@@ -269,10 +282,10 @@ export default function ClientiLogin() {
               {/* Desktop header */}
               <div className="text-center space-y-1">
                 <h2 className="text-2xl font-bold text-foreground lg:text-foreground text-zinc-900 dark:text-white">
-                  Accedi
+                  Accedi al tuo portale
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:text-muted-foreground">
-                  Inserisci le tue credenziali per accedere al portale
+                  Usa le credenziali ricevute dalla tua impresa edile
                 </p>
               </div>
 
@@ -284,7 +297,7 @@ export default function ClientiLogin() {
                     <Input
                       id="clienti-email"
                       type="email"
-                      placeholder="nome@esempio.it"
+                      placeholder="tuanome@email.it"
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
@@ -364,9 +377,14 @@ export default function ClientiLogin() {
                 </Button>
               </form>
 
-              <p className="text-center text-xs text-muted-foreground">
-                Problemi di accesso? Contatta l&apos;azienda per assistenza.
-              </p>
+              <div className="text-center space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Non hai le credenziali?
+                </p>
+                <p className="text-xs text-muted-foreground font-medium">
+                  Contatta direttamente la tua impresa edile di riferimento.
+                </p>
+              </div>
             </div>
           </>
         )}
@@ -386,20 +404,20 @@ export default function ClientiLogin() {
             <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl lg:shadow-none lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:backdrop-blur-none p-8 lg:p-0 space-y-6">
               <div className="text-center space-y-1">
                 <h2 className="text-2xl font-bold text-zinc-900 dark:text-white lg:text-foreground">
-                  Recupera password
+                  Password dimenticata?
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 lg:text-muted-foreground">
-                  Inserisci la tua email per ricevere il link di reset
+                  Inserisci la tua email e ti invieremo le istruzioni
                 </p>
               </div>
 
               {resetSent ? (
                 <div className="text-center space-y-4 py-4">
                   <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto" />
-                  <p className="text-foreground font-semibold">Email inviata!</p>
+                  <p className="text-foreground font-semibold">Controlla la tua email</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Controlla la tua casella di posta e clicca sul link per reimpostare la
-                    password.
+                    Abbiamo inviato le istruzioni per reimpostare la password. Se non la vedi,
+                    controlla anche la cartella spam.
                   </p>
                 </div>
               ) : (
@@ -411,7 +429,7 @@ export default function ClientiLogin() {
                       <Input
                         id="clienti-reset-email"
                         type="email"
-                        placeholder="nome@esempio.it"
+                        placeholder="tuanome@email.it"
                         value={email}
                         onChange={(e) => {
                           setEmail(e.target.value);
@@ -444,7 +462,7 @@ export default function ClientiLogin() {
                         Invio in corso...
                       </>
                     ) : (
-                      "Invia link di reset"
+                      "Invia istruzioni"
                     )}
                   </Button>
                 </form>
