@@ -40,13 +40,27 @@ export default defineConfig(() => ({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        // Required for SPA: offline navigation to any route falls back to index.html
+        // Only precache icons, images and fonts — NOT JS/CSS bundles.
+        // JS/CSS chunks already have content-hash filenames and are cached
+        // by Cloudflare edge (immutable, 1 year). Precaching them in the SW
+        // causes stale-cache blank-page crashes whenever a new deploy ships.
+        globPatterns: ["**/*.{ico,png,svg,woff2}"],
+        // SPA fallback: offline navigation returns index.html
         navigateFallback: "/index.html",
-        // Exclude Supabase auth callback from service worker navigation fallback
-        navigateFallbackDenylist: [/^\/auth\//],
+        navigateFallbackDenylist: [/^\/auth\//, /^\/assets\//],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // JS/CSS chunks: network-first so new deploys are always reflected.
+            // Falls back to cache if offline (content-hashed, safe to cache).
+            urlPattern: /\/assets\/.*\.(js|css)$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "assets-runtime",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
+            },
+          },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: "NetworkFirst",
