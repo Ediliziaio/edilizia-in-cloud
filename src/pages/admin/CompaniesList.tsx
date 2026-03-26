@@ -200,33 +200,85 @@ export default function CompaniesList() {
     return Comp;
   }, [sortKey, sortDir]);
 
-  const COMPANIES_FETCH_SIZE = 1000;
+  const SERVER_PAGE_SIZE = 20;
 
-  const { data: allCompanies = [], isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.admin.companiesFull,
+  // Derive server-side sort column and direction
+  const serverSortColumn = useMemo((): string => {
+    switch (sortKey) {
+      case "name": return "name";
+      case "sector": return "sector";
+      case "status": return "status";
+      case "trial": return "trial_ends_at";
+      default: return "created_at";
+    }
+  }, [sortKey]);
+
+  const { data: pagedResult, isLoading, isError, refetch } = useQuery({
+    queryKey: [
+      ...queryKeys.admin.companiesFull,
+      currentPage,
+      SERVER_PAGE_SIZE,
+      debouncedSearch,
+      statusFilter,
+      sectorFilter,
+      planFilter,
+      serverSortColumn,
+      sortDir,
+      permissions.allowed_company_ids,
+    ],
     queryFn: async () => {
-      // Load companies in pages of COMPANIES_FETCH_SIZE using .range() to avoid unbounded fetches
-      const from = 0;
-      const to = COMPANIES_FETCH_SIZE - 1;
-      const { data, error } = await supabase
+      const from = (currentPage - 1) * SERVER_PAGE_SIZE;
+      const to = from + SERVER_PAGE_SIZE - 1;
+
+      let query = supabase
         .from("companies")
-        .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)")
-        .eq("is_platform_admin_company", false)
-        .order("created_at", { ascending: false })
-        .range(from, to);
+        .select(
+          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)",
+          { count: "exact" }
+        )
+        .eq("is_platform_admin_company", false);
+
+      // Server-side text search
+      if (debouncedSearch) {
+        query = query.or(
+          `name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`
+        );
+      }
+
+      // Server-side filters
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+      if (sectorFilter !== "all") query = query.eq("sector", sectorFilter);
+      if (planFilter !== "all") query = query.eq("subscription_plan_id", planFilter);
+
+      // Restrict to allowed company IDs for scoped super-admins
+      if (permissions.allowed_company_ids?.length) {
+        query = query.in("id", permissions.allowed_company_ids);
+      }
+
+      // Server-side sort (name, sector, status, trial_ends_at supported; others fall back to created_at)
+      const ascending = sortDir === "asc";
+      if (sortKey === "trial") {
+        // Sort nulls last for trial_ends_at
+        query = query.order("trial_ends_at", { ascending, nullsFirst: false });
+      } else {
+        query = query.order(serverSortColumn, { ascending });
+      }
+
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data ?? [];
+      return { data: data ?? [], totalCount: count ?? 0 };
     },
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
-  // Enforce allowed_company_ids for restricted super admins
-  const companies = useMemo(() => {
-    if (permissions.allowed_company_ids?.length) {
-      return allCompanies.filter((c) => permissions.allowed_company_ids!.includes(c.id));
-    }
-    return allCompanies;
-  }, [allCompanies, permissions.allowed_company_ids]);
+  const allCompanies = pagedResult?.data ?? [];
+  const serverTotalCount = pagedResult?.totalCount ?? 0;
+
+  // companies = current page data (allowed_company_ids already applied server-side)
+  const companies = allCompanies;
 
   const { data: orderStats = {} } = useQuery({
     queryKey: queryKeys.admin.companiesOrderStats,
@@ -304,7 +356,7 @@ export default function CompaniesList() {
   const { data: companyTags = {} } = useQuery({
     queryKey: queryKeys.admin.companyTags,
     queryFn: async () => {
-      const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
+      const { data, error } = await supabase.from("company_tags").select("id, company_id, tag, color, created_at").order("created_at");
       if (error) throw error;
       const map: Record<string, Array<{ id: string; tag: string; color: string }>> = {};
       (data || []).forEach((row) => {
@@ -354,71 +406,64 @@ export default function CompaniesList() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const uniquePlans = useMemo(() => {
-    const planMap = new Map<string, string>();
-    companies.forEach((c) => {
-      const plan = c.subscription_plans as { id: string; name: string } | null;
-      if (plan) planMap.set(plan.id, plan.name);
-    });
-    return Array.from(planMap.entries()).map(([id, name]) => ({ id, name }));
-  }, [companies]);
+  // Fetch available subscription plans for the filter dropdown (lightweight, independent of page)
+  const { data: uniquePlans = [] } = useQuery({
+    queryKey: ["admin-subscription-plans-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
+  // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir]);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, sortKey, sortDir]);
 
+  // Client-side post-filters applied on the current page only (health and noPayment require cross-query data)
   const filteredCompanies = useMemo(() => {
-    let result = companies.filter((company) => {
-      const matchesSearch =
-        company.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        company.email.toLowerCase().includes(debouncedSearch.toLowerCase());
-      const matchesStatus = statusFilter === "all" || company.status === statusFilter;
-      const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
-      const plan = company.subscription_plans as { id: string; name: string } | null;
-      const matchesPlan = planFilter === "all" || plan?.id === planFilter;
+    if (healthFilter === "all" && !noPaymentFilter) return companies;
+    return companies.filter((company) => {
       const matchesHealth = healthFilter === "all" || (healthData[company.id]?.health === healthFilter);
       const matchesNoPayment = !noPaymentFilter ||
         ((company.status === "active" || company.status === "trial") &&
           (!company.payment_method || company.payment_method === "none" || company.payment_method === ""));
-      return matchesSearch && matchesStatus && matchesSector && matchesPlan && matchesHealth && matchesNoPayment;
+      return matchesHealth && matchesNoPayment;
     });
+  }, [companies, healthFilter, noPaymentFilter, healthData]);
 
-    if (sortKey) {
-      const dir = sortDir === "asc" ? 1 : -1;
-      result = [...result].sort((a, b) => {
-        const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-        const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-        switch (sortKey) {
-          case "name": return dir * a.name.localeCompare(b.name);
-          case "sector": return dir * (a.sector || "").localeCompare(b.sector || "");
-          case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
-          case "mrr": return dir * ((planA?.price_monthly || 0) - (planB?.price_monthly || 0));
-          case "status": return dir * (a.status || "").localeCompare(b.status || "");
-          case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
-          case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
-          case "lastAccess": {
-            const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
-            const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
-            return dir * (la - lb);
-          }
-          case "trial": {
-            const dateA = a.trial_ends_at ? new Date(a.trial_ends_at).getTime() : new Date(a.created_at).getTime();
-            const dateB = b.trial_ends_at ? new Date(b.trial_ends_at).getTime() : new Date(b.created_at).getTime();
-            return dir * (dateA - dateB);
-          }
-          default: return 0;
-        }
-      });
+  // Client-side sort for sort keys that require cross-query data (mrr, orders, users, lastAccess)
+  const pagedCompanies = useMemo(() => {
+    if (!sortKey || ["name", "sector", "status", "trial"].includes(sortKey)) {
+      // Already sorted server-side
+      return filteredCompanies;
     }
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filteredCompanies].sort((a, b) => {
+      const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+      const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+      switch (sortKey) {
+        case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
+        case "mrr": return dir * ((planA?.price_monthly || 0) - (planB?.price_monthly || 0));
+        case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
+        case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
+        case "lastAccess": {
+          const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
+          const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
+          return dir * (la - lb);
+        }
+        default: return 0;
+      }
+    });
+  }, [filteredCompanies, sortKey, sortDir, orderStats, userCounts, lastAccessData]);
 
-    return result;
-  }, [companies, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData, healthData]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / PAGE_SIZE));
-  const pagedCompanies = useMemo(() =>
-    filteredCompanies.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [filteredCompanies, currentPage]
-  );
+  const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
   const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter;
 
