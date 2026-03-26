@@ -15,8 +15,8 @@ export default function SolutionSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-24 md:py-32 bg-[#1a2744] relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[150px]" />
+    <section className="py-24 md:py-32 bg-[#111111] relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#F97415]/[0.06] rounded-full blur-[150px]" />
 
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
@@ -24,7 +24,7 @@ export default function SolutionSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Smetti di indovinare. <span className="text-[#0fa68c]">Inizia a sapere.</span>
+          Smetti di indovinare. <span className="text-[#F97415]">Inizia a sapere.</span>
         </h2>
         <p
           className={`text-white/50 text-center mb-16 text-lg max-w-2xl mx-auto transition-all duration-700 delay-150 ${
@@ -39,13 +39,13 @@ export default function SolutionSection() {
             {questions.map((q, i) => (
               <div
                 key={i}
-                className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#0fa68c]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
+                className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#F97415]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
                 }`}
                 style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
               >
-                <div className="w-12 h-12 rounded-xl bg-[#0fa68c]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                  <q.icon className="w-6 h-6 text-[#0fa68c]" />
+                <div className="w-12 h-12 rounded-xl bg-[#F97415]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                  <q.icon className="w-6 h-6 text-[#F97415]" />
                 </div>
                 <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
                 <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
@@ -76,9 +76,9 @@ export default function SolutionSection() {
           </div>
           <div className="grid grid-cols-3 gap-4 mb-6">
             {[
-              { label: "Margine Medio", value: "24.5%", icon: PieChart, color: "text-[#0fa68c]" },
-              { label: "Cassa Disponibile", value: "€ 128.450", icon: BarChart3, color: "text-[#0fa68c]" },
-              { label: "Commesse Attive", value: "12", icon: ArrowUpRight, color: "text-[#0fa68c]" },
+              { label: "Margine Medio", value: "24.5%", icon: PieChart, color: "text-[#F97415]" },
+              { label: "Cassa Disponibile", value: "€ 128.450", icon: BarChart3, color: "text-[#F97415]" },
+              { label: "Commesse Attive", value: "12", icon: ArrowUpRight, color: "text-[#F97415]" },
             ].map((stat, i) => (
               <div key={i} className="bg-white/[0.04] rounded-xl p-4 border border-white/[0.08]">
                 <div className="flex items-center justify-between mb-2">

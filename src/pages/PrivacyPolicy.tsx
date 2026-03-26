@@ -16,21 +16,21 @@ export default function PrivacyPolicy() {
       <LandingNavbar />
       <div className="pt-16" />
       <main className="max-w-4xl mx-auto px-6 py-16">
-        <h1 className="text-4xl font-bold text-[#1a2744] mb-2">Privacy Policy</h1>
+        <h1 className="text-4xl font-bold text-[#111111] mb-2">Privacy Policy</h1>
         <p className="text-sm text-gray-400 mb-10">Ultimo aggiornamento: 26 marzo 2026</p>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">1. Titolare del Trattamento</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">1. Titolare del Trattamento</h2>
           <p className="text-gray-600 leading-relaxed">
             Il Titolare del trattamento dei dati personali, ai sensi dell'art. 13 del Regolamento (UE) 2016/679
             (GDPR), è <strong>Domus Group S.r.l.</strong>, con sede legale in Via Aurelio Saffi 29, CAP 20123,
             Milano (MI), P.IVA 13132010961. Per qualsiasi richiesta relativa al trattamento dei dati personali è
             possibile contattare il Titolare all'indirizzo email{" "}
-            <a href="mailto:info@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+            <a href="mailto:info@ediliziaincloud.com" className="text-[#F97415] hover:underline">
               info@ediliziaincloud.com
             </a>
             . Il Responsabile della Protezione dei Dati (DPO) è contattabile all'indirizzo{" "}
-            <a href="mailto:privacy@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+            <a href="mailto:privacy@ediliziaincloud.com" className="text-[#F97415] hover:underline">
               privacy@ediliziaincloud.com
             </a>
             . La presente informativa è resa ai sensi dell'art. 13 GDPR a tutti i soggetti che interagiscono con
@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">2. Dati Raccolti e Finalità del Trattamento</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">2. Dati Raccolti e Finalità del Trattamento</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Nell'ambito dell'erogazione dei propri servizi, Domus Group S.r.l. raccoglie e tratta le seguenti
             categorie di dati personali:
@@ -70,7 +70,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">3. Base Giuridica del Trattamento</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">3. Base Giuridica del Trattamento</h2>
           <p className="text-gray-600 leading-relaxed">
             Il trattamento dei dati personali si fonda sulle seguenti basi giuridiche ai sensi dell'art. 6 GDPR:
             (a) <strong>esecuzione di un contratto</strong> (art. 6.1.b GDPR) per i dati necessari all'erogazione
@@ -85,7 +85,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">4. Periodo di Conservazione dei Dati</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">4. Periodo di Conservazione dei Dati</h2>
           <p className="text-gray-600 leading-relaxed">
             I dati personali trattati per finalità contrattuali e di fatturazione sono conservati per un periodo
             di <strong>10 anni</strong> dalla cessazione del rapporto contrattuale, in conformità agli obblighi
@@ -98,7 +98,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">5. Diritti dell'Interessato (artt. 15–22 GDPR)</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">5. Diritti dell'Interessato (artt. 15–22 GDPR)</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             In qualità di interessato, l'utente ha il diritto di esercitare in qualsiasi momento i seguenti
             diritti nei confronti del Titolare del trattamento:
@@ -131,7 +131,7 @@ export default function PrivacyPolicy() {
           </ul>
           <p className="text-gray-600 leading-relaxed">
             Per esercitare i propri diritti, l'interessato può inviare una richiesta scritta a{" "}
-            <a href="mailto:privacy@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+            <a href="mailto:privacy@ediliziaincloud.com" className="text-[#F97415] hover:underline">
               privacy@ediliziaincloud.com
             </a>
             . Il Titolare risponderà entro 30 giorni dal ricevimento della richiesta. L'interessato ha altresì il
@@ -141,7 +141,7 @@ export default function PrivacyPolicy() {
               href="https://www.garanteprivacy.it"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0fa68c] hover:underline"
+              className="text-[#F97415] hover:underline"
             >
               www.garanteprivacy.it
             </a>
@@ -150,7 +150,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">6. Cookie Policy</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">6. Cookie Policy</h2>
           <p className="text-gray-600 leading-relaxed">
             Il sito web di Edilizia in Cloud utilizza cookie e tecnologie similari per garantire il corretto
             funzionamento del sito, analizzare il traffico in forma aggregata e anonimizzata tramite Google
@@ -159,7 +159,7 @@ export default function PrivacyPolicy() {
             analitici e di profilazione possono essere accettati o rifiutati dall'utente tramite il banner
             presente al primo accesso al sito. Per informazioni dettagliate sui cookie utilizzati, la loro durata
             e le modalità di gestione, si rimanda alla{" "}
-            <a href="/cookie" className="text-[#0fa68c] hover:underline">
+            <a href="/cookie" className="text-[#F97415] hover:underline">
               Cookie Policy completa
             </a>
             .
@@ -167,7 +167,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">7. Trasferimento di Dati Extra-UE</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">7. Trasferimento di Dati Extra-UE</h2>
           <p className="text-gray-600 leading-relaxed">
             Domus Group S.r.l. non effettua trasferimenti di dati personali verso Paesi terzi al di fuori dello
             Spazio Economico Europeo (SEE). Tutti i dati sono trattati e conservati su infrastrutture situate
@@ -180,7 +180,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">8. Sicurezza dei Dati</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">8. Sicurezza dei Dati</h2>
           <p className="text-gray-600 leading-relaxed">
             Domus Group S.r.l. adotta misure tecnico-organizzative adeguate per proteggere i dati personali da
             accessi non autorizzati, perdita, distruzione o divulgazione non consentita, in conformità all'art.
@@ -194,7 +194,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">9. Modifiche alla Privacy Policy</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">9. Modifiche alla Privacy Policy</h2>
           <p className="text-gray-600 leading-relaxed">
             Il Titolare si riserva il diritto di modificare la presente informativa in qualsiasi momento, al fine
             di adeguarla a eventuali variazioni normative, a nuove finalità di trattamento o a modifiche dei

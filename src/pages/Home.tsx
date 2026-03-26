@@ -36,7 +36,7 @@ function PromoBanner() {
     <a
       href="#garanzie"
       onClick={handleClick}
-      className="fixed top-0 left-0 right-0 z-[60] bg-[#0fa68c] text-white py-2 text-center cursor-pointer hover:bg-[#0d9079] transition-colors overflow-hidden"
+      className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center cursor-pointer hover:bg-[#e8650e] transition-colors overflow-hidden"
     >
       <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
       <span className="relative flex items-center justify-center gap-2 text-xs md:text-sm font-bold tracking-wide">
@@ -55,7 +55,7 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] pb-24 overflow-x-hidden">
+    <div className="min-h-screen bg-white text-[#111111] pb-24 overflow-x-hidden">
       <JsonLd id="jsonld-home" data={{
         "@context": "https://schema.org",
         "@type": "FAQPage",

@@ -16,11 +16,11 @@ export default function CookiePolicy() {
       <LandingNavbar />
       <div className="pt-16" />
       <main className="max-w-4xl mx-auto px-6 py-16">
-        <h1 className="text-4xl font-bold text-[#1a2744] mb-2">Cookie Policy</h1>
+        <h1 className="text-4xl font-bold text-[#111111] mb-2">Cookie Policy</h1>
         <p className="text-sm text-gray-400 mb-10">Ultimo aggiornamento: 26 marzo 2026</p>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">1. Cosa sono i Cookie</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">1. Cosa sono i Cookie</h2>
           <p className="text-gray-600 leading-relaxed">
             I cookie sono piccoli file di testo che i siti web visitati dall'utente inviano al suo
             dispositivo (computer, tablet, smartphone), dove vengono memorizzati per essere poi
@@ -34,7 +34,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">2. Tipologie di Cookie Utilizzati</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">2. Tipologie di Cookie Utilizzati</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Il sito web di Edilizia in Cloud utilizza le seguenti categorie di cookie:
           </p>
@@ -42,9 +42,9 @@ export default function CookiePolicy() {
             <table className="w-full text-sm text-gray-600 border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="text-left p-3 border border-gray-200 text-[#1a2744] font-semibold">Categoria</th>
-                  <th className="text-left p-3 border border-gray-200 text-[#1a2744] font-semibold">Descrizione</th>
-                  <th className="text-left p-3 border border-gray-200 text-[#1a2744] font-semibold">Consenso</th>
+                  <th className="text-left p-3 border border-gray-200 text-[#111111] font-semibold">Categoria</th>
+                  <th className="text-left p-3 border border-gray-200 text-[#111111] font-semibold">Descrizione</th>
+                  <th className="text-left p-3 border border-gray-200 text-[#111111] font-semibold">Consenso</th>
                 </tr>
               </thead>
               <tbody>
@@ -69,7 +69,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">3. Cookie Tecnici (Sempre Attivi)</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">3. Cookie Tecnici (Sempre Attivi)</h2>
           <p className="text-gray-600 leading-relaxed">
             I cookie tecnici sono indispensabili per il corretto funzionamento del sito web e della
             piattaforma applicativa e non richiedono il consenso dell'utente ai sensi del Provvedimento
@@ -83,7 +83,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">4. Cookie Analitici (Google Analytics 4)</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">4. Cookie Analitici (Google Analytics 4)</h2>
           <p className="text-gray-600 leading-relaxed">
             Il sito utilizza <strong>Google Analytics 4</strong> (GA4), un servizio di analisi web fornito
             da Google LLC, per raccogliere informazioni statistiche aggregate sull'utilizzo del sito, come
@@ -96,7 +96,7 @@ export default function CookiePolicy() {
               href="https://tools.google.com/dlpage/gaoptout"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0fa68c] hover:underline"
+              className="text-[#F97415] hover:underline"
             >
               tools.google.com/dlpage/gaoptout
             </a>
@@ -106,7 +106,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">5. Cookie di Marketing (Solo con Consenso)</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">5. Cookie di Marketing (Solo con Consenso)</h2>
           <p className="text-gray-600 leading-relaxed">
             I cookie di marketing e profilazione vengono utilizzati per mostrare annunci pubblicitari
             personalizzati in base agli interessi dell'utente, rilevati attraverso il tracciamento delle
@@ -119,7 +119,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">6. Come Gestire i Cookie</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">6. Come Gestire i Cookie</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             Oltre alla gestione tramite il pannello cookie del sito, l'utente può controllare e gestire
             i cookie direttamente dalle impostazioni del proprio browser. Di seguito le istruzioni per
@@ -127,21 +127,21 @@ export default function CookiePolicy() {
           </p>
           <ul className="space-y-3 text-gray-600">
             <li>
-              <strong className="text-[#1a2744]">Google Chrome:</strong> Menu (⋮) → Impostazioni →
+              <strong className="text-[#111111]">Google Chrome:</strong> Menu (⋮) → Impostazioni →
               Privacy e sicurezza → Cookie e altri dati dei siti. Oppure visitare{" "}
               <code className="bg-gray-100 px-1 rounded text-sm">chrome://settings/cookies</code>.
             </li>
             <li>
-              <strong className="text-[#1a2744]">Mozilla Firefox:</strong> Menu (☰) → Impostazioni →
+              <strong className="text-[#111111]">Mozilla Firefox:</strong> Menu (☰) → Impostazioni →
               Privacy e sicurezza → Cookie e dati dei siti. È possibile cancellare i cookie e impostare
               le preferenze di blocco per categoria.
             </li>
             <li>
-              <strong className="text-[#1a2744]">Apple Safari:</strong> Preferenze → Privacy → Gestisci
+              <strong className="text-[#111111]">Apple Safari:</strong> Preferenze → Privacy → Gestisci
               dati siti web. Su iOS: Impostazioni → Safari → Avanzate → Dati dei siti web.
             </li>
             <li>
-              <strong className="text-[#1a2744]">Microsoft Edge:</strong> Menu (…) → Impostazioni →
+              <strong className="text-[#111111]">Microsoft Edge:</strong> Menu (…) → Impostazioni →
               Cookie e autorizzazioni sito → Cookie e dati dei siti. È possibile bloccare cookie di terze
               parti e gestire le eccezioni per singolo sito.
             </li>
@@ -154,7 +154,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">7. Cookie di Terze Parti</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">7. Cookie di Terze Parti</h2>
           <p className="text-gray-600 leading-relaxed">
             Il sito web di Edilizia in Cloud può includere componenti di terze parti (pulsanti social,
             widget, video incorporati, strumenti di chat) che potrebbero installare cookie propri sui
@@ -167,7 +167,7 @@ export default function CookiePolicy() {
               href="https://policies.google.com/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#0fa68c] hover:underline"
+              className="text-[#F97415] hover:underline"
             >
               policies.google.com/privacy
             </a>
@@ -176,7 +176,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">8. Aggiornamenti alla Cookie Policy</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">8. Aggiornamenti alla Cookie Policy</h2>
           <p className="text-gray-600 leading-relaxed">
             La presente Cookie Policy potrà essere modificata in qualsiasi momento per adeguarsi a
             variazioni normative, all'introduzione di nuovi cookie o servizi, o a modifiche dei
@@ -189,7 +189,7 @@ export default function CookiePolicy() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">9. Contatti</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">9. Contatti</h2>
           <p className="text-gray-600 leading-relaxed">
             Per informazioni sui cookie utilizzati dal sito o per esercitare i propri diritti ai sensi
             del GDPR, è possibile contattare il Titolare del trattamento:
@@ -201,13 +201,13 @@ export default function CookiePolicy() {
             <li>Via Aurelio Saffi 29, CAP 20123, Milano (MI)</li>
             <li>
               Email:{" "}
-              <a href="mailto:privacy@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+              <a href="mailto:privacy@ediliziaincloud.com" className="text-[#F97415] hover:underline">
                 privacy@ediliziaincloud.com
               </a>
             </li>
             <li>
               Per ulteriori informazioni sulla privacy, consulta la nostra{" "}
-              <a href="/privacy" className="text-[#0fa68c] hover:underline">
+              <a href="/privacy" className="text-[#F97415] hover:underline">
                 Privacy Policy
               </a>
               .

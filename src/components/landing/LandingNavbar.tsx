@@ -46,7 +46,7 @@ export default function LandingNavbar() {
   };
 
   const desktopLinkClass = `text-sm font-medium transition-colors ${
-    isWhiteBg ? "text-[#1a2744]/70 hover:text-[#1a2744]" : "text-white/80 hover:text-white"
+    isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
   }`;
 
   return (
@@ -88,7 +88,7 @@ export default function LandingNavbar() {
                   className={desktopLinkClass}
                   style={
                     location.pathname === item.to
-                      ? { color: "#0fa68c", opacity: 1 }
+                      ? { color: "#F97415", opacity: 1 }
                       : undefined
                   }
                 >
@@ -112,7 +112,7 @@ export default function LandingNavbar() {
             to="/login"
             className={`text-sm font-medium transition-colors ${
               isWhiteBg
-                ? "text-[#1a2744]/60 hover:text-[#1a2744]"
+                ? "text-[#111111]/60 hover:text-[#111111]"
                 : "text-white/60 hover:text-white"
             }`}
           >
@@ -121,7 +121,7 @@ export default function LandingNavbar() {
 
           <Link
             to="/demo"
-            className="px-5 py-2.5 rounded-full bg-[#0fa68c] text-white text-sm font-bold hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#0fa68c]/20"
+            className="px-5 py-2.5 rounded-full bg-[#F97415] text-white text-sm font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/20"
           >
             Richiedi Demo
           </Link>
@@ -129,7 +129,7 @@ export default function LandingNavbar() {
 
         {/* Mobile toggle */}
         <button
-          className={`md:hidden ${isWhiteBg ? "text-[#1a2744]" : "text-white"}`}
+          className={`md:hidden ${isWhiteBg ? "text-[#111111]" : "text-white"}`}
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           {mobileOpen ? <X size={24} /> : <Menu size={24} />}
@@ -149,8 +149,8 @@ export default function LandingNavbar() {
                   className="block py-2 font-medium"
                   style={
                     location.pathname === item.to
-                      ? { color: "#0fa68c" }
-                      : { color: "#1a2744" }
+                      ? { color: "#F97415" }
+                      : { color: "#111111" }
                   }
                 >
                   {item.label}
@@ -162,7 +162,7 @@ export default function LandingNavbar() {
                 key={item.label}
                 href={item.href}
                 onClick={(e) => handleAnchor(e, item.href!)}
-                className="block text-[#1a2744] hover:text-[#0fa68c] py-2 font-medium"
+                className="block text-[#111111] hover:text-[#F97415] py-2 font-medium"
               >
                 {item.label}
               </a>
@@ -170,7 +170,7 @@ export default function LandingNavbar() {
           })}
           <Link
             to="/login"
-            className="block text-[#1a2744]/60 hover:text-[#1a2744] py-2"
+            className="block text-[#111111]/60 hover:text-[#111111] py-2"
             onClick={() => setMobileOpen(false)}
           >
             Accedi
@@ -178,7 +178,7 @@ export default function LandingNavbar() {
           <Link
             to="/demo"
             onClick={() => setMobileOpen(false)}
-            className="block text-center px-5 py-3 rounded-full bg-[#0fa68c] text-white font-bold"
+            className="block text-center px-5 py-3 rounded-full bg-[#F97415] text-white font-bold"
           >
             Richiedi Demo
           </Link>

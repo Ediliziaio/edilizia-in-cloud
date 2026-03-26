@@ -23,11 +23,11 @@ export default function TargetSection() {
     <section className="py-24 md:py-32 bg-[#f8f9fa]">
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-6 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-6 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Per Chi È <span className="text-[#0fa68c]">Edilizia in Cloud</span>?
+          Per Chi È <span className="text-[#F97415]">Edilizia in Cloud</span>?
         </h2>
 
         {/* AI Image hero */}
@@ -45,17 +45,17 @@ export default function TargetSection() {
 
         <div className="grid md:grid-cols-2 gap-8">
           <div
-            className={`p-8 rounded-2xl border-2 border-[#0fa68c]/30 bg-white shadow-sm transition-all duration-700 ${
+            className={`p-8 rounded-2xl border-2 border-[#F97415]/30 bg-white shadow-sm transition-all duration-700 ${
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
             }`}
           >
-            <h3 className="text-2xl font-bold text-[#1a2744] mb-6">
+            <h3 className="text-2xl font-bold text-[#111111] mb-6">
               ✅ Perfetto per te se…
             </h3>
             <ul className="space-y-4">
               {forYou.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-[#0fa68c] flex-shrink-0 mt-0.5" />
+                  <Check className="w-5 h-5 text-[#F97415] flex-shrink-0 mt-0.5" />
                   <span className="text-gray-600 text-sm">{item}</span>
                 </li>
               ))}
@@ -67,7 +67,7 @@ export default function TargetSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-16"
             }`}
           >
-            <h3 className="text-2xl font-bold text-[#1a2744] mb-6">
+            <h3 className="text-2xl font-bold text-[#111111] mb-6">
               ❌ NON è per te se…
             </h3>
             <ul className="space-y-4">

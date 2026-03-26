@@ -58,7 +58,7 @@ function ProgressBar() {
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-200/50">
       <div
-        className="h-full bg-[#0fa68c] transition-all duration-100 ease-out"
+        className="h-full bg-[#F97415] transition-all duration-100 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>
@@ -94,7 +94,7 @@ function TableOfContents({ headings }: TableOfContentsProps) {
 
   return (
     <nav className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-      <h3 className="text-xs font-bold text-[#1a2744] uppercase tracking-widest mb-4">
+      <h3 className="text-xs font-bold text-[#111111] uppercase tracking-widest mb-4">
         Indice dell&apos;articolo
       </h3>
       <ul className="space-y-2">
@@ -112,14 +112,14 @@ function TableOfContents({ headings }: TableOfContentsProps) {
                 }}
                 className={`flex items-start gap-2 text-sm transition-colors leading-snug ${
                   active === id
-                    ? "text-[#0fa68c] font-semibold"
-                    : "text-gray-500 hover:text-[#1a2744]"
+                    ? "text-[#F97415] font-semibold"
+                    : "text-gray-500 hover:text-[#111111]"
                 }`}
               >
                 <ChevronRight
                   size={14}
                   className={`mt-0.5 flex-shrink-0 transition-transform ${
-                    active === id ? "text-[#0fa68c] translate-x-0.5" : ""
+                    active === id ? "text-[#F97415] translate-x-0.5" : ""
                   }`}
                 />
                 <span>{heading}</span>
@@ -154,7 +154,7 @@ function RelatedPostCard({ post }: RelatedPostCardProps) {
         >
           {post.category}
         </span>
-        <h4 className="text-sm font-semibold text-[#1a2744] group-hover:text-[#0fa68c] transition-colors line-clamp-2 leading-snug">
+        <h4 className="text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors line-clamp-2 leading-snug">
           {post.title}
         </h4>
         <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
@@ -198,8 +198,8 @@ export default function BlogPost() {
       <div className="min-h-screen bg-white flex flex-col">
         <LandingNavbar />
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center py-32">
-          <p className="text-6xl font-extrabold text-[#1a2744]/10 mb-4">404</p>
-          <h1 className="text-2xl font-bold text-[#1a2744] mb-3">
+          <p className="text-6xl font-extrabold text-[#111111]/10 mb-4">404</p>
+          <h1 className="text-2xl font-bold text-[#111111] mb-3">
             Articolo non trovato
           </h1>
           <p className="text-gray-500 mb-8">
@@ -207,7 +207,7 @@ export default function BlogPost() {
           </p>
           <Link
             to="/blog"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#0fa68c] text-white font-semibold hover:bg-[#0d9079] transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-semibold hover:bg-[#e8650e] transition-colors"
           >
             <ArrowLeft size={16} /> Torna al Blog
           </Link>
@@ -275,7 +275,7 @@ export default function BlogPost() {
           style={{ maxHeight: 480, minHeight: 320, width: "100%", objectFit: "cover" }}
         />
         {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1e]/90 via-[#0a0f1e]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-[#0a0a0a]/40 to-transparent" />
         {/* Hero content */}
         <div className="absolute inset-0 flex items-end">
           <div className="max-w-5xl mx-auto px-6 pb-10 w-full">
@@ -323,7 +323,7 @@ export default function BlogPost() {
                   return (
                     <p
                       key={i}
-                      className="text-xl text-gray-700 leading-relaxed mb-10 font-light border-l-4 border-[#0fa68c] pl-6"
+                      className="text-xl text-gray-700 leading-relaxed mb-10 font-light border-l-4 border-[#F97415] pl-6"
                     >
                       {section.body}
                     </p>
@@ -336,7 +336,7 @@ export default function BlogPost() {
                       {section.heading && (
                         <h2
                           id={id}
-                          className="text-2xl font-bold text-[#1a2744] mt-10 mb-4 scroll-mt-28"
+                          className="text-2xl font-bold text-[#111111] mt-10 mb-4 scroll-mt-28"
                         >
                           {section.heading}
                         </h2>
@@ -354,13 +354,13 @@ export default function BlogPost() {
                   return (
                     <blockquote
                       key={i}
-                      className="my-10 pl-6 border-l-4 border-[#0fa68c] bg-gray-50 rounded-r-xl py-5 pr-6"
+                      className="my-10 pl-6 border-l-4 border-[#F97415] bg-gray-50 rounded-r-xl py-5 pr-6"
                     >
                       <p className="text-gray-700 italic text-lg leading-relaxed mb-3">
                         &ldquo;{section.quote}&rdquo;
                       </p>
                       {section.author && (
-                        <footer className="text-sm font-semibold text-[#1a2744]">
+                        <footer className="text-sm font-semibold text-[#111111]">
                           — {section.author}
                         </footer>
                       )}
@@ -374,7 +374,7 @@ export default function BlogPost() {
                       {section.heading && (
                         <h2
                           id={id}
-                          className="text-2xl font-bold text-[#1a2744] mt-10 mb-4 scroll-mt-28"
+                          className="text-2xl font-bold text-[#111111] mt-10 mb-4 scroll-mt-28"
                         >
                           {section.heading}
                         </h2>
@@ -383,7 +383,7 @@ export default function BlogPost() {
                         <ul className="space-y-3">
                           {section.items.map((item, j) => (
                             <li key={j} className="flex items-start gap-3">
-                              <span className="text-[#0fa68c] font-bold text-lg mt-0.5 flex-shrink-0">
+                              <span className="text-[#F97415] font-bold text-lg mt-0.5 flex-shrink-0">
                                 ✓
                               </span>
                               <span className="text-gray-600 leading-relaxed">
@@ -401,7 +401,7 @@ export default function BlogPost() {
                   return (
                     <div
                       key={i}
-                      className="my-12 bg-gradient-to-br from-[#0fa68c] to-[#0d9079] rounded-2xl p-8 text-white text-center"
+                      className="my-12 bg-gradient-to-br from-[#F97415] to-[#e8650e] rounded-2xl p-8 text-white text-center"
                     >
                       {section.heading && (
                         <h3 className="text-xl font-bold mb-3">{section.heading}</h3>
@@ -411,7 +411,7 @@ export default function BlogPost() {
                       )}
                       <Link
                         to="/demo"
-                        className="inline-flex items-center gap-2 px-7 py-3 bg-white text-[#0fa68c] font-bold rounded-full hover:bg-white/90 transition-colors shadow-lg"
+                        className="inline-flex items-center gap-2 px-7 py-3 bg-white text-[#F97415] font-bold rounded-full hover:bg-white/90 transition-colors shadow-lg"
                       >
                         Prova Edilizia in Cloud <ArrowRight size={16} />
                       </Link>
@@ -432,7 +432,7 @@ export default function BlogPost() {
                 {post.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-[#0fa68c]/10 hover:text-[#0fa68c] transition-colors cursor-default"
+                    className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-[#F97415]/10 hover:text-[#F97415] transition-colors cursor-default"
                   >
                     {tag}
                   </span>
@@ -441,14 +441,14 @@ export default function BlogPost() {
             </div>
 
             {/* Author card */}
-            <div className="mt-10 bg-[#1a2744]/5 rounded-2xl p-6 flex items-start gap-5">
-              <div className="w-14 h-14 rounded-full bg-[#0fa68c]/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-[#0fa68c] font-bold text-xl">
+            <div className="mt-10 bg-[#111111]/5 rounded-2xl p-6 flex items-start gap-5">
+              <div className="w-14 h-14 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-[#F97415] font-bold text-xl">
                   {post.author.name.charAt(0)}
                 </span>
               </div>
               <div>
-                <p className="font-bold text-[#1a2744]">{post.author.name}</p>
+                <p className="font-bold text-[#111111]">{post.author.name}</p>
                 <p className="text-sm text-gray-500 mb-2">{post.author.role}</p>
                 <p className="text-sm text-gray-600 leading-relaxed">
                   Esperto di gestione aziendale per imprese edili italiane. Fondatore di Edilizia in Cloud, la piattaforma gestionale dedicata al settore delle costruzioni.
@@ -463,7 +463,7 @@ export default function BlogPost() {
             <TableOfContents headings={sectionHeadings} />
 
             {/* CTA Card */}
-            <div className="bg-[#1a2744] rounded-2xl p-6 text-white">
+            <div className="bg-[#111111] rounded-2xl p-6 text-white">
               <h3 className="font-bold text-base mb-2 leading-snug">
                 Prova Edilizia in Cloud Gratis
               </h3>
@@ -472,7 +472,7 @@ export default function BlogPost() {
               </p>
               <Link
                 to="/demo"
-                className="block text-center px-5 py-2.5 rounded-full bg-[#0fa68c] text-white font-bold text-sm hover:bg-[#0d9079] transition-colors"
+                className="block text-center px-5 py-2.5 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] transition-colors"
               >
                 Richiedi Demo
               </Link>
@@ -481,7 +481,7 @@ export default function BlogPost() {
             {/* Related posts in sidebar */}
             {relatedPosts.length > 0 && (
               <div>
-                <h3 className="text-xs font-bold text-[#1a2744] uppercase tracking-widest mb-4">
+                <h3 className="text-xs font-bold text-[#111111] uppercase tracking-widest mb-4">
                   Articoli correlati
                 </h3>
                 <div className="flex flex-col gap-3">
@@ -497,7 +497,7 @@ export default function BlogPost() {
         {/* Related posts grid (mobile + bottom) */}
         {relatedPosts.length > 0 && (
           <div className="mt-16 pt-12 border-t border-gray-200">
-            <h2 className="text-2xl font-bold text-[#1a2744] mb-8">
+            <h2 className="text-2xl font-bold text-[#111111] mb-8">
               Articoli correlati
             </h2>
             <div className="grid md:grid-cols-2 gap-6">
@@ -524,7 +524,7 @@ export default function BlogPost() {
                       </div>
                     </div>
                     <div className="p-5 flex flex-col flex-1">
-                      <h3 className="text-base font-bold text-[#1a2744] mb-2 group-hover:text-[#0fa68c] transition-colors line-clamp-2 leading-snug">
+                      <h3 className="text-base font-bold text-[#111111] mb-2 group-hover:text-[#F97415] transition-colors line-clamp-2 leading-snug">
                         {rp.title}
                       </h3>
                       <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1 mb-4">
@@ -534,7 +534,7 @@ export default function BlogPost() {
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           <Clock size={11} /> {rp.readTime} min
                         </span>
-                        <span className="flex items-center gap-1 text-[#0fa68c] font-semibold text-xs group-hover:gap-2 transition-all">
+                        <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
                           Leggi <ArrowRight size={12} />
                         </span>
                       </div>

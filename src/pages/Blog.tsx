@@ -58,7 +58,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
               In evidenza
             </span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744] mb-4 group-hover:text-[#0fa68c] transition-colors leading-tight">
+          <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-4 group-hover:text-[#F97415] transition-colors leading-tight">
             {post.title}
           </h2>
           <p className="text-gray-500 leading-relaxed mb-6 line-clamp-3">
@@ -75,7 +75,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
                 {post.readTime} min
               </span>
             </div>
-            <span className="flex items-center gap-1 text-[#0fa68c] font-semibold text-sm group-hover:gap-2 transition-all">
+            <span className="flex items-center gap-1 text-[#F97415] font-semibold text-sm group-hover:gap-2 transition-all">
               Leggi <ArrowRight size={15} />
             </span>
           </div>
@@ -104,7 +104,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
         </div>
       </div>
       <div className="p-6 flex flex-col flex-1">
-        <h3 className="text-lg font-bold text-[#1a2744] mb-3 group-hover:text-[#0fa68c] transition-colors leading-snug line-clamp-2">
+        <h3 className="text-lg font-bold text-[#111111] mb-3 group-hover:text-[#F97415] transition-colors leading-snug line-clamp-2">
           {post.title}
         </h3>
         <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-2 flex-1">
@@ -119,7 +119,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
               {post.readTime} min
             </span>
           </div>
-          <span className="flex items-center gap-1 text-[#0fa68c] font-semibold text-xs group-hover:gap-2 transition-all">
+          <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
             Leggi <ArrowRight size={13} />
           </span>
         </div>
@@ -176,14 +176,14 @@ export default function Blog() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="bg-[#1a2744] pt-36 pb-20">
+      <section className="bg-[#111111] pt-36 pb-20">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-[#0fa68c] font-semibold text-sm uppercase tracking-widest mb-4">
+          <p className="text-[#F97415] font-semibold text-sm uppercase tracking-widest mb-4">
             Edilizia in Cloud Blog
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Insights per{" "}
-            <span className="text-[#0fa68c]">Imprenditori Edili</span>
+            <span className="text-[#F97415]">Imprenditori Edili</span>
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
             Guide pratiche, strategie testate e analisi di settore per far crescere
@@ -201,7 +201,7 @@ export default function Blog() {
               placeholder="Cerca articoli, temi, tag…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#0fa68c]/60 focus:bg-white/15 transition-all"
+              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#F97415]/60 focus:bg-white/15 transition-all"
             />
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function Blog() {
                 onClick={() => setActiveCategory(cat)}
                 className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 ${
                   activeCategory === cat
-                    ? "bg-[#0fa68c] text-white shadow-md shadow-[#0fa68c]/30"
+                    ? "bg-[#F97415] text-white shadow-md shadow-[#F97415]/30"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -240,7 +240,7 @@ export default function Blog() {
                 setSearchQuery("");
                 setActiveCategory("Tutti");
               }}
-              className="mt-4 text-[#0fa68c] font-medium hover:underline"
+              className="mt-4 text-[#F97415] font-medium hover:underline"
             >
               Mostra tutti gli articoli
             </button>
@@ -258,7 +258,7 @@ export default function Blog() {
       </main>
 
       {/* Newsletter CTA banner */}
-      <section className="bg-[#1a2744] py-16">
+      <section className="bg-[#111111] py-16">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
             Vuoi ricevere i nuovi articoli?
@@ -269,7 +269,7 @@ export default function Blog() {
           </p>
           <Link
             to="/demo"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#0fa68c]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
           >
             Richiedi una Demo Gratuita <ArrowRight size={18} />
           </Link>

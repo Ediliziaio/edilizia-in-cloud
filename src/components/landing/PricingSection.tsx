@@ -72,11 +72,11 @@ export default function PricingSection() {
     <section id="prezzi" className="py-24 md:py-32 bg-white">
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-4 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          L'Investimento <span className="text-[#0fa68c]">(e Perché NON è un Costo)</span>
+          L'Investimento <span className="text-[#F97415]">(e Perché NON è un Costo)</span>
         </h2>
         <p
           className={`text-gray-500 text-center mb-14 text-lg transition-all duration-700 delay-150 ${
@@ -94,7 +94,7 @@ export default function PricingSection() {
         >
           {comparisons.map((c, i) => (
             <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 p-4 rounded-2xl bg-[#f8f9fa] border border-gray-200">
-              <span className="text-[#1a2744]/80 text-sm">{c.item}</span>
+              <span className="text-[#111111]/80 text-sm">{c.item}</span>
               <span className="text-red-500 font-semibold whitespace-nowrap text-sm">{c.cost}</span>
             </div>
           ))}
@@ -111,22 +111,22 @@ export default function PricingSection() {
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
                 } ${
                   plan.highlighted
-                    ? "border-[#0fa68c] border-2 shadow-lg shadow-[#0fa68c]/15 lg:scale-105 z-10 bg-white"
+                    ? "border-[#F97415] border-2 shadow-lg shadow-[#F97415]/15 lg:scale-105 z-10 bg-white"
                     : "border-gray-200 bg-white"
                 }`}
                 style={{ transitionDelay: isVisible ? `${delay}ms` : "0ms" }}
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 bg-[#0fa68c] text-white text-xs font-bold rounded-full uppercase tracking-wide">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 bg-[#F97415] text-white text-xs font-bold rounded-full uppercase tracking-wide">
                     Più Popolare
                   </div>
                 )}
 
-                <h3 className="text-xl font-bold text-[#1a2744] mb-1">{plan.name}</h3>
+                <h3 className="text-xl font-bold text-[#111111] mb-1">{plan.name}</h3>
                 <p className="text-gray-500 text-sm mb-5">{plan.description}</p>
 
                 <div className="mb-6">
-                  <span className="text-4xl font-extrabold text-[#1a2744]">{plan.price} €</span>
+                  <span className="text-4xl font-extrabold text-[#111111]">{plan.price} €</span>
                   <span className="text-gray-400 text-sm">/mese</span>
                 </div>
 
@@ -134,11 +134,11 @@ export default function PricingSection() {
                   {plan.features.map((f, j) => (
                     <li key={j} className="flex items-center gap-2.5 text-sm">
                       {f.included ? (
-                        <Check className="w-4 h-4 text-[#0fa68c] flex-shrink-0" />
+                        <Check className="w-4 h-4 text-[#F97415] flex-shrink-0" />
                       ) : (
                         <X className="w-4 h-4 text-gray-300 flex-shrink-0" />
                       )}
-                      <span className={f.included ? "text-[#1a2744]/80" : "text-gray-400"}>{f.text}</span>
+                      <span className={f.included ? "text-[#111111]/80" : "text-gray-400"}>{f.text}</span>
                     </li>
                   ))}
                 </ul>
@@ -148,8 +148,8 @@ export default function PricingSection() {
                   onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
                   className={`block w-full text-center py-3.5 rounded-xl font-bold transition-all duration-200 hover:scale-105 ${
                     plan.ctaStyle === "filled"
-                      ? "bg-[#0fa68c] text-white hover:bg-[#0d9079] shadow-lg shadow-[#0fa68c]/20"
-                      : "border-2 border-[#1a2744] text-[#1a2744] hover:bg-[#1a2744] hover:text-white"
+                      ? "bg-[#F97415] text-white hover:bg-[#e8650e] shadow-lg shadow-[#F97415]/20"
+                      : "border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white"
                   }`}
                 >
                   {plan.cta}

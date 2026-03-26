@@ -27,7 +27,7 @@ export default function GuaranteeSection() {
     <section
       id="garanzie"
       className="py-24 md:py-32 relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #0fa68c 0%, #0d9079 100%)" }}
+      style={{ background: "linear-gradient(135deg, #F97415 0%, #e8650e 100%)" }}
     >
       {/* Decorative background shapes */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/[0.04] rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
@@ -42,7 +42,7 @@ export default function GuaranteeSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
             }`}
           >
-            <p className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#0fa68c] bg-white/20 border border-white/30">
+            <p className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-white/20 border border-white/30">
               La nostra promessa
             </p>
 
@@ -82,7 +82,7 @@ export default function GuaranteeSection() {
                 e.preventDefault();
                 document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" });
               }}
-              className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-[#0fa68c] font-bold text-lg hover:bg-white/90 hover:scale-105 transition-all duration-300 shadow-2xl shadow-black/20 ${
+              className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-[#F97415] font-bold text-lg hover:bg-white/90 hover:scale-105 transition-all duration-300 shadow-2xl shadow-black/20 ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
               style={{ transitionDelay: isVisible ? "750ms" : "0ms" }}

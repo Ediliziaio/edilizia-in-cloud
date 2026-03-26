@@ -27,7 +27,7 @@ import {
 
 function PromoBanner() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#0fa68c] text-white py-2 text-center overflow-hidden">
+    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden">
       <span
         className="absolute inset-0"
         style={{
@@ -54,7 +54,7 @@ const fmtNum = (n: number) =>
 // ── Feature check / cross cells ───────────────────────────────────────────────
 
 function CheckIcon() {
-  return <Check className="w-5 h-5 text-[#0fa68c] mx-auto" strokeWidth={2.5} />;
+  return <Check className="w-5 h-5 text-[#F97415] mx-auto" strokeWidth={2.5} />;
 }
 function CrossIcon() {
   return <X className="w-5 h-5 text-gray-300 mx-auto" strokeWidth={2} />;
@@ -195,7 +195,7 @@ export default function Prezzi() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id="jsonld-prezzi" data={{
         "@context": "https://schema.org",
         "@type": "Product",
@@ -223,7 +223,7 @@ export default function Prezzi() {
       {/* ── 1. HERO ─────────────────────────────────────────────────────────── */}
       <section
         className="pt-28 pb-20 px-4 text-center"
-        style={{ background: "linear-gradient(160deg, #1a2744 0%, #0f1d35 100%)" }}
+        style={{ background: "linear-gradient(160deg, #111111 0%, #111111 100%)" }}
       >
         {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-white/10 text-white border border-white/20 rounded-full px-4 py-1.5 text-xs font-bold tracking-widest mb-6 uppercase">
@@ -236,7 +236,7 @@ export default function Prezzi() {
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-5 max-w-3xl mx-auto">
           L'investimento che si{" "}
-          <span className="text-[#0fa68c]">ripaga da solo.</span>
+          <span className="text-[#F97415]">ripaga da solo.</span>
         </h1>
         <p className="text-white/70 text-lg md:text-xl max-w-2xl mx-auto mb-10">
           Ogni piano include il Consulente del Controllo dedicato. Setup e migrazione dati gratis. Disdici quando vuoi.
@@ -248,7 +248,7 @@ export default function Prezzi() {
             onClick={() => setBilling("monthly")}
             className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
               billing === "monthly"
-                ? "bg-white text-[#1a2744] shadow"
+                ? "bg-white text-[#111111] shadow"
                 : "text-white/70 hover:text-white"
             }`}
           >
@@ -258,12 +258,12 @@ export default function Prezzi() {
             onClick={() => setBilling("annual")}
             className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
               billing === "annual"
-                ? "bg-white text-[#1a2744] shadow"
+                ? "bg-white text-[#111111] shadow"
                 : "text-white/70 hover:text-white"
             }`}
           >
             Annuale
-            <span className="bg-[#0fa68c] text-white text-xs px-2 py-0.5 rounded-full font-bold">
+            <span className="bg-[#F97415] text-white text-xs px-2 py-0.5 rounded-full font-bold">
               -20%
             </span>
           </button>
@@ -280,13 +280,13 @@ export default function Prezzi() {
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Starter</p>
               <p className="text-sm text-gray-500 mb-4">Imprese fino a 500K € di fatturato</p>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-5xl font-extrabold text-[#1a2744]">€{prices.starter}</span>
+                <span className="text-5xl font-extrabold text-[#111111]">€{prices.starter}</span>
                 <span className="text-gray-400 text-base mb-2">/mese</span>
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
                   <span className="line-through text-gray-400">€99/mese</span>
-                  <span className="bg-[#0fa68c]/10 text-[#0fa68c] font-semibold px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.starter}/anno
                   </span>
                 </div>
@@ -297,7 +297,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo"
-              className="block text-center border-2 border-[#1a2744] text-[#1a2744] font-bold py-3 rounded-xl hover:bg-[#1a2744] hover:text-white transition-colors mb-6"
+              className="block text-center border-2 border-[#111111] text-[#111111] font-bold py-3 rounded-xl hover:bg-[#111111] hover:text-white transition-colors mb-6"
             >
               Inizia con Starter
             </Link>
@@ -335,23 +335,23 @@ export default function Prezzi() {
           </div>
 
           {/* ── PROFESSIONAL ── */}
-          <div className="bg-white rounded-2xl border-2 border-[#0fa68c] shadow-xl p-8 flex flex-col scale-[1.02] relative">
+          <div className="bg-white rounded-2xl border-2 border-[#F97415] shadow-xl p-8 flex flex-col scale-[1.02] relative">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-              <span className="bg-[#0fa68c] text-white text-xs font-extrabold px-4 py-1.5 rounded-full tracking-widest uppercase shadow-lg">
+              <span className="bg-[#F97415] text-white text-xs font-extrabold px-4 py-1.5 rounded-full tracking-widest uppercase shadow-lg">
                 Più Popolare
               </span>
             </div>
             <div className="mb-6 mt-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-1">Professional</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-1">Professional</p>
               <p className="text-sm text-gray-500 mb-4">Imprese da 500K a 2M € di fatturato</p>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-5xl font-extrabold text-[#1a2744]">€{prices.professional}</span>
+                <span className="text-5xl font-extrabold text-[#111111]">€{prices.professional}</span>
                 <span className="text-gray-400 text-base mb-2">/mese</span>
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
                   <span className="line-through text-gray-400">€199/mese</span>
-                  <span className="bg-[#0fa68c]/10 text-[#0fa68c] font-semibold px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.professional}/anno
                   </span>
                 </div>
@@ -362,7 +362,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo"
-              className="block text-center bg-[#0fa68c] text-white font-bold py-3 rounded-xl hover:bg-[#0d9079] transition-colors mb-6 shadow-md"
+              className="block text-center bg-[#F97415] text-white font-bold py-3 rounded-xl hover:bg-[#e8650e] transition-colors mb-6 shadow-md"
             >
               Scegli Professional
             </Link>
@@ -416,18 +416,18 @@ export default function Prezzi() {
           </div>
 
           {/* ── ENTERPRISE ── */}
-          <div className="bg-white rounded-2xl border-2 border-[#1a2744] shadow-sm p-8 flex flex-col">
+          <div className="bg-white rounded-2xl border-2 border-[#111111] shadow-sm p-8 flex flex-col">
             <div className="mb-6">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#1a2744] mb-1">Enterprise</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#111111] mb-1">Enterprise</p>
               <p className="text-sm text-gray-500 mb-4">Imprese oltre 2M € o multi-cantiere</p>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-5xl font-extrabold text-[#1a2744]">€{prices.enterprise}</span>
+                <span className="text-5xl font-extrabold text-[#111111]">€{prices.enterprise}</span>
                 <span className="text-gray-400 text-base mb-2">/mese</span>
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
                   <span className="line-through text-gray-400">€399/mese</span>
-                  <span className="bg-[#0fa68c]/10 text-[#0fa68c] font-semibold px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.enterprise}/anno
                   </span>
                 </div>
@@ -438,7 +438,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo"
-              className="block text-center bg-[#1a2744] text-white font-bold py-3 rounded-xl hover:bg-[#0f1d35] transition-colors mb-6"
+              className="block text-center bg-[#111111] text-white font-bold py-3 rounded-xl hover:bg-[#111111] transition-colors mb-6"
             >
               Contattaci
             </Link>
@@ -469,26 +469,26 @@ export default function Prezzi() {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-2">Incluso ovunque</p>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a2744]">
-              Cosa è incluso in <span className="text-[#0fa68c]">tutti i piani</span>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Incluso ovunque</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">
+              Cosa è incluso in <span className="text-[#F97415]">tutti i piani</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[
-              { icon: <Shield className="w-6 h-6 text-[#0fa68c]" />, title: "Dati al sicuro", desc: "Server europei, GDPR, backup giornalieri automatici" },
-              { icon: <Zap className="w-6 h-6 text-[#0fa68c]" />, title: "Setup incluso", desc: "Il nostro team configura tutto in 48 ore lavorative" },
-              { icon: <RefreshCw className="w-6 h-6 text-[#0fa68c]" />, title: "Aggiornamenti gratuiti", desc: "Nuove feature ogni mese, senza costi aggiuntivi" },
-              { icon: <FileText className="w-6 h-6 text-[#0fa68c]" />, title: "Migrazione dati gratis", desc: "Importiamo i tuoi dati da Excel o altri software" },
-              { icon: <Headphones className="w-6 h-6 text-[#0fa68c]" />, title: "Supporto italiano", desc: "Parli con persone reali, non bot o call center esteri" },
-              { icon: <TrendingUp className="w-6 h-6 text-[#0fa68c]" />, title: "Disdici quando vuoi", desc: "Nessun vincolo contrattuale, nessuna penale" },
+              { icon: <Shield className="w-6 h-6 text-[#F97415]" />, title: "Dati al sicuro", desc: "Server europei, GDPR, backup giornalieri automatici" },
+              { icon: <Zap className="w-6 h-6 text-[#F97415]" />, title: "Setup incluso", desc: "Il nostro team configura tutto in 48 ore lavorative" },
+              { icon: <RefreshCw className="w-6 h-6 text-[#F97415]" />, title: "Aggiornamenti gratuiti", desc: "Nuove feature ogni mese, senza costi aggiuntivi" },
+              { icon: <FileText className="w-6 h-6 text-[#F97415]" />, title: "Migrazione dati gratis", desc: "Importiamo i tuoi dati da Excel o altri software" },
+              { icon: <Headphones className="w-6 h-6 text-[#F97415]" />, title: "Supporto italiano", desc: "Parli con persone reali, non bot o call center esteri" },
+              { icon: <TrendingUp className="w-6 h-6 text-[#F97415]" />, title: "Disdici quando vuoi", desc: "Nessun vincolo contrattuale, nessuna penale" },
             ].map((item, i) => (
               <div key={i} className="flex gap-4 items-start p-5 rounded-xl bg-[#f7f9fc] border border-gray-100">
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#0fa68c]/10 flex items-center justify-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#F97415]/10 flex items-center justify-center">
                   {item.icon}
                 </div>
                 <div>
-                  <p className="font-bold text-[#1a2744] text-sm">{item.title}</p>
+                  <p className="font-bold text-[#111111] text-sm">{item.title}</p>
                   <p className="text-gray-500 text-sm mt-0.5">{item.desc}</p>
                 </div>
               </div>
@@ -501,8 +501,8 @@ export default function Prezzi() {
       <section className="py-16 px-4 bg-[#f7f9fc]">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-2">Calcolatore</p>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a2744] mb-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Calcolatore</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Calcola il tuo ROI
             </h2>
             <p className="text-gray-500 text-lg max-w-xl mx-auto">
@@ -548,15 +548,15 @@ export default function Prezzi() {
 
               {/* Output */}
               <div className="flex flex-col justify-center">
-                <div className="rounded-xl border border-[#0fa68c]/30 bg-[#0fa68c]/5 p-6 space-y-3">
-                  <p className="text-sm font-bold text-[#1a2744] mb-2 uppercase tracking-wide">Il tuo calcolo</p>
+                <div className="rounded-xl border border-[#F97415]/30 bg-[#F97415]/5 p-6 space-y-3">
+                  <p className="text-sm font-bold text-[#111111] mb-2 uppercase tracking-wide">Il tuo calcolo</p>
                   <div className="space-y-2 text-sm">
                     <RoiLine label="Costo ore non ottimizzate" value={`${fmt(costoExcel)}/anno`} />
                     <RoiLine label="Margini recuperabili (1.5%)" value={`${fmt(marginiRecuperabili)}/anno`} />
-                    <div className="border-t border-[#0fa68c]/30 my-2" />
+                    <div className="border-t border-[#F97415]/30 my-2" />
                     <RoiLine label="Valore totale annuo" value={`${fmt(valoreAnnuo)}/anno`} bold />
                     <RoiLine label="Costo Professional/anno" value={fmt(costoProfessionalAnno)} />
-                    <div className="border-t border-[#0fa68c]/30 my-2" />
+                    <div className="border-t border-[#F97415]/30 my-2" />
                     <RoiLine label="ROI stimato" value={`${fmtNum(roi)}%`} highlight />
                     <RoiLine label="Si ripaga in" value={paybackLabel} highlight />
                   </div>
@@ -570,7 +570,7 @@ export default function Prezzi() {
             <div className="mt-8 text-center">
               <Link
                 to="/demo"
-                className="inline-flex items-center gap-2 bg-[#0fa68c] text-white font-bold px-8 py-4 rounded-xl hover:bg-[#0d9079] transition-colors text-base shadow-md"
+                className="inline-flex items-center gap-2 bg-[#F97415] text-white font-bold px-8 py-4 rounded-xl hover:bg-[#e8650e] transition-colors text-base shadow-md"
               >
                 Inizia la Demo — Vedi i Risultati Reali
               </Link>
@@ -583,8 +583,8 @@ export default function Prezzi() {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-2">Dettagli</p>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a2744]">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Dettagli</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">
               Confronto dettagliato
             </h2>
           </div>
@@ -592,10 +592,10 @@ export default function Prezzi() {
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="sticky top-0 z-10 bg-[#1a2744] text-white">
+                <tr className="sticky top-0 z-10 bg-[#111111] text-white">
                   <th className="text-left px-5 py-4 font-semibold w-1/2">Funzionalità</th>
                   <th className="text-center px-4 py-4 font-semibold">Starter</th>
-                  <th className="text-center px-4 py-4 font-semibold bg-[#0fa68c]">Professional</th>
+                  <th className="text-center px-4 py-4 font-semibold bg-[#F97415]">Professional</th>
                   <th className="text-center px-4 py-4 font-semibold">Enterprise</th>
                 </tr>
               </thead>
@@ -606,7 +606,7 @@ export default function Prezzi() {
                       <tr key={`cat-${i}`} className="bg-gray-50">
                         <td
                           colSpan={4}
-                          className="px-5 py-2 text-xs font-extrabold uppercase tracking-widest text-[#1a2744]/50"
+                          className="px-5 py-2 text-xs font-extrabold uppercase tracking-widest text-[#111111]/50"
                         >
                           {row.category}
                         </td>
@@ -617,7 +617,7 @@ export default function Prezzi() {
                       <td className="px-4 py-3 text-center text-gray-600">
                         <TableCell value={row.starter} />
                       </td>
-                      <td className="px-4 py-3 text-center bg-[#0fa68c]/5 font-medium">
+                      <td className="px-4 py-3 text-center bg-[#F97415]/5 font-medium">
                         <TableCell value={row.professional} />
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">
@@ -631,17 +631,17 @@ export default function Prezzi() {
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td className="px-5 py-4" />
                   <td className="px-4 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#1a2744] text-[#1a2744] font-bold px-4 py-2 rounded-lg hover:bg-[#1a2744] hover:text-white transition-colors">
+                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Starter
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-center bg-[#0fa68c]/5">
-                    <Link to="/demo" className="text-xs bg-[#0fa68c] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#0d9079] transition-colors shadow">
+                  <td className="px-4 py-4 text-center bg-[#F97415]/5">
+                    <Link to="/demo" className="text-xs bg-[#F97415] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
                       Professional
                     </Link>
                   </td>
                   <td className="px-4 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#1a2744] text-[#1a2744] font-bold px-4 py-2 rounded-lg hover:bg-[#1a2744] hover:text-white transition-colors">
+                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Enterprise
                     </Link>
                   </td>
@@ -656,8 +656,8 @@ export default function Prezzi() {
       <section className="py-16 px-4 bg-white border-t border-gray-100">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-2">Hai dubbi?</p>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a2744]">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Hai dubbi?</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">
               Domande sui prezzi
             </h2>
           </div>
@@ -671,9 +671,9 @@ export default function Prezzi() {
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full text-left px-6 py-4 flex justify-between items-center gap-4 hover:bg-gray-50 transition-colors"
                 >
-                  <span className="font-semibold text-[#1a2744] text-sm md:text-base">{item.q}</span>
+                  <span className="font-semibold text-[#111111] text-sm md:text-base">{item.q}</span>
                   {openFaq === i ? (
-                    <ChevronUp className="w-5 h-5 text-[#0fa68c] flex-shrink-0" />
+                    <ChevronUp className="w-5 h-5 text-[#F97415] flex-shrink-0" />
                   ) : (
                     <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   )}
@@ -690,10 +690,10 @@ export default function Prezzi() {
       </section>
 
       {/* ── 7. TESTIMONIANZE ────────────────────────────────────────────────── */}
-      <section className="py-16 px-4" style={{ background: "#1a2744" }}>
+      <section className="py-16 px-4" style={{ background: "#111111" }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0fa68c] mb-2">Risultati reali</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Risultati reali</p>
             <h2 className="text-3xl md:text-4xl font-extrabold text-white">
               Chi ha già scelto di investire
             </h2>
@@ -716,7 +716,7 @@ export default function Prezzi() {
       {/* ── 8. CTA FINALE ───────────────────────────────────────────────────── */}
       <section
         className="py-20 px-4 text-center"
-        style={{ background: "linear-gradient(135deg, #0fa68c 0%, #0d9079 100%)" }}
+        style={{ background: "linear-gradient(135deg, #F97415 0%, #e8650e 100%)" }}
       >
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">
@@ -728,7 +728,7 @@ export default function Prezzi() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <Link
               to="/demo"
-              className="bg-white text-[#0fa68c] font-extrabold px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors shadow-lg text-base"
+              className="bg-white text-[#F97415] font-extrabold px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors shadow-lg text-base"
             >
               Inizia con il Professional
             </Link>
@@ -762,7 +762,7 @@ export default function Prezzi() {
 function FeatureGroup({ title, children, negative }: { title: string; children: React.ReactNode; negative?: boolean }) {
   return (
     <div>
-      <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${negative ? "text-gray-400" : "text-[#0fa68c]"}`}>
+      <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${negative ? "text-gray-400" : "text-[#F97415]"}`}>
         {title}
       </p>
       <ul className="space-y-1.5">{children}</ul>
@@ -776,7 +776,7 @@ function Feature({ label, negative }: { label: string; negative?: boolean }) {
       {negative ? (
         <X className="w-4 h-4 text-gray-300 flex-shrink-0 mt-0.5" strokeWidth={2} />
       ) : (
-        <Check className="w-4 h-4 text-[#0fa68c] flex-shrink-0 mt-0.5" strokeWidth={2.5} />
+        <Check className="w-4 h-4 text-[#F97415] flex-shrink-0 mt-0.5" strokeWidth={2.5} />
       )}
       <span className={negative ? "text-gray-400 line-through" : "text-gray-700"}>{label}</span>
     </li>
@@ -793,7 +793,7 @@ function RoiLine({ label, value, bold, highlight }: { label: string; value: stri
   return (
     <div className={`flex justify-between items-center gap-2 ${bold ? "font-bold" : ""}`}>
       <span className="text-gray-600">{label}</span>
-      <span className={highlight ? "text-[#0fa68c] font-extrabold text-base" : bold ? "text-[#1a2744] font-bold" : "text-[#1a2744]"}>
+      <span className={highlight ? "text-[#F97415] font-extrabold text-base" : bold ? "text-[#111111] font-bold" : "text-[#111111]"}>
         {value}
       </span>
     </div>
@@ -815,8 +815,8 @@ function SliderInput({ label, value, min, max, step, onChange, format, unit }: S
   return (
     <div>
       <div className="flex justify-between items-baseline mb-2">
-        <label className="text-sm font-semibold text-[#1a2744]">{label}</label>
-        <span className="text-[#0fa68c] font-bold text-base">
+        <label className="text-sm font-semibold text-[#111111]">{label}</label>
+        <span className="text-[#F97415] font-bold text-base">
           {format(value)}{unit}
         </span>
       </div>
@@ -827,7 +827,7 @@ function SliderInput({ label, value, min, max, step, onChange, format, unit }: S
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[#0fa68c] h-2 rounded-full cursor-pointer"
+        className="w-full accent-[#F97415] h-2 rounded-full cursor-pointer"
       />
       <div className="flex justify-between text-xs text-gray-400 mt-1">
         <span>{format(min)}</span>
@@ -840,7 +840,7 @@ function SliderInput({ label, value, min, max, step, onChange, format, unit }: S
 function TestimonialCard({ quote, name, company }: { quote: string; name: string; company: string }) {
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-8 flex flex-col gap-4">
-      <Quote className="w-8 h-8 text-[#0fa68c] opacity-60" />
+      <Quote className="w-8 h-8 text-[#F97415] opacity-60" />
       <p className="text-white/90 text-base md:text-lg leading-relaxed italic">"{quote}"</p>
       <div className="mt-auto">
         <p className="font-bold text-white text-sm">{name}</p>

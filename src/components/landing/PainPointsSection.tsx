@@ -19,11 +19,11 @@ export default function PainPointsSection() {
     <section id="vantaggi" className="py-24 md:py-32 bg-white">
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-4 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Ti Riconosci in <span className="text-[#0fa68c]">Almeno uno</span> di Questi?
+          Ti Riconosci in <span className="text-[#F97415]">Almeno uno</span> di Questi?
         </h2>
         <p
           className={`text-gray-500 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
@@ -38,15 +38,15 @@ export default function PainPointsSection() {
             {painPoints.map((p, i) => (
               <div
                 key={i}
-                className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-[#0fa68c] transition-all duration-500 group ${
+                className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-[#F97415] transition-all duration-500 group ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                 }`}
                 style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
               >
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#0fa68c]/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
-                  <p.icon className="w-5 h-5 text-[#0fa68c]" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F97415]/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
+                  <p.icon className="w-5 h-5 text-[#F97415]" />
                 </div>
-                <p className="text-[#1a2744]/80 text-base md:text-lg leading-relaxed">{p.text}</p>
+                <p className="text-[#111111]/80 text-base md:text-lg leading-relaxed">{p.text}</p>
               </div>
             ))}
           </div>
@@ -67,7 +67,7 @@ export default function PainPointsSection() {
         >
           Non è colpa tua. L'edilizia è uno dei settori più complessi d'Italia.
           <br />
-          <strong className="text-[#1a2744]">Edilizia in Cloud è stato costruito per cambiare esattamente questo.</strong>
+          <strong className="text-[#111111]">Edilizia in Cloud è stato costruito per cambiare esattamente questo.</strong>
         </p>
       </div>
     </section>

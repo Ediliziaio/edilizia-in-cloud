@@ -96,22 +96,22 @@ function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; 
       {/* Icon */}
       <div
         className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
-        style={{ backgroundColor: "rgba(15, 166, 140, 0.15)", border: "1px solid rgba(15, 166, 140, 0.25)" }}
+        style={{ backgroundColor: "rgba(249, 116, 21, 0.15)", border: "1px solid rgba(249, 116, 21, 0.25)" }}
       >
-        <stat.icon size={22} color="#0fa68c" />
+        <stat.icon size={22} color="#F97415" />
       </div>
 
       {/* Number */}
       <div className="flex items-baseline gap-1 mb-1">
         {stat.prefix && (
-          <span className="text-2xl md:text-3xl font-bold" style={{ color: "#0fa68c" }}>
+          <span className="text-2xl md:text-3xl font-bold" style={{ color: "#F97415" }}>
             {stat.prefix}
           </span>
         )}
-        <span className="text-4xl md:text-6xl font-extrabold tracking-tight" style={{ color: "#0fa68c" }}>
+        <span className="text-4xl md:text-6xl font-extrabold tracking-tight" style={{ color: "#F97415" }}>
           {stat.decimals ? count.toFixed(stat.decimals) : Math.round(count)}
         </span>
-        <span className="text-2xl md:text-3xl font-bold" style={{ color: "#0fa68c" }}>
+        <span className="text-2xl md:text-3xl font-bold" style={{ color: "#F97415" }}>
           {stat.suffix}
         </span>
       </div>
@@ -129,7 +129,7 @@ export default function StatsSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.2 });
 
   return (
-    <section style={{ backgroundColor: "#1a2744" }} className="py-20 md:py-28 relative overflow-hidden">
+    <section style={{ backgroundColor: "#111111" }} className="py-20 md:py-28 relative overflow-hidden">
       {/* Subtle grid */}
       <div
         className="absolute inset-0 opacity-[0.03]"
@@ -140,15 +140,20 @@ export default function StatsSection() {
         }}
       />
 
-      {/* Glow orbs */}
-      <div
-        className="absolute top-0 left-1/4 w-64 h-64 rounded-full blur-[100px] pointer-events-none"
-        style={{ backgroundColor: "rgba(15, 166, 140, 0.06)" }}
-      />
-      <div
-        className="absolute bottom-0 right-1/4 w-48 h-48 rounded-full blur-[80px] pointer-events-none"
-        style={{ backgroundColor: "rgba(15, 166, 140, 0.04)" }}
-      />
+      {/* Bordo top luminoso */}
+      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />
+      {/* Bordo bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.25) 50%, transparent 100%)" }} />
+
+      {/* Glow orbs potenziati */}
+      <div className="absolute top-0 left-1/4 w-80 h-80 rounded-full blur-[120px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 70%)" }} />
+      <div className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full blur-[100px] pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(249,116,21,0.05) 0%, transparent 100%)" }} />
 
       <div ref={ref} className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Heading */}
@@ -162,15 +167,15 @@ export default function StatsSection() {
           <p
             className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest"
             style={{
-              color: "#0fa68c",
-              backgroundColor: "rgba(15, 166, 140, 0.12)",
-              border: "1px solid rgba(15, 166, 140, 0.25)",
+              color: "#F97415",
+              backgroundColor: "rgba(249, 116, 21, 0.12)",
+              border: "1px solid rgba(249, 116, 21, 0.25)",
             }}
           >
             I Numeri che Contano
           </p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
-            Risultati <span style={{ color: "#0fa68c" }}>Reali</span>, Ogni Giorno
+            Risultati <span style={{ color: "#F97415" }}>Reali</span>, Ogni Giorno
           </h2>
         </div>
 

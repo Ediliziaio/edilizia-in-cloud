@@ -17,7 +17,7 @@ interface Feature {
 // --- Mockup: Commessa detail ---
 function CommessaMockup() {
   return (
-    <div className="rounded-2xl bg-[#0f1a2e] border border-white/10 shadow-2xl p-5 font-sans text-sm">
+    <div className="rounded-2xl bg-[#111111] border border-white/10 shadow-2xl p-5 font-sans text-sm">
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-white/40 text-xs">Commessa attiva</p>
@@ -31,10 +31,10 @@ function CommessaMockup() {
       <div className="mb-4">
         <div className="flex justify-between text-xs text-white/40 mb-1">
           <span>Avanzamento lavori</span>
-          <span className="text-[#0fa68c] font-semibold">67%</span>
+          <span className="text-[#F97415] font-semibold">67%</span>
         </div>
         <div className="w-full h-2 rounded-full bg-white/10">
-          <div className="h-2 rounded-full bg-[#0fa68c]" style={{ width: "67%" }} />
+          <div className="h-2 rounded-full bg-[#F97415]" style={{ width: "67%" }} />
         </div>
       </div>
       {/* Stats row */}
@@ -69,7 +69,7 @@ function CrmMockup() {
     { label: "Chiuso", color: "#22c55e", cards: ["Villa Carbone ✓"] },
   ];
   return (
-    <div className="rounded-2xl bg-[#0f1a2e] border border-white/10 shadow-2xl p-5">
+    <div className="rounded-2xl bg-[#111111] border border-white/10 shadow-2xl p-5">
       <p className="text-white/40 text-xs mb-4">Pipeline Opportunità</p>
       <div className="grid grid-cols-3 gap-3">
         {columns.map((col, i) => (
@@ -107,10 +107,10 @@ function HrMockup() {
     { name: "Sergio Moretti", ore: "40h", cantiere: "Centro Uff.", costo: "€ 26/h" },
   ];
   return (
-    <div className="rounded-2xl bg-[#0f1a2e] border border-white/10 shadow-2xl p-5">
+    <div className="rounded-2xl bg-[#111111] border border-white/10 shadow-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <p className="text-white/40 text-xs">Gestione Personale — Settimana corrente</p>
-        <span className="text-[#0fa68c] text-xs font-semibold">4 attivi</span>
+        <span className="text-[#F97415] text-xs font-semibold">4 attivi</span>
       </div>
       <div className="space-y-2">
         {people.map((p, i) => (
@@ -148,7 +148,7 @@ function FinanzaMockup() {
     { fornitore: "Nolan Ponteggi", data: "05 Apr", importo: "€ 1.800", stato: "Programmato" },
   ];
   return (
-    <div className="rounded-2xl bg-[#0f1a2e] border border-white/10 shadow-2xl p-5">
+    <div className="rounded-2xl bg-[#111111] border border-white/10 shadow-2xl p-5">
       <p className="text-white/40 text-xs mb-3">Previsionale Cassa — prossimi 90 giorni</p>
       <div className="flex items-end gap-1.5 h-20 mb-4">
         {bars.map((bar, i) => (
@@ -158,9 +158,9 @@ function FinanzaMockup() {
               style={{
                 height: `${bar.value}%`,
                 background: bar.forecast
-                  ? "linear-gradient(to top, #0fa68c55, #0fa68c33)"
-                  : "linear-gradient(to top, #0fa68c, #0fa68caa)",
-                border: bar.forecast ? "1px dashed #0fa68c66" : "none",
+                  ? "linear-gradient(to top, #F9741555, #F9741533)"
+                  : "linear-gradient(to top, #F97415, #F97415aa)",
+                border: bar.forecast ? "1px dashed #F9741566" : "none",
               }}
             />
             <span className="text-white/30 text-[8px]">{bar.label}</span>
@@ -278,22 +278,22 @@ function FeatureRow({
       <span className={`inline-block self-start px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-4 ${feature.badgeClass}`}>
         {feature.badge}
       </span>
-      <h3 className="text-2xl md:text-3xl font-extrabold text-[#1a2744] leading-tight mb-3">
+      <h3 className="text-2xl md:text-3xl font-extrabold text-[#111111] leading-tight mb-3">
         {feature.title}
       </h3>
       <p className="text-gray-500 text-base leading-relaxed mb-6">{feature.subtitle}</p>
       <ul className="space-y-3 mb-8">
         {feature.bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-3">
-            <CheckCircle2 size={18} className="text-[#0fa68c] flex-shrink-0 mt-0.5" />
-            <span className="text-[#1a2744] text-sm font-medium">{b}</span>
+            <CheckCircle2 size={18} className="text-[#F97415] flex-shrink-0 mt-0.5" />
+            <span className="text-[#111111] text-sm font-medium">{b}</span>
           </li>
         ))}
       </ul>
       <a
         href={feature.link}
         onClick={(e) => { e.preventDefault(); document.querySelector(feature.link)?.scrollIntoView({ behavior: "smooth" }); }}
-        className="inline-flex items-center gap-2 text-[#0fa68c] font-semibold text-sm hover:gap-3 transition-all duration-200 group"
+        className="inline-flex items-center gap-2 text-[#F97415] font-semibold text-sm hover:gap-3 transition-all duration-200 group"
       >
         Scopri di più
         <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />

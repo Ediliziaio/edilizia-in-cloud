@@ -29,7 +29,7 @@ const sidebarItems = [
 
 const statsData = [
   { label: "Fatturato", value: "€ 284.500", icon: Euro, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-  { label: "Margine", value: "€ 78.200", icon: TrendingUp, color: "#0fa68c", bg: "rgba(15,166,140,0.15)" },
+  { label: "Margine", value: "€ 78.200", icon: TrendingUp, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
   { label: "Incassato", value: "€ 196.000", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
   { label: "Da Incassare", value: "€ 88.500", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
 ];
@@ -67,22 +67,22 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
       }`}
     >
       {/* Glow effect behind mockup */}
-      <div className="absolute -inset-8 bg-[#0fa68c]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
+      <div className="absolute -inset-8 bg-[#F97415]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
       <div
         className="relative rounded-2xl border border-white/15 shadow-2xl shadow-black/40 overflow-hidden"
         style={{ transform: "perspective(1200px) rotateX(4deg)" }}
       >
-        <div className="flex bg-[#0f1a2e]">
+        <div className="flex bg-[#111111]">
           {/* Sidebar */}
           <div className="w-14 md:w-16 bg-[#0a1222] border-r border-white/5 flex flex-col items-center py-3 gap-1 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-[#0fa68c] flex items-center justify-center mb-3">
+            <div className="w-7 h-7 rounded-lg bg-[#F97415] flex items-center justify-center mb-3">
               <Building2 size={14} className="text-white" />
             </div>
             {sidebarItems.map((item, i) => (
               <div
                 key={i}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                  item.active ? "bg-[#0fa68c]/20 text-[#0fa68c]" : "text-white/25 hover:text-white/40"
+                  item.active ? "bg-[#F97415]/20 text-[#F97415]" : "text-white/25 hover:text-white/40"
                 }`}
               >
                 <item.Icon size={16} />
@@ -99,8 +99,8 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                 <p className="text-white text-xs md:text-sm font-semibold">Dashboard</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#0fa68c]/20 flex items-center justify-center">
-                  <span className="text-[#0fa68c] text-[8px] font-bold">F</span>
+                <div className="w-6 h-6 rounded-full bg-[#F97415]/20 flex items-center justify-center">
+                  <span className="text-[#F97415] text-[8px] font-bold">F</span>
                 </div>
               </div>
             </div>
@@ -132,7 +132,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                         className="w-full rounded-sm"
                         style={{
                           height: `${bar.h}%`,
-                          background: `linear-gradient(to top, #0fa68c, #0fa68c99)`,
+                          background: `linear-gradient(to top, #F97415, #F9741599)`,
                         }}
                       />
                       <span className="text-white/30 text-[7px]">{bar.month}</span>
@@ -148,7 +148,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                   {ordersData.map((order, i) => (
                     <div key={i} className="flex items-center justify-between text-[8px] md:text-[9px]">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[#0fa68c] font-mono font-medium shrink-0">{order.code}</span>
+                        <span className="text-[#F97415] font-mono font-medium shrink-0">{order.code}</span>
                         <span className="text-white/50 truncate">{order.client}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -231,7 +231,7 @@ export default function HeroSection() {
       <div
         className="absolute inset-0"
         style={{
-          background: "linear-gradient(135deg, rgba(26,39,68,0.92) 0%, rgba(15,29,53,0.88) 50%, rgba(26,39,68,0.85) 100%)",
+          background: "linear-gradient(135deg, rgba(17,17,17,0.92) 0%, rgba(15,29,53,0.88) 50%, rgba(17,17,17,0.85) 100%)",
         }}
       />
 
@@ -245,24 +245,30 @@ export default function HeroSection() {
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
           key={i}
-          className={`absolute opacity-[0.12] text-[#0fa68c] ${anim} hidden md:block`}
-          style={{ top, left, right, animationDelay: delay }}
+          className={`absolute text-[#F97415] ${anim} hidden md:block`}
+          style={{
+            top, left, right,
+            animationDelay: delay,
+            opacity: 0.22,
+            filter: `drop-shadow(0 0 ${Math.round(size / 5)}px rgba(249,116,21,0.55))`,
+          }}
         >
           <Icon size={size} strokeWidth={1} />
         </div>
       ))}
 
       {/* Gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[120px]" />
-      <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-[#0fa68c]/[0.04] rounded-full blur-[100px]" />
+      <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-[#F97415]/[0.10] rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-[#F97415]/[0.07] rounded-full blur-[100px]" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#F97415]/[0.04] rounded-full blur-[80px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
         {/* 1. Badge animato */}
         <div
           className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
-            <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
+          <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
+            <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
             {/* Pulsing dot */}
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -278,14 +284,14 @@ export default function HeroSection() {
         >
           <h1 className="text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
             <span className="text-white block">Finisci di lavorare a sensazione.</span>
-            <span className="text-[#0fa68c] block">Inizia a guadagnare davvero.</span>
+            <span className="text-[#F97415] block">Inizia a guadagnare davvero.</span>
           </h1>
 
           {/* Titolo con parola che cambia */}
           <div className="text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
             Controlla{" "}
             <span
-              className="text-[#0fa68c] inline-block min-w-[200px] md:min-w-[300px] transition-all duration-350"
+              className="text-[#F97415] inline-block min-w-[200px] md:min-w-[300px] transition-all duration-350"
               style={{
                 opacity: fadeState === "in" ? 1 : 0,
                 transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
@@ -323,7 +329,7 @@ export default function HeroSection() {
           <a
             href="#cta-finale"
             onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#0fa68c] text-white font-bold text-base md:text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#0fa68c]/30"
+            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#F97415] text-white font-bold text-base md:text-lg hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#F97415]/30"
           >
             Inizia Gratis — 30 Giorni
           </a>
@@ -347,7 +353,7 @@ export default function HeroSection() {
               key={i}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/8 border border-white/12 text-white/60 text-[10px] md:text-xs font-medium"
             >
-              <Icon size={12} className="text-[#0fa68c]" />
+              <Icon size={12} className="text-[#F97415]" />
               {label}
             </span>
           ))}
@@ -360,19 +366,19 @@ export default function HeroSection() {
           }`}
         >
           <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
-            <Users size={16} className="text-[#0fa68c]" />
+            <Users size={16} className="text-[#F97415]" />
             <span>200+ Imprese Attive</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
           <div className="flex items-center gap-1.5 text-white/50 text-xs md:text-sm">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} size={14} className="text-[#0fa68c] fill-[#0fa68c]" />
+              <Star key={i} size={14} className="text-[#F97415] fill-[#F97415]" />
             ))}
             <span className="ml-1">4.9/5 Soddisfazione</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
           <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
-            <Headphones size={16} className="text-[#0fa68c]" />
+            <Headphones size={16} className="text-[#F97415]" />
             <span>Supporto Italiano</span>
           </div>
         </div>

@@ -32,17 +32,17 @@ export default function StickyBottomBar() {
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-[#1a2744] via-[#1e2f52] to-[#1a2744] text-white transition-transform duration-500 ${
+      className={`fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-[#111111] via-[#1e2f52] to-[#111111] text-white transition-transform duration-500 ${
         visible ? "translate-y-0" : "translate-y-full"
       }`}
     >
       {/* Shimmer border */}
       <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
-        <div className="absolute inset-0 bg-[#0fa68c]/60" />
+        <div className="absolute inset-0 bg-[#F97415]/60" />
         <div
           className="absolute inset-0 animate-shimmer"
           style={{
-            backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.9) 50%, transparent 100%)",
+            backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.9) 50%, transparent 100%)",
             backgroundSize: "200% 100%",
           }}
         />
@@ -68,7 +68,7 @@ export default function StickyBottomBar() {
 
         {/* Text */}
         <p className="flex items-center gap-2 text-center text-xs font-medium leading-snug md:text-sm">
-          <Gift size={18} className="shrink-0 text-[#0fa68c]" />
+          <Gift size={18} className="shrink-0 text-[#F97415]" />
           <span className="md:hidden">
             In regalo: Corso Vendita Edile — <strong>+40% vendite</strong> <strong>(val. 497€)</strong>
           </span>
@@ -80,7 +80,7 @@ export default function StickyBottomBar() {
         {/* CTA */}
         <button
           onClick={handleClick}
-          className="group flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#0fa68c] px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(15,166,140,0.4)] transition-all hover:scale-105 hover:bg-[#0d9079] hover:shadow-[0_0_30px_rgba(15,166,140,0.6)] animate-pulse-glow"
+          className="group flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#F97415] px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(249,116,21,0.4)] transition-all hover:scale-105 hover:bg-[#e8650e] hover:shadow-[0_0_30px_rgba(249,116,21,0.6)] animate-pulse-glow"
         >
           Richiedi la Demo Gratuita
           <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />

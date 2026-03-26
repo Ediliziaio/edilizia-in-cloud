@@ -10,10 +10,10 @@ export default function FounderLetterSection() {
     <section ref={ref} className="py-20 bg-white">
       <div className="max-w-3xl mx-auto px-6">
         <div className={`text-center mb-10 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <span className="inline-block mb-4 px-4 py-1.5 rounded-full border border-[#0fa68c]/30 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest">
+          <span className="inline-block mb-4 px-4 py-1.5 rounded-full border border-[#F97415]/30 bg-[#F97415]/10 text-[#F97415] text-xs font-semibold uppercase tracking-widest">
             La nostra storia
           </span>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a2744]">Lettera dal Fondatore</h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">Lettera dal Fondatore</h2>
         </div>
 
         <div className={`relative transition-all duration-700 delay-200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
@@ -21,35 +21,35 @@ export default function FounderLetterSection() {
             className="relative overflow-hidden transition-all duration-700 ease-in-out"
             style={{ maxHeight: expanded ? "5000px" : "220px" }}
           >
-            <div className="prose prose-lg max-w-none text-[#1a2744]/80 space-y-5 leading-relaxed">
+            <div className="prose prose-lg max-w-none text-[#111111]/80 space-y-5 leading-relaxed">
               <p>Caro Imprenditore Edile,</p>
               <p>Mi chiamo <strong>Florin</strong> e ti scrivo questa lettera perché so esattamente dove sei adesso.</p>
               <p>Lo so perché ci sono stato.</p>
               <p>Gestisco un'azienda di serramenti qui in Lombardia. Non un'agenzia di consulenza. Non una software house. Un'azienda <strong>VERA</strong>, con operai veri, cantieri veri, fornitori che chiamano per essere pagati e clienti che vogliono tutto per ieri.</p>
               <p>E per anni ho fatto quello che probabilmente stai facendo tu adesso:</p>
-              <p className="text-xl font-bold text-[#1a2744] text-center">Fatturare. Fatturare. Fatturare.</p>
+              <p className="text-xl font-bold text-[#111111] text-center">Fatturare. Fatturare. Fatturare.</p>
               <p>Convinto che il fatturato fosse la risposta a tutto. Convinto che più lavoro prendevo, più stavo bene. Convinto che i soldi, in qualche modo, sarebbero arrivati.</p>
               <p><strong>Sai com'è andata?</strong></p>
               <p>Ho chiuso un anno con un fatturato record. Ero euforico. Pensavo: "Finalmente quest'anno porto a casa qualcosa di serio."</p>
               <p>Poi ho guardato i numeri <strong>VERI</strong>.</p>
               <p>E ho scoperto che avevo lavorato un anno intero — sabati e domeniche compresi, notti a rispondere ai clienti, litigi con i fornitori, stress che mi stava distruggendo la salute — per portare a casa <strong>meno del mio capo cantiere</strong>.</p>
               <p>Quel giorno mi sono seduto alla scrivania e mi sono fatto una promessa:</p>
-              <p className="text-2xl font-extrabold text-[#1a2744] text-center">"MAI PIÙ."</p>
+              <p className="text-2xl font-extrabold text-[#111111] text-center">"MAI PIÙ."</p>
 
               <p>Ho iniziato a cercare uno strumento per controllare i numeri della mia azienda. Qualcosa di semplice. Qualcosa che un imprenditore come me — non un ragioniere, non un informatico — potesse usare.</p>
               <p>Sai cosa ho trovato?</p>
-              <p className="text-xl font-bold text-[#1a2744] text-center">NIENTE.</p>
+              <p className="text-xl font-bold text-[#111111] text-center">NIENTE.</p>
               <p>Gestionali complicatissimi creati da ingegneri che non hanno mai visto un cantiere. Software generici che pretendono di andare bene per la pizzeria E per l'impresa edile. Fogli Excel infiniti che dopo due settimane smetti di compilare.</p>
               <p>Nessuno — e dico <strong>NESSUNO</strong> — aveva creato qualcosa di specifico per un imprenditore edile che volesse semplicemente sapere:</p>
               <ul className="space-y-2 list-none pl-0">
-                <li className="flex items-start gap-2"><span className="text-[#0fa68c] font-bold">→</span> Quanto sto <strong>REALMENTE</strong> guadagnando su ogni cantiere?</li>
-                <li className="flex items-start gap-2"><span className="text-[#0fa68c] font-bold">→</span> Ce la faccio a pagare tutti questo mese?</li>
-                <li className="flex items-start gap-2"><span className="text-[#0fa68c] font-bold">→</span> Dove sto perdendo soldi senza accorgermene?</li>
+                <li className="flex items-start gap-2"><span className="text-[#F97415] font-bold">→</span> Quanto sto <strong>REALMENTE</strong> guadagnando su ogni cantiere?</li>
+                <li className="flex items-start gap-2"><span className="text-[#F97415] font-bold">→</span> Ce la faccio a pagare tutti questo mese?</li>
+                <li className="flex items-start gap-2"><span className="text-[#F97415] font-bold">→</span> Dove sto perdendo soldi senza accorgermene?</li>
               </ul>
               <p>Allora ho fatto l'unica cosa che un imprenditore vero sa fare quando non trova la soluzione:</p>
-              <p className="text-xl font-bold text-[#0fa68c] text-center">Me la sono costruita da solo.</p>
+              <p className="text-xl font-bold text-[#F97415] text-center">Me la sono costruita da solo.</p>
 
-              <div className="border-t border-[#1a2744]/10 my-8" />
+              <div className="border-t border-[#111111]/10 my-8" />
 
               <p>Ho preso tutto quello che avevo imparato in anni di errori, conti sbagliati e notti insonni. E li ho messi insieme in una piattaforma semplice.</p>
               <p>Non un software con 500 funzioni di cui ne usi 3. Non un gestionale che richiede un corso di laurea per essere configurato.</p>
@@ -61,44 +61,44 @@ export default function FounderLetterSection() {
               <p>Nel <strong>terzo mese</strong> ho iniziato a rifiutare i lavori sbagliati. Per la prima volta nella mia carriera, ho detto NO a un cliente che voleva farmi lavorare sottocosto.</p>
               <p>A fine anno? Stesso fatturato dell'anno prima. Ma il mio compenso personale era cresciuto del <strong>40%</strong>. Non perché avevo lavorato di più. Perché avevo smesso di regalare soldi.</p>
 
-              <div className="border-t border-[#1a2744]/10 my-8" />
+              <div className="border-t border-[#111111]/10 my-8" />
 
               <p>Ora, lascia che ti faccia una <strong>promessa personale</strong>.</p>
               <p>Ti prometto una cosa sola, ma te la prometto con la faccia e il nome:</p>
-              <p className="bg-[#0fa68c]/5 border-l-4 border-[#0fa68c] pl-4 py-3 rounded-r-lg font-semibold text-[#1a2744]">
+              <p className="bg-[#F97415]/5 border-l-4 border-[#F97415] pl-4 py-3 rounded-r-lg font-semibold text-[#111111]">
                 Se usi Edilizia in Cloud per 30 giorni, scoprirai ESATTAMENTE dove stai perdendo soldi. E avrai gli strumenti per smettere di perderli.
               </p>
               <p>Se non succede? Ti restituisco tutto. Senza farti domande.</p>
 
-              <div className="border-t border-[#1a2744]/10 my-8" />
+              <div className="border-t border-[#111111]/10 my-8" />
 
               <p>Adesso hai <strong>due strade</strong> davanti a te.</p>
               <p>La prima: chiudi questa pagina e torni a fare quello che hai sempre fatto.</p>
               <p>La seconda: prendi 15 minuti del tuo tempo per una demo gratuita. Vedi con i tuoi occhi come funziona. E decidi tu — con calma, senza pressioni — se questo strumento può fare per te quello che ha fatto per me.</p>
-              <p className="font-semibold text-[#1a2744]">Perché quando vedi i numeri VERI della tua azienda per la prima volta… non torni più indietro.</p>
+              <p className="font-semibold text-[#111111]">Perché quando vedi i numeri VERI della tua azienda per la prima volta… non torni più indietro.</p>
 
               <div className="text-center my-8">
                 <a
                   href="#cta-finale"
                   onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-                  className="inline-block px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold text-lg hover:bg-[#0d9079] transition-all shadow-lg shadow-[#0fa68c]/30"
+                  className="inline-block px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] transition-all shadow-lg shadow-[#F97415]/30"
                 >
                   👉 RICHIEDI LA TUA DEMO GRATUITA ORA
                 </a>
-                <p className="text-sm text-[#1a2744]/50 mt-3">15 minuti. Zero costi. Zero impegni. Solo chiarezza.</p>
+                <p className="text-sm text-[#111111]/50 mt-3">15 minuti. Zero costi. Zero impegni. Solo chiarezza.</p>
               </div>
 
-              <div className="border-t border-[#1a2744]/10 my-8" />
+              <div className="border-t border-[#111111]/10 my-8" />
 
               <p>Un saluto da imprenditore a imprenditore,</p>
               <div className="mt-4 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-[#0fa68c] flex items-center justify-center shrink-0 shadow-lg shadow-[#0fa68c]/20">
+                <div className="w-14 h-14 rounded-full bg-[#F97415] flex items-center justify-center shrink-0 shadow-lg shadow-[#F97415]/20">
                   <span className="text-white text-xl font-bold">F</span>
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-[#1a2744]">Florin</p>
-                  <p className="text-[#0fa68c] font-semibold">Fondatore di Edilizia in Cloud</p>
-                  <p className="text-sm text-[#1a2744]/60">Imprenditore nel settore serramenti — Lombardia</p>
+                  <p className="text-xl font-bold text-[#111111]">Florin</p>
+                  <p className="text-[#F97415] font-semibold">Fondatore di Edilizia in Cloud</p>
+                  <p className="text-sm text-[#111111]/60">Imprenditore nel settore serramenti — Lombardia</p>
                 </div>
               </div>
 
@@ -112,7 +112,7 @@ export default function FounderLetterSection() {
                 <a
                   href="#cta-finale"
                   onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-                  className="inline-block px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold text-lg hover:bg-[#0d9079] transition-all shadow-lg shadow-[#0fa68c]/30"
+                  className="inline-block px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] transition-all shadow-lg shadow-[#F97415]/30"
                 >
                   👉 SÌ, VOGLIO LA MIA DEMO GRATUITA
                 </a>
@@ -128,7 +128,7 @@ export default function FounderLetterSection() {
           <div className="text-center mt-6">
             <button
               onClick={() => setExpanded(!expanded)}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[#1a2744]/20 text-[#1a2744] font-semibold hover:bg-[#1a2744]/5 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[#111111]/20 text-[#111111] font-semibold hover:bg-[#111111]/5 transition-all"
             >
               {expanded ? (
                 <>Chiudi la lettera <ChevronUp className="w-4 h-4" /></>

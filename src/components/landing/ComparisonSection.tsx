@@ -16,11 +16,11 @@ export default function ComparisonSection() {
     <section id="confronto" className="py-24 md:py-32 bg-[#f8f9fa]">
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-4 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Perché Edilizia in Cloud è <span className="text-[#0fa68c]">Diverso</span>
+          Perché Edilizia in Cloud è <span className="text-[#F97415]">Diverso</span>
         </h2>
         <p
           className={`text-gray-500 text-center mb-14 text-lg transition-all duration-700 delay-150 ${
@@ -38,10 +38,10 @@ export default function ComparisonSection() {
         >
           <table className="w-full min-w-[600px]">
             <thead>
-              <tr className="bg-[#1a2744]">
+              <tr className="bg-[#111111]">
                 <th className="text-left text-white/80 text-sm font-medium px-6 py-4">Aspetto</th>
                 <th className="text-center text-white/60 text-sm font-medium px-4 py-4">Gli Altri</th>
-                <th className="text-center text-sm font-medium px-4 py-4 text-[#0fa68c] bg-[#0fa68c]/10">Edilizia in Cloud</th>
+                <th className="text-center text-sm font-medium px-4 py-4 text-[#F97415] bg-[#F97415]/10">Edilizia in Cloud</th>
               </tr>
             </thead>
             <tbody>
@@ -53,9 +53,9 @@ export default function ComparisonSection() {
                   }`}
                   style={{ transitionDelay: isVisible ? `${400 + i * 60}ms` : "0ms" }}
                 >
-                  <td className="px-3 md:px-6 py-3 md:py-4 text-[#1a2744] font-medium text-xs md:text-sm">{r.aspect}</td>
+                  <td className="px-3 md:px-6 py-3 md:py-4 text-[#111111] font-medium text-xs md:text-sm">{r.aspect}</td>
                   <td className="px-3 md:px-4 py-3 md:py-4 text-center text-gray-400 text-xs md:text-sm">{r.others}</td>
-                  <td className="px-3 md:px-4 py-3 md:py-4 text-center text-[#0fa68c] font-medium text-xs md:text-sm bg-[#0fa68c]/[0.03]">{r.us}</td>
+                  <td className="px-3 md:px-4 py-3 md:py-4 text-center text-[#F97415] font-medium text-xs md:text-sm bg-[#F97415]/[0.03]">{r.us}</td>
                 </tr>
               ))}
             </tbody>

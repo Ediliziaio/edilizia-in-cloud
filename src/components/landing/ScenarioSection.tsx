@@ -41,22 +41,22 @@ function ScenarioIllustrationA() {
 
 function ScenarioIllustrationB() {
   return (
-    <div className="w-full h-40 rounded-xl bg-[#0fa68c]/10 border border-[#0fa68c]/25 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
+    <div className="w-full h-40 rounded-xl bg-[#F97415]/10 border border-[#F97415]/25 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
       <div className="flex flex-col items-center gap-1 z-10">
-        <CheckCircle className="w-8 h-8 text-[#0fa68c]" />
-        <span className="text-[10px] text-[#0fa68c] font-semibold">Controllo</span>
+        <CheckCircle className="w-8 h-8 text-[#F97415]" />
+        <span className="text-[10px] text-[#F97415] font-semibold">Controllo</span>
       </div>
       <div className="flex flex-col items-end gap-1 z-10">
         <div className="flex items-end gap-1 h-16">
           {[10, 18, 28, 36, 48].map((h, i) => (
-            <div key={i} className="w-3 rounded-t bg-[#0fa68c]/60" style={{ height: `${h}px` }} />
+            <div key={i} className="w-3 rounded-t bg-[#F97415]/60" style={{ height: `${h}px` }} />
           ))}
         </div>
-        <TrendingUp className="w-5 h-5 text-[#0fa68c]" />
+        <TrendingUp className="w-5 h-5 text-[#F97415]" />
       </div>
       <div className="flex flex-col items-center gap-1 z-10">
-        <BarChart3 className="w-8 h-8 text-[#0fa68c]" />
-        <span className="text-[10px] text-[#0fa68c] font-semibold">Margini</span>
+        <BarChart3 className="w-8 h-8 text-[#F97415]" />
+        <span className="text-[10px] text-[#F97415] font-semibold">Margini</span>
       </div>
     </div>
   );
@@ -69,7 +69,7 @@ export default function ScenarioSection() {
     <section className="py-24 md:py-32 bg-white">
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-4 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -89,7 +89,7 @@ export default function ScenarioSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
             }`}
           >
-            <h3 className="text-xl font-bold text-[#1a2744] mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-bold text-[#111111] mb-4 flex items-center gap-2">
               <XCircle className="w-6 h-6 text-red-500" />
               Scenario A — Senza controllo
             </h3>
@@ -105,19 +105,19 @@ export default function ScenarioSection() {
           </div>
 
           <div
-            className={`p-5 md:p-8 rounded-2xl border-2 border-[#0fa68c]/30 bg-[#0fa68c]/5 transition-all duration-700 delay-200 ${
+            className={`p-5 md:p-8 rounded-2xl border-2 border-[#F97415]/30 bg-[#F97415]/5 transition-all duration-700 delay-200 ${
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-16"
             }`}
           >
-            <h3 className="text-xl font-bold text-[#1a2744] mb-4 flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-[#0fa68c]" />
+            <h3 className="text-xl font-bold text-[#111111] mb-4 flex items-center gap-2">
+              <CheckCircle className="w-6 h-6 text-[#F97415]" />
               Scenario B — Con Edilizia in Cloud
             </h3>
             <ScenarioIllustrationB />
             <ul className="space-y-4">
               {scenarioB.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-[#0fa68c] flex-shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-[#F97415] flex-shrink-0 mt-0.5" />
                   <span className="text-gray-600 text-sm">{item}</span>
                 </li>
               ))}

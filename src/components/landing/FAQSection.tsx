@@ -77,22 +77,22 @@ export default function FAQSection() {
           <p
             className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest"
             style={{
-              color: "#0fa68c",
-              backgroundColor: "rgba(15, 166, 140, 0.08)",
-              border: "1px solid rgba(15, 166, 140, 0.2)",
+              color: "#F97415",
+              backgroundColor: "rgba(249, 116, 21, 0.08)",
+              border: "1px solid rgba(249, 116, 21, 0.2)",
             }}
           >
             Domande Frequenti
           </p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1a2744] mb-4">
-            Le domande più comuni. <span style={{ color: "#0fa68c" }}>Risposte dirette.</span>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
+            Le domande più comuni. <span style={{ color: "#F97415" }}>Risposte dirette.</span>
           </h2>
           <p className="text-gray-500 text-sm md:text-base">
             Non hai trovato quello che cercavi?{" "}
             <a
               href="mailto:info@ediliziaincloud.com"
               className="font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
-              style={{ color: "#0fa68c" }}
+              style={{ color: "#F97415" }}
             >
               Scrivici — rispondiamo entro 24 ore
             </a>
@@ -113,10 +113,10 @@ export default function FAQSection() {
                   transform: isVisible ? "translateY(0)" : "translateY(16px)",
                   backgroundColor: "white",
                   border: isOpen
-                    ? "1px solid rgba(15, 166, 140, 0.25)"
+                    ? "1px solid rgba(249, 116, 21, 0.25)"
                     : "1px solid rgba(26, 39, 68, 0.07)",
                   boxShadow: isOpen
-                    ? "0 4px 20px rgba(15, 166, 140, 0.08)"
+                    ? "0 4px 20px rgba(249, 116, 21, 0.08)"
                     : "0 2px 8px rgba(26, 39, 68, 0.04)",
                 }}
               >
@@ -125,7 +125,7 @@ export default function FAQSection() {
                   <div
                     className="w-1 flex-shrink-0 rounded-l-2xl transition-all duration-300"
                     style={{
-                      backgroundColor: isOpen ? "#0fa68c" : "transparent",
+                      backgroundColor: isOpen ? "#F97415" : "transparent",
                     }}
                   />
 
@@ -138,7 +138,7 @@ export default function FAQSection() {
                     >
                       <span
                         className="font-semibold text-sm md:text-base transition-colors duration-200"
-                        style={{ color: isOpen ? "#0fa68c" : "#1a2744" }}
+                        style={{ color: isOpen ? "#F97415" : "#111111" }}
                       >
                         {faq.question}
                       </span>
@@ -146,7 +146,7 @@ export default function FAQSection() {
                         size={20}
                         className="flex-shrink-0 transition-transform duration-300"
                         style={{
-                          color: isOpen ? "#0fa68c" : "#1a2744",
+                          color: isOpen ? "#F97415" : "#111111",
                           opacity: isOpen ? 1 : 0.4,
                           transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
                         }}
@@ -190,7 +190,7 @@ export default function FAQSection() {
             }}
             className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm text-white transition-all duration-200 hover:scale-105"
             style={{
-              backgroundColor: "#1a2744",
+              backgroundColor: "#111111",
               boxShadow: "0 4px 16px rgba(26, 39, 68, 0.2)",
             }}
           >

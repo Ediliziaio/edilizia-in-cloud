@@ -7,7 +7,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 
 function PromoBanner() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#0fa68c] text-white py-2 text-center overflow-hidden">
+    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden">
       <span
         className="absolute inset-0"
         style={{
@@ -96,14 +96,14 @@ export default function Demo() {
   };
 
   const inputClass = (field: keyof FormErrors) =>
-    `w-full px-4 py-3 rounded-lg border text-[#1a2744] text-sm focus:outline-none focus:ring-2 transition-all ${
+    `w-full px-4 py-3 rounded-lg border text-[#111111] text-sm focus:outline-none focus:ring-2 transition-all ${
       errors[field]
         ? "border-red-400 focus:ring-red-200"
-        : "border-gray-200 focus:ring-[#0fa68c]/30 focus:border-[#0fa68c]"
+        : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
     }`;
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id="jsonld-breadcrumb-demo" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -117,13 +117,13 @@ export default function Demo() {
 
       {/* Hero */}
       <section
-        style={{ background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 100%)" }}
+        style={{ background: "linear-gradient(135deg, #111111 0%, #111111 100%)" }}
         className="pt-36 pb-20 px-6 text-center"
       >
         <div className="max-w-3xl mx-auto">
           <div
             className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-6"
-            style={{ background: "rgba(15,166,140,0.18)", color: "#0fa68c" }}
+            style={{ background: "rgba(249,116,21,0.18)", color: "#F97415" }}
           >
             Demo Gratuita — Senza Impegno
           </div>
@@ -144,7 +144,7 @@ export default function Demo() {
               <div key={i} className="flex items-center gap-3">
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                  style={{ background: "#0fa68c" }}
+                  style={{ background: "#F97415" }}
                 >
                   {i === 0 ? (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -179,31 +179,31 @@ export default function Demo() {
               <div className="text-center py-10">
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
-                  style={{ background: "rgba(15,166,140,0.12)" }}
+                  style={{ background: "rgba(249,116,21,0.12)" }}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#0fa68c" strokeWidth="2.5" className="w-8 h-8">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="2.5" className="w-8 h-8">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-[#1a2744] mb-3">
+                <h2 className="text-2xl font-bold text-[#111111] mb-3">
                   Perfetto! Ti contatteremo entro 24 ore lavorative.
                 </h2>
-                <p className="text-[#1a2744]/60 text-sm leading-relaxed mb-8">
+                <p className="text-[#111111]/60 text-sm leading-relaxed mb-8">
                   Uno del nostro team ti contatterà presto per fissare la data della demo.
                   Controlla la tua email per conferma.
                 </p>
                 <Link
                   to="/home"
                   className="inline-block px-6 py-3 rounded-full text-white text-sm font-bold transition-all hover:opacity-90"
-                  style={{ background: "#0fa68c" }}
+                  style={{ background: "#F97415" }}
                 >
                   Torna alla Home
                 </Link>
               </div>
             ) : (
               <>
-                <h2 className="text-xl font-bold text-[#1a2744] mb-1">Compila il modulo</h2>
-                <p className="text-[#1a2744]/50 text-sm mb-7">
+                <h2 className="text-xl font-bold text-[#111111] mb-1">Compila il modulo</h2>
+                <p className="text-[#111111]/50 text-sm mb-7">
                   Ci vuole meno di 2 minuti. Ti ricontattiamo noi.
                 </p>
 
@@ -211,8 +211,8 @@ export default function Demo() {
                   {/* Nome + Cognome */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                        Nome <span className="text-[#0fa68c]">*</span>
+                      <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                        Nome <span className="text-[#F97415]">*</span>
                       </label>
                       <input
                         type="text"
@@ -225,8 +225,8 @@ export default function Demo() {
                       {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                        Cognome <span className="text-[#0fa68c]">*</span>
+                      <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                        Cognome <span className="text-[#F97415]">*</span>
                       </label>
                       <input
                         type="text"
@@ -242,8 +242,8 @@ export default function Demo() {
 
                   {/* Azienda */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                      Nome Azienda <span className="text-[#0fa68c]">*</span>
+                    <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                      Nome Azienda <span className="text-[#F97415]">*</span>
                     </label>
                     <input
                       type="text"
@@ -259,8 +259,8 @@ export default function Demo() {
                   {/* Telefono + Email */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                        Telefono <span className="text-[#0fa68c]">*</span>
+                      <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                        Telefono <span className="text-[#F97415]">*</span>
                       </label>
                       <input
                         type="tel"
@@ -273,8 +273,8 @@ export default function Demo() {
                       {errors.telefono && <p className="text-red-500 text-xs mt-1">{errors.telefono}</p>}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                        Email <span className="text-[#0fa68c]">*</span>
+                      <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                        Email <span className="text-[#F97415]">*</span>
                       </label>
                       <input
                         type="email"
@@ -290,8 +290,8 @@ export default function Demo() {
 
                   {/* Fatturato */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                      Fatturato Annuo <span className="text-[#0fa68c]">*</span>
+                    <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                      Fatturato Annuo <span className="text-[#F97415]">*</span>
                     </label>
                     <select
                       name="fatturato"
@@ -310,15 +310,15 @@ export default function Demo() {
 
                   {/* Messaggio */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#1a2744]/70 mb-1.5 uppercase tracking-wide">
-                      Messaggio <span className="text-[#1a2744]/30 font-normal">(opzionale)</span>
+                    <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
+                      Messaggio <span className="text-[#111111]/30 font-normal">(opzionale)</span>
                     </label>
                     <textarea
                       name="messaggio"
                       value={formData.messaggio}
                       onChange={handleChange}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-200 text-[#1a2744] text-sm focus:outline-none focus:ring-2 focus:ring-[#0fa68c]/30 focus:border-[#0fa68c] transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-lg border border-gray-200 text-[#111111] text-sm focus:outline-none focus:ring-2 focus:ring-[#F97415]/30 focus:border-[#F97415] transition-all resize-none"
                       placeholder="Cosa vorresti vedere nella demo?"
                     />
                   </div>
@@ -327,12 +327,12 @@ export default function Demo() {
                   <button
                     type="submit"
                     className="w-full py-4 rounded-xl text-white font-bold text-base tracking-wide transition-all hover:opacity-90 hover:scale-[1.01] shadow-lg"
-                    style={{ background: "#0fa68c", boxShadow: "0 8px 30px rgba(15,166,140,0.3)" }}
+                    style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.3)" }}
                   >
                     Richiedi la Demo Gratuita →
                   </button>
 
-                  <p className="text-center text-[#1a2744]/40 text-xs pt-1">
+                  <p className="text-center text-[#111111]/40 text-xs pt-1">
                     I tuoi dati sono al sicuro. Nessuno spam, promesso.
                   </p>
                 </form>
@@ -345,10 +345,10 @@ export default function Demo() {
       {/* Cosa succede dopo */}
       <section className="py-16 px-6 bg-white">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744] mb-3">
+          <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">
             Cosa succede dopo?
           </h2>
-          <p className="text-[#1a2744]/50 text-sm mb-12">
+          <p className="text-[#111111]/50 text-sm mb-12">
             Tre passi semplici, nessuna sorpresa.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
@@ -372,12 +372,12 @@ export default function Demo() {
               <div key={s.step} className="text-left md:text-center">
                 <div
                   className="text-4xl font-black mb-4 leading-none"
-                  style={{ color: "#0fa68c", opacity: 0.25 }}
+                  style={{ color: "#F97415", opacity: 0.25 }}
                 >
                   {s.step}
                 </div>
-                <h3 className="text-base font-bold text-[#1a2744] mb-2">{s.title}</h3>
-                <p className="text-[#1a2744]/55 text-sm leading-relaxed">{s.desc}</p>
+                <h3 className="text-base font-bold text-[#111111] mb-2">{s.title}</h3>
+                <p className="text-[#111111]/55 text-sm leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -386,7 +386,7 @@ export default function Demo() {
 
       {/* Social Proof Bar */}
       <section
-        style={{ background: "linear-gradient(90deg, #1a2744 0%, #0f1d35 100%)" }}
+        style={{ background: "linear-gradient(90deg, #111111 0%, #111111 100%)" }}
         className="py-6 px-6"
       >
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 md:gap-10 text-white/80 text-sm font-medium text-center">

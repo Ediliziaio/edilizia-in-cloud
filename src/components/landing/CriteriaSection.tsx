@@ -12,14 +12,14 @@ export default function CriteriaSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-24 md:py-32 bg-[#1a2744]">
+    <section className="py-24 md:py-32 bg-[#111111]">
       <div ref={ref} className="max-w-4xl mx-auto px-6">
         <h2
           className={`text-3xl md:text-5xl font-extrabold text-white text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          5 Criteri per Scegliere il <span className="text-[#0fa68c]">Software Giusto</span>
+          5 Criteri per Scegliere il <span className="text-[#F97415]">Software Giusto</span>
         </h2>
         <p
           className={`text-white/50 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
@@ -33,13 +33,13 @@ export default function CriteriaSection() {
           {criteria.map((c, i) => (
             <div
               key={i}
-              className={`flex gap-6 p-6 rounded-2xl bg-white/[0.05] border border-white/[0.08] hover:border-[#0fa68c]/30 hover:bg-white/[0.08] transition-all duration-500 group ${
+              className={`flex gap-6 p-6 rounded-2xl bg-white/[0.05] border border-white/[0.08] hover:border-[#F97415]/30 hover:bg-white/[0.08] transition-all duration-500 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
               }`}
               style={{ transitionDelay: isVisible ? `${200 + i * 100}ms` : "0ms" }}
             >
               <span
-                className="font-extrabold text-4xl flex-shrink-0 bg-gradient-to-b from-[#0fa68c] to-[#0fa68c]/30 bg-clip-text text-transparent"
+                className="font-extrabold text-4xl flex-shrink-0 bg-gradient-to-b from-[#F97415] to-[#F97415]/30 bg-clip-text text-transparent"
               >
                 {c.n}
               </span>

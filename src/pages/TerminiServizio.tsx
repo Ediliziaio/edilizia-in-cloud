@@ -16,11 +16,11 @@ export default function TerminiServizio() {
       <LandingNavbar />
       <div className="pt-16" />
       <main className="max-w-4xl mx-auto px-6 py-16">
-        <h1 className="text-4xl font-bold text-[#1a2744] mb-2">Termini di Servizio</h1>
+        <h1 className="text-4xl font-bold text-[#111111] mb-2">Termini di Servizio</h1>
         <p className="text-sm text-gray-400 mb-10">Ultimo aggiornamento: 26 marzo 2026</p>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">1. Accettazione dei Termini</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">1. Accettazione dei Termini</h2>
           <p className="text-gray-600 leading-relaxed">
             I presenti Termini di Servizio ("Termini") disciplinano l'accesso e l'utilizzo della piattaforma
             software Edilizia in Cloud, fornita da <strong>Domus Group S.r.l.</strong> (di seguito "Fornitore"),
@@ -33,7 +33,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">2. Descrizione del Servizio</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">2. Descrizione del Servizio</h2>
           <p className="text-gray-600 leading-relaxed">
             Edilizia in Cloud è una piattaforma software gestionale in modalità SaaS (Software as a Service)
             progettata specificamente per le imprese edili italiane. Il servizio comprende moduli per la gestione
@@ -46,7 +46,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">3. Account e Responsabilità dell'Utente</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">3. Account e Responsabilità dell'Utente</h2>
           <p className="text-gray-600 leading-relaxed">
             Il Cliente è responsabile della corretta custodia delle proprie credenziali di accesso e di tutte
             le attività effettuate tramite il proprio account. È fatto divieto al Cliente di condividere le
@@ -56,7 +56,7 @@ export default function TerminiServizio() {
             attività che possano compromettere la sicurezza, l'integrità o la disponibilità della piattaforma.
             In caso di accesso non autorizzato o sospetto compromissione delle credenziali, il Cliente è tenuto
             a notificarlo immediatamente al Fornitore all'indirizzo{" "}
-            <a href="mailto:info@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+            <a href="mailto:info@ediliziaincloud.com" className="text-[#F97415] hover:underline">
               info@ediliziaincloud.com
             </a>
             .
@@ -64,7 +64,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">4. Piani e Pagamenti</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">4. Piani e Pagamenti</h2>
           <p className="text-gray-600 leading-relaxed">
             I servizi sono erogati sulla base di piani in abbonamento con fatturazione mensile o annuale,
             secondo le tariffe indicate nella pagina prezzi del sito web al momento della sottoscrizione.
@@ -78,7 +78,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">5. Proprietà Intellettuale</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">5. Proprietà Intellettuale</h2>
           <p className="text-gray-600 leading-relaxed">
             Tutti i diritti di proprietà intellettuale relativi alla piattaforma Edilizia in Cloud, inclusi
             il software, il design, i marchi, i loghi e la documentazione, sono e rimangono di esclusiva
@@ -91,7 +91,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">6. Limitazione di Responsabilità</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">6. Limitazione di Responsabilità</h2>
           <p className="text-gray-600 leading-relaxed">
             Nei limiti consentiti dalla legge applicabile, il Fornitore non sarà responsabile per danni
             indiretti, incidentali, speciali, punitivi o consequenziali derivanti dall'utilizzo o
@@ -105,7 +105,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">7. Disponibilità del Servizio (SLA)</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">7. Disponibilità del Servizio (SLA)</h2>
           <p className="text-gray-600 leading-relaxed">
             Il Fornitore si impegna a garantire una disponibilità della piattaforma pari ad almeno il{" "}
             <strong>99,5% su base mensile</strong> (SLA — Service Level Agreement), calcolata escludendo le
@@ -119,11 +119,11 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">8. Dati e Privacy</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">8. Dati e Privacy</h2>
           <p className="text-gray-600 leading-relaxed">
             Il trattamento dei dati personali degli utenti avviene nel rispetto del Regolamento (UE)
             2016/679 (GDPR) e della normativa italiana applicabile, come descritto nella{" "}
-            <a href="/privacy" className="text-[#0fa68c] hover:underline">
+            <a href="/privacy" className="text-[#F97415] hover:underline">
               Privacy Policy
             </a>{" "}
             di Edilizia in Cloud. I dati inseriti dal Cliente nella piattaforma rimangono di sua esclusiva
@@ -135,7 +135,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">9. Risoluzione del Contratto</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">9. Risoluzione del Contratto</h2>
           <p className="text-gray-600 leading-relaxed">
             Ciascuna parte può recedere dal contratto in qualsiasi momento con un preavviso scritto di
             almeno 30 giorni, da comunicare all'altra parte via email. In caso di violazione grave dei
@@ -148,7 +148,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">10. Legge Applicabile e Foro Competente</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">10. Legge Applicabile e Foro Competente</h2>
           <p className="text-gray-600 leading-relaxed">
             I presenti Termini di Servizio sono regolati dalla legge italiana. Per qualsiasi controversia
             relativa all'interpretazione, esecuzione o risoluzione del contratto, le parti eleggono quale
@@ -160,7 +160,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">11. Modifiche ai Termini</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">11. Modifiche ai Termini</h2>
           <p className="text-gray-600 leading-relaxed">
             Il Fornitore si riserva il diritto di modificare i presenti Termini in qualsiasi momento,
             dandone comunicazione ai Clienti tramite email con un preavviso di almeno 30 giorni prima
@@ -173,7 +173,7 @@ export default function TerminiServizio() {
         </section>
 
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-[#1a2744] mb-3">12. Contatti</h2>
+          <h2 className="text-xl font-bold text-[#111111] mb-3">12. Contatti</h2>
           <p className="text-gray-600 leading-relaxed">
             Per qualsiasi domanda, richiesta o comunicazione relativa ai presenti Termini di Servizio,
             è possibile contattare Domus Group S.r.l. ai seguenti recapiti:
@@ -181,7 +181,7 @@ export default function TerminiServizio() {
           <ul className="list-none text-gray-600 leading-relaxed space-y-1 mt-3">
             <li>
               <strong>Email:</strong>{" "}
-              <a href="mailto:info@ediliziaincloud.com" className="text-[#0fa68c] hover:underline">
+              <a href="mailto:info@ediliziaincloud.com" className="text-[#F97415] hover:underline">
                 info@ediliziaincloud.com
               </a>
             </li>

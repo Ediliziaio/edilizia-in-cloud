@@ -30,7 +30,7 @@ export default function VideoSection() {
   return (
     <section
       className="py-24 md:py-32"
-      style={{ background: "#1a2744" }}
+      style={{ background: "#111111" }}
     >
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         {/* Header */}
@@ -41,7 +41,7 @@ export default function VideoSection() {
         >
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
             Vedi Edilizia in Cloud{" "}
-            <span className="text-[#0fa68c]">in Azione</span>
+            <span className="text-[#F97415]">in Azione</span>
           </h2>
           <p className="text-white/50 text-lg max-w-xl mx-auto">
             30 minuti di demo live. Vedi il prodotto reale, non le slide.
@@ -75,10 +75,10 @@ export default function VideoSection() {
             />
             {/* Play button */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white flex items-center justify-center shadow-2xl group-hover:bg-[#0fa68c] group-hover:scale-110 transition-all duration-300">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white flex items-center justify-center shadow-2xl group-hover:bg-[#F97415] group-hover:scale-110 transition-all duration-300">
                 <Play
                   size={32}
-                  className="text-[#1a2744] group-hover:text-white ml-1 transition-colors duration-300"
+                  className="text-[#111111] group-hover:text-white ml-1 transition-colors duration-300"
                   fill="currentColor"
                 />
               </div>
@@ -100,7 +100,7 @@ export default function VideoSection() {
         >
           {bullets.map((b, i) => (
             <div key={i} className="flex items-center gap-2.5">
-              <CheckCircle2 size={18} className="text-[#0fa68c] flex-shrink-0" />
+              <CheckCircle2 size={18} className="text-[#F97415] flex-shrink-0" />
               <span className="text-white/60 text-sm">{b}</span>
             </div>
           ))}
@@ -114,7 +114,7 @@ export default function VideoSection() {
         >
           <a
             href="/demo"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#0fa68c]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
           >
             Prenota la tua Demo Live
             <span className="text-lg">→</span>

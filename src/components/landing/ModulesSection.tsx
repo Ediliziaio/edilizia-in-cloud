@@ -17,7 +17,7 @@ interface Module {
 
 const CATEGORY_COLORS: Record<string, string> = {
   Cantieri: "#3b82f6",
-  Finanziario: "#0fa68c",
+  Finanziario: "#F97415",
   Marketing: "#8b5cf6",
   HR: "#f59e0b",
   AI: "#ec4899",
@@ -67,7 +67,7 @@ const CATEGORIES = ["Tutti", "Cantieri", "Finanziario", "Marketing", "HR", "AI"]
 const INITIAL_VISIBLE = 9;
 
 function ModuleCard({ mod, delay, visible }: { mod: Module; delay: number; visible: boolean }) {
-  const color = CATEGORY_COLORS[mod.category] ?? "#0fa68c";
+  const color = CATEGORY_COLORS[mod.category] ?? "#F97415";
   return (
     <div
       className={`group p-6 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col`}
@@ -84,7 +84,7 @@ function ModuleCard({ mod, delay, visible }: { mod: Module; delay: number; visib
       >
         <mod.icon size={22} style={{ color }} />
       </div>
-      <h3 className="text-[#1a2744] font-bold text-base mb-1.5">{mod.name}</h3>
+      <h3 className="text-[#111111] font-bold text-base mb-1.5">{mod.name}</h3>
       <p className="text-gray-500 text-sm leading-relaxed flex-1 mb-3">{mod.desc}</p>
       <p className="text-xs font-semibold mt-auto" style={{ color }}>{mod.saving}</p>
     </div>
@@ -133,10 +133,10 @@ export default function ModulesSection() {
             sectionVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1a2744] mb-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
             26 moduli. Un'unica piattaforma.
             <br />
-            <span className="text-[#0fa68c]">Tutto quello che serve per gestire un'impresa edile.</span>
+            <span className="text-[#F97415]">Tutto quello che serve per gestire un'impresa edile.</span>
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
             Cantieri, finanza, marketing, HR e AI integrati. Nessuna app separata, nessun dato duplicato. Tutto parla con tutto — in tempo reale.
@@ -152,7 +152,7 @@ export default function ModulesSection() {
           <div className="flex gap-2 overflow-x-auto pb-2 mb-10 scrollbar-none" style={{ scrollbarWidth: "none" }}>
             {CATEGORIES.map((cat) => {
               const isActive = activeTab === cat;
-              const color = cat === "Tutti" ? "#0fa68c" : CATEGORY_COLORS[cat];
+              const color = cat === "Tutti" ? "#F97415" : CATEGORY_COLORS[cat];
               return (
                 <button
                   key={cat}
@@ -204,7 +204,7 @@ export default function ModulesSection() {
           <div className="text-center mt-10">
             <button
               onClick={() => setShowAll(true)}
-              className="px-8 py-3 rounded-full border-2 border-[#0fa68c] text-[#0fa68c] font-semibold hover:bg-[#0fa68c] hover:text-white transition-all duration-200"
+              className="px-8 py-3 rounded-full border-2 border-[#F97415] text-[#F97415] font-semibold hover:bg-[#F97415] hover:text-white transition-all duration-200"
             >
               Mostra tutti i moduli ({filtered.length - INITIAL_VISIBLE} altri)
             </button>

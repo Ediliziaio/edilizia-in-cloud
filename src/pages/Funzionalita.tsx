@@ -48,7 +48,7 @@ import {
 
 function PromoBanner() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#0fa68c] text-white py-2 text-center overflow-hidden">
+    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden">
       <span
         className="absolute inset-0"
         style={{
@@ -90,12 +90,12 @@ interface TabData {
 const MockupCantieri = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center justify-between mb-3">
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Commessa #2024-047</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Commessa #2024-047</span>
       <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200 font-sans">
         In Corso
       </span>
     </div>
-    <p className="text-[#1a2744]/60 font-sans text-xs mb-4">Ristrutturazione Villa Bianchi — Via Roma 12, Milano</p>
+    <p className="text-[#111111]/60 font-sans text-xs mb-4">Ristrutturazione Villa Bianchi — Via Roma 12, Milano</p>
     <div className="grid grid-cols-3 gap-2 mb-4">
       {[
         { label: "Valore Totale", value: "€ 148.500" },
@@ -103,25 +103,25 @@ const MockupCantieri = () => (
         { label: "Margine", value: "38.6%", green: true },
       ].map((item) => (
         <div key={item.label} className="bg-white rounded-lg p-2.5 text-center border border-gray-100">
-          <div className="text-[9px] text-[#1a2744]/40 uppercase tracking-wide mb-1 font-sans">{item.label}</div>
-          <div className={`font-bold text-xs font-sans ${item.green ? "text-green-600" : "text-[#1a2744]"}`}>
+          <div className="text-[9px] text-[#111111]/40 uppercase tracking-wide mb-1 font-sans">{item.label}</div>
+          <div className={`font-bold text-xs font-sans ${item.green ? "text-green-600" : "text-[#111111]"}`}>
             {item.value}
           </div>
         </div>
       ))}
     </div>
-    <div className="mb-1 flex justify-between text-[10px] text-[#1a2744]/50 font-sans">
+    <div className="mb-1 flex justify-between text-[10px] text-[#111111]/50 font-sans">
       <span>Avanzamento</span>
-      <span className="font-bold text-[#1a2744]">78%</span>
+      <span className="font-bold text-[#111111]">78%</span>
     </div>
     <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
       <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: "78%" }} />
     </div>
-    <div className="border-t border-gray-200 pt-3 space-y-1 text-[#1a2744]/70">
-      <p className="text-[10px] font-sans font-semibold text-[#1a2744]/40 uppercase mb-1">Ultime voci di costo</p>
-      <p>• Manodopera settimana 12: <span className="text-[#1a2744] font-semibold">€ 4.200</span></p>
-      <p>• Materiali idraulici: <span className="text-[#1a2744] font-semibold">€ 1.890</span></p>
-      <p>• Noleggio ponteggio: <span className="text-[#1a2744] font-semibold">€ 680</span></p>
+    <div className="border-t border-gray-200 pt-3 space-y-1 text-[#111111]/70">
+      <p className="text-[10px] font-sans font-semibold text-[#111111]/40 uppercase mb-1">Ultime voci di costo</p>
+      <p>• Manodopera settimana 12: <span className="text-[#111111] font-semibold">€ 4.200</span></p>
+      <p>• Materiali idraulici: <span className="text-[#111111] font-semibold">€ 1.890</span></p>
+      <p>• Noleggio ponteggio: <span className="text-[#111111] font-semibold">€ 680</span></p>
     </div>
     <div className="mt-3 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -133,11 +133,11 @@ const MockupCantieri = () => (
 const MockupFinanza = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center justify-between mb-3">
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Previsionale Cassa — 90 giorni</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Previsionale Cassa — 90 giorni</span>
     </div>
     <div className="bg-white rounded-lg p-3 border border-gray-100 mb-3">
-      <div className="text-[9px] text-[#1a2744]/40 uppercase tracking-wide font-sans mb-1">Saldo attuale</div>
-      <div className="text-2xl font-bold text-[#0fa68c] font-sans">€ 87.420</div>
+      <div className="text-[9px] text-[#111111]/40 uppercase tracking-wide font-sans mb-1">Saldo attuale</div>
+      <div className="text-2xl font-bold text-[#F97415] font-sans">€ 87.420</div>
     </div>
     <div className="space-y-2">
       {[
@@ -146,10 +146,10 @@ const MockupFinanza = () => (
         { month: "Apr", in: "+€ 31.000", out: "−€ 18.900", note: "2 incassi · 3 pagamenti", good: true },
       ].map((row) => (
         <div key={row.month} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
-          <span className="font-sans font-bold text-[#1a2744] w-8">{row.month}</span>
+          <span className="font-sans font-bold text-[#111111] w-8">{row.month}</span>
           <span className="text-green-600 font-semibold flex-1">{row.in}</span>
           {row.out && <span className="text-red-500 font-semibold">{row.out}</span>}
-          <span className="text-[9px] text-[#1a2744]/40 font-sans hidden sm:block">{row.note}</span>
+          <span className="text-[9px] text-[#111111]/40 font-sans hidden sm:block">{row.note}</span>
         </div>
       ))}
     </div>
@@ -167,7 +167,7 @@ const MockupFinanza = () => (
 const MockupMarketing = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center justify-between mb-3">
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Pipeline Vendite Q1 2024</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Pipeline Vendite Q1 2024</span>
       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 font-sans">
         Totale: € 312k
       </span>
@@ -200,11 +200,11 @@ const MockupMarketing = () => (
         },
       ].map((col) => (
         <div key={col.label} className={`rounded-lg border p-2.5 ${col.color}`}>
-          <div className="font-sans font-bold text-[10px] text-[#1a2744]/60 uppercase mb-1.5">
+          <div className="font-sans font-bold text-[10px] text-[#111111]/60 uppercase mb-1.5">
             {col.label} ({col.count})
           </div>
           {col.items.map((item, i) => (
-            <div key={i} className="text-[9px] text-[#1a2744]/70 mb-0.5 truncate">
+            <div key={i} className="text-[9px] text-[#111111]/70 mb-0.5 truncate">
               {item}
             </div>
           ))}
@@ -217,10 +217,10 @@ const MockupMarketing = () => (
 const MockupHR = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center justify-between mb-3">
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Personale — Questa Settimana</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Personale — Questa Settimana</span>
     </div>
     <div className="space-y-1 mb-3">
-      <div className="grid grid-cols-4 gap-1 text-[9px] text-[#1a2744]/40 uppercase font-sans px-2 mb-1">
+      <div className="grid grid-cols-4 gap-1 text-[9px] text-[#111111]/40 uppercase font-sans px-2 mb-1">
         <span>Nome</span>
         <span>Cantiere</span>
         <span className="text-right">Ore</span>
@@ -236,16 +236,16 @@ const MockupHR = () => (
           key={i}
           className="grid grid-cols-4 gap-1 bg-white rounded-lg px-2 py-1.5 border border-gray-100 text-[10px]"
         >
-          <span className="font-sans font-semibold text-[#1a2744] truncate">{row.nome}</span>
-          <span className="text-[#1a2744]/60 truncate">{row.cantiere}</span>
-          <span className="text-right text-[#1a2744]">{row.ore}</span>
+          <span className="font-sans font-semibold text-[#111111] truncate">{row.nome}</span>
+          <span className="text-[#111111]/60 truncate">{row.cantiere}</span>
+          <span className="text-right text-[#111111]">{row.ore}</span>
           <span className="text-right font-bold text-amber-600">{row.tot}</span>
         </div>
       ))}
     </div>
     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-sans">
-      <p className="text-[10px] font-bold text-[#1a2744]">Costo totale manodopera: € 4.116</p>
-      <p className="text-[9px] text-[#1a2744]/60 mt-0.5">Attribuito a cantieri: 89% · Non attribuito: 11%</p>
+      <p className="text-[10px] font-bold text-[#111111]">Costo totale manodopera: € 4.116</p>
+      <p className="text-[9px] text-[#111111]/60 mt-0.5">Attribuito a cantieri: 89% · Non attribuito: 11%</p>
     </div>
   </div>
 );
@@ -253,7 +253,7 @@ const MockupHR = () => (
 const MockupDocumenti = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center justify-between mb-3">
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Documenti Fiscali — Marzo 2024</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Documenti Fiscali — Marzo 2024</span>
     </div>
     <div className="space-y-1.5 mb-3">
       {[
@@ -267,19 +267,19 @@ const MockupDocumenti = () => (
           className="grid grid-cols-4 gap-1 bg-white rounded-lg px-2 py-1.5 border border-gray-100 items-center"
         >
           <span className="font-bold text-[#3b82f6] text-[9px]">{row.doc}</span>
-          <span className="text-[#1a2744]/70 text-[9px] truncate">{row.cliente}</span>
-          <span className="text-[#1a2744] font-semibold text-[9px]">{row.importo}</span>
+          <span className="text-[#111111]/70 text-[9px] truncate">{row.cliente}</span>
+          <span className="text-[#111111] font-semibold text-[9px]">{row.importo}</span>
           <span className={`text-[9px] font-semibold ${row.stileStato}`}>{row.stato}</span>
         </div>
       ))}
     </div>
     <div className="grid grid-cols-2 gap-2">
       <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-        <div className="text-[9px] text-[#1a2744]/40 font-sans uppercase">Fatturato mese</div>
-        <div className="font-bold text-[#1a2744] font-sans text-sm">€ 68.400</div>
+        <div className="text-[9px] text-[#111111]/40 font-sans uppercase">Fatturato mese</div>
+        <div className="font-bold text-[#111111] font-sans text-sm">€ 68.400</div>
       </div>
       <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-        <div className="text-[9px] text-[#1a2744]/40 font-sans uppercase">Da incassare</div>
+        <div className="text-[9px] text-[#111111]/40 font-sans uppercase">Da incassare</div>
         <div className="font-bold text-amber-600 font-sans text-sm">€ 21.600</div>
       </div>
     </div>
@@ -292,14 +292,14 @@ const MockupAI = () => (
       <div className="w-6 h-6 rounded-full bg-pink-100 border border-pink-200 flex items-center justify-center">
         <Bot className="w-3.5 h-3.5 text-pink-600" />
       </div>
-      <span className="font-bold font-sans text-[#1a2744] text-sm">Agente AI "Controllo Margini"</span>
-      <span className="ml-auto text-[9px] text-[#1a2744]/40 font-sans">oggi 09:41</span>
+      <span className="font-bold font-sans text-[#111111] text-sm">Agente AI "Controllo Margini"</span>
+      <span className="ml-auto text-[9px] text-[#111111]/40 font-sans">oggi 09:41</span>
     </div>
     <div className="bg-white rounded-lg border border-pink-200 p-3 mb-3">
       <div className="flex items-start gap-2">
         <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-        <p className="text-[10px] text-[#1a2744]/80 font-sans leading-relaxed">
-          <span className="font-bold text-[#1a2744]">Alert generato:</span> "Il cantiere Villa Bianchi ha superato il
+        <p className="text-[10px] text-[#111111]/80 font-sans leading-relaxed">
+          <span className="font-bold text-[#111111]">Alert generato:</span> "Il cantiere Villa Bianchi ha superato il
           budget materiali del 14%. Proiettando i costi attuali, il margine finale sarà 28% vs il 38% preventivato.
           Azione consigliata: revisione fornitore materiali."
         </p>
@@ -307,18 +307,18 @@ const MockupAI = () => (
     </div>
     <div className="grid grid-cols-2 gap-2 mb-2">
       <div className="bg-white rounded-lg p-2.5 border border-gray-100 text-center">
-        <div className="text-[9px] text-[#1a2744]/40 font-sans uppercase mb-0.5">Flow attivi</div>
+        <div className="text-[9px] text-[#111111]/40 font-sans uppercase mb-0.5">Flow attivi</div>
         <div className="font-bold text-pink-600 font-sans text-base">7</div>
       </div>
       <div className="bg-white rounded-lg p-2.5 border border-gray-100 text-center">
-        <div className="text-[9px] text-[#1a2744]/40 font-sans uppercase mb-0.5">Azioni oggi</div>
+        <div className="text-[9px] text-[#111111]/40 font-sans uppercase mb-0.5">Azioni oggi</div>
         <div className="font-bold text-pink-600 font-sans text-base">23</div>
       </div>
     </div>
-    <div className="space-y-1 text-[9px] text-[#1a2744]/60 font-sans">
-      <p>• Follow-up email automatici: <span className="font-semibold text-[#1a2744]">8</span></p>
-      <p>• Reminder scadenze inviati: <span className="font-semibold text-[#1a2744]">5</span></p>
-      <p>• Aggiornamenti stato cantieri: <span className="font-semibold text-[#1a2744]">10</span></p>
+    <div className="space-y-1 text-[9px] text-[#111111]/60 font-sans">
+      <p>• Follow-up email automatici: <span className="font-semibold text-[#111111]">8</span></p>
+      <p>• Reminder scadenze inviati: <span className="font-semibold text-[#111111]">5</span></p>
+      <p>• Aggiornamenti stato cantieri: <span className="font-semibold text-[#111111]">10</span></p>
     </div>
   </div>
 );
@@ -326,27 +326,27 @@ const MockupAI = () => (
 const MockupClienti = () => (
   <div className="bg-[#f8f9fa] rounded-xl border border-gray-200 p-5 font-mono text-xs leading-relaxed">
     <div className="flex items-center gap-2 mb-1">
-      <Globe className="w-3.5 h-3.5 text-[#0fa68c]" />
-      <span className="text-[9px] text-[#1a2744]/40 font-sans">clienti.ediliziaincloud.com</span>
+      <Globe className="w-3.5 h-3.5 text-[#F97415]" />
+      <span className="text-[9px] text-[#111111]/40 font-sans">clienti.ediliziaincloud.com</span>
     </div>
-    <div className="font-bold font-sans text-[#1a2744] text-sm mb-3">Portale Cliente — Famiglia Rossi</div>
+    <div className="font-bold font-sans text-[#111111] text-sm mb-3">Portale Cliente — Famiglia Rossi</div>
     <div className="bg-white rounded-lg border border-gray-100 p-3 mb-3">
-      <p className="font-sans font-semibold text-[#1a2744] text-xs mb-2">Ristrutturazione Villa (Via Roma 12)</p>
-      <div className="mb-1 flex justify-between text-[10px] text-[#1a2744]/50 font-sans">
+      <p className="font-sans font-semibold text-[#111111] text-xs mb-2">Ristrutturazione Villa (Via Roma 12)</p>
+      <div className="mb-1 flex justify-between text-[10px] text-[#111111]/50 font-sans">
         <span>Avanzamento</span>
-        <span className="font-bold text-[#1a2744]">78%</span>
+        <span className="font-bold text-[#111111]">78%</span>
       </div>
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-        <div className="h-full rounded-full bg-[#0fa68c]" style={{ width: "78%" }} />
+        <div className="h-full rounded-full bg-[#F97415]" style={{ width: "78%" }} />
       </div>
-      <p className="text-[9px] text-[#1a2744]/50 font-sans">Prossima fase: Pavimentazioni (stimato 15/04)</p>
+      <p className="text-[9px] text-[#111111]/50 font-sans">Prossima fase: Pavimentazioni (stimato 15/04)</p>
     </div>
     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 font-sans">
       <p className="text-[10px] font-bold text-amber-700">Documenti da approvare: 1</p>
       <p className="text-[9px] text-amber-600">→ SAL n.3 — € 24.800 [FIRMA ORA →]</p>
     </div>
-    <div className="space-y-0.5 text-[9px] text-[#1a2744]/60 font-sans">
-      <p className="font-semibold text-[#1a2744]/40 uppercase text-[8px] mb-1">Ultimi aggiornamenti</p>
+    <div className="space-y-0.5 text-[9px] text-[#111111]/60 font-sans">
+      <p className="font-semibold text-[#111111]/40 uppercase text-[8px] mb-1">Ultimi aggiornamenti</p>
       <p>• 12/03: Completata posa impianto idraulico</p>
       <p>• 10/03: Iniziata posa massetto</p>
     </div>
@@ -380,9 +380,9 @@ const TABS: TabData[] = [
   {
     id: "finanza",
     label: "Finanza",
-    color: "#0fa68c",
-    bgLight: "rgba(15,166,140,0.06)",
-    borderColor: "rgba(15,166,140,0.25)",
+    color: "#F97415",
+    bgLight: "rgba(249,116,21,0.06)",
+    borderColor: "rgba(249,116,21,0.25)",
     title: "Sai esattamente quanti soldi hai e quanti ne arriveranno",
     desc: "Previsionale di cassa, tesoreria, fatturazione elettronica SDI e scadenzario — tutto integrato. Il commercialista ti ringrazierà.",
     features: [
@@ -485,9 +485,9 @@ const TABS: TabData[] = [
   {
     id: "clienti",
     label: "Clienti",
-    color: "#0fa68c",
-    bgLight: "rgba(15,166,140,0.06)",
-    borderColor: "rgba(15,166,140,0.25)",
+    color: "#F97415",
+    bgLight: "rgba(249,116,21,0.06)",
+    borderColor: "rgba(249,116,21,0.25)",
     title: "I tuoi clienti seguono il cantiere in tempo reale",
     desc: "Portale clienti dedicato dove possono vedere l'avanzamento lavori, approvare documenti e comunicare con te. Zero chiamate inutili.",
     features: [
@@ -557,7 +557,7 @@ export default function Funzionalita() {
   const activeCategoryData = TABS.find((t) => t.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id="jsonld-breadcrumb-funzionalita" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -571,16 +571,16 @@ export default function Funzionalita() {
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section
-        style={{ background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 100%)" }}
+        style={{ background: "linear-gradient(135deg, #111111 0%, #111111 100%)" }}
         className="pt-36 pb-24 px-6 text-center"
       >
         <div className="max-w-3xl mx-auto">
           <div
             className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-6 border"
             style={{
-              background: "rgba(15,166,140,0.15)",
-              color: "#0fa68c",
-              borderColor: "rgba(15,166,140,0.3)",
+              background: "rgba(249,116,21,0.15)",
+              color: "#F97415",
+              borderColor: "rgba(249,116,21,0.3)",
             }}
           >
             PIATTAFORMA ALL-IN-ONE
@@ -588,7 +588,7 @@ export default function Funzionalita() {
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
             Una piattaforma.
             <br />
-            <span style={{ color: "#0fa68c" }}>Tutto quello che serve.</span>
+            <span style={{ color: "#F97415" }}>Tutto quello che serve.</span>
           </h1>
           <p className="text-lg md:text-xl text-white/70 leading-relaxed mb-10 max-w-2xl mx-auto">
             Cantieri, finanza, marketing, HR, AI — integrati e sincronizzati in tempo reale. Nessuna app
@@ -621,8 +621,8 @@ export default function Funzionalita() {
             onClick={() => setActiveTab("tutti")}
             className="flex-shrink-0 px-4 py-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap"
             style={{
-              borderBottomColor: activeTab === "tutti" ? "#1a2744" : "transparent",
-              color: activeTab === "tutti" ? "#1a2744" : "#1a274488",
+              borderBottomColor: activeTab === "tutti" ? "#111111" : "transparent",
+              color: activeTab === "tutti" ? "#111111" : "#11111188",
             }}
           >
             Tutti
@@ -635,7 +635,7 @@ export default function Funzionalita() {
               className="flex-shrink-0 px-4 py-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap"
               style={{
                 borderBottomColor: activeTab === tab.id ? tab.color : "transparent",
-                color: activeTab === tab.id ? tab.color : "#1a274488",
+                color: activeTab === tab.id ? tab.color : "#11111188",
               }}
             >
               {tab.label}
@@ -650,10 +650,10 @@ export default function Funzionalita() {
         <section className="py-16 px-6" style={{ background: "#f7f9fc" }}>
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-[#1a2744] mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-[#111111] mb-4">
                 Esplora ogni area della piattaforma
               </h2>
-              <p className="text-[#1a2744]/55 max-w-xl mx-auto">
+              <p className="text-[#111111]/55 max-w-xl mx-auto">
                 Clicca su una categoria per scoprire in dettaglio le funzionalita, i mockup e gli impatti reali sul tuo business.
               </p>
             </div>
@@ -675,8 +675,8 @@ export default function Funzionalita() {
                     <LayoutGrid className="w-3 h-3" />
                     {tab.label}
                   </div>
-                  <h3 className="font-bold text-[#1a2744] text-base mb-2 leading-snug">{tab.title}</h3>
-                  <p className="text-xs text-[#1a2744]/55 leading-relaxed mb-4">{tab.desc}</p>
+                  <h3 className="font-bold text-[#111111] text-base mb-2 leading-snug">{tab.title}</h3>
+                  <p className="text-xs text-[#111111]/55 leading-relaxed mb-4">{tab.desc}</p>
                   <div
                     className="inline-flex items-center gap-1 text-xs font-bold group-hover:gap-2 transition-all"
                     style={{ color: tab.color }}
@@ -714,10 +714,10 @@ export default function Funzionalita() {
                   <LayoutGrid className="w-3 h-3" />
                   {tab.label}
                 </div>
-                <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#1a2744] mb-3 leading-snug max-w-2xl">
+                <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#111111] mb-3 leading-snug max-w-2xl">
                   {tab.title}
                 </h2>
-                <p className="text-[#1a2744]/60 max-w-xl leading-relaxed">{tab.desc}</p>
+                <p className="text-[#111111]/60 max-w-xl leading-relaxed">{tab.desc}</p>
               </div>
 
               {/* 2-col layout */}
@@ -737,8 +737,8 @@ export default function Funzionalita() {
                           {feat.icon}
                         </span>
                         <div>
-                          <p className="font-semibold text-[#1a2744] text-sm">{feat.name}</p>
-                          <p className="text-xs text-[#1a2744]/55 mt-0.5">{feat.desc}</p>
+                          <p className="font-semibold text-[#111111] text-sm">{feat.name}</p>
+                          <p className="text-xs text-[#111111]/55 mt-0.5">{feat.desc}</p>
                         </div>
                       </li>
                     ))}
@@ -754,7 +754,7 @@ export default function Funzionalita() {
                     }}
                   >
                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: tab.color }} />
-                    <p className="font-bold text-[#1a2744] text-sm">{tab.impact}</p>
+                    <p className="font-bold text-[#111111] text-sm">{tab.impact}</p>
                   </div>
                 </div>
 
@@ -796,10 +796,10 @@ export default function Funzionalita() {
       <section className="py-20 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744] mb-3">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">
               Tutti i moduli inclusi, senza costi aggiuntivi
             </h2>
-            <p className="text-[#1a2744]/55 max-w-xl mx-auto text-sm leading-relaxed">
+            <p className="text-[#111111]/55 max-w-xl mx-auto text-sm leading-relaxed">
               Non paghi moduli separati. Non ci sono add-on nascosti. Tutto incluso dal primo giorno, qualunque piano tu scelga.
             </p>
           </div>
@@ -808,10 +808,10 @@ export default function Funzionalita() {
             {ALL_MODULES.map((mod, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2.5 rounded-xl px-4 py-3 border border-gray-100 text-xs font-semibold text-[#1a2744]/70 hover:border-[#0fa68c]/30 hover:bg-[#0fa68c]/05 transition-colors"
+                className="flex items-center gap-2.5 rounded-xl px-4 py-3 border border-gray-100 text-xs font-semibold text-[#111111]/70 hover:border-[#F97415]/30 hover:bg-[#F97415]/05 transition-colors"
                 style={{ background: "#f7f9fc" }}
               >
-                <span style={{ color: "#0fa68c" }}>{mod.icon}</span>
+                <span style={{ color: "#F97415" }}>{mod.icon}</span>
                 <span className="leading-tight">{mod.name}</span>
               </div>
             ))}
@@ -829,9 +829,9 @@ export default function Funzionalita() {
                 key={badge}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold border"
                 style={{
-                  color: "#0fa68c",
-                  borderColor: "rgba(15,166,140,0.3)",
-                  background: "rgba(15,166,140,0.07)",
+                  color: "#F97415",
+                  borderColor: "rgba(249,116,21,0.3)",
+                  background: "rgba(249,116,21,0.07)",
                 }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -845,13 +845,13 @@ export default function Funzionalita() {
             <Link
               to="/demo"
               className="inline-block px-8 py-4 rounded-full text-white font-bold text-base transition-all hover:opacity-90 hover:scale-105 shadow-lg text-center"
-              style={{ background: "#0fa68c", boxShadow: "0 8px 30px rgba(15,166,140,0.3)" }}
+              style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.3)" }}
             >
               Inizia la Demo Gratuita →
             </Link>
             <a
               href="mailto:info@ediliziaincloud.com"
-              className="inline-block px-8 py-4 rounded-full font-bold text-base transition-all hover:opacity-80 border border-[#1a2744]/20 text-[#1a2744] text-center"
+              className="inline-block px-8 py-4 rounded-full font-bold text-base transition-all hover:opacity-80 border border-[#111111]/20 text-[#111111] text-center"
             >
               Parla con noi
             </a>
