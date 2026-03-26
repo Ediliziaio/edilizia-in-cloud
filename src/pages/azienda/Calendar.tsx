@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,12 +49,18 @@ export default function Calendar() {
     catch { return {}; }
   })();
   const [layerPanelOpen, setLayerPanelOpen] = useState(savedPrefs.layerPanelOpen ?? !isMobile);
-  const [showPosa, setShowPosa] = useState(savedPrefs.showPosa ?? true);
-  const [showLavoro, setShowLavoro] = useState(savedPrefs.showLavoro ?? true);
-  const [showAppuntamento, setShowAppuntamento] = useState(savedPrefs.showAppuntamento ?? true);
-  const [showMerce, setShowMerce] = useState(savedPrefs.showMerce ?? true);
-  const [showGoogleBusy, setShowGoogleBusy] = useState(savedPrefs.showGoogleBusy ?? true);
-  const [showLeaves, setShowLeaves] = useState(savedPrefs.showLeaves ?? true);
+  const [layerVisibility, setLayerVisibility] = useState({
+    showPosa: savedPrefs.showPosa ?? true,
+    showLavoro: savedPrefs.showLavoro ?? true,
+    showAppuntamento: savedPrefs.showAppuntamento ?? true,
+    showMerce: savedPrefs.showMerce ?? true,
+    showGoogleBusy: savedPrefs.showGoogleBusy ?? true,
+    showLeaves: savedPrefs.showLeaves ?? true,
+  });
+  const setLayer = useCallback((layer: keyof typeof layerVisibility, v: boolean) => {
+    setLayerVisibility(prev => ({ ...prev, [layer]: v }));
+  }, []);
+  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves } = layerVisibility;
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
@@ -69,30 +75,25 @@ export default function Calendar() {
     saveTimerRef.current = setTimeout(() => {
       const prefs = {
         layerPanelOpen,
-        showPosa,
-        showLavoro,
-        showAppuntamento,
-        showMerce,
-        showGoogleBusy,
-        showLeaves,
+        ...layerVisibility,
         visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
+  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds]);
 
-  // Compute a ±3-month window around the current date for calendar queries
+  // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
     const d = new Date(currentDate);
-    d.setMonth(d.getMonth() - 3);
+    d.setMonth(d.getMonth() - 2);
     d.setDate(1);
     return d.toISOString().slice(0, 10);
   }, [currentDate]);
   const calendarRangeEnd = useMemo(() => {
     const d = new Date(currentDate);
-    d.setMonth(d.getMonth() + 4);
+    d.setMonth(d.getMonth() + 3);
     d.setDate(0);
     return d.toISOString().slice(0, 10);
   }, [currentDate]);
@@ -131,6 +132,7 @@ export default function Calendar() {
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch appointments
@@ -667,12 +669,12 @@ export default function Calendar() {
             onToggleAllTeams={(v) => {
               setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
             }}
-            onTogglePosa={setShowPosa}
-            onToggleLavoro={setShowLavoro}
-            onToggleAppuntamento={setShowAppuntamento}
-            onToggleMerce={setShowMerce}
-            onToggleGoogleBusy={setShowGoogleBusy}
-            onToggleLeaves={setShowLeaves}
+            onTogglePosa={(v) => setLayer("showPosa", v)}
+            onToggleLavoro={(v) => setLayer("showLavoro", v)}
+            onToggleAppuntamento={(v) => setLayer("showAppuntamento", v)}
+            onToggleMerce={(v) => setLayer("showMerce", v)}
+            onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
+            onToggleLeaves={(v) => setLayer("showLeaves", v)}
           />
         )}
       </div>

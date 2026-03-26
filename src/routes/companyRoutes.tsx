@@ -153,12 +153,12 @@ export function companyRoutes() {
         <Route index element={<CompanyDashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="cruscotto" element={<CruscottoAziendale />} />
-        <Route path="ordini" element={<OrdersList />} />
-        <Route path="ordini/nuovo" element={<CreateOrder />} />
-        <Route path="ordini/:id" element={<OrderDetail />} />
+        <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
+        <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
+        <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
         <Route path="ordini/:id/modifica" element={<EditOrder />} />
         <Route path="magazzino" element={<Warehouse />} />
-        <Route path="calendario" element={<Calendar />} />
+        <Route path="calendario" element={<ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>} />
         <Route path="clienti" element={<CustomersList />} />
         <Route path="clienti/nuovo" element={<CreateCustomer />} />
         <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
@@ -178,7 +178,7 @@ export function companyRoutes() {
         <Route path="tesoreria" element={<Tesoreria />} />
         <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
         <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
-        <Route path="scadenzario" element={<BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard>} />
+        <Route path="scadenzario" element={<ErrorBoundary title="Errore nel caricamento scadenzario"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></ErrorBoundary>} />
         
         {/* Native billing routes */}
         <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
@@ -195,7 +195,7 @@ export function companyRoutes() {
         <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
         <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         
-        <Route path="prima-nota" element={<PrimaNota />} />
+        <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><PrimaNota /></ErrorBoundary>} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
         <Route path="sicurezza-cantiere" element={<SicurezzaCantiere />} />

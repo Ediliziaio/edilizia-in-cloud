@@ -100,6 +100,10 @@ export const OrdersTable = React.memo(function OrdersTable({
     enabled: useVirtual,
   });
 
+  const renderedItems = useVirtual
+    ? virtualizer.getVirtualItems().map(vr => ({ vr, order: sortedItems[vr.index] }))
+    : sortedItems.map((order, i) => ({ vr: { key: order.id, index: i, start: 0, size: 56 }, order }));
+
   const allSelected = orders.length > 0 && selectedIds.size === orders.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
 
@@ -293,9 +297,9 @@ export const OrdersTable = React.memo(function OrdersTable({
           </TableHeader>
           <TableBody
             ref={tableBodyRef}
-            style={useVirtual ? { height: `${virtualizer.getTotalSize()}px`, position: "relative" } : undefined}
+            style={useVirtual ? { height: `${virtualizer.getTotalSize()}px`, position: "relative", width: "100%" } : undefined}
           >
-            {(useVirtual ? virtualizer.getVirtualItems().map(virtualRow => ({ virtualRow, order: sortedItems[virtualRow.index] })) : sortedItems.map((order, index) => ({ virtualRow: { key: order.id, index, start: 0 }, order }))).map(({ virtualRow, order }) => {
+            {renderedItems.map(({ vr, order }) => {
               const due = getAmountDue(order);
               const collected = getAmountCollected(order);
               const pending = getPendingPayments(order);
@@ -311,9 +315,9 @@ export const OrdersTable = React.memo(function OrdersTable({
 
               return (
                 <TableRow
-                  key={virtualRow.key}
+                  key={vr.key}
                   data-state={isSelected ? "selected" : undefined}
-                  style={useVirtual ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` } : undefined}
+                  style={useVirtual ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vr.start}px)` } : undefined}
                 >
                   <TableCell>
                     <Checkbox

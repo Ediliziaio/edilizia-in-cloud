@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
@@ -62,6 +63,7 @@ export default function OrdersList() {
   });
 
   const searchQuery = urlFilters.searchQuery;
+  const debouncedSearch = useDebounce(searchQuery, 400);
   const setSearchQuery = useCallback((v: string) => setURLParam("searchQuery", v), [setURLParam]);
   const statusFilter = urlFilters.statusFilter;
   const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
@@ -113,20 +115,23 @@ export default function OrdersList() {
     : null;
 
   const { data: ordersResult, isLoading } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, searchQuery, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, contractDateRange, warehouseDateRange, expectedDateRange],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
       let query = supabase
         .from("orders")
         .select(`
-          *,
+          id, order_code, description, total_amount, deposit_amount, balance_amount,
+          vat_rate, created_at, expected_date, work_start_date, work_end_date,
+          warehouse_arrival_date, customer_id, current_status_id, payment_type,
+          financing_amount, deposit_2_amount, has_building_bonus,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `, { count: "exact" })
         .eq("company_id", effectiveCompany.id);
 
-      if (searchQuery) {
-        query = query.or(`description.ilike.%${searchQuery}%,order_code.ilike.%${searchQuery}%`);
+      if (debouncedSearch) {
+        query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       }
       if (statusFilter !== "all") {
         query = query.eq("current_status_id", statusFilter);

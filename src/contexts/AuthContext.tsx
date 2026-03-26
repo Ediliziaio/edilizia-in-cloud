@@ -99,13 +99,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => sessionStorage.getItem(IMP_TOKEN_KEY)
   );
 
-  // Multi-company state
+  // Multi-company state (combined to reduce re-renders)
   const MULTI_COMPANY_KEY = "multi_company_selected";
-  const [multiCompanyAccesses, setMultiCompanyAccesses] = useState<MultiCompanyAccess[]>([]);
-  const [selectedMultiCompanyId, setSelectedMultiCompanyId] = useState<string | null>(
-    () => sessionStorage.getItem(MULTI_COMPANY_KEY)
-  );
-  const [multiCompanyObj, setMultiCompanyObj] = useState<Company | null>(null);
+  const [multiCompanyState, setMultiCompanyState] = useState({
+    accesses: [] as MultiCompanyAccess[],
+    selectedId: sessionStorage.getItem(MULTI_COMPANY_KEY),
+    selectedCompany: null as Company | null,
+  });
+  const multiCompanyAccesses = multiCompanyState.accesses;
+  const selectedMultiCompanyId = multiCompanyState.selectedId;
+  const multiCompanyObj = multiCompanyState.selectedCompany;
 
   // Sync impersonation state to sessionStorage
   useEffect(() => {
@@ -446,7 +449,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "platform_implementation",
       ];
       if (!state.user || !state.role || !platformRoles.includes(state.role)) {
-        setMultiCompanyAccesses([]);
+        setMultiCompanyState(prev => ({ ...prev, accesses: [] }));
         return;
       }
 
@@ -465,29 +468,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         company: a.companies as Company,
       })) as MultiCompanyAccess[];
 
-      setMultiCompanyAccesses(accesses);
-
       // Auto-select first company if none selected
-      if (!selectedMultiCompanyId && accesses.length > 0) {
-        const firstId = accesses[0].company_id;
-        setSelectedMultiCompanyId(firstId);
-        sessionStorage.setItem(MULTI_COMPANY_KEY, firstId);
-        setMultiCompanyObj(accesses[0].company || null);
-      } else if (selectedMultiCompanyId) {
-        const found = accesses.find(a => a.company_id === selectedMultiCompanyId);
-        setMultiCompanyObj(found?.company || null);
-      }
+      setMultiCompanyState(prev => {
+        const currentSelectedId = prev.selectedId;
+        if (!currentSelectedId && accesses.length > 0) {
+          const firstId = accesses[0].company_id;
+          sessionStorage.setItem(MULTI_COMPANY_KEY, firstId);
+          return { accesses, selectedId: firstId, selectedCompany: accesses[0].company || null };
+        } else if (currentSelectedId) {
+          const found = accesses.find(a => a.company_id === currentSelectedId);
+          return { accesses, selectedId: currentSelectedId, selectedCompany: found?.company || null };
+        }
+        return { ...prev, accesses };
+      });
     }
 
     fetchMultiCompanyAccesses();
   }, [state.role, state.user?.id]);
 
   const switchMultiCompany = useCallback((companyId: string) => {
-    setSelectedMultiCompanyId(companyId);
     sessionStorage.setItem(MULTI_COMPANY_KEY, companyId);
-    const found = multiCompanyAccesses.find(a => a.company_id === companyId);
-    setMultiCompanyObj(found?.company || null);
-  }, [multiCompanyAccesses]);
+    setMultiCompanyState(prev => {
+      const found = prev.accesses.find(a => a.company_id === companyId);
+      return { ...prev, selectedId: companyId, selectedCompany: found?.company || null };
+    });
+  }, []);
 
   const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
   
@@ -515,7 +520,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       selectedMultiCompanyId,
       switchMultiCompany,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
   );
 
   return (
@@ -532,3 +537,16 @@ export function useAuth() {
   }
   return context;
 }
+
+// Selector hook to prevent over-subscription
+export function useAuthSelector<T>(selector: (ctx: AuthContextType) => T): T {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuthSelector must be used within AuthProvider");
+  return selector(ctx);
+}
+
+// Common selectors
+export const useAuthUser = () => useAuthSelector(c => ({ user: c.user, role: c.role, isLoading: c.isLoading }));
+export const useAuthCompany = () => useAuthSelector(c => ({ company: c.company, effectiveCompany: c.effectiveCompany }));
+export const useAuthImpersonation = () => useAuthSelector(c => ({ isImpersonating: c.isImpersonating, impersonatedCompany: c.impersonatedCompany, exitImpersonation: c.exitImpersonation }));
+export const useAuthActions = () => useAuthSelector(c => ({ signIn: c.signIn, signOut: c.signOut, refreshAuth: c.refreshAuth }));

@@ -62,22 +62,30 @@ export default function PrimaNota() {
     return withBal.reverse();
   }, [entries]);
 
-  // Monthly chart data (last 6 months)
+  // Monthly chart data (last 6 months) — single O(n) pass
   const chartData = useMemo(() => {
-    const months: { month: string; entrate: number; uscite: number }[] = [];
+    const buckets = new Map<string, { month: string; entrate: number; uscite: number }>();
+    const now = new Date();
+
+    // Initialize 6 month buckets
     for (let i = 5; i >= 0; i--) {
-      const d = subMonths(new Date(), i);
+      const d = subMonths(now, i);
       const key = format(d, "yyyy-MM");
       const label = format(d, "MMM yy", { locale: it });
-      months.push({ month: label, entrate: 0, uscite: 0 });
-      entries.forEach((e) => {
-        if (e.entry_date.startsWith(key)) {
-          if (e.direction === "entrata") months[months.length - 1].entrate += e.amount;
-          else months[months.length - 1].uscite += e.amount;
-        }
-      });
+      buckets.set(key, { month: label, entrate: 0, uscite: 0 });
     }
-    return months;
+
+    // Single O(n) pass
+    for (const e of entries) {
+      const key = e.entry_date.slice(0, 7); // "yyyy-MM"
+      const bucket = buckets.get(key);
+      if (bucket) {
+        if (e.direction === "entrata") bucket.entrate += e.amount;
+        else bucket.uscite += e.amount;
+      }
+    }
+
+    return Array.from(buckets.values());
   }, [entries]);
 
   const exportCSV = () => {

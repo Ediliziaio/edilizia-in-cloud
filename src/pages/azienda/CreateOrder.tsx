@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -62,24 +62,27 @@ export default function CreateOrder() {
 
   const { control, watch, setValue, getValues, reset, handleSubmit: rhfHandleSubmit, formState: { errors } } = form;
 
-  // Watch fields needed for computed values & effects
-  const customerId = watch("customer_id");
-  const paymentType = watch("payment_type") as PaymentType;
-  const totalAmount = watch("total_amount");
-  const vatRate = watch("vat_rate");
-  const financingCost = watch("financing_cost");
-  const hasBuildingBonus = watch("has_building_bonus");
-  const salespersonId = watch("salesperson_id");
-  const salespersonData = watch("salesperson_data");
-  const statusId = watch("status_id");
-  const expectedDate = watch("expected_date");
-  const warehouseArrivalDate = watch("warehouse_arrival_date");
-  const workStartDate = watch("work_start_date");
-  const workEndDate = watch("work_end_date");
-  const orderCode = watch("order_code");
-  const description = watch("description");
-  const internalNotes = watch("internal_notes");
-  const assignedTo = watch("assigned_to");
+  // Watch fields needed for computed values & effects — single call to avoid 13 subscriptions
+  const {
+    customer_id: customerId,
+    payment_type: _paymentTypeRaw,
+    total_amount: totalAmount,
+    vat_rate: vatRate,
+    financing_cost: financingCost,
+    has_building_bonus: hasBuildingBonus,
+    salesperson_id: salespersonId,
+    salesperson_data: salespersonData,
+    status_id: statusId,
+    expected_date: expectedDate,
+    warehouse_arrival_date: warehouseArrivalDate,
+    work_start_date: workStartDate,
+    work_end_date: workEndDate,
+    order_code: orderCode,
+    description,
+    internal_notes: internalNotes,
+    assigned_to: assignedTo,
+  } = watch();
+  const paymentType = _paymentTypeRaw as PaymentType;
 
   // ── Non-form state (arrays / UI) ────────────────────────────
   const [installments, setInstallments] = useState<Installment[]>(
@@ -137,6 +140,7 @@ export default function CreateOrder() {
 
   // ── Draft auto-save ─────────────────────────────────────────
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load draft on mount
   useEffect(() => {
@@ -170,29 +174,35 @@ export default function CreateOrder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
 
-  // Auto-save draft on every change (debounced in hook)
+  // Auto-save draft on every change — debounced 800ms to avoid firing on every keystroke
   useEffect(() => {
     if (createdOrderId) return;
-    saveDraft({
-      customerId: customerId || "",
-      orderCode: orderCode || "",
-      description: description || "",
-      internalNotes: internalNotes || "",
-      statusId: statusId || "",
-      salespersonId: salespersonId || "",
-      salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
-      expectedDate: dateToIso(expectedDate),
-      warehouseArrivalDate: dateToIso(warehouseArrivalDate),
-      workStartDate: dateToIso(workStartDate),
-      workEndDate: dateToIso(workEndDate),
-      paymentType: paymentType,
-      totalAmount: totalAmount || "",
-      vatRate: vatRate || "22",
-      financingCost: financingCost || "",
-      hasBuildingBonus: hasBuildingBonus || false,
-      orderItems,
-      installments,
-    });
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      saveDraft({
+        customerId: customerId || "",
+        orderCode: orderCode || "",
+        description: description || "",
+        internalNotes: internalNotes || "",
+        statusId: statusId || "",
+        salespersonId: salespersonId || "",
+        salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
+        expectedDate: dateToIso(expectedDate),
+        warehouseArrivalDate: dateToIso(warehouseArrivalDate),
+        workStartDate: dateToIso(workStartDate),
+        workEndDate: dateToIso(workEndDate),
+        paymentType: paymentType,
+        totalAmount: totalAmount || "",
+        vatRate: vatRate || "22",
+        financingCost: financingCost || "",
+        hasBuildingBonus: hasBuildingBonus || false,
+        orderItems,
+        installments,
+      });
+    }, 800);
+    return () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    };
   }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
@@ -240,7 +250,7 @@ export default function CreateOrder() {
     queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      
+
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, position")
@@ -251,6 +261,8 @@ export default function CreateOrder() {
       return data as OrderStatus[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Set default status when statuses are loaded
