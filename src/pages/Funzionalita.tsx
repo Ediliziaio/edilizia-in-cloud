@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSEO } from "@/hooks/useSEO";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -540,9 +541,12 @@ export default function Funzionalita() {
   const [visiblePanel, setVisiblePanel] = useState<string>("tutti");
   const tabsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    document.title = "Funzionalita — Edilizia in Cloud";
-  }, []);
+  useSEO({
+    title: "Funzionalità — Software Gestionale Completo per Edilizia",
+    description: "Scopri tutte le funzionalità di Edilizia in Cloud: gestione cantieri, contabilità, marketing, HR, documenti e intelligenza artificiale. 26+ moduli integrati.",
+    canonical: "/funzionalita",
+    keywords: "funzionalità gestionale edilizia, moduli software edilizia, gestione cantieri digitale, contabilità edilizia, HR edilizia, marketing imprese edili",
+  });
 
   // Animate panel transition
   useEffect(() => {

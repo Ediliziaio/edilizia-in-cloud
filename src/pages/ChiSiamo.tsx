@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useSEO } from "@/hooks/useSEO";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -172,9 +173,12 @@ const press = [
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function ChiSiamo() {
-  useEffect(() => {
-    document.title = "Chi Siamo — Edilizia in Cloud";
-  }, []);
+  useSEO({
+    title: "Chi Siamo — Il Team di Edilizia in Cloud",
+    description: "Scopri la storia di Edilizia in Cloud: nati dall'esperienza diretta nel settore edile per risolvere i problemi reali degli imprenditori. 18 mesi di sviluppo, €12M+ gestiti.",
+    canonical: "/chi-siamo",
+    keywords: "chi siamo edilizia in cloud, team software edilizia, storia edilizia in cloud, domus group srl",
+  });
 
   const heroAnim = useScrollAnimation();
   const numbersAnim = useScrollAnimation();

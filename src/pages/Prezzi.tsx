@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useSEO } from "@/hooks/useSEO";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -173,9 +175,12 @@ export default function Prezzi() {
   const paybackMesi = costoProfessionalAnno / (valoreAnnuo / 12);
   const paybackLabel = paybackMesi < 1 ? "< 1 mese" : `${paybackMesi.toFixed(1)} mesi`;
 
-  useEffect(() => {
-    document.title = "Prezzi — Edilizia in Cloud";
-  }, []);
+  useSEO({
+    title: "Prezzi — Piani e Costi del Software Gestionale per Edilizia",
+    description: "Scegli il piano Edilizia in Cloud adatto alla tua impresa. Da €79/mese con 30 giorni gratuiti. Calcolatore ROI incluso per misurare il tuo ritorno sull'investimento.",
+    canonical: "/prezzi",
+    keywords: "prezzi software edilizia, costo gestionale edilizia, abbonamento software cantieri, piano gestionale impresa edile",
+  });
 
   const prices = {
     starter: billing === "monthly" ? 99 : 79,
@@ -191,6 +196,19 @@ export default function Prezzi() {
 
   return (
     <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+      <JsonLd id="jsonld-prezzi" data={{
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Edilizia in Cloud",
+        "description": "Software gestionale completo per imprese edili italiane",
+        "brand": { "@type": "Brand", "name": "Edilizia in Cloud" },
+        "offers": [
+          { "@type": "Offer", "name": "Starter", "price": "79", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" },
+          { "@type": "Offer", "name": "Professional", "price": "159", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" },
+          { "@type": "Offer", "name": "Enterprise", "price": "319", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" }
+        ],
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127", "bestRating": "5" }
+      }} />
       <PromoBanner />
       <LandingNavbar />
 

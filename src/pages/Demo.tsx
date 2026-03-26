@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSEO } from "@/hooks/useSEO";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -53,9 +54,12 @@ export default function Demo() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    document.title = "Prenota la Demo Gratuita — Edilizia in Cloud";
-  }, []);
+  useSEO({
+    title: "Richiedi una Demo Gratuita — Edilizia in Cloud",
+    description: "Prenota una demo personalizzata di 30 minuti con il nostro team. Ti mostriamo come Edilizia in Cloud può trasformare la tua impresa edile. Nessun impegno.",
+    canonical: "/demo",
+    keywords: "demo software edilizia, prova gratuita gestionale edilizia, richiedi demo edilizia in cloud",
+  });
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};

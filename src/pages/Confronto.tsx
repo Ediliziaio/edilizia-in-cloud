@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSEO } from "@/hooks/useSEO";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -142,9 +143,12 @@ export default function Confronto() {
   const [activeSection, setActiveSection] = useState("excel");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  useEffect(() => {
-    document.title = "Confronto — Edilizia in Cloud vs Alternative";
-  }, []);
+  useSEO({
+    title: "Confronto — Edilizia in Cloud vs Excel, ERP e Concorrenti",
+    description: "Confronta Edilizia in Cloud con Excel, software ERP, commercialisti e concorrenti. Scopri perché migliaia di imprenditori edili scelgono la nostra piattaforma.",
+    canonical: "/confronto",
+    keywords: "confronto software edilizia, alternativa excel edilizia, alternativa ERP costruzioni, migliore software gestionale edilizia",
+  });
 
   useEffect(() => {
     const sectionIds = ["excel", "erp", "commercialista", "concorrenti"];

@@ -1,14 +1,17 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
+User-agent: *
 Allow: /
 
 User-agent: *
-Allow: /
+Disallow: /azienda/
+Disallow: /admin/
+Disallow: /clienti/
+Disallow: /dipendente/
+Disallow: /agente/
+Disallow: /partner/
+Disallow: /reset-password
+Disallow: /cambia-password
+
+Sitemap: https://ediliziaincloud.com/sitemap.xml
+
+# Performance hints
+Crawl-delay: 1

@@ -1,4 +1,6 @@
 
+import { useSEO } from "@/hooks/useSEO";
+import { JsonLd } from "@/components/seo/JsonLd";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
 import StatsSection from "@/components/landing/StatsSection";
@@ -45,8 +47,25 @@ function PromoBanner() {
 }
 
 export default function Home() {
+  useSEO({
+    title: "Edilizia in Cloud — Software Gestionale per Imprese Edili",
+    description: "Il software gestionale n°1 per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 30 giorni.",
+    canonical: "/home",
+    keywords: "software gestionale edilizia, gestionale imprese edili, software cantiere, gestione cantieri, preventivi edilizia, fatturazione edilizia, software costruzioni italiane",
+  });
+
   return (
     <div className="min-h-screen bg-white text-[#1a2744] pb-24 overflow-x-hidden">
+      <JsonLd id="jsonld-home" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Quanto costa Edilizia in Cloud?", "acceptedAnswer": { "@type": "Answer", "text": "I piani partono da €79/mese per il piano Starter, fino a €319/mese per Enterprise. Tutti i piani includono 30 giorni di prova gratuita." }},
+          { "@type": "Question", "name": "In quanto tempo si imposta il software?", "acceptedAnswer": { "@type": "Answer", "text": "Il setup completo richiede 48 ore. Il nostro team ti affianca nella configurazione iniziale e nella migrazione dei dati." }},
+          { "@type": "Question", "name": "Il software funziona anche dal cantiere?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, Edilizia in Cloud è accessibile da qualsiasi dispositivo: smartphone, tablet e computer, anche con connessione limitata." }},
+          { "@type": "Question", "name": "I dati sono al sicuro?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, tutti i dati sono conservati su server in Europa, conformi al GDPR, con backup automatico giornaliero e crittografia end-to-end." }}
+        ]
+      }} />
       <PromoBanner />
       <LandingNavbar />
       <HeroSection />
