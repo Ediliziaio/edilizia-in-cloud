@@ -42,7 +42,8 @@ export default function CustomerOrders() {
           status:order_statuses(name, color, icon)
         `)
         .eq("customer_id", user!.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (error) throw error;
       return data as unknown as Order[];

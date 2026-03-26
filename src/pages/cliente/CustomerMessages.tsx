@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -123,6 +124,11 @@ export default function CustomerMessages() {
         created_at: new Date().toISOString(),
       };
       queryClient.setQueryData<Message[]>(queryKey, (old = []) => [...old, optimistic]);
+    },
+    onError: (err: Error) => {
+      // Revert optimistic update on failure
+      queryClient.invalidateQueries({ queryKey });
+      toast.error("Errore invio messaggio: " + err.message);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });

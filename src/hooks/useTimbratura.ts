@@ -49,6 +49,7 @@ export function useMyTodayTimbrature(profiloId: string | undefined) {
       return (data || []) as unknown as HrTimbratura[];
     },
     enabled: !!profiloId,
+    staleTime: 30 * 1000,
     refetchInterval: 60000,
   });
 }
