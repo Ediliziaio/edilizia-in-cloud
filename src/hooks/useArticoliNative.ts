@@ -29,5 +29,7 @@ export function useArticoliNative(search?: string) {
       if (error) throw error;
       return ((data as unknown[]) ?? []) as unknown as ArticoloNative[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }

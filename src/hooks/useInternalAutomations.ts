@@ -24,6 +24,8 @@ export function useInternalAutomationFlows() {
       return (data ?? []) as InternalAutomationFlow[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -44,6 +46,8 @@ export function useInternalAutomationFlow(flowId: string | undefined) {
       return data as InternalAutomationFlow;
     },
     enabled: !!flowId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -63,6 +67,8 @@ export function useInternalAutomationNodes(flowId: string | undefined) {
       return (data ?? []) as InternalAutomationNode[];
     },
     enabled: !!flowId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -82,6 +88,8 @@ export function useInternalAutomationConnections(flowId: string | undefined) {
       return (data ?? []) as InternalAutomationConnection[];
     },
     enabled: !!flowId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -102,6 +110,8 @@ export function useInternalAutomationExecutionLog(flowId: string | undefined) {
       return data ?? [];
     },
     enabled: !!flowId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

@@ -28,6 +28,8 @@ export function useAnagraficheNative(search?: string) {
       if (error) throw error;
       return (data as unknown[]) ?? [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -47,5 +49,7 @@ export function useAnagraficaNative(id: string | undefined) {
       if (error) throw error;
       return data as Record<string, unknown>;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }

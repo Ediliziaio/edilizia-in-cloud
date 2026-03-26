@@ -18,6 +18,8 @@ export function usePhoneNumbers(companyId: string | null) {
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -35,6 +37,8 @@ export function useCompanyProfiles(companyId: string | null) {
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

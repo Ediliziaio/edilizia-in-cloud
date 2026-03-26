@@ -93,6 +93,8 @@ export function useBillingInfo() {
         dunningDaysLeft,
       };
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -130,6 +132,8 @@ export function useInvoices() {
         createdAt: row.created_at,
       }));
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

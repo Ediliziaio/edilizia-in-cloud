@@ -59,6 +59,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       return data as AutomationFlow;
     },
     enabled: !!flowId && flowId !== "nuova" && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Load nodes — Bug 2 fix: add company_id filter
@@ -76,6 +78,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       return data as AutomationNode[];
     },
     enabled: !!flowId && flowId !== "nuova" && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Load connections — Bug 2 fix: add company_id filter
@@ -92,6 +96,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
       return data as AutomationConnection[];
     },
     enabled: !!flowId && flowId !== "nuova" && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const [nodes, setNodes] = useState<AutomationNode[]>([]);

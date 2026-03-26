@@ -16,6 +16,8 @@ export function useWebhooks(companyId: string | undefined) {
       return (data ?? []) as unknown as Webhook[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -34,6 +36,8 @@ export function useWebhookDeliveries(webhookId: string | null) {
       return (data ?? []) as unknown as WebhookDelivery[];
     },
     enabled: !!webhookId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

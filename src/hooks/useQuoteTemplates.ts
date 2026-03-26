@@ -27,6 +27,8 @@ export function useQuoteTemplates() {
       return (data ?? []) as unknown as QuoteTemplate[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const defaultTemplate = templates.find(t => t.is_default) ?? templates[0] ?? null;

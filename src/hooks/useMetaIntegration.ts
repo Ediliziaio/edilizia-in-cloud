@@ -28,6 +28,8 @@ export function useMetaIntegration(integration: Integration | null) {
       return (data || []) as MetaAsset[];
     },
     enabled: !!companyId && !!integration?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Fetch lead forms
@@ -45,6 +47,8 @@ export function useMetaIntegration(integration: Integration | null) {
       return (data || []) as MetaLeadForm[];
     },
     enabled: !!companyId && !!integration?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Fetch field mappings
@@ -61,6 +65,8 @@ export function useMetaIntegration(integration: Integration | null) {
       return (data || []) as unknown as IntegrationFieldMapping[];
     },
     enabled: !!companyId && !!integration?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Start OAuth

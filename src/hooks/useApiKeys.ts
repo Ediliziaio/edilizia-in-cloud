@@ -18,6 +18,8 @@ export function useApiKeys(companyId: string | undefined) {
       return data as unknown as ApiKey[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

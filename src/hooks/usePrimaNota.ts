@@ -50,21 +50,18 @@ export interface PrimaNotaFilters {
   autoSource?: string;
 }
 
-export function usePrimaNota(filters: PrimaNotaFilters = {}) {
+export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, pageSize: number = 50) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
   const entriesQuery = useQuery({
-    queryKey: queryKeys.primaNota.list(companyId, filters),
+    queryKey: [...queryKeys.primaNota.list(companyId, filters), page, pageSize],
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code)`)
-        .eq("company_id", companyId!)
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(10000);
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code)`, { count: "exact" })
+        .eq("company_id", companyId!);
 
       if (filters.fromDate) query = query.gte("entry_date", filters.fromDate);
       if (filters.toDate) query = query.lte("entry_date", filters.toDate);
@@ -73,23 +70,20 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       if (filters.isAuto === true) query = query.eq("is_auto", true);
       if (filters.isAuto === false) query = query.eq("is_auto", false);
       if (filters.autoSource) query = query.eq("auto_source", filters.autoSource);
+      if (filters.search?.trim()) query = query.ilike("description", `%${filters.search.trim()}%`);
 
-      const { data, error } = await query;
+      query = query
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      const { data, error, count } = await query;
       if (error) throw error;
-
-      let results = data as unknown as PrimaNotaEntry[];
-      if (filters.search?.trim()) {
-        const q = filters.search.toLowerCase();
-        results = results.filter(
-          (e) =>
-            e.description.toLowerCase().includes(q) ||
-            e.reference_number?.toLowerCase().includes(q) ||
-            e.suppliers?.name?.toLowerCase().includes(q)
-        );
-      }
-      return results;
+      return { data: data as unknown as PrimaNotaEntry[], totalCount: count ?? 0 };
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const saldoQuery = useQuery({
@@ -104,6 +98,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       return data as unknown as PrimaNotaSaldo;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const createMutation = useMutation({
@@ -157,9 +153,14 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  const totalCount = entriesQuery.data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
   return {
-    entries: entriesQuery.data || [],
+    entries: entriesQuery.data?.data || [],
     isLoading: entriesQuery.isLoading,
+    totalCount,
+    totalPages,
     saldo: saldoQuery.data,
     isSaldoLoading: saldoQuery.isLoading,
     create: createMutation,

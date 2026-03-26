@@ -35,6 +35,8 @@ export function useUserCalendarPrefs(userId: string | undefined) {
       return (data as unknown as UserCalendarPrefs) || DEFAULT_PREFS;
     },
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -52,6 +54,8 @@ export function useGoogleCalendarConnection(userId: string | undefined, companyI
       return data;
     },
     enabled: !!companyId && !!userId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

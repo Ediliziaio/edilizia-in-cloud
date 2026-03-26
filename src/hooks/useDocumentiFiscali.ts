@@ -156,6 +156,8 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         perPage,
       };
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -178,6 +180,8 @@ export function useDocumentoFiscale(id: string | undefined) {
       if (error) throw error;
       return mapRow(data as Record<string, unknown>);
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

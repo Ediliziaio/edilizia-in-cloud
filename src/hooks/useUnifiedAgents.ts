@@ -45,6 +45,8 @@ export function useUnifiedAgents(filters?: {
       if (error) throw error;
       return (data ?? []) as unknown as UnifiedAgent[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -62,6 +64,8 @@ export function useUnifiedAgent(id: string | undefined) {
       if (error) throw error;
       return data as unknown as UnifiedAgent;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

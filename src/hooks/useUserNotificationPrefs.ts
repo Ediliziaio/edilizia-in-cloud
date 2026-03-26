@@ -71,6 +71,8 @@ export function useUserNotifPrefs(userId: string | undefined) {
       return (data as unknown as NotifPrefs) || DEFAULT_NOTIF_PREFS;
     },
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

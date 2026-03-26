@@ -73,6 +73,8 @@ export function usePurchaseOrders() {
       return data as unknown as PurchaseOrder[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const createMutation = useMutation({
@@ -152,6 +154,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       return data as unknown as PurchaseOrder & { suppliers: any };
     },
     enabled: !!poId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const itemsQuery = useQuery({
@@ -166,6 +170,8 @@ export function usePurchaseOrderDetail(poId: string | null) {
       return data as unknown as PurchaseOrderItem[];
     },
     enabled: !!poId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const addItemMutation = useMutation({

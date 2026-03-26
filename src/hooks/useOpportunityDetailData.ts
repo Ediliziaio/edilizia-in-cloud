@@ -41,6 +41,8 @@ export function useOpportunityCustomFields() {
       return data;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -56,6 +58,8 @@ export function useContactFieldValues(contactId: string | null) {
       return data;
     },
     enabled: !!contactId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -71,6 +75,8 @@ export function useOpportunityFieldValues(opportunityId: string | null) {
       return data;
     },
     enabled: !!opportunityId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

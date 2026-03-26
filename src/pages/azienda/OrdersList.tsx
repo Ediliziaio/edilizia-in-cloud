@@ -59,7 +59,6 @@ export default function OrdersList() {
     laborFilter: { key: "manodopera", defaultValue: "all" },
     supplierFilter: { key: "fornitore", defaultValue: "all" },
     hideCompleted: { key: "nascondi_completati", defaultValue: true, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
-    currentPage: { key: "pagina", defaultValue: 1, serialize: String, deserialize: Number },
   });
 
   const searchQuery = urlFilters.searchQuery;
@@ -82,40 +81,85 @@ export default function OrdersList() {
   const setSupplierFilter = useCallback((v: string) => setURLParam("supplierFilter", v), [setURLParam]);
   const hideCompleted = urlFilters.hideCompleted;
   const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
-  const currentPage = urlFilters.currentPage;
-  const setCurrentPage = useCallback((v: number) => setURLParam("currentPage", v), [setURLParam]);
-
   const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
-  const ORDERS_PER_PAGE = 20;
 
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id],
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  // Statuses must be fetched first so lastStatusId is available for the orders query
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name, color, position")
+        .eq("company_id", effectiveCompany.id)
+        .order("position");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const lastStatusId = statuses.length > 0
+    ? statuses.reduce((max, s) => s.position > max.position ? s : max, statuses[0]).id
+    : null;
+
+  const { data: ordersResult, isLoading } = useQuery({
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, searchQuery, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+      let query = supabase
         .from("orders")
         .select(`
           *,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
-        `)
-        .eq("company_id", effectiveCompany.id)
-        .order("created_at", { ascending: false })
-        .limit(10000);
+        `, { count: "exact" })
+        .eq("company_id", effectiveCompany.id);
+
+      if (searchQuery) {
+        query = query.or(`description.ilike.%${searchQuery}%,order_code.ilike.%${searchQuery}%`);
+      }
+      if (statusFilter !== "all") {
+        query = query.eq("current_status_id", statusFilter);
+      }
+      if (hideCompleted && lastStatusId) {
+        query = query.neq("current_status_id", lastStatusId);
+      }
+      if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
+      if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
+      if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
+      if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
+      if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
+      if (warehouseDateRange.to) query = query.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+      if (expectedDateRange.from) query = query.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
+      if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+
+      query = query
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order("created_at", { ascending: false });
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data as OrderWithDetails[];
+      return { orders: data as OrderWithDetails[], totalCount: count ?? 0 };
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
-  // Batch queries for cost calculations
+  const orders = ordersResult?.orders ?? [];
+  const totalCount = ordersResult?.totalCount ?? 0;
+
+  // Batch queries for cost calculations — use IDs from current page only
   const orderIds = useMemo(() => orders.map(o => o.id), [orders]);
 
   const { data: itemCosts = [] } = useQuery({
@@ -402,22 +446,6 @@ export default function OrdersList() {
     return map;
   }, [orders, orderIds, itemCosts, employeeCosts, externalTeamCosts, salespeopleData]);
 
-  const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("order_statuses")
-        .select("id, name, color, position")
-        .eq("company_id", effectiveCompany.id)
-        .order("position");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!effectiveCompany?.id,
-    staleTime: 10 * 60 * 1000,
-  });
-
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
       const { error } = await supabase.rpc("change_order_status", {
@@ -493,10 +521,6 @@ export default function OrdersList() {
     warehouseDateRange.from || warehouseDateRange.to ||
     expectedDateRange.from || expectedDateRange.to;
 
-  const lastStatusId = statuses.length > 0
-    ? statuses.reduce((max, s) => s.position > max.position ? s : max, statuses[0]).id
-    : null;
-
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
     paymentFilter !== "all" || customerFilter !== "all" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
@@ -528,7 +552,7 @@ export default function OrdersList() {
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
-    setCurrentPage(1);
+    setPage(1);
   };
 
   const handleMonthChange = (value: string) => {
@@ -542,108 +566,25 @@ export default function OrdersList() {
       const to = new Date(year, month + 1, 0);
       setContractDateRange({ from, to });
     }
+    setPage(1);
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.order_code?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-      `${order.customer?.first_name} ${order.customer?.last_name}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === "all" || order.current_status_id === statusFilter;
-    const pendingPayments = getPendingPayments(order);
-    const matchesPayment =
-      paymentFilter === "all" ||
-      (paymentFilter === "pending" && pendingPayments.length > 0) ||
-      (paymentFilter === "paid" && pendingPayments.length === 0);
-
-    const customerKey = order.customer
-      ? `${order.customer.first_name}-${order.customer.last_name}-${order.customer.email}`
-      : "";
-    const matchesCustomer = customerFilter === "all" || customerKey === customerFilter;
-
-    const minAmount = amountMin ? parseFloat(amountMin) : null;
-    const maxAmount = amountMax ? parseFloat(amountMax) : null;
-    const matchesAmount =
-      (minAmount === null || order.total_amount >= minAmount) &&
-      (maxAmount === null || order.total_amount <= maxAmount);
-
-    const orderCreatedAt = new Date(order.created_at);
-    const matchesContractDate =
-      (!contractDateRange.from || orderCreatedAt >= contractDateRange.from) &&
-      (!contractDateRange.to || orderCreatedAt <= new Date(contractDateRange.to.getTime() + 86400000 - 1));
-
-    let matchesWarehouseDate = true;
-    if (warehouseDateRange.from || warehouseDateRange.to) {
-      if (!order.warehouse_arrival_date) {
-        matchesWarehouseDate = false;
-      } else {
-        const warehouseDate = new Date(order.warehouse_arrival_date);
-        matchesWarehouseDate =
-          (!warehouseDateRange.from || warehouseDate >= warehouseDateRange.from) &&
-          (!warehouseDateRange.to || warehouseDate <= new Date(warehouseDateRange.to.getTime() + 86400000 - 1));
-      }
-    }
-
-    let matchesExpectedDate = true;
-    if (expectedDateRange.from || expectedDateRange.to) {
-      if (!order.expected_date) {
-        matchesExpectedDate = false;
-      } else {
-        const expectedDate = new Date(order.expected_date);
-        matchesExpectedDate =
-          (!expectedDateRange.from || expectedDate >= expectedDateRange.from) &&
-          (!expectedDateRange.to || expectedDate <= new Date(expectedDateRange.to.getTime() + 86400000 - 1));
-      }
-    }
-
-    // Reverse lookup maps for O(1) filter matching
-    const matchesSalesperson = salespersonFilter === "all" || 
-      (salespeopleMap.get(order.id) || []).some(name => {
-        return spNameToIdMap.get(name) === salespersonFilter;
-      });
-
-    const matchesLabor = laborFilter === "all" ||
-      (laborMap.get(order.id) || []).some(name => {
-        const empId = empNameToIdMap.get(name);
-        if (empId && `emp-${empId}` === laborFilter) return true;
-        const teamId = teamNameToIdMap.get(name);
-        if (teamId && `team-${teamId}` === laborFilter) return true;
-        return false;
-      });
-
-    const matchesSupplier = supplierFilter === "all" ||
-      (supplierMap.get(order.id) || []).some(name => {
-        return supNameToIdMap.get(name) === supplierFilter;
-      });
-
-    const matchesCompleted = !(hideCompleted && lastStatusId && order.current_status_id === lastStatusId);
-
-    return matchesSearch && matchesStatus && matchesPayment && matchesCustomer && matchesAmount &&
-      matchesContractDate && matchesWarehouseDate && matchesExpectedDate &&
-      matchesSalesperson && matchesLabor && matchesSupplier && matchesCompleted;
-  });
-
-  // Reset page when filters change
+  // Reset page to 1 when any filter changes
   const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
-  useEffect(() => { setCurrentPage(1); }, [filterKey]);
+  useEffect(() => { setPage(1); }, [filterKey]);
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-  const paginatedOrders = filteredOrders.slice((safePage - 1) * ORDERS_PER_PAGE, safePage * ORDERS_PER_PAGE);
-  const showingFrom = filteredOrders.length === 0 ? 0 : (safePage - 1) * ORDERS_PER_PAGE + 1;
-  const showingTo = Math.min(safePage * ORDERS_PER_PAGE, filteredOrders.length);
+  // Server-side pagination
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const showingTo = Math.min(page * pageSize, totalCount);
 
   const stats = useMemo(() => {
-    const totalOrders = filteredOrders.length;
-    const totalGross = filteredOrders.reduce((sum, o) => sum + o.total_amount * (1 + (o.vat_rate ?? 22) / 100), 0);
-    const collected = filteredOrders.reduce((sum, o) => sum + getAmountCollected(o), 0);
-    const pending = filteredOrders.reduce((sum, o) => sum + getAmountDue(o), 0);
+    const totalOrders = totalCount;
+    const totalGross = orders.reduce((sum, o) => sum + o.total_amount * (1 + (o.vat_rate ?? 22) / 100), 0);
+    const collected = orders.reduce((sum, o) => sum + getAmountCollected(o), 0);
+    const pending = orders.reduce((sum, o) => sum + getAmountDue(o), 0);
     return { totalOrders, totalGross, collected, pending };
-  }, [filteredOrders]);
+  }, [orders, totalCount]);
 
   // Export CSV
   const exportOrdersCSV = useCallback(() => {
@@ -661,7 +602,7 @@ export default function OrdersList() {
       { key: "expected_date", label: "Data Posa" },
       { key: "payment_status", label: "Stato Pagamenti" },
     ];
-    const rows = filteredOrders.map((o) => {
+    const rows = orders.map((o) => {
       const pending = getPendingPayments(o);
       return {
         order_code: o.order_code || "",
@@ -680,7 +621,7 @@ export default function OrdersList() {
     });
     exportToCSV(rows, columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
     toast({ title: "CSV esportato" });
-  }, [filteredOrders, toast]);
+  }, [orders, toast]);
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -859,17 +800,17 @@ export default function OrdersList() {
             ))}
           </CardContent>
         </Card>
-      ) : filteredOrders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">Nessun ordine trovato</h3>
             <p className="text-muted-foreground mb-4">
-              {orders.length === 0
+              {totalCount === 0
                 ? "Non hai ancora creato nessun ordine."
                 : "Nessun ordine corrisponde ai filtri selezionati."}
             </p>
-            {orders.length === 0 && (
+            {totalCount === 0 && (
               <Button asChild>
                 <Link to="/azienda/ordini/nuovo">
                   <Plus className="h-4 w-4 mr-2" />
@@ -881,14 +822,14 @@ export default function OrdersList() {
         </Card>
       ) : viewMode === "pipeline" ? (
         <OrdersPipelineView
-          orders={filteredOrders}
+          orders={orders}
           statuses={statuses}
           onStatusChange={handleStatusChange}
         />
       ) : (
         <div className="space-y-4">
           <OrdersTable
-            orders={paginatedOrders}
+            orders={orders}
             onDelete={(id) => deleteOrderMutation.mutate(id)}
             isDeleting={deleteOrderMutation.isPending}
             orderCosts={orderCostsMap}
@@ -903,20 +844,20 @@ export default function OrdersList() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-2">
               <p className="text-sm text-muted-foreground hidden sm:block">
-                Mostrando {showingFrom}–{showingTo} di {filteredOrders.length} ordini
+                Mostrando {showingFrom}–{showingTo} di {totalCount} ordini
               </p>
               <p className="text-xs text-muted-foreground sm:hidden">
-                {showingFrom}–{showingTo} / {filteredOrders.length}
+                {showingFrom}–{showingTo} / {totalCount}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={safePage <= 1}>
+                <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
                   <ChevronLeft className="h-4 w-4" />
                   <span className="hidden sm:inline ml-1">Precedente</span>
                 </Button>
                 <span className="text-sm font-medium px-1">
-                  {safePage} / {totalPages}
+                  {page} / {totalPages}
                 </span>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={safePage >= totalPages}>
+                <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
                   <span className="hidden sm:inline mr-1">Successivo</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>

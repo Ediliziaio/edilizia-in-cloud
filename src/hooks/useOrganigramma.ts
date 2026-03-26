@@ -52,6 +52,8 @@ export function useOrganigramma() {
       };
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   return query;
@@ -75,6 +77,8 @@ export function useAllHrProfili() {
       return (data || []) as unknown as HrProfilo[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

@@ -19,6 +19,8 @@ export function useHrSedi() {
       if (error) throw error;
       return (data || []) as HrSede[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

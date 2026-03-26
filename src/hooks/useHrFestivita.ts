@@ -19,6 +19,8 @@ export function useHrFestivita() {
       if (error) throw error;
       return (data || []) as HrFestivita[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

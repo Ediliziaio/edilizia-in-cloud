@@ -51,15 +51,15 @@ export interface ScadenzarioSummary {
   uscite_previste: number;
 }
 
-export function useScadenzario() {
+export function useScadenzario(page: number = 1, pageSize: number = 50) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
   const scadenzeQuery = useQuery({
-    queryKey: queryKeys.scadenzario.list(companyId),
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("scadenze")
         .select(`
           *,
@@ -67,14 +67,16 @@ export function useScadenzario() {
           invoices(invoice_number, client_company_name),
           orders(order_code),
           marketing_contacts(first_name, last_name, company_name)
-        `)
+        `, { count: "exact" })
         .eq("company_id", companyId!)
-        .order("due_date", { ascending: true })
-        .limit(10000);
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order("due_date", { ascending: true });
       if (error) throw error;
-      return data as unknown as Scadenza[];
+      return { data: data as unknown as Scadenza[], totalCount: count ?? 0 };
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const summaryQuery = useQuery({
@@ -87,6 +89,8 @@ export function useScadenzario() {
       return data as unknown as ScadenzarioSummary;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const markPaidMutation = useMutation({
@@ -180,9 +184,14 @@ export function useScadenzario() {
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  const totalCount = scadenzeQuery.data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
   return {
-    scadenze: scadenzeQuery.data || [],
+    scadenze: scadenzeQuery.data?.data || [],
     isLoading: scadenzeQuery.isLoading,
+    totalCount,
+    totalPages,
     summary: summaryQuery.data,
     isSummaryLoading: summaryQuery.isLoading,
     markPaid: markPaidMutation,

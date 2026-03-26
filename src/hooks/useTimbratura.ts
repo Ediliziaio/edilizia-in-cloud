@@ -26,6 +26,8 @@ export function useMyHrProfilo() {
       return data;
     },
     enabled: !!user?.id && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
@@ -127,6 +129,8 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
       }));
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 

@@ -148,6 +148,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .maybeSingle();
       return (data as PreventivoImpostazioni) ?? ({} as PreventivoImpostazioni);
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Load tariffe
@@ -167,6 +169,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
         prezzo_vendita: d.prezzo_vendita ?? 0,
       })) as TariffaPro[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Load articoli (prodotti P02)
@@ -192,6 +196,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
         modalita_prezzo: d.modalita_prezzo ?? "pz",
       })) as ArticlePro[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Load categorie
@@ -205,6 +211,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .order("nome");
       return data ?? [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // trovaPrezzoGriglia: nearest neighbor Manhattan distance

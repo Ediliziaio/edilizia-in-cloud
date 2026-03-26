@@ -14,6 +14,8 @@ export function useContactAttribution(contactId: string | undefined, companyId: 
       return data;
     },
     enabled: !!contactId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const { data: sessions, isLoading: loadingSessions } = useQuery({
@@ -30,6 +32,8 @@ export function useContactAttribution(contactId: string | undefined, companyId: 
       return data || [];
     },
     enabled: !!contactId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   return {

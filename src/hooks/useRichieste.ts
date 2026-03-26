@@ -36,6 +36,8 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
       if (error) throw error;
       return (data || []) as RichiestaWithProfilo[];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
