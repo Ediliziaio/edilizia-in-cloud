@@ -58,6 +58,14 @@ const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
+const Formazione = lazy(() => import("@/pages/Formazione"));
+const CasiStudio = lazy(() => import("@/pages/CasiStudio"));
+const ImpreseCostuzione = lazy(() => import("@/pages/per/ImpreseCostuzione"));
+const Impiantisti = lazy(() => import("@/pages/per/Impiantisti"));
+const Ristrutturatori = lazy(() => import("@/pages/per/Ristrutturatori"));
+const Fotovoltaico = lazy(() => import("@/pages/per/Fotovoltaico"));
+const Serramentisti = lazy(() => import("@/pages/per/Serramentisti"));
+const PiccoleImprese = lazy(() => import("@/pages/per/PiccoleImprese"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -114,6 +122,14 @@ const App = () => (
               <Route path="/confronto" element={<Confronto />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/blog/:slug" element={<BlogPost />} />
+              <Route path="/formazione" element={<Formazione />} />
+              <Route path="/casi-studio" element={<CasiStudio />} />
+              <Route path="/per/imprese-costruzione" element={<ImpreseCostuzione />} />
+              <Route path="/per/impiantisti" element={<Impiantisti />} />
+              <Route path="/per/ristrutturatori" element={<Ristrutturatori />} />
+              <Route path="/per/fotovoltaico" element={<Fotovoltaico />} />
+              <Route path="/per/serramentisti" element={<Serramentisti />} />
+              <Route path="/per/piccole-imprese" element={<PiccoleImprese />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/termini" element={<TerminiServizio />} />
               <Route path="/cookie" element={<CookiePolicy />} />
