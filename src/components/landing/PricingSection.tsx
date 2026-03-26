@@ -1,182 +1,75 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Check, X, ArrowRight, Shield } from "lucide-react";
-
-const comparisons = [
-  { item: "Commercialista esterno per controllo di gestione", cost: "1.000 – 3.000 €/mese" },
-  { item: "Controller interno", cost: "2.500 – 4.000 €/mese + contributi" },
-  { item: "Gestionale generico ERP", cost: "5.000 – 20.000 € setup + canone" },
-  { item: "Continuare senza controllo", cost: "20.000 – 100.000 €/anno in margini persi" },
-];
-
-const plans = [
-  {
-    name: "Starter",
-    price: "99",
-    description: "Per imprese fino a 500K €",
-    highlighted: false,
-    cta: "Inizia Gratis",
-    ctaStyle: "outline" as const,
-    features: [
-      { text: "Fino a 50 commesse", included: true },
-      { text: "3 utenti", included: true },
-      { text: "4 moduli base", included: true },
-      { text: "Supporto email", included: true },
-      { text: "Report base", included: true },
-      { text: "Forecast", included: false },
-      { text: "Magazzino", included: false },
-      { text: "Report avanzati", included: false },
-    ],
-  },
-  {
-    name: "Professional",
-    price: "199",
-    description: "Per imprese da 500K a 2M €",
-    highlighted: true,
-    cta: "Scegli Professional",
-    ctaStyle: "filled" as const,
-    features: [
-      { text: "Commesse illimitate", included: true },
-      { text: "10 utenti", included: true },
-      { text: "Tutti i 7 moduli", included: true },
-      { text: "Supporto prioritario", included: true },
-      { text: "Report avanzati", included: true },
-      { text: "Forecast", included: true },
-      { text: "Magazzino", included: true },
-      { text: "API", included: false },
-    ],
-  },
-  {
-    name: "Enterprise",
-    price: "399",
-    description: "Per imprese oltre 2M €",
-    highlighted: false,
-    cta: "Contattaci",
-    ctaStyle: "outline" as const,
-    features: [
-      { text: "Commesse illimitate", included: true },
-      { text: "Utenti illimitati", included: true },
-      { text: "Tutti i 7 moduli + API", included: true },
-      { text: "Supporto dedicato", included: true },
-      { text: "Report custom", included: true },
-      { text: "Forecast", included: true },
-      { text: "Magazzino", included: true },
-      { text: "Onboarding dedicato", included: true },
-    ],
-  },
-];
+import { ArrowRight, Shield, Check } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function PricingSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section id="prezzi" className="py-24 md:py-32 bg-white">
-      <div ref={ref} className="max-w-6xl mx-auto px-6">
-        <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#111111] text-center mb-4 transition-all duration-700 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
-          L'Investimento <span className="text-[#F97415]">(e Perché NON è un Costo)</span>
-        </h2>
-        <p
-          className={`text-gray-500 text-center mb-14 text-lg transition-all duration-700 delay-150 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
-          Confronta quanto spenderesti con le alternative tradizionali:
-        </p>
+    <section id="prezzi" className="py-24 md:py-32 bg-[#111111] relative overflow-hidden">
+      {/* Glow */}
+      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
 
-        {/* Comparison table */}
-        <div
-          className={`max-w-3xl mx-auto space-y-3 mb-16 transition-all duration-700 delay-300 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
-          {comparisons.map((c, i) => (
-            <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 p-4 rounded-2xl bg-[#f8f9fa] border border-gray-200">
-              <span className="text-[#111111]/80 text-sm">{c.item}</span>
-              <span className="text-red-500 font-semibold whitespace-nowrap text-sm">{c.cost}</span>
-            </div>
+      <div ref={ref} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        {/* Label */}
+        <div className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <span className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+            Quanto costa?
+          </span>
+        </div>
+
+        {/* Big price */}
+        <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <p className="text-white/50 text-lg mb-2">A partire da</p>
+          <div className="flex items-end justify-center gap-2 mb-2">
+            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€97</span>
+            <span className="text-white/40 text-xl mb-3">/mese</span>
+          </div>
+          <p className="text-white/40 text-base mb-8">Piano Starter · fatturazione mensile · disdici quando vuoi</p>
+        </div>
+
+        {/* 3 quick features */}
+        <div className={`flex flex-wrap items-center justify-center gap-4 mb-10 transition-all duration-700 delay-200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          {[
+            "Margini cantieri in tempo reale",
+            "Fatturazione elettronica",
+            "App mobile cantiere",
+          ].map((f, i) => (
+            <span key={i} className="flex items-center gap-2 text-white/60 text-sm">
+              <Check className="w-4 h-4 text-[#F97415] flex-shrink-0" />
+              {f}
+            </span>
           ))}
         </div>
 
-        {/* Free trial banner */}
-        <div className={`max-w-3xl mx-auto mb-10 rounded-2xl border-2 border-[#F97415]/40 bg-[#F97415]/5 p-5 flex flex-col sm:flex-row items-center gap-4 transition-all duration-700 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-          <div className="w-12 h-12 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-6 h-6 text-[#F97415]" />
-          </div>
-          <div className="text-center sm:text-left flex-1">
-            <p className="font-extrabold text-[#111111] text-base">🎉 31 giorni di prova gratuita su tutti i piani</p>
-            <p className="text-gray-500 text-sm mt-0.5">Nessuna carta di credito. Nessun obbligo. Se non ti piace, non paghi nulla — punto.</p>
-          </div>
-          <a href="#cta-finale" onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/20">
-            Inizia gratis <ArrowRight size={14} />
-          </a>
+        {/* Free trial badge */}
+        <div className={`inline-flex items-center gap-3 bg-white/[0.07] border border-[#F97415]/30 rounded-2xl px-6 py-4 mb-10 transition-all duration-700 delay-300 ${isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}>
+          <Shield className="w-5 h-5 text-[#F97415] flex-shrink-0" />
+          <span className="text-white font-bold text-base">
+            🎉 Prova gratuita di <span className="text-[#F97415]">31 giorni</span> — se non ti piace, non paghi nulla. Nessun obbligo.
+          </span>
         </div>
 
-        {/* 3 Plans */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-          {plans.map((plan, i) => {
-            const delay = plan.highlighted ? 400 : i === 0 ? 550 : 700;
-            return (
-              <div
-                key={plan.name}
-                className={`relative rounded-2xl border p-5 md:p-8 transition-all duration-700 ${
-                  isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-                } ${
-                  plan.highlighted
-                    ? "border-[#F97415] border-2 shadow-lg shadow-[#F97415]/15 lg:scale-105 z-10 bg-white"
-                    : "border-gray-200 bg-white"
-                }`}
-                style={{ transitionDelay: isVisible ? `${delay}ms` : "0ms" }}
-              >
-                {plan.highlighted && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 bg-[#F97415] text-white text-xs font-bold rounded-full uppercase tracking-wide">
-                    Più Popolare
-                  </div>
-                )}
-
-                <h3 className="text-xl font-bold text-[#111111] mb-1">{plan.name}</h3>
-                <p className="text-gray-500 text-sm mb-5">{plan.description}</p>
-
-                <div className="mb-6">
-                  <span className="text-4xl font-extrabold text-[#111111]">{plan.price} €</span>
-                  <span className="text-gray-400 text-sm">/mese</span>
-                </div>
-
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2.5 text-sm">
-                      {f.included ? (
-                        <Check className="w-4 h-4 text-[#F97415] flex-shrink-0" />
-                      ) : (
-                        <X className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      )}
-                      <span className={f.included ? "text-[#111111]/80" : "text-gray-400"}>{f.text}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <a
-                  href="#cta-finale"
-                  onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-                  className={`block w-full text-center py-3.5 rounded-xl font-bold transition-all duration-200 hover:scale-105 ${
-                    plan.ctaStyle === "filled"
-                      ? "bg-[#F97415] text-white hover:bg-[#e8650e] shadow-lg shadow-[#F97415]/20"
-                      : "border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white"
-                  }`}
-                >
-                  {plan.cta}
-                </a>
-                <p className="text-center text-gray-400 text-xs mt-3 flex items-center justify-center gap-1">
-                  <Shield className="w-3 h-3 text-[#F97415]" />
-                  31 giorni gratis · nessun obbligo
-                </p>
-              </div>
-            );
-          })}
+        {/* CTAs */}
+        <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <Link
+            to="/demo"
+            className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+          >
+            Inizia Gratis Adesso →
+          </Link>
+          <Link
+            to="/prezzi"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all"
+          >
+            Vedi tutti i piani <ArrowRight size={16} />
+          </Link>
         </div>
+
+        <p className={`mt-6 text-white/30 text-xs transition-all duration-700 delay-500 ${isVisible ? "opacity-100" : "opacity-0"}`}>
+          Carta di credito non richiesta · Setup in 48h incluso · Dati al sicuro in Europa
+        </p>
       </div>
     </section>
   );

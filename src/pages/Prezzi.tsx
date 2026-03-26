@@ -8,6 +8,7 @@ import {
   Check,
   X,
   Shield,
+  ArrowRight,
   Zap,
   RefreshCw,
   FileText,
@@ -297,6 +298,43 @@ export default function Prezzi() {
               -20%
             </span>
           </button>
+        </div>
+      </section>
+
+      {/* ── FREE TRIAL BANNER ─────────────────────────────────────────────── */}
+      <section className="py-8 px-4 bg-[#111111]">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border-2 border-[#F97415] bg-[#F97415]/10 p-6 md:p-8 text-center relative overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.12) 0%, transparent 100%)" }} />
+            <div className="relative z-10">
+              <span className="inline-block mb-3 px-4 py-1 rounded-full bg-[#F97415] text-white text-xs font-extrabold uppercase tracking-widest">
+                🎉 Offerta Attiva
+              </span>
+              <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-3">
+                Prova <span className="text-[#F97415]">GRATUITA</span> di <span className="text-[#F97415]">31 GIORNI</span>
+              </h2>
+              <p className="text-white/60 text-lg mb-6">
+                Accesso completo a tutti i moduli del tuo piano — senza carta di credito, senza obbligo, senza vincoli. Se non ti piace, non paghi nulla. Punto.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-4 mb-6 text-sm">
+                {[
+                  "✓ Nessuna carta di credito",
+                  "✓ Accesso completo al piano scelto",
+                  "✓ Setup e migrazione dati inclusi",
+                  "✓ Cancelli in un click, senza penali",
+                ].map((item, i) => (
+                  <span key={i} className="text-white/70 font-medium">{item}</span>
+                ))}
+              </div>
+              <Link
+                to="/demo"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+              >
+                Inizia la prova gratuita <ArrowRight className="w-5 h-5" />
+              </Link>
+              <p className="text-white/30 text-xs mt-4">Dopo i 31 giorni scegli il piano o cancelli — nessun addebito automatico</p>
+            </div>
+          </div>
         </div>
       </section>
 
