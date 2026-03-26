@@ -40,11 +40,12 @@ export default function FeatureFlags() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
-        .select("*")
+        .select("id, key, name, icon, category, description, is_beta, default_value, plans_included, price_per_month, sort_order")
         .order("sort_order");
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch companies
@@ -58,6 +59,7 @@ export default function FeatureFlags() {
       if (error) throw error;
       return data;
     },
+    staleTime: 10 * 60 * 1000,
   });
 
   // Fetch all overrides
@@ -66,10 +68,11 @@ export default function FeatureFlags() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")
-        .select("*");
+        .select("company_id, feature_key, is_enabled");
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Toggle default value

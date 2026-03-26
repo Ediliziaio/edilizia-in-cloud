@@ -421,6 +421,24 @@ export default function CompaniesList() {
     staleTime: 10 * 60 * 1000,
   });
 
+  // Lightweight all-companies summary for KPI strip and filter preset counts (only status/trial_ends_at/payment_method)
+  const { data: allCompaniesSummary = [] } = useQuery({
+    queryKey: ["admin-companies-summary", permissions.allowed_company_ids],
+    queryFn: async () => {
+      let q = supabase
+        .from("companies")
+        .select("id, status, trial_ends_at, payment_method, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly)")
+        .eq("is_platform_admin_company", false);
+      if (permissions.allowed_company_ids?.length) {
+        q = q.in("id", permissions.allowed_company_ids);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
@@ -467,25 +485,24 @@ export default function CompaniesList() {
 
   const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter;
 
-  // Smart filter presets
+  // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
-    const trialExpiring = companies.filter((c) => {
+    const trialExpiring = allCompaniesSummary.filter((c) => {
       if (c.status !== "trial" || !c.trial_ends_at) return false;
       const days = differenceInDays(new Date(c.trial_ends_at), new Date());
       return days >= 0 && days <= 7;
     }).length;
 
-    const atRiskCount = companies.filter((c) => {
-      const h = healthData[c.id];
-      return h && (h.health === "at_risk" || h.health === "critical");
-    }).length;
+    const atRiskCount = Object.values(healthData).filter(
+      (h) => h && (h.health === "at_risk" || h.health === "critical")
+    ).length;
 
-    const noPayment = companies.filter((c) =>
+    const noPayment = allCompaniesSummary.filter((c) =>
       (c.status === "active" || c.status === "trial") &&
       (!c.payment_method || c.payment_method === "none" || c.payment_method === "")
     ).length;
 
-    const inactive = companies.filter((c) => {
+    const inactive = allCompaniesSummary.filter((c) => {
       const la = lastAccessData[c.id];
       if (!la || c.status !== "active") return false;
       return differenceInDays(new Date(), new Date(la)) > 14;
@@ -566,16 +583,16 @@ export default function CompaniesList() {
 
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
-      if (prev.size === filteredCompanies.length) return new Set();
-      return new Set(filteredCompanies.map((c) => c.id));
+      if (prev.size === pagedCompanies.length) return new Set();
+      return new Set(pagedCompanies.map((c) => c.id));
     });
-  }, [filteredCompanies]);
+  }, [pagedCompanies]);
 
   const handleExportCSV = () => {
     const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
     const exportList = selectedIds.size > 0
-      ? filteredCompanies.filter((c) => selectedIds.has(c.id))
-      : filteredCompanies;
+      ? pagedCompanies.filter((c) => selectedIds.has(c.id))
+      : pagedCompanies;
     const rows = exportList.map((c) => {
       const plan = c.subscription_plans as { id: string; name: string; price_monthly: number } | null;
       return [
@@ -667,9 +684,9 @@ export default function CompaniesList() {
         </Button>
       </div>
 
-      {/* KPI Strip */}
+      {/* KPI Strip — use full summary dataset so metrics reflect all companies, not just the current page */}
       <CompaniesKPIStrip
-        companies={companies.map((c) => ({
+        companies={allCompaniesSummary.map((c) => ({
           id: c.id,
           status: c.status,
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
@@ -680,7 +697,7 @@ export default function CompaniesList() {
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedIds={selectedIds}
-        companies={filteredCompanies}
+        companies={pagedCompanies}
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
@@ -811,8 +828,8 @@ export default function CompaniesList() {
       {hasActiveFilters && !isLoading && (
         <CompanyActiveFilters
           filters={activeFiltersList}
-          totalCount={companies.length}
-          filteredCount={filteredCompanies.length}
+          totalCount={allCompaniesSummary.length}
+          filteredCount={serverTotalCount}
           onClearAll={clearAllFilters}
         />
       )}
@@ -841,7 +858,7 @@ export default function CompaniesList() {
             </div>
           </CardContent>
         </Card>
-      ) : filteredCompanies.length === 0 ? (
+      ) : serverTotalCount === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
@@ -860,7 +877,7 @@ export default function CompaniesList() {
         </Card>
       ) : viewMode === "pipeline" ? (
         <CompanyPipelineView
-          companies={filteredCompanies.map((c) => ({
+          companies={pagedCompanies.map((c) => ({
             ...c,
             subscription_plans: c.subscription_plans as { name: string; price_monthly: number } | null,
           }))}
@@ -874,9 +891,9 @@ export default function CompaniesList() {
                 <TableRow>
                   <TableHead className="w-10 px-2">
                     <Checkbox
-                      checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                      checked={selectedIds.size === pagedCompanies.length && pagedCompanies.length > 0}
                       onCheckedChange={toggleSelectAll}
-                      title={`Seleziona tutte le ${filteredCompanies.length} aziende filtrate`}
+                      title={`Seleziona tutte le ${pagedCompanies.length} aziende in questa pagina`}
                     />
                   </TableHead>
                   <TableHead className="w-10" />
@@ -1003,7 +1020,7 @@ export default function CompaniesList() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
                 <span>
-                  {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredCompanies.length)} di {filteredCompanies.length} aziende
+                  {(currentPage - 1) * SERVER_PAGE_SIZE + 1}–{Math.min(currentPage * SERVER_PAGE_SIZE, serverTotalCount)} di {serverTotalCount} aziende
                 </span>
                 <div className="flex items-center gap-1">
                   <Button

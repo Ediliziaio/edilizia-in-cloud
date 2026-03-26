@@ -49,11 +49,12 @@ export default function AdminOnboardingConfig() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("onboarding_templates" as never)
-        .select("*")
+        .select("id, name, description, is_default, created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as Template[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: steps = [] } = useQuery({
@@ -62,12 +63,13 @@ export default function AdminOnboardingConfig() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("onboarding_steps" as never)
-        .select("*")
+        .select("id, template_id, title, description, sort_order, is_required, auto_check_key")
         .eq("template_id", selectedTemplate as never)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as Step[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const createTemplate = useMutation({
