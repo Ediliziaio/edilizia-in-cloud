@@ -25,7 +25,7 @@ const steps = [
     icon: TrendingUp,
     title: "Aumenta i margini",
     description:
-      "Il tuo Consulente del Controllo dedicato analizza i dati con te ogni mese. Individua sprechi, opportunita', e ti aiuta a prendere decisioni migliori.",
+      "Il tuo Consulente del Controllo dedicato analizza i dati con te ogni mese. Individua sprechi, opportunità, e ti aiuta a prendere decisioni migliori.",
     badge: null,
     badgeColor: null,
   },
@@ -35,8 +35,21 @@ export default function HowItWorksSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1 });
 
   return (
-    <section className="py-24 md:py-32 bg-white overflow-hidden">
-      <div ref={ref} className="max-w-6xl mx-auto px-6">
+    <section className="py-24 md:py-32 relative overflow-hidden">
+      {/* Background image with heavy overlay */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1920&q=80')",
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{ background: "rgba(255,255,255,0.96)" }}
+      />
+
+      <div ref={ref} className="max-w-6xl mx-auto px-6 relative z-10">
         {/* Header */}
         <div
           className="text-center mb-16 md:mb-20 transition-all duration-700"
@@ -65,10 +78,21 @@ export default function HowItWorksSection() {
 
         {/* Steps: horizontal on desktop, vertical on mobile */}
         <div className="relative">
-          {/* Horizontal connector line (desktop only) */}
+          {/* Horizontal connector line (desktop only) — animated */}
           <div
             className="hidden md:block absolute top-[52px] left-[calc(16.67%+8px)] right-[calc(16.67%+8px)] h-0.5"
-            style={{ backgroundColor: "rgba(15, 166, 140, 0.25)" }}
+            style={{ backgroundColor: "rgba(15, 166, 140, 0.15)" }}
+          />
+          {/* Animated fill layer */}
+          <div
+            className="hidden md:block absolute top-[52px] left-[calc(16.67%+8px)] right-[calc(16.67%+8px)] h-0.5 origin-left"
+            style={{
+              backgroundColor: "#0fa68c",
+              transform: isVisible ? "scaleX(1)" : "scaleX(0)",
+              transformOrigin: "left center",
+              transition: "transform 1.2s ease-out",
+              transitionDelay: isVisible ? "400ms" : "0ms",
+            }}
           />
 
           <div className="grid md:grid-cols-3 gap-8 md:gap-6 relative z-10">
@@ -77,7 +101,7 @@ export default function HowItWorksSection() {
                 key={i}
                 className="flex flex-col items-center md:items-center text-center transition-all duration-700"
                 style={{
-                  transitionDelay: isVisible ? `${200 + i * 180}ms` : "0ms",
+                  transitionDelay: isVisible ? `${i * 200}ms` : "0ms",
                   opacity: isVisible ? 1 : 0,
                   transform: isVisible ? "translateY(0)" : "translateY(28px)",
                 }}
@@ -90,19 +114,27 @@ export default function HowItWorksSection() {
                   />
                 )}
 
-                {/* Step circle */}
+                {/* Step circle — animated number */}
                 <div
-                  className="relative w-[68px] h-[68px] rounded-full flex items-center justify-center mb-6 flex-shrink-0"
+                  className="relative w-[68px] h-[68px] rounded-full flex items-center justify-center mb-6 flex-shrink-0 transition-all duration-500"
                   style={{
                     backgroundColor: "white",
                     border: "2.5px solid #0fa68c",
-                    boxShadow: "0 4px 20px rgba(15, 166, 140, 0.15)",
+                    boxShadow: isVisible
+                      ? "0 4px 20px rgba(15, 166, 140, 0.25)"
+                      : "none",
+                    transform: isVisible ? "scale(1)" : "scale(0.7)",
+                    transitionDelay: isVisible ? `${i * 200}ms` : "0ms",
                   }}
                 >
                   {/* Number badge */}
                   <span
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{ backgroundColor: "#0fa68c" }}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white transition-all duration-500"
+                    style={{
+                      backgroundColor: "#0fa68c",
+                      transform: isVisible ? "scale(1) rotate(0deg)" : "scale(0) rotate(-90deg)",
+                      transitionDelay: isVisible ? `${100 + i * 200}ms` : "0ms",
+                    }}
                   >
                     {i + 1}
                   </span>
@@ -111,7 +143,7 @@ export default function HowItWorksSection() {
 
                 {/* Card */}
                 <div
-                  className="w-full bg-white rounded-2xl p-6 flex-1"
+                  className="w-full bg-white rounded-2xl p-6 flex-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
                   style={{
                     boxShadow: "0 4px 24px rgba(26, 39, 68, 0.07)",
                     border: "1px solid rgba(26, 39, 68, 0.06)",
@@ -160,7 +192,7 @@ export default function HowItWorksSection() {
               e.preventDefault();
               document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" });
             }}
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-white text-base transition-all duration-200 hover:scale-105"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-white text-base transition-all duration-200 hover:scale-105 hover:shadow-xl"
             style={{
               backgroundColor: "#0fa68c",
               boxShadow: "0 8px 24px rgba(15, 166, 140, 0.3)",
