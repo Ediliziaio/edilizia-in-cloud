@@ -77,10 +77,13 @@ export default function Preventivi() {
         .from("quotes")
         .select("id, quote_number, client_name, title, status, total, created_at")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data;
     },
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const deleteMutation = useMutation({

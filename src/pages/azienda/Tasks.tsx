@@ -68,21 +68,34 @@ export default function Tasks() {
   };
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: queryKeys.tasks.list(companyId),
+    queryKey: [...queryKeys.tasks.list(companyId), filterStatus, filterPriority, filterCategory],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("tasks")
         .select(`
-          *,
+          id, company_id, title, description, status, priority, category, due_date, completed_at, created_at, assigned_to, order_id, stock_item_id, cost_id, notes,
           assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
           order:orders!tasks_order_id_fkey(description, order_code),
           stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
           cost:company_costs!tasks_cost_id_fkey(name, amount)
         `)
         .eq("company_id", companyId)
-        .not("category", "in", "(marketing,contatti,opportunita)")
-        .order("created_at", { ascending: false });
+        .not("category", "in", "(marketing,contatti,opportunita)");
+      if (filterStatus === "active") {
+        query = query.neq("status", "completata");
+      } else if (filterStatus !== "all") {
+        query = query.eq("status", filterStatus);
+      }
+      if (filterPriority !== "all") {
+        query = query.eq("priority", filterPriority);
+      }
+      if (filterCategory !== "all") {
+        query = query.eq("category", filterCategory);
+      }
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .limit(300);
       if (error) throw error;
       return data || [];
     },
@@ -101,15 +114,7 @@ export default function Tasks() {
     return { active, expiring, overdue, completedThisWeek };
   }, [tasks]);
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      if (filterStatus === "active" && t.status === "completata") return false;
-      if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
-      if (filterPriority !== "all" && t.priority !== filterPriority) return false;
-      if (filterCategory !== "all" && t.category !== filterCategory) return false;
-      return true;
-    });
-  }, [tasks, filterStatus, filterPriority, filterCategory]);
+  const filteredTasks = tasks;
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";

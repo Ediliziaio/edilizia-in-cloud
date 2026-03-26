@@ -133,12 +133,14 @@ export default function MarginalitaCantieri() {
         .from("v_ordine_marginalita" as any)
         .select("*")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return (data || []) as MarginalitaRow[];
     },
     enabled: !!companyId,
-    staleTime: 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // ── Anni disponibili per il filtro ───────────────────────────
