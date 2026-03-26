@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { CheckCircle2, ArrowRight } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 interface Feature {
   badge: string;
@@ -243,25 +244,26 @@ const features: Feature[] = [
   },
 ];
 
-function FeatureRow({ feature, index }: { feature: Feature; index: number }) {
-  const ref = useRef<HTMLDivElement>(null);
+// Stagger delays per ogni riga (in ms)
+const STAGGER_DELAYS = [0, 120, 240, 360];
+
+function FeatureRow({
+  feature,
+  index,
+  sectionVisible,
+}: {
+  feature: Feature;
+  index: number;
+  sectionVisible: boolean;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.unobserve(el);
-        }
-      },
-      { threshold: 0.15 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    if (!sectionVisible) return;
+    const delay = STAGGER_DELAYS[index] ?? index * 120;
+    const timer = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(timer);
+  }, [sectionVisible, index]);
 
   const textSide = (
     <div
@@ -301,7 +303,7 @@ function FeatureRow({ feature, index }: { feature: Feature; index: number }) {
 
   const mockupSide = (
     <div
-      className={`transition-all duration-700 delay-150 ${
+      className={`transition-all duration-700 delay-150 min-h-[100px] ${
         visible
           ? "opacity-100 translate-x-0"
           : feature.imageLeft
@@ -314,7 +316,7 @@ function FeatureRow({ feature, index }: { feature: Feature; index: number }) {
   );
 
   return (
-    <div ref={ref} className={`${feature.bg} py-20 md:py-28`}>
+    <div className={`${feature.bg} py-20 md:py-28`}>
       <div className="max-w-6xl mx-auto px-6">
         <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
           {feature.imageLeft ? (
@@ -335,10 +337,15 @@ function FeatureRow({ feature, index }: { feature: Feature; index: number }) {
 }
 
 export default function FeatureShowcaseSection() {
+  const { ref, isVisible } = useScrollAnimation({
+    threshold: 0.05,
+    rootMargin: "0px 0px -20px 0px",
+  });
+
   return (
-    <section id="features">
+    <section id="features" ref={ref}>
       {features.map((feature, i) => (
-        <FeatureRow key={i} feature={feature} index={i} />
+        <FeatureRow key={i} feature={feature} index={i} sectionVisible={isVisible} />
       ))}
     </section>
   );
