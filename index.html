@@ -28,6 +28,31 @@
 
   <body>
     <div id="root"></div>
+    <!-- Auto-recovery: if a stale SW causes a JS crash, clear all caches and reload once -->
+    <script>
+      (function () {
+        var _reloaded = sessionStorage.getItem('_sw_reloaded');
+        window.addEventListener('error', function (e) {
+          var msg = e && e.message ? e.message : '';
+          var isStaleCacheError =
+            msg.indexOf('SECRET_INTERNALS') !== -1 ||
+            msg.indexOf('before initialization') !== -1 ||
+            msg.indexOf('Cannot read properties of undefined') !== -1;
+          if (isStaleCacheError && !_reloaded) {
+            _reloaded = '1';
+            sessionStorage.setItem('_sw_reloaded', '1');
+            Promise.all([
+              navigator.serviceWorker
+                ? navigator.serviceWorker.getRegistrations().then(function (r) { r.forEach(function (s) { s.unregister(); }); })
+                : Promise.resolve(),
+              caches && caches.keys
+                ? caches.keys().then(function (k) { k.forEach(function (c) { caches.delete(c); }); })
+                : Promise.resolve()
+            ]).then(function () { location.reload(true); });
+          }
+        }, true);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
