@@ -5,6 +5,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts, categories, BlogPost } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -164,6 +165,14 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <JsonLd id="jsonld-breadcrumb-blog" data={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://ediliziaincloud.com/blog" }
+        ]
+      }} />
       <LandingNavbar />
 
       {/* Hero */}

@@ -20,6 +20,9 @@
     <!-- Preconnect -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="dns-prefetch" href="https://images.unsplash.com">
+    <link rel="dns-prefetch" href="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev">
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Edilizia in Cloud — Software Gestionale per Imprese Edili">
@@ -41,57 +44,59 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="EdiliziaIC">
+    <meta name="application-name" content="Edilizia in Cloud">
+    <meta name="msapplication-TileColor" content="#0fa68c">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
 
     <!-- Structured Data: SoftwareApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
+      "@id": "https://ediliziaincloud.com/#software",
       "name": "Edilizia in Cloud",
       "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web",
+      "applicationSubCategory": "Construction Management Software",
+      "operatingSystem": "Web, iOS, Android",
       "url": "https://ediliziaincloud.com",
-      "description": "Software gestionale completo per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione.",
+      "description": "Software gestionale completo per imprese edili italiane: gestione cantieri, contabilità, marketing, HR, documenti e intelligenza artificiale in un'unica piattaforma.",
+      "inLanguage": "it",
+      "featureList": [
+        "Gestione cantieri e avanzamento lavori",
+        "Preventivi e offerte commerciali",
+        "Contabilità e analisi margini",
+        "Gestione HR e presenze cantiere",
+        "Marketing e CRM integrato",
+        "Fatturazione elettronica",
+        "Dashboard AI e insights",
+        "App mobile per cantiere"
+      ],
       "offers": {
-        "@type": "Offer",
-        "price": "79",
+        "@type": "AggregateOffer",
+        "lowPrice": "79",
+        "highPrice": "319",
         "priceCurrency": "EUR",
-        "priceSpecification": {
-          "@type": "UnitPriceSpecification",
-          "price": "79",
-          "priceCurrency": "EUR",
-          "unitText": "MONTH"
-        }
+        "offerCount": "3"
       },
       "aggregateRating": {
         "@type": "AggregateRating",
         "ratingValue": "4.9",
         "reviewCount": "127",
-        "bestRating": "5"
+        "bestRating": "5",
+        "worstRating": "1"
       },
-      "author": {
+      "publisher": {
         "@type": "Organization",
+        "@id": "https://ediliziaincloud.com/#organization",
         "name": "Domus Group S.r.l.",
         "url": "https://ediliziaincloud.com",
-        "logo": "https://ediliziaincloud.com/icons/icon-512.png",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "Via Aurelio Saffi 29",
-          "postalCode": "20123",
-          "addressLocality": "Milano",
-          "addressCountry": "IT"
-        },
-        "contactPoint": {
-          "@type": "ContactPoint",
-          "contactType": "customer service",
-          "email": "info@ediliziaincloud.com",
-          "availableLanguage": "Italian"
-        },
-        "sameAs": [
-          "https://www.linkedin.com/company/edilizia-in-cloud",
-          "https://www.facebook.com/ediliziaincloud"
-        ]
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://ediliziaincloud.com/icons/icon-512.png",
+          "width": 512,
+          "height": 512
+        }
       }
     }
     </script>
@@ -100,9 +105,13 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "LocalBusiness",
+      "@type": ["LocalBusiness", "SoftwareApplication"],
+      "@id": "https://ediliziaincloud.com/#organization",
       "name": "Edilizia in Cloud — Domus Group S.r.l.",
+      "legalName": "Domus Group S.r.l.",
+      "taxID": "13132010961",
       "image": "https://ediliziaincloud.com/icons/icon-512.png",
+      "logo": "https://ediliziaincloud.com/icons/icon-512.png",
       "url": "https://ediliziaincloud.com",
       "telephone": "+39-02-0000000",
       "email": "info@ediliziaincloud.com",
@@ -119,6 +128,17 @@
         "latitude": 45.4642,
         "longitude": 9.1900
       },
+      "areaServed": [
+        { "@type": "Country", "name": "Italia" },
+        { "@type": "State", "name": "Lombardia" },
+        { "@type": "State", "name": "Lazio" },
+        { "@type": "State", "name": "Veneto" },
+        { "@type": "State", "name": "Emilia-Romagna" },
+        { "@type": "State", "name": "Piemonte" },
+        { "@type": "State", "name": "Toscana" },
+        { "@type": "State", "name": "Campania" },
+        { "@type": "State", "name": "Sicilia" }
+      ],
       "openingHoursSpecification": [{
         "@type": "OpeningHoursSpecification",
         "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
@@ -126,9 +146,36 @@
         "closes": "18:00"
       }],
       "priceRange": "€€",
-      "areaServed": {
-        "@type": "Country",
-        "name": "Italia"
+      "currenciesAccepted": "EUR",
+      "paymentAccepted": "Carta di credito, Bonifico bancario",
+      "sameAs": [
+        "https://www.linkedin.com/company/edilizia-in-cloud",
+        "https://www.facebook.com/ediliziaincloud",
+        "https://www.instagram.com/ediliziaincloud"
+      ]
+    }
+    </script>
+
+    <!-- Structured Data: WebSite (sitelinks searchbox) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "@id": "https://ediliziaincloud.com/#website",
+      "name": "Edilizia in Cloud",
+      "url": "https://ediliziaincloud.com",
+      "description": "Software gestionale per imprese edili italiane",
+      "inLanguage": "it",
+      "publisher": {
+        "@id": "https://ediliziaincloud.com/#organization"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://ediliziaincloud.com/blog?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
       }
     }
     </script>

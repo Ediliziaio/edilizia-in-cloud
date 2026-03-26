@@ -55,6 +55,9 @@ const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
+const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -111,6 +114,9 @@ const App = () => (
               <Route path="/confronto" element={<Confronto />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/blog/:slug" element={<BlogPost />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/termini" element={<TerminiServizio />} />
+              <Route path="/cookie" element={<CookiePolicy />} />
               <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />

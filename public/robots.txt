@@ -1,7 +1,11 @@
 User-agent: *
-Allow: /
-
-User-agent: *
+Allow: /home
+Allow: /funzionalita
+Allow: /prezzi
+Allow: /confronto
+Allow: /chi-siamo
+Allow: /demo
+Allow: /blog
 Disallow: /azienda/
 Disallow: /admin/
 Disallow: /clienti/
@@ -10,8 +14,26 @@ Disallow: /agente/
 Disallow: /partner/
 Disallow: /reset-password
 Disallow: /cambia-password
+Disallow: /prenota/
+Disallow: /offerta/
+Disallow: /firma/
+Disallow: /firma-odv/
+Disallow: /preventivo/
+
+# Allow specific bots full access to public pages
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
 
 Sitemap: https://ediliziaincloud.com/sitemap.xml
-
-# Performance hints
-Crawl-delay: 1

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSEO } from "@/hooks/useSEO";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -557,6 +558,14 @@ export default function Funzionalita() {
 
   return (
     <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+      <JsonLd id="jsonld-breadcrumb-funzionalita" data={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 2, "name": "Funzionalità", "item": "https://ediliziaincloud.com/funzionalita" }
+        ]
+      }} />
       <PromoBanner />
       <LandingNavbar />
 

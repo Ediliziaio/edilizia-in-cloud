@@ -235,6 +235,11 @@ export default function BlogPost() {
     description: post.excerpt,
     image: post.coverImage,
     datePublished: post.publishedAt,
+    wordCount: post.readTime * 800,
+    mainEntityOfPage: { "@type": "WebPage", "@id": `https://ediliziaincloud.com/blog/${post.slug}` },
+    articleSection: post.category,
+    inLanguage: "it",
+    isPartOf: { "@id": "https://ediliziaincloud.com/#website" },
     author: { "@type": "Person", name: post.author.name },
     publisher: {
       "@type": "Organization",
@@ -251,6 +256,15 @@ export default function BlogPost() {
       <ProgressBar />
       <LandingNavbar />
       <JsonLd data={jsonLdData} />
+      <JsonLd id="jsonld-breadcrumb-post" data={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://ediliziaincloud.com/blog" },
+          { "@type": "ListItem", "position": 3, "name": post.title, "item": `https://ediliziaincloud.com/blog/${post.slug}` }
+        ]
+      }} />
 
       {/* Hero with cover image */}
       <div className="relative w-full" style={{ maxHeight: 480, overflow: "hidden" }}>
