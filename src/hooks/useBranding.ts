@@ -18,6 +18,7 @@ export interface CompanyBranding {
   login_logo_url: string | null;
   login_title: string | null;
   login_subtitle: string | null;
+  subdomain: string | null;
   custom_domain: string | null;
   email_header_logo_url: string | null;
   email_footer_text: string | null;

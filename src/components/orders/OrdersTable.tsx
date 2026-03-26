@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link } from "react-router-dom";
 import { Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -88,6 +89,16 @@ export const OrdersTable = React.memo(function OrdersTable({
   const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const useVirtual = sortedItems.length > 50;
+  const tableBodyRef = useRef<HTMLTableSectionElement>(null);
+  const virtualizer = useVirtualizer({
+    count: sortedItems.length,
+    getScrollElement: () => (useVirtual ? tableBodyRef.current?.closest(".overflow-x-auto") as HTMLElement | null : null),
+    estimateSize: () => 56,
+    overscan: 10,
+    enabled: useVirtual,
+  });
 
   const allSelected = orders.length > 0 && selectedIds.size === orders.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
@@ -280,12 +291,11 @@ export const OrdersTable = React.memo(function OrdersTable({
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
-          {/* TODO: implement virtual scrolling with @tanstack/react-virtual for visible rows
-              when sortedItems.length > 100 to avoid rendering all rows at once.
-              Use useVirtualizer({ count: sortedItems.length, getScrollElement, estimateSize: () => 56 })
-              and render only virtualRows from virtualizer.getVirtualItems(). */}
-          <TableBody>
-            {sortedItems.map((order) => {
+          <TableBody
+            ref={tableBodyRef}
+            style={useVirtual ? { height: `${virtualizer.getTotalSize()}px`, position: "relative" } : undefined}
+          >
+            {(useVirtual ? virtualizer.getVirtualItems().map(virtualRow => ({ virtualRow, order: sortedItems[virtualRow.index] })) : sortedItems.map((order, index) => ({ virtualRow: { key: order.id, index, start: 0 }, order }))).map(({ virtualRow, order }) => {
               const due = getAmountDue(order);
               const collected = getAmountCollected(order);
               const pending = getPendingPayments(order);
@@ -300,7 +310,11 @@ export const OrdersTable = React.memo(function OrdersTable({
               const isSelected = selectedIds.has(order.id);
 
               return (
-                <TableRow key={order.id} data-state={isSelected ? "selected" : undefined}>
+                <TableRow
+                  key={virtualRow.key}
+                  data-state={isSelected ? "selected" : undefined}
+                  style={useVirtual ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` } : undefined}
+                >
                   <TableCell>
                     <Checkbox
                       checked={isSelected}

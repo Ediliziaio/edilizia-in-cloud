@@ -83,11 +83,25 @@ export default function Calendar() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, visibleEmployeeIds, visibleTeamIds]);
 
+  // Compute a ±3-month window around the current date for calendar queries
+  const calendarRangeStart = useMemo(() => {
+    const d = new Date(currentDate);
+    d.setMonth(d.getMonth() - 3);
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  }, [currentDate]);
+  const calendarRangeEnd = useMemo(() => {
+    const d = new Date(currentDate);
+    d.setMonth(d.getMonth() + 4);
+    d.setDate(0);
+    return d.toISOString().slice(0, 10);
+  }, [currentDate]);
+
   const { data: orders = [], isLoading, isError } = useQuery({
-    queryKey: queryKeys.calendarOrders.list(effectiveCompany?.id),
+    queryKey: [...queryKeys.calendarOrders.list(effectiveCompany?.id), calendarRangeStart, calendarRangeEnd],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      
+
       const { data, error } = await supabase
         .from("orders")
         .select(`
@@ -107,9 +121,11 @@ export default function Calendar() {
           order_external_teams(external_team:external_teams(id, name))
         `)
         .eq("company_id", effectiveCompany.id)
+        .or(`work_start_date.lte.${calendarRangeEnd},expected_date.lte.${calendarRangeEnd},warehouse_arrival_date.lte.${calendarRangeEnd}`)
+        .or(`work_end_date.gte.${calendarRangeStart},work_start_date.gte.${calendarRangeStart},expected_date.gte.${calendarRangeStart},warehouse_arrival_date.gte.${calendarRangeStart}`)
         .order("work_start_date", { ascending: true })
         .limit(1000);
-      
+
       if (error) throw error;
       return (data || []) as CalendarOrder[];
     },
@@ -119,7 +135,7 @@ export default function Calendar() {
 
   // Fetch appointments
   const { data: appointments = [] } = useQuery({
-    queryKey: ["appointments", effectiveCompany?.id],
+    queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
@@ -130,6 +146,8 @@ export default function Calendar() {
         `)
         .eq("company_id", effectiveCompany.id)
         .is("calendar_id", null)
+        .gte("appointment_date", calendarRangeStart)
+        .lte("appointment_date", calendarRangeEnd)
         .order("appointment_date", { ascending: true })
         .limit(1000);
       if (error) throw error;

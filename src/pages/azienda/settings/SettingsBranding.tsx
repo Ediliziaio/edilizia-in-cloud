@@ -80,8 +80,8 @@ export default function SettingsBranding() {
   // Sync subdomain/domain from DB
   useEffect(() => {
     if (companyBranding) {
-      setSubdomain((companyBranding as any).subdomain || "");
-      setCustomDomain((companyBranding as any).custom_domain || "");
+      setSubdomain(companyBranding.subdomain || "");
+      setCustomDomain(companyBranding.custom_domain || "");
     }
   }, [companyBranding]);
 

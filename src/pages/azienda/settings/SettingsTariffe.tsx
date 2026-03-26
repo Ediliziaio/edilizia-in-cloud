@@ -347,7 +347,7 @@ function TariffeTable({
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsTariffe() {
-  const { effectiveCompany, role } = useAuth() as any;
+  const { effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();

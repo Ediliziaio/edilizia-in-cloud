@@ -279,7 +279,7 @@ function ScopeBadges({ scopes }: { scopes: string[] }) {
 // ---- PAGINA PRINCIPALE ----
 export default function SettingsApiKeys() {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id as string;
+  const companyId = effectiveCompany?.id as string;
   const revokeMutation = useRevokeApiKey(companyId);
   const { data: apiKeys = [], isLoading } = useApiKeys(companyId);
   const [formOpen, setFormOpen] = useState(false);

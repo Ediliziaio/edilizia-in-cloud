@@ -157,7 +157,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         .select("*")
         .eq("company_id", companyId!)
         .eq("is_paid", false)
-        .gte("cost_date", costDateFrom)
+        .gte("due_date", costDateFrom)
         .order("due_date", { ascending: true })
         .limit(1000);
       if (error) throw error;

@@ -306,10 +306,10 @@ export default function SettingsPhoneNumbers() {
                     <TableCell>{num.friendly_name || "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {(num.capabilities as any)?.sms && (
+                        {(num.capabilities as { sms?: boolean; voice?: boolean })?.sms && (
                           <Badge variant="secondary" className="text-xs"><MessageSquare className="h-3 w-3 mr-1" />SMS</Badge>
                         )}
-                        {(num.capabilities as any)?.voice && (
+                        {(num.capabilities as { sms?: boolean; voice?: boolean })?.voice && (
                           <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voice</Badge>
                         )}
                       </div>
