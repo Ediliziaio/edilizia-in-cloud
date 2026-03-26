@@ -205,7 +205,7 @@ export default function ChiSiamo() {
 
       {/* ── 1. HERO ── */}
       <section
-        className="relative pt-36 pb-28 px-6 text-center flex items-center justify-center min-h-[560px]"
+        className="relative pt-36 pb-28 px-6 text-center flex items-center justify-center min-h-[560px] overflow-hidden"
         style={{ background: "#111111" }}
       >
         {/* Background image */}
@@ -221,6 +221,36 @@ export default function ChiSiamo() {
           className="absolute inset-0"
           style={{ background: "rgba(17,17,17,0.88)" }}
         />
+
+        {/* ── Glow orbs arancioni ── */}
+        <div className="absolute top-[-80px] right-[-60px] w-[420px] h-[420px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
+        <div className="absolute bottom-[-60px] left-[-40px] w-[320px] h-[320px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 70%)", filter: "blur(50px)" }} />
+        <div className="absolute top-[40%] left-[10%] w-[180px] h-[180px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.07) 0%, transparent 70%)", filter: "blur(30px)" }} />
+
+        {/* ── Particelle floating ── */}
+        {[
+          { w: 6, h: 6, top: "18%", left: "8%", delay: "0s", dur: "6s", opacity: 0.45 },
+          { w: 4, h: 4, top: "65%", left: "14%", delay: "1.5s", dur: "8s", opacity: 0.3 },
+          { w: 8, h: 8, top: "30%", right: "10%", delay: "0.8s", dur: "7s", opacity: 0.35 },
+          { w: 3, h: 3, top: "72%", right: "18%", delay: "2.2s", dur: "5.5s", opacity: 0.5 },
+          { w: 5, h: 5, top: "12%", left: "45%", delay: "3s", dur: "9s", opacity: 0.25 },
+          { w: 7, h: 7, top: "80%", left: "60%", delay: "1s", dur: "6.5s", opacity: 0.3 },
+        ].map((p, i) => (
+          <div key={i} className="absolute rounded-full pointer-events-none animate-float"
+            style={{
+              width: p.w, height: p.h,
+              top: p.top, left: (p as any).left, right: (p as any).right,
+              background: "#F97415",
+              opacity: p.opacity,
+              animationDelay: p.delay,
+              animationDuration: p.dur,
+              boxShadow: `0 0 ${p.w * 3}px rgba(249,116,21,0.6)`,
+            }}
+          />
+        ))}
 
         <div
           ref={heroAnim.ref}
@@ -274,10 +304,25 @@ export default function ChiSiamo() {
       {/* ── 2. NUMERI CHIAVE ── */}
       <section
         ref={numbersAnim.ref}
-        className="py-16 px-6"
+        className="relative py-16 px-6 overflow-hidden"
         style={{ background: "#111111" }}
       >
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4">
+        {/* Bordo superiore arancione luminoso */}
+        <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 70%, transparent 100%)" }} />
+        {/* Bordo inferiore */}
+        <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
+          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.3) 50%, transparent 100%)" }} />
+        {/* Glow centrale di sfondo */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.06) 0%, transparent 70%)" }} />
+        {/* Glow laterali */}
+        <div className="absolute left-0 top-0 bottom-0 w-1/3 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at left center, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at right center, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
+
+        <div className="relative max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4">
           {keyNumbers.map((n, i) => (
             <div
               key={i}
@@ -744,12 +789,46 @@ export default function ChiSiamo() {
 
       {/* ── 8. CTA FINALE ── */}
       <section
-        className="py-24 px-6 text-center"
+        className="relative py-24 px-6 text-center overflow-hidden"
         style={{ background: "#0a0a0a" }}
       >
+        {/* Glow arancione centrale sotto i bottoni */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at bottom, rgba(249,116,21,0.18) 0%, transparent 70%)", filter: "blur(20px)" }} />
+        {/* Glow top */}
+        <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.10) 0%, transparent 70%)", filter: "blur(30px)" }} />
+        {/* Bordo superiore */}
+        <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.6) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.6) 60%, transparent 100%)" }} />
+
+        {/* Particelle floating */}
+        {[
+          { size: 5,  top: "15%", left: "6%",   delay: "0s",   dur: "7s",   op: 0.4 },
+          { size: 3,  top: "70%", left: "10%",  delay: "2s",   dur: "5.5s", op: 0.3 },
+          { size: 7,  top: "25%", left: "20%",  delay: "1s",   dur: "8s",   op: 0.2 },
+          { size: 4,  top: "80%", left: "40%",  delay: "3.5s", dur: "6s",   op: 0.35 },
+          { size: 6,  top: "10%", right: "8%",  delay: "0.5s", dur: "9s",   op: 0.25 },
+          { size: 3,  top: "60%", right: "12%", delay: "1.8s", dur: "6.5s", op: 0.4 },
+          { size: 5,  top: "40%", right: "25%", delay: "2.8s", dur: "7.5s", op: 0.2 },
+          { size: 8,  top: "85%", right: "35%", delay: "4s",   dur: "5s",   op: 0.15 },
+        ].map((p, i) => (
+          <div key={i} className="absolute rounded-full pointer-events-none animate-float"
+            style={{
+              width: p.size, height: p.size,
+              top: p.top, left: (p as any).left, right: (p as any).right,
+              background: "#F97415",
+              opacity: p.op,
+              animationDelay: p.delay,
+              animationDuration: p.dur,
+              boxShadow: `0 0 ${p.size * 2}px rgba(249,116,21,0.7)`,
+            }}
+          />
+        ))}
+
         <div
           ref={ctaAnim.ref}
-          className="max-w-2xl mx-auto transition-all duration-1000"
+          className="relative z-10 max-w-2xl mx-auto transition-all duration-1000"
           style={{
             opacity: ctaAnim.isVisible ? 1 : 0,
             transform: ctaAnim.isVisible ? "translateY(0)" : "translateY(32px)",
