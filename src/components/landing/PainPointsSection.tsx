@@ -3,13 +3,13 @@ import { AlertTriangle, TrendingDown, Clock, FileQuestion, Users, Wallet, BarCha
 import AIImage from "./AIImage";
 
 const painPoints = [
-  { icon: TrendingDown, text: "Fatturi 500.000€, 1 milione, anche 2 milioni… ma a fine anno sul conto non resta quasi nulla." },
-  { icon: FileQuestion, text: "Non sai ESATTAMENTE quanto margine hai su ogni singolo cantiere — lavori \"a sensazione\", sperando che i conti tornino." },
-  { icon: Clock, text: "Il commercialista ti dà i numeri una volta l'anno, quando ormai è troppo tardi per cambiare qualcosa." },
-  { icon: Wallet, text: "Hai paura ad aprire l'estratto conto a metà mese perché non sai se ce la farai a pagare fornitori e dipendenti." },
-  { icon: Users, text: "Lavori 12-14 ore al giorno, sabato incluso, ma il tuo compenso personale è inferiore a quello di un tuo operaio." },
-  { icon: BarChart3, text: "Accetti QUALSIASI lavoro pur di fatturare, anche quelli che sai già che ti faranno perdere soldi." },
-  { icon: AlertTriangle, text: "I preventivi li fai \"a occhio\", i costi li scopri a consuntivo, e i ritardi in cantiere diventano voragini finanziarie." },
+  { icon: TrendingDown, text: "Fatturi 500.000€, anche 1 milione — ma a fine anno sul conto non c'è quasi nulla. Dove sono finiti i soldi?" },
+  { icon: FileQuestion, text: "Non conosci il margine REALE di ogni cantiere. Lo scopri solo a cantiere chiuso — quando è troppo tardi per cambiare qualcosa." },
+  { icon: Clock, text: "Il commercialista ti dà i numeri una volta l'anno. Nel frattempo hai già perso mesi di margini che non recupererai mai più." },
+  { icon: Wallet, text: "Hai paura ad aprire il conto a metà mese: non sai se riuscirai a pagare fornitori, dipendenti e contributi tutti insieme." },
+  { icon: Users, text: "Non sai le ore reali di ogni operaio su ogni cantiere. Il costo della manodopera lo scopri a consuntivo, mai in tempo per agire." },
+  { icon: BarChart3, text: "I preventivi li fai su Excel, li mandi e non sai mai perché hai perso — non hai dati sul tuo tasso di chiusura reale." },
+  { icon: AlertTriangle, text: "Accetti qualsiasi lavoro pur di fatturare — anche quelli in perdita — perché senza numeri chiari non puoi permetterti di scegliere." },
 ];
 
 export default function PainPointsSection() {
@@ -23,14 +23,14 @@ export default function PainPointsSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Ti Riconosci in <span className="text-[#0fa68c]">Almeno 3</span> di Questi?
+          Ti Riconosci in <span className="text-[#0fa68c]">Almeno uno</span> di Questi?
         </h2>
         <p
           className={`text-gray-500 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Se sì, stai perdendo soldi ogni mese. Non è colpa tua — nessuno ti ha mai dato gli strumenti giusti.
+          Se sì, stai lasciando soldi sul tavolo ogni settimana. Non è colpa tua — nessuno ti ha mai dato gli strumenti giusti per gestire un'impresa edile.
         </p>
 
         <div className="grid md:grid-cols-[1fr_320px] gap-10 items-start">
@@ -65,9 +65,9 @@ export default function PainPointsSection() {
             isVisible ? "opacity-100" : "opacity-0"
           }`}
         >
-          Non è colpa tua. Nessuno ti ha mai dato gli strumenti giusti per controllare i numeri.
+          Non è colpa tua. L'edilizia è uno dei settori più complessi d'Italia.
           <br />
-          <strong className="text-[#1a2744]">Fino ad ora.</strong>
+          <strong className="text-[#1a2744]">Edilizia in Cloud è stato costruito per cambiare esattamente questo.</strong>
         </p>
       </div>
     </section>

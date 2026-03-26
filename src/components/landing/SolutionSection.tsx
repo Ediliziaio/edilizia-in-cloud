@@ -6,9 +6,9 @@ import AIImage from "./AIImage";
 const BAR_HEIGHTS = [32, 48, 25, 55, 38, 42, 28, 52, 35, 45, 30, 58, 40, 22, 50, 36, 46, 33];
 
 const questions = [
-  { icon: Target, q: "Qual è il margine REALE di ogni commessa?", desc: "Non il margine stimato. Quello vero, aggiornato in tempo reale con costi effettivi." },
-  { icon: TrendingUp, q: "Quanta cassa avrò tra 30, 60, 90 giorni?", desc: "Previsione automatica basata su incassi attesi, scadenze fornitori e costi fissi." },
-  { icon: Shield, q: "Dove sto perdendo soldi senza saperlo?", desc: "Identifica commesse in perdita, fornitori troppo cari e inefficienze nascoste." },
+  { icon: Target, q: "Qual è il margine REALE di ogni commessa, oggi?", desc: "Non il preventivato. Il margine vero, con i costi reali aggiornati al minuto — inclusa manodopera, materiali e overhead." },
+  { icon: TrendingUp, q: "Quanta cassa avrò tra 30, 60 e 90 giorni?", desc: "Forecast di liquidità automatico basato su incassi attesi, scadenze fornitori, stipendi e costi fissi. Zero sorprese." },
+  { icon: Shield, q: "Dove sto perdendo soldi senza saperlo?", desc: "Identifica le commesse in perdita, i fornitori troppo cari, le ore di manodopera non imputate. Prima che sia troppo tardi." },
 ];
 
 export default function SolutionSection() {
@@ -24,14 +24,14 @@ export default function SolutionSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          La Soluzione: <span className="text-[#0fa68c]">Edilizia in Cloud</span>
+          Smetti di indovinare. <span className="text-[#0fa68c]">Inizia a sapere.</span>
         </h2>
         <p
           className={`text-white/50 text-center mb-16 text-lg max-w-2xl mx-auto transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Un software che risponde alle 3 domande che ogni imprenditore edile dovrebbe farsi ogni giorno.
+          Edilizia in Cloud risponde alle 3 domande che ogni imprenditore edile dovrebbe poter vedere in tempo reale — da qualsiasi dispositivo, in qualsiasi momento.
         </p>
 
         <div className="grid md:grid-cols-[1fr_280px] gap-8 mb-16">
@@ -106,9 +106,9 @@ export default function SolutionSection() {
             isVisible ? "opacity-100" : "opacity-0"
           }`}
         >
-          Niente corsi di formazione complicati. Niente consulenti costosi.
+          Nessun corso. Nessuna consulenza infinita. Nessun foglio Excel.
           <br />
-          <strong className="text-white/70">Apri, guarda i numeri, decidi.</strong>
+          <strong className="text-white/70">Apri il gestionale, guarda i numeri, decidi. Da domani.</strong>
         </p>
       </div>
     </section>

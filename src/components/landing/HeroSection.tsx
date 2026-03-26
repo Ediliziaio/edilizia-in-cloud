@@ -50,7 +50,7 @@ const chartBars = [
   { month: "Feb", h: 80 },
 ];
 
-const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "i tuoi dipendenti"];
+const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "il tuo marketing"];
 
 const microBadges = [
   { Icon: Shield, label: "GDPR Compliant" },
@@ -268,7 +268,7 @@ export default function HeroSection() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
             </span>
-            <span className="relative">Il sistema di controllo per l'impresa edile che vuole crescere davvero.</span>
+            <span className="relative">Gestionale n°1 per imprese edili — 150+ aziende già attive</span>
           </span>
         </div>
 
@@ -277,7 +277,7 @@ export default function HeroSection() {
           className={`transition-all duration-700 delay-150 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <h1 className="text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
-            <span className="text-white block">Smetti di lavorare a sensazione.</span>
+            <span className="text-white block">Finisci di lavorare a sensazione.</span>
             <span className="text-[#0fa68c] block">Inizia a guadagnare davvero.</span>
           </h1>
 
@@ -298,7 +298,7 @@ export default function HeroSection() {
           </div>
 
           <p className="text-sm md:text-base text-white/50 mb-0 max-w-xl mx-auto">
-            Il gestionale che gli imprenditori edili italiani stavano aspettando.
+            L'unico gestionale costruito da zero per l'edilizia italiana.
           </p>
         </div>
 
@@ -311,8 +311,7 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Il primo software gestionale progettato da imprenditori edili, per imprenditori edili.
-          Controlla <span className="text-white font-semibold">margini</span>, <span className="text-white font-semibold">cassa</span>, <span className="text-white font-semibold">dipendenti</span> e <span className="text-white font-semibold">commesse</span> in tempo reale — senza fogli Excel, senza sorprese — affiancato da un <span className="text-white font-semibold">Consulente del Controllo dedicato</span> che ti aiuta a leggere i numeri e proteggere i margini.
+          Cantieri, margini, cassa, HR, marketing e fatturazione elettronica — tutto in un'unica piattaforma. Nessun foglio Excel. Nessun commercialista che ti dà i dati a fine anno. Decidi in tempo reale, affiancato da un <span className="text-white font-semibold">Consulente dedicato</span> che ti aiuta a proteggere i margini e far crescere l'impresa.
         </p>
 
         {/* 5. CTA Buttons */}
@@ -326,14 +325,14 @@ export default function HeroSection() {
             onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
             className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#0fa68c] text-white font-bold text-base md:text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#0fa68c]/30"
           >
-            Richiedi Demo Gratuita
+            Inizia Gratis — 30 Giorni
           </a>
           <a
             href="#moduli"
             onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }}
             className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
           >
-            Scopri le Funzionalità
+            Vedi tutti i moduli
           </a>
         </div>
 
@@ -362,7 +361,7 @@ export default function HeroSection() {
         >
           <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
             <Users size={16} className="text-[#0fa68c]" />
-            <span>150+ Imprese Edili</span>
+            <span>200+ Imprese Attive</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
           <div className="flex items-center gap-1.5 text-white/50 text-xs md:text-sm">
@@ -384,7 +383,7 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <p className="text-white/40 text-xs mb-4">Scelto da aziende che collaborano con</p>
+          <p className="text-white/40 text-xs mb-4">Usato da imprenditori che lavorano con</p>
           <div
             className="overflow-hidden"
             style={{
@@ -395,7 +394,7 @@ export default function HeroSection() {
             <div className="flex animate-marquee whitespace-nowrap">
               {[...Array(2)].map((_, copy) => (
                 <div key={copy} className="flex items-center shrink-0">
-                  {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "Federcostruzioni", "Ordine Ingegneri", "Collegio Geometri", "ANIEM"].map((name) => (
+                  {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "SAP Certified", "Collegio Geometri", "ANIEM", "FederCAM"].map((name) => (
                     <span key={`${copy}-${name}`} className="mx-4 md:mx-6 text-white/30 text-xs md:text-sm font-bold uppercase tracking-widest shrink-0">
                       {name}
                     </span>
