@@ -66,6 +66,118 @@ export default function Home() {
           { "@type": "Question", "name": "I dati sono al sicuro?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, tutti i dati sono conservati su server in Europa, conformi al GDPR, con backup automatico giornaliero e crittografia end-to-end." }}
         ]
       }} />
+
+      <JsonLd id="jsonld-faq-home" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Devo essere esperto di informatica per usare Edilizia in Cloud?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è intuitiva e il nostro team ti configura tutto in 48 ore."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quanto costa Edilizia in Cloud?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "I piani partono da €79/mese (Starter). Il piano Professional è a €159/mese e include CRM, marketing e HR. Tutti i piani includono 30 giorni di prova gratuita."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso importare i dati che ho su Excel?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì. Il team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV o altri gestionali. Di solito bastano 48 ore per essere operativi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Funziona da smartphone e tablet in cantiere?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, completamente. App mobile nativa per iOS e Android con modalità offline per zone senza segnale."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso disdire quando voglio?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, puoi disdire in qualsiasi momento senza penali. E se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — garanzia scritta."
+            }
+          }
+        ]
+      }} />
+
+      <JsonLd id="jsonld-offer-home" data={{
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Edilizia in Cloud — Software Gestionale Imprese Edili",
+        "description": "Software gestionale completo per imprese edili: gestione cantieri, margini in tempo reale, fatturazione elettronica, CRM, HR e intelligenza artificiale.",
+        "brand": {
+          "@type": "Brand",
+          "name": "Edilizia in Cloud"
+        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Piano Starter",
+            "price": "79",
+            "priceCurrency": "EUR",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "description": "Gestione cantieri, finanza e documenti base"
+          },
+          {
+            "@type": "Offer",
+            "name": "Piano Professional",
+            "price": "159",
+            "priceCurrency": "EUR",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "description": "Tutto Starter + CRM, marketing, HR completo e AI"
+          },
+          {
+            "@type": "Offer",
+            "name": "Piano Enterprise",
+            "price": "319",
+            "priceCurrency": "EUR",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "description": "Multi-azienda, API, supporto dedicato"
+          }
+        ],
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "reviewCount": "127",
+          "bestRating": "5",
+          "worstRating": "1"
+        },
+        "review": [
+          {
+            "@type": "Review",
+            "reviewRating": {"@type": "Rating", "ratingValue": "5"},
+            "author": {"@type": "Person", "name": "Giuseppe T."},
+            "reviewBody": "Finalmente so il margine reale di ogni cantiere. Ho recuperato 3 mesi di lavoro perso in 6 settimane."
+          },
+          {
+            "@type": "Review",
+            "reviewRating": {"@type": "Rating", "ratingValue": "5"},
+            "author": {"@type": "Person", "name": "Massimo R."},
+            "reviewBody": "Il previsionale di cassa mi ha salvato da una crisi di liquidità. Lo consiglio a tutti gli imprenditori edili."
+          }
+        ]
+      }} />
+
       <PromoBanner />
       <LandingNavbar />
       <HeroSection />

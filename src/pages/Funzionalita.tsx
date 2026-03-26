@@ -543,10 +543,10 @@ export default function Funzionalita() {
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useSEO({
-    title: "Funzionalità — Software Gestionale Completo per Edilizia",
-    description: "Scopri tutte le funzionalità di Edilizia in Cloud: gestione cantieri, contabilità, marketing, HR, documenti e intelligenza artificiale. 26+ moduli integrati.",
+    title: "Funzionalità — Tutti i Moduli di Edilizia in Cloud",
+    description: "Scopri tutti i 26 moduli di Edilizia in Cloud: gestione cantieri, margini in tempo reale, CRM, email marketing, WhatsApp, HR, fatturazione elettronica e AI per imprese edili.",
     canonical: "/funzionalita",
-    keywords: "funzionalità gestionale edilizia, moduli software edilizia, gestione cantieri digitale, contabilità edilizia, HR edilizia, marketing imprese edili",
+    keywords: "funzionalità software edilizia, gestione cantieri software, CRM imprese edili, fatturazione elettronica edilizia, HR cantiere, marketing digitale edilizia, AI gestionale edilizia",
   });
 
   // Animate panel transition
@@ -564,6 +564,38 @@ export default function Funzionalita() {
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
           { "@type": "ListItem", "position": 2, "name": "Funzionalità", "item": "https://ediliziaincloud.com/funzionalita" }
+        ]
+      }} />
+      <JsonLd id="jsonld-howto" data={{
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "Come digitalizzare la tua impresa edile con Edilizia in Cloud",
+        "description": "Guida passo per passo per portare la tua impresa edile nel digitale con Edilizia in Cloud",
+        "totalTime": "PT48H",
+        "estimatedCost": {
+          "@type": "MonetaryAmount",
+          "currency": "EUR",
+          "value": "79"
+        },
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "Richiedi la demo gratuita",
+            "text": "Prenota una sessione di 30 minuti con un nostro consulente edile per vedere il software sul tuo caso specifico.",
+            "url": "https://ediliziaincloud.com/demo"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Importa i tuoi dati esistenti",
+            "text": "Il team di onboarding migra i tuoi dati da Excel o altri gestionali in 48 ore gratuitamente.",
+            "url": "https://ediliziaincloud.com/funzionalita"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Inizia a controllare margini e cassa",
+            "text": "Dal giorno 1 hai visibilità completa su cantieri attivi, margini reali e previsionale di cassa.",
+            "url": "https://ediliziaincloud.com/funzionalita"
+          }
         ]
       }} />
       <PromoBanner />

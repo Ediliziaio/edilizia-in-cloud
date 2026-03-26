@@ -145,10 +145,10 @@ export default function Confronto() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useSEO({
-    title: "Confronto — Edilizia in Cloud vs Excel, ERP e Concorrenti",
-    description: "Confronta Edilizia in Cloud con Excel, software ERP, commercialisti e concorrenti. Scopri perché migliaia di imprenditori edili scelgono la nostra piattaforma.",
+    title: "Confronto Software Gestionale Edilizia — Edilizia in Cloud vs Excel, ERP, Commercialista",
+    description: "Confronta Edilizia in Cloud con Excel, software ERP, commercialista e concorrenti. Scopri perché è la scelta migliore per le PMI edili italiane nel 2026.",
     canonical: "/confronto",
-    keywords: "confronto software edilizia, alternativa excel edilizia, alternativa ERP costruzioni, migliore software gestionale edilizia",
+    keywords: "confronto software gestionale edilizia, edilizia in cloud vs excel, alternativa ERP edilizia, software cantieri vs commercialista, miglior gestionale imprese edili",
   });
 
   useEffect(() => {
@@ -183,6 +183,36 @@ export default function Confronto() {
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
           { "@type": "ListItem", "position": 2, "name": "Confronto", "item": "https://ediliziaincloud.com/confronto" }
+        ]
+      }} />
+      <JsonLd id="jsonld-faq-confronto" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Edilizia in Cloud è meglio di Excel per gestire i cantieri?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì. Excel non aggiorna i margini in tempo reale, non ha previsionale di cassa automatico e non integra HR, marketing e fatturazione. Edilizia in Cloud è costruito specificamente per le imprese edili italiane."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Qual è la differenza tra Edilizia in Cloud e un ERP tradizionale?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Gli ERP tradizionali costano 10-50x di più, richiedono mesi di implementazione e sono pensati per grandi aziende. Edilizia in Cloud è pronto in 48h, costa da €79/mese e parla il linguaggio dell'edilizia italiana."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso usare Edilizia in Cloud invece del commercialista?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Edilizia in Cloud integra prima nota, fatturazione elettronica e scadenzario. Fornisce i dati al tuo commercialista in formato pronto. Non lo sostituisce, ma riduce il 70% del lavoro contabile manuale."
+            }
+          }
         ]
       }} />
       <PromoBanner />

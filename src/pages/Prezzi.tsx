@@ -176,10 +176,10 @@ export default function Prezzi() {
   const paybackLabel = paybackMesi < 1 ? "< 1 mese" : `${paybackMesi.toFixed(1)} mesi`;
 
   useSEO({
-    title: "Prezzi — Piani e Costi del Software Gestionale per Edilizia",
-    description: "Scegli il piano Edilizia in Cloud adatto alla tua impresa. Da €79/mese con 30 giorni gratuiti. Calcolatore ROI incluso per misurare il tuo ritorno sull'investimento.",
+    title: "Prezzi Edilizia in Cloud — Piani e Tariffe 2026",
+    description: "Scopri i prezzi di Edilizia in Cloud: piano Starter €79/mese, Professional €159/mese, Enterprise €319/mese. 30 giorni gratis. ROI garantito o rimborso totale.",
     canonical: "/prezzi",
-    keywords: "prezzi software edilizia, costo gestionale edilizia, abbonamento software cantieri, piano gestionale impresa edile",
+    keywords: "prezzi software gestionale edilizia, costo gestionale cantieri, abbonamento edilizia in cloud, piano starter professional enterprise, prova gratuita software edilizia",
   });
 
   const prices = {
@@ -215,6 +215,36 @@ export default function Prezzi() {
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
           { "@type": "ListItem", "position": 2, "name": "Prezzi", "item": "https://ediliziaincloud.com/prezzi" }
+        ]
+      }} />
+      <JsonLd id="jsonld-faq-prezzi" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Quanto costa Edilizia in Cloud al mese?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "I piani partono da €79/mese (Starter). Il piano Professional è €159/mese e include tutti i moduli. Il piano Enterprise è €319/mese con funzionalità multi-azienda e API. Con il piano annuale risparmiate il 20%."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "C'è una prova gratuita?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, tutti i piani includono 30 giorni di prova gratuita senza carta di credito. Potete testare tutte le funzionalità prima di decidere."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso cambiare piano in qualsiasi momento?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, potete fare upgrade o downgrade del piano in qualsiasi momento. Le modifiche sono attive immediatamente."
+            }
+          }
         ]
       }} />
       <PromoBanner />

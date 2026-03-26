@@ -235,6 +235,7 @@ export default function BlogPost() {
     description: post.excerpt,
     image: post.coverImage,
     datePublished: post.publishedAt,
+    dateModified: post.publishedAt,
     wordCount: post.readTime * 800,
     mainEntityOfPage: { "@type": "WebPage", "@id": `https://ediliziaincloud.com/blog/${post.slug}` },
     articleSection: post.category,
