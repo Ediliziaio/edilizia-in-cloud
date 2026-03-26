@@ -123,7 +123,7 @@ const tableRows: TableRow[] = [
 const faqItems = [
   {
     q: "C'è un periodo di prova gratuita?",
-    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 14 giorni di accesso completo al piano Professional. Nessuna carta di credito richiesta per iniziare.",
+    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 31 giorni di accesso completo al piano Professional. Nessuna carta di credito richiesta per iniziare.",
   },
   {
     q: "Posso cambiare piano in qualsiasi momento?",
@@ -139,7 +139,7 @@ const faqItems = [
   },
   {
     q: "Come funziona la garanzia soddisfatti o rimborsati?",
-    a: "Se entro 30 giorni dall'attivazione non sei soddisfatto per qualsiasi motivo, ti rimborsiamo l'intero importo pagato. Nessuna domanda, nessuna burocrazia.",
+    a: "Se entro 31 giorni dall'attivazione non sei soddisfatto per qualsiasi motivo, ti rimborsiamo l'intero importo pagato. Nessuna domanda, nessuna burocrazia.",
   },
   {
     q: "Posso pagare con carta, bonifico o fattura?",
@@ -177,7 +177,7 @@ export default function Prezzi() {
 
   useSEO({
     title: "Prezzi Edilizia in Cloud — Piani e Tariffe 2026",
-    description: "Scopri i prezzi di Edilizia in Cloud: piano Starter €79/mese, Professional €159/mese, Enterprise €319/mese. 30 giorni gratis. ROI garantito o rimborso totale.",
+    description: "Scopri i prezzi di Edilizia in Cloud: piano Starter €79/mese, Professional €159/mese, Enterprise €319/mese. 31 giorni gratis. ROI garantito o rimborso totale.",
     canonical: "/prezzi",
     keywords: "prezzi software gestionale edilizia, costo gestionale cantieri, abbonamento edilizia in cloud, piano starter professional enterprise, prova gratuita software edilizia",
   });
@@ -234,7 +234,7 @@ export default function Prezzi() {
             "name": "C'è una prova gratuita?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, tutti i piani includono 30 giorni di prova gratuita senza carta di credito. Potete testare tutte le funzionalità prima di decidere."
+              "text": "Sì, tutti i piani includono 31 giorni di prova gratuita senza carta di credito. Potete testare tutte le funzionalità prima di decidere."
             }
           },
           {
@@ -772,7 +772,7 @@ export default function Prezzi() {
             </a>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-white/80 text-sm">
-            {["Disdici quando vuoi", "Setup in 48h", "Garanzia 30 giorni"].map((pill) => (
+            {["Disdici quando vuoi", "Setup in 48h", "Garanzia 31 giorni"].map((pill) => (
               <span key={pill} className="flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-white" />
                 {pill}

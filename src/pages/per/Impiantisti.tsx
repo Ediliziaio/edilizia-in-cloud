@@ -31,6 +31,18 @@ const config: PerTipoConfig = {
   problemsSubtitle:
     "Se i tuoi tecnici ti chiamano tre volte al giorno e il magazzino ricambi è sempre sbagliato, non è colpa loro — è un problema di sistema.",
 
+  roi: {
+    lossValue: "€ 18.000",
+    lossLabel: "in ore tecnico non fatturate e margini persi",
+    wasteValue: "€ 9.360",
+    wasteLabel: "ore admin su ordini, burocrazia e coordinamento",
+    errorValue: "€ 6.500",
+    errorLabel: "in ricambi sbagliati, magazzino fuori controllo",
+    totalLoss: "€ 33.860",
+    softwareCost: "€ 2.388",
+    roiX: "14x",
+  },
+
   problems: [
     {
       emoji: "🔧",

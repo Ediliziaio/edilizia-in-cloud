@@ -1,5 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Check, X, ArrowRight } from "lucide-react";
+import { Check, X, ArrowRight, Shield } from "lucide-react";
 
 const comparisons = [
   { item: "Commercialista esterno per controllo di gestione", cost: "1.000 – 3.000 €/mese" },
@@ -100,6 +100,21 @@ export default function PricingSection() {
           ))}
         </div>
 
+        {/* Free trial banner */}
+        <div className={`max-w-3xl mx-auto mb-10 rounded-2xl border-2 border-[#F97415]/40 bg-[#F97415]/5 p-5 flex flex-col sm:flex-row items-center gap-4 transition-all duration-700 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <div className="w-12 h-12 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-6 h-6 text-[#F97415]" />
+          </div>
+          <div className="text-center sm:text-left flex-1">
+            <p className="font-extrabold text-[#111111] text-base">🎉 31 giorni di prova gratuita su tutti i piani</p>
+            <p className="text-gray-500 text-sm mt-0.5">Nessuna carta di credito. Nessun obbligo. Se non ti piace, non paghi nulla — punto.</p>
+          </div>
+          <a href="#cta-finale" onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
+            className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/20">
+            Inizia gratis <ArrowRight size={14} />
+          </a>
+        </div>
+
         {/* 3 Plans */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
           {plans.map((plan, i) => {
@@ -154,6 +169,10 @@ export default function PricingSection() {
                 >
                   {plan.cta}
                 </a>
+                <p className="text-center text-gray-400 text-xs mt-3 flex items-center justify-center gap-1">
+                  <Shield className="w-3 h-3 text-[#F97415]" />
+                  31 giorni gratis · nessun obbligo
+                </p>
               </div>
             );
           })}

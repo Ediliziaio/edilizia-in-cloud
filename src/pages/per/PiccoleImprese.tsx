@@ -55,6 +55,19 @@ const config: PerTipoConfig = {
     },
   ],
 
+  // ROI
+  roi: {
+    lossValue: "€ 8.000",
+    lossLabel: "in lavori persi per preventivi lenti o non inviati",
+    wasteValue: "€ 7.800",
+    wasteLabel: "ore su burocrazia, F24, fatture, scadenze fiscali",
+    errorValue: "€ 4.200",
+    errorLabel: "in errori di fatturazione e pagamenti non riscossi",
+    totalLoss: "€ 20.000",
+    softwareCost: "€ 1.188",
+    roiX: "17x",
+  },
+
   // Transformation
   transformation: {
     title: "Prima e dopo: la differenza è concreta",

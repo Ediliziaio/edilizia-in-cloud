@@ -49,7 +49,7 @@ function PromoBanner() {
 export default function Home() {
   useSEO({
     title: "Gestionale Edilizia con AI — Software n°1 per Imprese Edili | Edilizia in Cloud",
-    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica piattaforma. Prova gratis 30 giorni.",
+    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica piattaforma. Prova gratis 31 giorni.",
     canonical: "/home",
     keywords: "gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, ERP edilizia cloud, software costruzioni, gestionale cantieri online, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, gestionale edilizia 2026, miglior software impresa edile italiana, software edilizia PMI, gestionale edilizia prezzi, software cantieri digitale",
   });
@@ -67,7 +67,7 @@ export default function Home() {
         "@context": "https://schema.org",
         "@type": "FAQPage",
         "mainEntity": [
-          { "@type": "Question", "name": "Quanto costa Edilizia in Cloud?", "acceptedAnswer": { "@type": "Answer", "text": "I piani partono da €79/mese per il piano Starter, fino a €319/mese per Enterprise. Tutti i piani includono 30 giorni di prova gratuita." }},
+          { "@type": "Question", "name": "Quanto costa Edilizia in Cloud?", "acceptedAnswer": { "@type": "Answer", "text": "I piani partono da €79/mese per il piano Starter, fino a €319/mese per Enterprise. Tutti i piani includono 31 giorni di prova gratuita." }},
           { "@type": "Question", "name": "In quanto tempo si imposta il software?", "acceptedAnswer": { "@type": "Answer", "text": "Il setup completo richiede 48 ore. Il nostro team ti affianca nella configurazione iniziale e nella migrazione dei dati." }},
           { "@type": "Question", "name": "Il software funziona anche dal cantiere?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, Edilizia in Cloud è accessibile da qualsiasi dispositivo: smartphone, tablet e computer, anche con connessione limitata." }},
           { "@type": "Question", "name": "I dati sono al sicuro?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, tutti i dati sono conservati su server in Europa, conformi al GDPR, con backup automatico giornaliero e crittografia end-to-end." }}
@@ -91,7 +91,7 @@ export default function Home() {
             "name": "Quanto costa Edilizia in Cloud?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "I piani partono da €79/mese (Starter). Il piano Professional è a €159/mese e include CRM, marketing e HR. Tutti i piani includono 30 giorni di prova gratuita."
+              "text": "I piani partono da €79/mese (Starter). Il piano Professional è a €159/mese e include CRM, marketing e HR. Tutti i piani includono 31 giorni di prova gratuita."
             }
           },
           {

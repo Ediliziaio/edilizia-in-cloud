@@ -52,6 +52,18 @@ const config: PerTipoConfig = {
     },
   ],
 
+  roi: {
+    lossValue: "€ 31.000",
+    lossLabel: "in incentivi GSE persi per errori burocratici",
+    wasteValue: "€ 16.000",
+    wasteLabel: "ore su pratiche GSE, ARERA e coordinamento squadre",
+    errorValue: "€ 8.000",
+    errorLabel: "in margini erosi da variazioni prezzi pannelli non monitorate",
+    totalLoss: "€ 55.000",
+    softwareCost: "€ 2.388",
+    roiX: "23x",
+  },
+
   transformation: {
     title: "Prima di Edilizia in Cloud vs. Dopo",
     subtitle: "Stessa impresa, stesse squadre, stesso mercato. La differenza è solo nell'organizzazione.",

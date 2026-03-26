@@ -52,6 +52,18 @@ const config: PerTipoConfig = {
     },
   ],
 
+  roi: {
+    lossValue: "€ 22.000",
+    lossLabel: "in detrazioni fiscali perse per documentazione errata",
+    wasteValue: "€ 13.000",
+    wasteLabel: "ore perse su pratiche bonus, ENEA, APE e varianti",
+    errorValue: "€ 9.500",
+    errorLabel: "in varianti non tracciate e clienti scontenti",
+    totalLoss: "€ 44.500",
+    softwareCost: "€ 2.388",
+    roiX: "19x",
+  },
+
   transformation: {
     title: "Prima di Edilizia in Cloud vs. Dopo",
     subtitle: "La stessa impresa, due realtà completamente diverse. Quella a destra è già possibile da domani.",

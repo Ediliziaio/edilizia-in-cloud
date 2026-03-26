@@ -55,6 +55,18 @@ export interface FaqItem {
   a: string;
 }
 
+export interface RoiData {
+  lossValue: string;
+  lossLabel: string;
+  wasteValue: string;
+  wasteLabel: string;
+  errorValue: string;
+  errorLabel: string;
+  totalLoss: string;
+  softwareCost: string;
+  roiX: string;
+}
+
 export interface PerTipoConfig {
   // SEO
   seoTitle: string;
@@ -72,6 +84,8 @@ export interface PerTipoConfig {
   problemsTitle: string;
   problemsSubtitle: string;
   problems: ProblemItem[];
+  // ROI calculator
+  roi: RoiData;
   // Transformation before/after
   transformation: {
     title: string;
@@ -124,6 +138,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
   const heroAnim = useScrollAnimation();
   const socialAnim = useScrollAnimation({ threshold: 0.1 });
   const problemsAnim = useScrollAnimation();
+  const roiAnim = useScrollAnimation();
   const transAnim = useScrollAnimation();
   const statsAnim = useScrollAnimation({ threshold: 0.2 });
   const modulesAnim = useScrollAnimation();
@@ -274,6 +289,75 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             <p className="text-gray-400 text-sm">
               Se hai risposto "sì" anche solo a uno, continua a leggere. →
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── ROI — QUANTO STAI PERDENDO ── */}
+      <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
+        <div ref={roiAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
+          <div className={`text-center mb-12 transition-all duration-700 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-red-400 bg-red-400/10 border border-red-400/20">
+              Hai già calcolato?
+            </span>
+            <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">
+              Quanto ti costa <span className="text-red-400">NON avere il controllo</span>
+            </h2>
+            <p className="text-white/50 text-lg max-w-2xl mx-auto">
+              La maggior parte degli imprenditori edili scopre solo a fine anno quanto ha perso. Ecco i numeri medi per un'azienda come la tua.
+            </p>
+          </div>
+
+          {/* 3 loss cards */}
+          <div className="grid md:grid-cols-3 gap-4 mb-8">
+            {[
+              { value: config.roi.lossValue, label: config.roi.lossLabel, icon: "📉", color: "border-red-500/30 bg-red-500/10" },
+              { value: config.roi.wasteValue, label: config.roi.wasteLabel, icon: "⏳", color: "border-orange-500/30 bg-orange-500/10" },
+              { value: config.roi.errorValue, label: config.roi.errorLabel, icon: "⚠️", color: "border-yellow-500/30 bg-yellow-500/10" },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className={`rounded-2xl border p-6 text-center ${item.color} transition-all duration-700 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                style={{ transitionDelay: `${150 + i * 100}ms` }}
+              >
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <p className="text-3xl font-extrabold text-white mb-2">{item.value}</p>
+                <p className="text-white/50 text-sm leading-snug">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Total + comparison */}
+          <div className={`rounded-2xl border border-white/10 bg-white/[0.04] p-6 md:p-8 transition-all duration-700 delay-400 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="text-center md:text-left">
+                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Totale stimato perso ogni anno</p>
+                <p className="text-4xl md:text-5xl font-extrabold text-red-400">{config.roi.totalLoss}</p>
+              </div>
+              <div className="text-white/30 text-3xl font-thin hidden md:block">vs</div>
+              <div className="text-center md:text-left">
+                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Edilizia in Cloud ti costa</p>
+                <p className="text-4xl md:text-5xl font-extrabold text-[#F97415]">{config.roi.softwareCost}</p>
+                <p className="text-white/30 text-xs mt-1">all'anno (piano Professional)</p>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-[#F97415]/50 bg-[#F97415]/10">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide">ROI</p>
+                  <p className="text-3xl font-extrabold text-[#F97415]">{config.roi.roiX}</p>
+                  <p className="text-white/40 text-[10px]">nel 1° anno</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-white/40 text-sm">
+                🎯 <span className="text-white/60">31 giorni gratis</span> per verificarlo tu stesso. Se non vedi i risultati, non paghi nulla.
+              </p>
+              <Link to="/demo" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+                Calcola il tuo ROI reale <ArrowRight size={14} />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

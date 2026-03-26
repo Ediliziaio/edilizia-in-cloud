@@ -4,7 +4,7 @@ import { Shield, TrendingUp, Headphones, Zap, ArrowRight } from "lucide-react";
 const guaranteeItems = [
   {
     icon: Shield,
-    text: "30 giorni soddisfatti o rimborsati",
+    text: "31 giorni soddisfatti o rimborsati",
   },
   {
     icon: TrendingUp,
@@ -52,7 +52,7 @@ export default function GuaranteeSection() {
             </h2>
 
             <p className="text-white/80 text-lg leading-relaxed mb-10">
-              Non ti chiediamo di fidarti sulla parola. Ti chiediamo di provare per 30 giorni. Se non vedi un miglioramento concreto nei tuoi margini, rimborsiamo ogni centesimo. Senza domande, senza burocrazia.
+              Non ti chiediamo di fidarti sulla parola. Ti chiediamo di provare per 31 giorni. Se non vedi un miglioramento concreto nei tuoi margini, rimborsiamo ogni centesimo. Senza domande, senza burocrazia.
             </p>
 
             <ul className="space-y-4 mb-10">
@@ -121,7 +121,7 @@ export default function GuaranteeSection() {
                   </p>
                   <div className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/20 border border-white/30">
                     <Shield className="w-4 h-4 text-white" />
-                    <span className="text-white text-xs font-bold tracking-wide">30 GIORNI</span>
+                    <span className="text-white text-xs font-bold tracking-wide">31 GIORNI</span>
                   </div>
                 </div>
               </div>

@@ -31,6 +31,18 @@ const config: PerTipoConfig = {
   problemsSubtitle:
     "Se gestisci cantieri multipli con subappaltatori e non hai controllo sui margini in tempo reale, stai lavorando alla cieca.",
 
+  roi: {
+    lossValue: "€ 28.000",
+    lossLabel: "persi in margini non tracciati su commesse",
+    wasteValue: "€ 15.600",
+    wasteLabel: "ore perse su report, Excel e telefonate capocantiere",
+    errorValue: "€ 11.000",
+    errorLabel: "in errori di preventivo e varianti non gestite",
+    totalLoss: "€ 54.600",
+    softwareCost: "€ 2.388",
+    roiX: "23x",
+  },
+
   problems: [
     {
       emoji: "🏗️",

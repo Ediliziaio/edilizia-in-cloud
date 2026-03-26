@@ -55,6 +55,19 @@ const config: PerTipoConfig = {
     },
   ],
 
+  // ROI
+  roi: {
+    lossValue: "€ 16.000",
+    lossLabel: "in preventivi persi per tempi troppo lunghi",
+    wasteValue: "€ 10.400",
+    wasteLabel: "ore su preventivi manuali, ordini fornitori e sopralluoghi",
+    errorValue: "€ 7.200",
+    errorLabel: "in errori di misura, ordini sbagliati e resi fornitori",
+    totalLoss: "€ 33.600",
+    softwareCost: "€ 2.388",
+    roiX: "14x",
+  },
+
   // Transformation
   transformation: {
     title: "Com'è lavorare prima e dopo Edilizia in Cloud",
