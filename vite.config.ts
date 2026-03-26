@@ -64,4 +64,25 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("xlsx")) return "xlsx";
+          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor")) return "charts";
+          if (id.includes("@tiptap")) return "editor";
+          if (id.includes("@supabase")) return "supabase";
+          if (id.includes("react-router")) return "react-router";
+          if (id.includes("react-dom")) return "react-dom";
+          if (id.includes("@tanstack")) return "tanstack";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("@dnd-kit")) return "dnd";
+          if (id.includes("date-fns")) return "date-fns";
+          if (id.includes("zod") || id.includes("react-hook-form")) return "forms";
+          if (id.includes("lucide-react")) return "lucide";
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 }));
