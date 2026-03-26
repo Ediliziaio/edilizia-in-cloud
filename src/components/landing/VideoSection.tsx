@@ -29,10 +29,18 @@ export default function VideoSection() {
 
   return (
     <section
-      className="py-24 md:py-32"
+      className="py-16 md:py-32 relative overflow-hidden"
       style={{ background: "#111111" }}
     >
-      <div ref={ref} className="max-w-5xl mx-auto px-6">
+      {/* Luminous top border */}
+      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.5) 35%, rgba(249,116,21,0.9) 50%, rgba(249,116,21,0.5) 65%, transparent 100%)" }} />
+      {/* Glow behind video */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] pointer-events-none blur-[120px]"
+        style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.09) 0%, transparent 70%)" }} />
+      <div className="absolute bottom-0 left-1/4 w-64 h-64 rounded-full pointer-events-none blur-[100px]"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.07) 0%, transparent 70%)" }} />
+      <div ref={ref} className="max-w-5xl mx-auto px-6 relative z-10">
         {/* Header */}
         <div
           className={`text-center mb-12 transition-all duration-700 ${
@@ -124,3 +132,4 @@ export default function VideoSection() {
     </section>
   );
 }
+

@@ -121,7 +121,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
             </div>
 
             {/* Chart + Table row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 min-w-0">
               {/* Bar chart */}
               <div className="bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
                 <p className="text-white/50 text-[9px] mb-2 font-medium">Fatturato Mensile</p>
@@ -142,7 +142,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
               </div>
 
               {/* Orders table */}
-              <div className="bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
+              <div className="hidden md:block bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
                 <p className="text-white/50 text-[9px] mb-2 font-medium">Ultimi Ordini</p>
                 <div className="space-y-1.5">
                   {ordersData.map((order, i) => (
@@ -213,7 +213,7 @@ export default function HeroSection() {
         (ref as React.MutableRefObject<HTMLDivElement | null>).current = el as HTMLDivElement | null;
         (sectionRef as React.MutableRefObject<HTMLElement | null>).current = el;
       }}
-      className="relative overflow-hidden pt-28 md:pt-36 pb-14 md:pb-20"
+      className="relative overflow-hidden pt-20 md:pt-36 pb-14 md:pb-20"
     >
       {/* Real photo background with parallax */}
       <div
@@ -282,16 +282,16 @@ export default function HeroSection() {
         <div
           className={`transition-all duration-700 delay-150 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <h1 className="text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
+          <h1 className="text-2xl sm:text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
             <span className="text-white block">Finisci di lavorare a sensazione.</span>
             <span className="text-[#F97415] block">Inizia a guadagnare davvero.</span>
           </h1>
 
           {/* Titolo con parola che cambia */}
-          <div className="text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
+          <div className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
             Controlla{" "}
             <span
-              className="text-[#F97415] inline-block min-w-[200px] md:min-w-[300px] transition-all duration-350"
+              className="text-[#F97415] inline-block min-w-[160px] md:min-w-[300px] transition-all duration-350"
               style={{
                 opacity: fadeState === "in" ? 1 : 0,
                 transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
@@ -313,7 +313,7 @@ export default function HeroSection() {
 
         {/* 4. Subtitle */}
         <p
-          className={`text-base md:text-xl text-white/60 max-w-sm md:max-w-2xl mx-auto mb-10 transition-all duration-700 delay-300 ${
+          className={`text-sm md:text-xl text-white/60 max-w-xs sm:max-w-sm md:max-w-2xl mx-auto mb-8 md:mb-10 transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >

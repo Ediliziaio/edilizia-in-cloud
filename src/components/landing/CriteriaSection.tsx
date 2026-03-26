@@ -12,8 +12,16 @@ export default function CriteriaSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-24 md:py-32 bg-[#111111]">
-      <div ref={ref} className="max-w-4xl mx-auto px-6">
+    <section className="py-16 md:py-32 bg-[#111111] relative overflow-hidden">
+      {/* Luminous top border */}
+      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.5) 35%, rgba(249,116,21,0.9) 50%, rgba(249,116,21,0.5) 65%, transparent 100%)" }} />
+      {/* Glow orbs */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full pointer-events-none blur-[100px]"
+        style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
+      <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full pointer-events-none blur-[120px]"
+        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
+      <div ref={ref} className="max-w-4xl mx-auto px-6 relative z-10">
         <h2
           className={`text-3xl md:text-5xl font-extrabold text-white text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
@@ -33,13 +41,13 @@ export default function CriteriaSection() {
           {criteria.map((c, i) => (
             <div
               key={i}
-              className={`flex gap-6 p-6 rounded-2xl bg-white/[0.05] border border-white/[0.08] hover:border-[#F97415]/30 hover:bg-white/[0.08] transition-all duration-500 group ${
+              className={`flex gap-4 md:gap-6 p-4 md:p-6 rounded-2xl bg-white/[0.05] border border-white/[0.08] hover:border-[#F97415]/30 hover:bg-white/[0.08] transition-all duration-500 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
               }`}
               style={{ transitionDelay: isVisible ? `${200 + i * 100}ms` : "0ms" }}
             >
               <span
-                className="font-extrabold text-4xl flex-shrink-0 bg-gradient-to-b from-[#F97415] to-[#F97415]/30 bg-clip-text text-transparent"
+                className="font-extrabold text-3xl md:text-4xl flex-shrink-0 bg-gradient-to-b from-[#F97415] to-[#F97415]/30 bg-clip-text text-transparent"
               >
                 {c.n}
               </span>

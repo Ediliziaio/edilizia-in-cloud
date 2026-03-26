@@ -129,7 +129,7 @@ export default function StatsSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.2 });
 
   return (
-    <section style={{ backgroundColor: "#111111" }} className="py-20 md:py-28 relative overflow-hidden">
+    <section style={{ backgroundColor: "#111111" }} className="py-14 md:py-28 relative overflow-hidden">
       {/* Subtle grid */}
       <div
         className="absolute inset-0 opacity-[0.03]"

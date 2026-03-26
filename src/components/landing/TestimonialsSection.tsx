@@ -89,7 +89,7 @@ export default function TestimonialsSection() {
   };
 
   return (
-    <section className="py-24 md:py-32 bg-[#111111] overflow-hidden relative">
+    <section className="py-14 md:py-32 bg-[#111111] overflow-hidden relative">
       {/* Background glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F97415]/[0.06] rounded-full blur-[120px] pointer-events-none" />
 

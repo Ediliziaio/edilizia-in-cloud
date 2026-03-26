@@ -15,8 +15,15 @@ export default function SolutionSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-24 md:py-32 bg-[#111111] relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-96 h-96 bg-[#F97415]/[0.06] rounded-full blur-[150px]" />
+    <section className="py-16 md:py-32 bg-[#111111] relative overflow-hidden">
+      {/* Luminous top border */}
+      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.5) 35%, rgba(249,116,21,0.9) 50%, rgba(249,116,21,0.5) 65%, transparent 100%)" }} />
+      {/* Glow orbs */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#F97415]/[0.10] rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#F97415]/[0.07] rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full pointer-events-none blur-[100px]"
+        style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.04) 0%, transparent 70%)" }} />
 
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
@@ -74,7 +81,7 @@ export default function SolutionSection() {
             <div className="w-3 h-3 rounded-full bg-green-400/60" />
             <span className="ml-3 text-white/30 text-xs">dashboard.ediliziaincloud.com</span>
           </div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
             {[
               { label: "Margine Medio", value: "24.5%", icon: PieChart, color: "text-[#F97415]" },
               { label: "Cassa Disponibile", value: "€ 128.450", icon: BarChart3, color: "text-[#F97415]" },
@@ -89,7 +96,7 @@ export default function SolutionSection() {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-6 gap-2 overflow-hidden">
+          <div className="hidden sm:grid grid-cols-6 gap-2 overflow-hidden">
             {BAR_HEIGHTS.map((h, i) => (
               <div
                 key={i}

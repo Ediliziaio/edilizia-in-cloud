@@ -39,7 +39,7 @@ export default function FinalCtaSection() {
   return (
     <section
       id="cta-finale"
-      className="py-24 md:py-32 relative overflow-hidden"
+      className="py-16 md:py-32 relative overflow-hidden"
       style={{ background: "#0a0a0a" }}
     >
       {/* Bordo top luminoso */}
@@ -113,7 +113,7 @@ export default function FinalCtaSection() {
 
         {/* Central box */}
         <div
-          className={`border border-[#F97415]/40 rounded-3xl p-10 md:p-12 bg-[#F97415]/5 backdrop-blur max-w-3xl mx-auto transition-all duration-700 delay-300 ${
+          className={`border border-[#F97415]/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-[#F97415]/5 backdrop-blur max-w-3xl mx-auto transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           }`}
         >
@@ -134,7 +134,7 @@ export default function FinalCtaSection() {
               href="https://calendly.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#F97415]/30"
+              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#F97415]/30"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="w-5 h-5" />
@@ -145,7 +145,7 @@ export default function FinalCtaSection() {
                 e.preventDefault();
                 document.querySelector("#prezzi")?.scrollIntoView({ behavior: "smooth" });
               }}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
+              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-white/20 text-white font-bold text-base md:text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
             >
               Vedi i Prezzi
             </a>
