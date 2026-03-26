@@ -2,7 +2,7 @@ import { useState, useEffect, forwardRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,8 +114,9 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
       });
       if (error) {
         toast({

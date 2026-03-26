@@ -45,7 +45,7 @@ serve(async (req) => {
     const token = btoa(JSON.stringify(payload));
 
     // Build public URL
-    const publicUrl = `${req.headers.get("origin") || Deno.env.get("SITE_URL") || supabaseUrl.replace(".supabase.co", ".lovable.app")}/preventivo/${documento_id}?token=${token}`;
+    const publicUrl = `${req.headers.get("origin") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com"}/preventivo/${documento_id}?token=${token}`;
 
     return new Response(JSON.stringify({ url: publicUrl, token }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
