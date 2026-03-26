@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -319,7 +320,7 @@ function AdminMainSidebar() {
     setPopoverOpen(false);
     setCompanySearch("");
     await impersonateCompany(companyId, permissions);
-    navigate("/azienda");
+    navigateToSubdomain("/azienda", "app", navigate);
   };
 
   const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";

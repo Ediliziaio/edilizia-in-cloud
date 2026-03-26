@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -207,7 +208,12 @@ export function QuickLoginPopover() {
       toast.success(`Accesso effettuato come ${user.first_name} ${user.last_name}`);
 
       const target = REDIRECT_MAP[user.role] || "/";
-      navigate(target, { replace: true });
+      const subdomain = (["super_admin", "platform_manager", "platform_sales", "platform_support", "platform_marketing", "platform_implementation"] as AppRole[]).includes(user.role)
+        ? "admin"
+        : user.role === "customer"
+        ? "clienti"
+        : "app";
+      navigateToSubdomain(target, subdomain, (path) => navigate(path, { replace: true }));
     } catch (err: any) {
       logger.error("Sign in as user error:", err);
       toast.error(`Errore: ${err.message || "Impossibile accedere come utente"}`);

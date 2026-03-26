@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -118,7 +119,7 @@ function ImpersonationBanner() {
 
   const handleExit = () => {
     exitImpersonation();
-    navigate("/admin/aziende");
+    navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
   return (
@@ -479,7 +480,7 @@ function CompanySidebar() {
   const handleLogoutOrExit = () => {
     if (isImpersonating) {
       exitImpersonation();
-      navigate("/admin/aziende");
+      navigateToSubdomain("/admin/aziende", "admin", navigate);
     } else {
       signOut();
     }

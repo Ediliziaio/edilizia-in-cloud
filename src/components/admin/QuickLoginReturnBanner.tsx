@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,12 +57,12 @@ export function QuickLoginReturnBanner() {
       clearQuickLoginSession();
       await refreshAuth();
       toast.success(`Bentornato, ${originalName}`);
-      navigate("/admin", { replace: true });
+      navigateToSubdomain("/admin", "admin", (path) => navigate(path, { replace: true }));
     } catch (err: any) {
       logger.error("Return to admin error:", err);
       clearQuickLoginSession();
       toast.error("Sessione scaduta. Effettua il login manualmente.");
-      navigate("/login");
+      navigateToSubdomain("/login", "admin", navigate);
     } finally {
       setLoading(false);
     }
