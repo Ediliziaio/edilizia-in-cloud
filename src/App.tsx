@@ -26,6 +26,7 @@ const PageLoader = () => (
 // Public & Auth pages
 const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
+const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Home = lazy(() => import("@/pages/Home"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
@@ -86,6 +87,7 @@ const App = () => (
               <Route path="/home" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />

@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
+import { getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 
 function LoadingSpinner({ text }: { text: string }) {
   return (
@@ -60,8 +61,15 @@ export function RoleBasedRedirect() {
     return <LoadingSpinner text="Caricamento..." />;
   }
 
-  // Redirect to login if no user
+  // Redirect to the correct login page based on the subdomain when there is no user
   if (!user) {
+    const subdomain = getCurrentSubdomain();
+    if (subdomain === "admin") {
+      return <Navigate to="/admin-login" replace />;
+    }
+    if (subdomain === "clienti") {
+      return <Navigate to="/clienti-login" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

@@ -37,7 +37,7 @@ const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
   clienti: {
     subdomain: "clienti",
     defaultPath: "/cliente/ordini",
-    loginPath: "/login",
+    loginPath: "/clienti-login",
     title: "Portale Clienti — Edilizia in Cloud",
   },
   app: {
