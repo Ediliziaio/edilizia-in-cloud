@@ -189,7 +189,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_employees")
-        .select("order_id, total_cost, employee_id")
+        .select("order_id, total_cost, employee_id, employee:employees(id, first_name, last_name)")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -205,7 +205,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_external_teams")
-        .select("order_id, total_cost, vat_rate, external_team_id")
+        .select("order_id, total_cost, vat_rate, external_team_id, external_team:external_teams(id, name)")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -221,7 +221,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("order_id, commission_type, commission_value, deduction_amount, salesperson_id")
+        .select("order_id, commission_type, commission_value, deduction_amount, salesperson_id, salesperson:salespeople(id, first_name, last_name)")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -231,87 +231,42 @@ export default function OrdersList() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch names for salespeople, employees, external teams
-  const salespersonIds = useMemo(() => [...new Set(salespeopleData.map(s => s.salesperson_id).filter(Boolean))], [salespeopleData]);
-  const employeeIds = useMemo(() => [...new Set(employeeCosts.map(e => e.employee_id).filter(Boolean))], [employeeCosts]);
-  const externalTeamIds = useMemo(() => [...new Set(externalTeamCosts.map(t => t.external_team_id).filter(Boolean))], [externalTeamCosts]);
-
-  const { data: salespersonProfiles = [] } = useQuery({
-    queryKey: ["salesperson-profiles", salespersonIds],
-    queryFn: async () => {
-      if (salespersonIds.length === 0) return [];
-      const { data, error } = await supabase.from("salespeople").select("id, first_name, last_name").in("id", salespersonIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: salespersonIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-
-  const { data: employeeProfiles = [] } = useQuery({
-    queryKey: ["employee-profiles", employeeIds],
-    queryFn: async () => {
-      if (employeeIds.length === 0) return [];
-      const { data, error } = await supabase.from("employees").select("id, first_name, last_name").in("id", employeeIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: employeeIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-
-  const { data: externalTeamProfiles = [] } = useQuery({
-    queryKey: ["external-team-profiles", externalTeamIds],
-    queryFn: async () => {
-      if (externalTeamIds.length === 0) return [];
-      const { data, error } = await supabase.from("external_teams").select("id, name").in("id", externalTeamIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: externalTeamIds.length > 0,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-
   // Build name maps
   const salespeopleMap = useMemo(() => {
-    const profileMap = new Map(salespersonProfiles.map(p => [p.id, `${p.first_name} ${p.last_name}`]));
     const map = new Map<string, string[]>();
     for (const sp of salespeopleData) {
-      const name = profileMap.get(sp.salesperson_id);
-      if (name) {
+      const p = (sp as any).salesperson;
+      if (p) {
+        const name = `${p.first_name} ${p.last_name}`;
         const existing = map.get(sp.order_id) || [];
         if (!existing.includes(name)) existing.push(name);
         map.set(sp.order_id, existing);
       }
     }
     return map;
-  }, [salespeopleData, salespersonProfiles]);
+  }, [salespeopleData]);
 
   const laborMap = useMemo(() => {
-    const empMap = new Map(employeeProfiles.map(e => [e.id, `${e.first_name} ${e.last_name}`]));
-    const teamMap = new Map(externalTeamProfiles.map(t => [t.id, t.name]));
     const map = new Map<string, string[]>();
     for (const e of employeeCosts) {
-      const name = empMap.get(e.employee_id);
-      if (name) {
+      const emp = (e as any).employee;
+      if (emp) {
+        const name = `${emp.first_name} ${emp.last_name}`;
         const existing = map.get(e.order_id) || [];
         if (!existing.includes(name)) existing.push(name);
         map.set(e.order_id, existing);
       }
     }
     for (const t of externalTeamCosts) {
-      const name = teamMap.get(t.external_team_id);
-      if (name) {
+      const team = (t as any).external_team;
+      if (team) {
         const existing = map.get(t.order_id) || [];
-        if (!existing.includes(name)) existing.push(name);
+        if (!existing.includes(team.name)) existing.push(team.name);
         map.set(t.order_id, existing);
       }
     }
     return map;
-  }, [employeeCosts, externalTeamCosts, employeeProfiles, externalTeamProfiles]);
+  }, [employeeCosts, externalTeamCosts]);
 
   // Build supplier map from order_items
   const supplierIds = useMemo(() => [...new Set(itemCosts.map(i => i.supplier_id).filter(Boolean) as string[])], [itemCosts]);
@@ -347,25 +302,55 @@ export default function OrdersList() {
   // Unique lists for filter dropdowns
   const uniqueSalespeople = useMemo(() => {
     const map = new Map<string, string>();
-    for (const sp of salespersonProfiles) map.set(sp.id, `${sp.first_name} ${sp.last_name}`);
+    for (const sp of salespeopleData) {
+      const p = (sp as any).salesperson;
+      if (p) map.set(p.id, `${p.first_name} ${p.last_name}`);
+    }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [salespersonProfiles]);
+  }, [salespeopleData]);
 
   const uniqueLabor = useMemo(() => {
     const map = new Map<string, string>();
-    for (const e of employeeProfiles) map.set(`emp-${e.id}`, `${e.first_name} ${e.last_name}`);
-    for (const t of externalTeamProfiles) map.set(`team-${t.id}`, t.name);
+    for (const e of employeeCosts) {
+      const emp = (e as any).employee;
+      if (emp) map.set(`emp-${emp.id}`, `${emp.first_name} ${emp.last_name}`);
+    }
+    for (const t of externalTeamCosts) {
+      const team = (t as any).external_team;
+      if (team) map.set(`team-${team.id}`, team.name);
+    }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [employeeProfiles, externalTeamProfiles]);
+  }, [employeeCosts, externalTeamCosts]);
 
   const uniqueSuppliers = useMemo(() => {
     return supplierProfiles.map(s => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [supplierProfiles]);
 
   // Reverse lookup Maps: name → id for O(1) filter matching
-  const spNameToIdMap = useMemo(() => new Map(salespersonProfiles.map(p => [`${p.first_name} ${p.last_name}`, p.id])), [salespersonProfiles]);
-  const empNameToIdMap = useMemo(() => new Map(employeeProfiles.map(e => [`${e.first_name} ${e.last_name}`, e.id])), [employeeProfiles]);
-  const teamNameToIdMap = useMemo(() => new Map(externalTeamProfiles.map(t => [t.name, t.id])), [externalTeamProfiles]);
+  const spNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const sp of salespeopleData) {
+      const p = (sp as any).salesperson;
+      if (p) map.set(`${p.first_name} ${p.last_name}`, p.id);
+    }
+    return map;
+  }, [salespeopleData]);
+  const empNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of employeeCosts) {
+      const emp = (e as any).employee;
+      if (emp) map.set(`${emp.first_name} ${emp.last_name}`, emp.id);
+    }
+    return map;
+  }, [employeeCosts]);
+  const teamNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of externalTeamCosts) {
+      const team = (t as any).external_team;
+      if (team) map.set(team.name, team.id);
+    }
+    return map;
+  }, [externalTeamCosts]);
   const supNameToIdMap = useMemo(() => new Map(supplierProfiles.map(s => [s.name, s.id])), [supplierProfiles]);
 
   // Column visibility state

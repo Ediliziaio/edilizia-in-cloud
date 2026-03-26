@@ -135,6 +135,23 @@ export default function Calendar() {
     placeholderData: keepPreviousData,
   });
 
+  // Fetch all profiles for the company (small, cached)
+  const { data: companyProfiles = [] } = useQuery({
+    queryKey: ["company-profiles", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
   // Fetch appointments
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
@@ -154,25 +171,7 @@ export default function Calendar() {
         .limit(1000);
       if (error) throw error;
 
-      // Enrich with assigned profile names
-      const assignedIds = [...new Set((data || []).map(a => a.assigned_to).filter(Boolean))] as string[];
-      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
-      if (assignedIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, first_name, last_name")
-          .in("id", assignedIds);
-        if (profilesError) {
-          console.warn("Could not load assignee profiles:", profilesError.message);
-        } else if (profiles) {
-          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { first_name: p.first_name, last_name: p.last_name }]));
-        }
-      }
-
-      return (data || []).map(apt => ({
-        ...apt,
-        assigned_profile: apt.assigned_to ? profilesMap[apt.assigned_to] || null : null,
-      })) as CalendarAppointment[];
+      return (data || []) as CalendarAppointment[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -354,11 +353,23 @@ export default function Calendar() {
       });
   }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, visibleEmployeeIds, visibleTeamIds, companyEmployees, externalTeams]);
 
+  // Enrich appointments with assigned profile names (using cached company profiles)
+  const profilesById = useMemo(() => {
+    return new Map(companyProfiles.map(p => [p.id, p]));
+  }, [companyProfiles]);
+
+  const enrichedAppointments = useMemo(() => {
+    return appointments.map(apt => ({
+      ...apt,
+      assigned_profile: apt.assigned_to ? profilesById.get(apt.assigned_to) ?? null : null,
+    }));
+  }, [appointments, profilesById]);
+
   // Filter appointments by assignedTo
   const filteredAppointments = useMemo(() => {
-    if (assignedToFilter === "all") return appointments;
-    return appointments.filter(apt => apt.assigned_to === assignedToFilter);
-  }, [appointments, assignedToFilter]);
+    if (assignedToFilter === "all") return enrichedAppointments;
+    return enrichedAppointments.filter(apt => apt.assigned_to === assignedToFilter);
+  }, [enrichedAppointments, assignedToFilter]);
 
   // Compute hidden event types for views
   const hiddenEventTypes = useMemo(() => {
