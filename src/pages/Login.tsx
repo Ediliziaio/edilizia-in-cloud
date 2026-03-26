@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
+import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 
 const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   const { user, role, isLoading } = useAuth();
@@ -80,9 +81,10 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
     }
     
     // Redirect based on role
+    if (ADMIN_PLATFORM_ROLES.includes(role as AppRole)) {
+      return <Navigate to="/admin" replace />;
+    }
     switch (role) {
-      case "super_admin":
-        return <Navigate to="/admin" replace />;
       case "company_admin":
       case "company_staff":
         return <Navigate to="/azienda" replace />;

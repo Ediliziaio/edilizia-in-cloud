@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Shield, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 
 type ViewMode = "login" | "2fa";
 
@@ -20,13 +21,13 @@ export default function AdminLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // If already logged in as super_admin, redirect
-  if (!isLoading && user && role === "super_admin") {
+  // If already logged in as an admin role, redirect to the panel
+  if (!isLoading && user && role && ADMIN_PLATFORM_ROLES.includes(role as AppRole)) {
     return <Navigate to="/admin" replace />;
   }
 
-  // If logged in but not super_admin, show access denied
-  if (!isLoading && user && role && role !== "super_admin") {
+  // If logged in but without an admin role, show access denied
+  if (!isLoading && user && role && !ADMIN_PLATFORM_ROLES.includes(role as AppRole)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
@@ -102,13 +103,15 @@ export default function AdminLogin() {
           .select("role")
           .eq("user_id", loggedUser.id);
 
-        const isSuperAdmin = roles?.some((r) => r.role === "super_admin");
-        if (!isSuperAdmin) {
+        const isAdminRole = roles?.some((r) =>
+          ADMIN_PLATFORM_ROLES.includes(r.role as AppRole)
+        );
+        if (!isAdminRole) {
           await supabase.auth.signOut();
           toast({
             variant: "destructive",
             title: "Accesso Negato",
-            description: "Questa pagina è riservata agli amministratori.",
+            description: "Questa pagina è riservata agli amministratori della piattaforma.",
           });
           setIsSubmitting(false);
           return;
