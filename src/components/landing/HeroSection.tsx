@@ -1,5 +1,11 @@
+import { useEffect, useRef, useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon, LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings, TrendingUp, Euro, AlertCircle, CheckCircle2, Star, Headphones } from "lucide-react";
+import {
+  Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
+  LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
+  TrendingUp, Euro, AlertCircle, CheckCircle2, Star, Headphones,
+  Shield, Zap, Lock,
+} from "lucide-react";
 
 const floatingIcons = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
@@ -10,7 +16,7 @@ const floatingIcons = [
   { Icon: Building2, top: "15%", left: "80%", size: 52, delay: "1.5s", anim: "animate-float-slow" },
   { Icon: Blocks, top: "80%", left: "25%", size: 38, delay: "2.5s", anim: "animate-float" },
   { Icon: ConeIcon, top: "50%", right: "5%", size: 34, delay: "0.8s", anim: "animate-float-slow" },
-];
+] as const;
 
 const sidebarItems = [
   { Icon: LayoutDashboard, label: "Dashboard", active: true },
@@ -42,6 +48,15 @@ const chartBars = [
   { month: "Dic", h: 70 },
   { month: "Gen", h: 55 },
   { month: "Feb", h: 80 },
+];
+
+const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "i tuoi dipendenti"];
+
+const microBadges = [
+  { Icon: Shield, label: "GDPR Compliant" },
+  { Icon: Zap, label: "Setup in 48h" },
+  { Icon: Star, label: "4.9/5 stelle" },
+  { Icon: Lock, label: "Dati in Europa" },
 ];
 
 function DashboardMockup({ isVisible }: { isVisible: boolean }) {
@@ -159,15 +174,67 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
 
 export default function HeroSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1 });
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // Typing animation state
+  const [wordIndex, setWordIndex] = useState(0);
+  const [displayWord, setDisplayWord] = useState(typingWords[0]);
+  const [fadeState, setFadeState] = useState<"in" | "out">("in");
+
+  // Parallax state
+  const [parallaxY, setParallaxY] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFadeState("out");
+      setTimeout(() => {
+        setWordIndex((prev) => {
+          const next = (prev + 1) % typingWords.length;
+          setDisplayWord(typingWords[next]);
+          return next;
+        });
+        setFadeState("in");
+      }, 350);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setParallaxY(window.scrollY * 0.3);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <section
-      ref={ref}
-      className="relative overflow-hidden pt-28 md:pt-36 pb-14 md:pb-20"
-      style={{
-        background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 50%, #1a2744 100%)",
+      ref={(el) => {
+        (ref as React.MutableRefObject<HTMLDivElement | null>).current = el as HTMLDivElement | null;
+        (sectionRef as React.MutableRefObject<HTMLElement | null>).current = el;
       }}
+      className="relative overflow-hidden pt-28 md:pt-36 pb-14 md:pb-20"
     >
+      {/* Real photo background with parallax */}
+      <div
+        className="absolute inset-0 w-full h-full"
+        style={{
+          backgroundImage: "url(https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          transform: `translateY(${parallaxY}px)`,
+          willChange: "transform",
+        }}
+      />
+
+      {/* Gradient overlay */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: "linear-gradient(135deg, rgba(26,39,68,0.92) 0%, rgba(15,29,53,0.88) 50%, rgba(26,39,68,0.85) 100%)",
+        }}
+      />
+
       {/* Grid overlay */}
       <div className="absolute inset-0 opacity-[0.04]" style={{
         backgroundImage: "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
@@ -178,7 +245,7 @@ export default function HeroSection() {
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
           key={i}
-          className={`absolute opacity-[0.06] text-[#0fa68c] ${anim} hidden md:block`}
+          className={`absolute opacity-[0.12] text-[#0fa68c] ${anim} hidden md:block`}
           style={{ top, left, right, animationDelay: delay }}
         >
           <Icon size={size} strokeWidth={1} />
@@ -190,28 +257,50 @@ export default function HeroSection() {
       <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-[#0fa68c]/[0.04] rounded-full blur-[100px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-        {/* 1. Badge */}
+        {/* 1. Badge animato */}
         <div
           className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <span
-            className="inline-block mb-6 px-3 md:px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden"
-          >
+          <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
             <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
+            {/* Pulsing dot */}
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+            </span>
             <span className="relative">Il sistema di controllo per l'impresa edile che vuole crescere davvero.</span>
           </span>
         </div>
 
-        {/* 2. Title */}
-        <h1
-          className={`text-3xl md:text-6xl lg:text-7xl font-extrabold text-white leading-tight mb-0 md:mb-2 transition-all duration-700 delay-150 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
+        {/* 2. Titolo con typing animation */}
+        <div
+          className={`transition-all duration-700 delay-150 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          Aumenta margini, utili aziendali e compensi
-          <br />
-          <span className="text-[#0fa68c]">grazie al controllo dei numeri</span>
-        </h1>
+          <h1 className="text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
+            <span className="text-white block">Smetti di lavorare a sensazione.</span>
+            <span className="text-[#0fa68c] block">Inizia a guadagnare davvero.</span>
+          </h1>
+
+          {/* Titolo con parola che cambia */}
+          <div className="text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
+            Controlla{" "}
+            <span
+              className="text-[#0fa68c] inline-block min-w-[200px] md:min-w-[300px] transition-all duration-350"
+              style={{
+                opacity: fadeState === "in" ? 1 : 0,
+                transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
+                transition: "opacity 0.35s ease, transform 0.35s ease",
+              }}
+            >
+              {displayWord}
+            </span>{" "}
+            in tempo reale
+          </div>
+
+          <p className="text-sm md:text-base text-white/50 mb-0 max-w-xl mx-auto">
+            Il gestionale che gli imprenditori edili italiani stavano aspettando.
+          </p>
+        </div>
 
         {/* 3. Dashboard Mockup */}
         <DashboardMockup isVisible={isVisible} />
@@ -246,6 +335,23 @@ export default function HeroSection() {
           >
             Scopri le Funzionalità
           </a>
+        </div>
+
+        {/* Micro-badges */}
+        <div
+          className={`flex flex-wrap items-center justify-center gap-3 mt-5 transition-all duration-700 delay-600 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          {microBadges.map(({ Icon, label }, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/8 border border-white/12 text-white/60 text-[10px] md:text-xs font-medium"
+            >
+              <Icon size={12} className="text-[#0fa68c]" />
+              {label}
+            </span>
+          ))}
         </div>
 
         {/* Social Proof */}

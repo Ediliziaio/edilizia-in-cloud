@@ -3,11 +3,14 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
 import StatsSection from "@/components/landing/StatsSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
+import FeatureShowcaseSection from "@/components/landing/FeatureShowcaseSection";
 import FounderLetterSection from "@/components/landing/FounderLetterSection";
+import BonusGiftSection from "@/components/landing/BonusGiftSection";
 import PainPointsSection from "@/components/landing/PainPointsSection";
 import CostTableSection from "@/components/landing/CostTableSection";
 import SolutionSection from "@/components/landing/SolutionSection";
 import ModulesSection from "@/components/landing/ModulesSection";
+import VideoSection from "@/components/landing/VideoSection";
 import ComparisonSection from "@/components/landing/ComparisonSection";
 import ScenarioSection from "@/components/landing/ScenarioSection";
 import TargetSection from "@/components/landing/TargetSection";
@@ -16,7 +19,6 @@ import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import GuaranteeSection from "@/components/landing/GuaranteeSection";
-import BonusGiftSection from "@/components/landing/BonusGiftSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
 import FounderLetterBottom from "@/components/landing/FounderLetterBottom";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -50,12 +52,14 @@ export default function Home() {
       <HeroSection />
       <StatsSection />
       <HowItWorksSection />
+      <FeatureShowcaseSection />
       <FounderLetterSection />
       <BonusGiftSection />
       <PainPointsSection />
       <CostTableSection />
       <SolutionSection />
       <ModulesSection />
+      <VideoSection />
       <ComparisonSection />
       <ScenarioSection />
       <TargetSection />
