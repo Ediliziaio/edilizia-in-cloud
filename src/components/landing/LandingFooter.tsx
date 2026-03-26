@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import logo from "@/assets/edilizia-in-cloud-logo.png";
 
 export default function LandingFooter() {
@@ -20,7 +21,9 @@ export default function LandingFooter() {
               <li><a href="#moduli" onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#0fa68c] transition-colors">Funzionalità</a></li>
               <li><a href="#prezzi" onClick={(e) => { e.preventDefault(); document.querySelector("#prezzi")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#0fa68c] transition-colors">Prezzi</a></li>
               <li><a href="#confronto" onClick={(e) => { e.preventDefault(); document.querySelector("#confronto")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#0fa68c] transition-colors">Confronto</a></li>
+              <li><Link to="/blog" className="hover:text-[#0fa68c] transition-colors">Blog</Link></li>
               <li><a href="#cta-finale" onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#0fa68c] transition-colors">Richiedi Demo</a></li>
+              <li><a href="/sitemap.xml" className="hover:text-[#0fa68c] transition-colors">Sitemap</a></li>
             </ul>
           </div>
 
@@ -51,9 +54,9 @@ export default function LandingFooter() {
             © 2025 Domus Group S.r.l. — Tutti i diritti riservati.
           </p>
           <div className="flex gap-6 text-sm text-[#1a2744]/40">
-            <a href="#" className="hover:text-[#0fa68c] transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-[#0fa68c] transition-colors">Termini di Servizio</a>
-            <a href="#" className="hover:text-[#0fa68c] transition-colors">Cookie Policy</a>
+            <Link to="/privacy" className="hover:text-[#0fa68c] transition-colors">Privacy Policy</Link>
+            <Link to="/termini" className="hover:text-[#0fa68c] transition-colors">Termini di Servizio</Link>
+            <Link to="/cookie" className="hover:text-[#0fa68c] transition-colors">Cookie Policy</Link>
           </div>
         </div>
       </div>

@@ -53,6 +53,8 @@ const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
+const Blog = lazy(() => import("@/pages/Blog"));
+const BlogPost = lazy(() => import("@/pages/BlogPost"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -107,6 +109,8 @@ const App = () => (
               <Route path="/chi-siamo" element={<ChiSiamo />} />
               <Route path="/prezzi" element={<Prezzi />} />
               <Route path="/confronto" element={<Confronto />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
               <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />

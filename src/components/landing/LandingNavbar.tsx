@@ -13,6 +13,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Funzionalita", type: "link", to: "/funzionalita" },
   { label: "Chi Siamo", type: "link", to: "/chi-siamo" },
+  { label: "Blog", type: "link", to: "/blog" },
   { label: "Confronto", type: "link", to: "/confronto" },
   { label: "Prezzi", type: "link", to: "/prezzi" },
 ];
