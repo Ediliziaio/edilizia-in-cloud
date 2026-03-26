@@ -48,14 +48,21 @@ function PromoBanner() {
 
 export default function Home() {
   useSEO({
-    title: "Edilizia in Cloud — Software Gestionale per Imprese Edili",
-    description: "Il software gestionale n°1 per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 30 giorni.",
+    title: "Gestionale Edilizia con AI — Software n°1 per Imprese Edili | Edilizia in Cloud",
+    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica piattaforma. Prova gratis 30 giorni.",
     canonical: "/home",
-    keywords: "software gestionale edilizia, gestionale imprese edili, software cantiere, gestione cantieri, preventivi edilizia, fatturazione edilizia, software costruzioni italiane",
+    keywords: "gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, ERP edilizia cloud, software costruzioni, gestionale cantieri online, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, gestionale edilizia 2026, miglior software impresa edile italiana, software edilizia PMI, gestionale edilizia prezzi, software cantieri digitale",
   });
 
   return (
     <div className="min-h-screen bg-white text-[#111111] pb-24 overflow-x-hidden">
+      <JsonLd id="jsonld-breadcrumb-home" data={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home"}
+        ]
+      }} />
       <JsonLd id="jsonld-home" data={{
         "@context": "https://schema.org",
         "@type": "FAQPage",

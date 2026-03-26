@@ -294,10 +294,10 @@ const press = [
 ───────────────────────────────────────────── */
 export default function ChiSiamo() {
   useSEO({
-    title: "Chi Siamo — Il Team di Edilizia in Cloud",
-    description: "Scopri la storia di Edilizia in Cloud: nati dall'esperienza diretta nel settore edile per risolvere i problemi reali degli imprenditori. 18 mesi di sviluppo, €12M+ gestiti.",
+    title: "Chi Siamo — Edilizia in Cloud, il Gestionale Edilizia con AI",
+    description: "Nati dall'esperienza diretta in cantiere per risolvere i problemi reali delle imprese edili. Scopri il team dietro al gestionale edilizia con AI n°1 in Italia. €12M+ gestiti, 150+ imprese.",
     canonical: "/chi-siamo",
-    keywords: "chi siamo edilizia in cloud, team software edilizia, storia edilizia in cloud, domus group srl",
+    keywords: "chi siamo edilizia in cloud, team gestionale edilizia, storia software edilizia, domus group srl, imprenditore edile software, gestionale edilizia italiano, software edilizia made in italy",
   });
 
   const heroAnim = useScrollAnimation();
@@ -311,7 +311,7 @@ export default function ChiSiamo() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd id="jsonld-breadcrumb-chi-siamo" data={{
+      <JsonLd id="jsonld-breadcrumb-chisiamo" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [

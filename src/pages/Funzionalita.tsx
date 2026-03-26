@@ -543,10 +543,10 @@ export default function Funzionalita() {
   const tabsRef = useRef<HTMLDivElement>(null);
 
   useSEO({
-    title: "Funzionalità — Tutti i Moduli di Edilizia in Cloud",
-    description: "Scopri tutti i 26 moduli di Edilizia in Cloud: gestione cantieri, margini in tempo reale, CRM, email marketing, WhatsApp, HR, fatturazione elettronica e AI per imprese edili.",
+    title: "26 Moduli + AI — Funzionalità Gestionale Edilizia | Edilizia in Cloud",
+    description: "Tutti i 26 moduli del gestionale edilizia con AI: cantieri in tempo reale, margini, CRM, WhatsApp, fatturazione elettronica SDI, HR presenze, previsione liquidità e dashboard intelligente.",
     canonical: "/funzionalita",
-    keywords: "funzionalità software edilizia, gestione cantieri software, CRM imprese edili, fatturazione elettronica edilizia, HR cantiere, marketing digitale edilizia, AI gestionale edilizia",
+    keywords: "funzionalità gestionale edilizia, moduli software edilizia, gestione cantieri real-time, AI dashboard edilizia, CRM imprese edili, WhatsApp marketing edilizia, fatturazione elettronica SDI edilizia, HR presenze cantiere software, previsione liquidità impresa edile, software margini commesse",
   });
 
   // Animate panel transition

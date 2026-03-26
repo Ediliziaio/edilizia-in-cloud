@@ -130,10 +130,10 @@ function PostCard({ post, featured = false }: PostCardProps) {
 
 export default function Blog() {
   useSEO({
-    title: "Blog — Insights e Guide per Imprese Edili",
-    description:
-      "Articoli, guide e strategie per imprenditori edili italiani. Scopri come ottimizzare cantieri, margini, HR e marketing della tua impresa edile.",
+    title: "Blog Edilizia — Guide, Strategie e AI per Imprese Edili | Edilizia in Cloud",
+    description: "Articoli pratici per imprenditori edili: come aumentare i margini, gestire cantieri con l'AI, digitalizzare l'impresa edile e far crescere il business costruzioni.",
     canonical: "/blog",
+    keywords: "blog edilizia, guide impresa edile, strategia impresa costruzioni, digitalizzazione edilizia, AI edilizia articoli, gestione cantieri guide, margini edilizia, marketing impresa edile blog",
   });
 
   const [activeCategory, setActiveCategory] = useState<string>("Tutti");
@@ -170,8 +170,22 @@ export default function Blog() {
         "@type": "BreadcrumbList",
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
-          { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://ediliziaincloud.com/blog" }
+          { "@type": "ListItem", "position": 2, "name": "Blog Edilizia", "item": "https://ediliziaincloud.com/blog" }
         ]
+      }} />
+      <JsonLd id="jsonld-blog-collection" data={{
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "@id": "https://ediliziaincloud.com/blog",
+        "name": "Blog Edilizia in Cloud",
+        "description": "Guide e strategie per imprenditori edili: gestione cantieri, AI, margini, digitalizzazione",
+        "url": "https://ediliziaincloud.com/blog",
+        "inLanguage": "it",
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://ediliziaincloud.com/#organization",
+          "name": "Edilizia in Cloud"
+        }
       }} />
       <LandingNavbar />
 

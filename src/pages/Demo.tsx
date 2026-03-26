@@ -56,10 +56,10 @@ export default function Demo() {
   const [submitted, setSubmitted] = useState(false);
 
   useSEO({
-    title: "Richiedi una Demo Gratuita — Edilizia in Cloud",
-    description: "Prenota una demo personalizzata di 30 minuti con il nostro team. Ti mostriamo come Edilizia in Cloud può trasformare la tua impresa edile. Nessun impegno.",
+    title: "Demo Gratuita Gestionale Edilizia — Prova Edilizia in Cloud con AI",
+    description: "Prenota una demo personalizzata di 30 minuti. Vedi come il gestionale edilizia con AI trasforma la tua impresa. Nessun impegno. Setup in 48h. Assistenza italiana dedicata.",
     canonical: "/demo",
-    keywords: "demo software edilizia, prova gratuita gestionale edilizia, richiedi demo edilizia in cloud",
+    keywords: "demo gestionale edilizia, prova gratuita software edilizia, demo edilizia in cloud, software gestionale edilizia gratis, trial gestionale cantieri, richiedi demo software impresa edile",
   });
 
   const validate = (): boolean => {

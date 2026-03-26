@@ -182,7 +182,7 @@ export default function Confronto() {
         "@type": "BreadcrumbList",
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
-          { "@type": "ListItem", "position": 2, "name": "Confronto", "item": "https://ediliziaincloud.com/confronto" }
+          { "@type": "ListItem", "position": 2, "name": "Confronto Software Edilizia", "item": "https://ediliziaincloud.com/confronto" }
         ]
       }} />
       <JsonLd id="jsonld-faq-confronto" data={{
