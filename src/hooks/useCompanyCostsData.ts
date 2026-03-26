@@ -36,7 +36,7 @@ export interface CostsFilters {
   statusTabFilter?: StatusTabFilter;
 }
 
-export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number) {
+export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number, dateFrom?: string, dateTo?: string) {
   const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter = "all" } = filters;
   const yearForStats = selectedYear ?? new Date().getFullYear();
 
@@ -53,14 +53,17 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query costs with supplier join
   const { data: costs = [], isLoading } = useQuery({
-    queryKey: queryKeys.costs.list(companyId),
+    queryKey: [...queryKeys.costs.list(companyId), dateFrom, dateTo],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("company_costs")
         .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
         .eq("company_id", companyId!)
         .order("due_date", { ascending: true })
-        .limit(5000);
+        .limit(1000);
+      if (dateFrom) query = query.gte("due_date", dateFrom);
+      if (dateTo) query = query.lte("due_date", dateTo);
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

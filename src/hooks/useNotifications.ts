@@ -102,6 +102,10 @@ export function useNotifications() {
         (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
     },
+    onError: () => {
+      // Revert optimistic update on error
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
+    },
   });
 
   const markAllAsRead = useMutation({
@@ -116,6 +120,10 @@ export function useNotifications() {
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => ({ ...n, is_read: true }))
       );
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
+      toast.error("Errore", { description: "Impossibile segnare tutte le notifiche come lette." });
     },
   });
 
@@ -133,6 +141,10 @@ export function useNotifications() {
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.filter((n) => n.id !== id)
       );
+    },
+    onError: () => {
+      // Revert optimistic update on error
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
     },
   });
 

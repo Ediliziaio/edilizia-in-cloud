@@ -92,7 +92,7 @@ export default function CreateCompanyTicket() {
         .insert({
           company_id: effectiveCompany?.id ?? "",
           customer_id: customerId,
-          order_id: orderId || null,
+          order_id: (orderId && orderId !== "none") ? orderId : null,
           subject,
           priority,
           status: "aperto" as const,

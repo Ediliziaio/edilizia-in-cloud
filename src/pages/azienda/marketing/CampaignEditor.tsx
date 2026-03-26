@@ -168,9 +168,24 @@ export default function CampaignEditor() {
     saveMut.mutate({ html_content: editorRef.current.innerHTML, name });
   };
 
-  // TODO: Migrare a libreria editor (TipTap/Slate) — execCommand è deprecato
+  // NOTE: execCommand è deprecato nelle specifiche HTML. Percorso di migrazione consigliato:
+  //   1. Installare @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image
+  //   2. Sostituire il <div contentEditable> con <EditorContent editor={editor} />
+  //   3. Sostituire execCmd("bold") → editor.chain().focus().toggleBold().run()
+  //   4. Sostituire execCmd("italic") → editor.chain().focus().toggleItalic().run()
+  //   5. Salvare il contenuto con editor.getHTML() invece di editorRef.current.innerHTML
+  // Per ora l'implementazione rimane basata su execCommand con fallback graceful.
   const execCmd = (cmd: string, value?: string) => {
-    document.execCommand(cmd, false, value);
+    try {
+      const supported = document.queryCommandSupported?.(cmd) ?? true;
+      if (!supported) {
+        console.warn(`[CampaignEditor] execCommand "${cmd}" non supportato in questo browser.`);
+        return;
+      }
+      document.execCommand(cmd, false, value);
+    } catch (e) {
+      console.warn(`[CampaignEditor] execCommand "${cmd}" fallito:`, e);
+    }
     editorRef.current?.focus();
     triggerAutoSave();
   };

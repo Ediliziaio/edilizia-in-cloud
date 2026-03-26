@@ -15,9 +15,23 @@ import type {
   ForecastStats,
 } from "@/lib/forecastTypes";
 
-export function useCashFlowData() {
+// Pure JS date helpers (date-fns not imported here to keep the bundle lean)
+function addMonthsJs(date: Date, months: number): Date {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+function subMonthsJs(date: Date, months: number): Date {
+  return addMonthsJs(date, -months);
+}
+
+export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+
+  const startDate = new Date().toISOString().slice(0, 10);
+  const endDate = addMonthsJs(new Date(), monthsAhead).toISOString().slice(0, 10);
+  const costDateFrom = subMonthsJs(new Date(), 3).toISOString().slice(0, 10);
 
   // Query installments (rate dinamiche da order_installments con join su orders)
   const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
@@ -30,8 +44,9 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id, customer:profiles!orders_customer_id_fkey(first_name, last_name))
         `)
         .eq("order.company_id", companyId!)
+        .lte("expected_date", endDate)
         .order("position", { ascending: true })
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -53,7 +68,7 @@ export function useCashFlowData() {
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data as ExternalTeamPayment[];
     },
@@ -75,7 +90,7 @@ export function useCashFlowData() {
         `)
         .eq("is_paid", false)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -98,7 +113,7 @@ export function useCashFlowData() {
         .in("status", ["da_ordinare", "ordinato"])
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -124,7 +139,7 @@ export function useCashFlowData() {
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -142,8 +157,9 @@ export function useCashFlowData() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("is_paid", false)
+        .gte("cost_date", costDateFrom)
         .order("due_date", { ascending: true })
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -164,7 +180,7 @@ export function useCashFlowData() {
         .eq("company_id", companyId!)
         .eq("is_paid", true)
         .order("paid_date", { ascending: true })
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -186,7 +202,7 @@ export function useCashFlowData() {
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -208,7 +224,7 @@ export function useCashFlowData() {
         `)
         .eq("is_paid", true)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
@@ -235,7 +251,7 @@ export function useCashFlowData() {
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!)
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       // Filter only items with at least one payment made
       return (data || [])
@@ -289,8 +305,9 @@ export function useCashFlowData() {
         .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_number)")
         .eq("company_id", companyId!)
         .in("status", ["da_pagare", "parziale"])
+        .lte("due_date", endDate)
         .order("due_date", { ascending: true })
-        .limit(10000);
+        .limit(2000);
       if (error) throw error;
       return data || [];
     },
