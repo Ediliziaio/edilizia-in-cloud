@@ -115,35 +115,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else sessionStorage.removeItem(IMP_TOKEN_KEY);
   }, [impersonatedCompanyId, impersonationToken]);
 
-  // Handle cross-subdomain impersonation handoff via URL hash
-  // When navigating from admin. to app., session + imp tokens are passed as #_at=&_rt=&_it=&_ic=
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash || !hash.includes('_at=')) return;
-
-    const params = new URLSearchParams(hash.slice(1));
-    const accessToken = params.get('_at');
-    const refreshToken = params.get('_rt');
-    const impToken = params.get('_it');
-    const impCompanyId = params.get('_ic');
-
-    if (!accessToken || !refreshToken) return;
-
-    // Clear hash immediately to avoid token exposure in browser history
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
-
-    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(() => {
-        if (impToken && impCompanyId) {
-          sessionStorage.setItem(IMP_TOKEN_KEY, impToken);
-          sessionStorage.setItem(IMP_COMPANY_KEY, impCompanyId);
-          setImpersonationToken(impToken);
-          setImpersonatedCompanyId(impCompanyId);
-        }
-      })
-      .catch(err => logger.error("Cross-subdomain session restore failed:", err));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Validate persisted impersonation token on mount
   useEffect(() => {
     async function validateImpersonation() {
@@ -340,7 +311,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check initial session
+    // Check for cross-subdomain impersonation handoff BEFORE refreshAuth.
+    // When navigating admin.→app., session + imp tokens are passed as #_at=&_rt=&_it=&_ic=
+    // We must detect these BEFORE refreshAuth() runs, because refreshAuth() reads localStorage
+    // synchronously (empty on the new subdomain) and would set isLoading:false / user:null,
+    // causing ProtectedRoute to redirect to /login before setSession() completes.
+    const hash = window.location.hash;
+    if (hash && hash.includes('_at=')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const at = params.get('_at');
+      const rt = params.get('_rt');
+      const it = params.get('_it');
+      const ic = params.get('_ic');
+
+      if (at && rt) {
+        // Clear hash immediately to avoid token exposure in browser history
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
+        // setSession() will trigger onAuthStateChange(SIGNED_IN) which sets user state.
+        // Skip refreshAuth() — the SIGNED_IN event handles it.
+        supabase.auth.setSession({ access_token: at, refresh_token: rt })
+          .then(({ error }) => {
+            if (error) {
+              logger.error("Cross-subdomain session restore failed:", error);
+              refreshAuth(); // Fallback
+              return;
+            }
+            if (it && ic) {
+              sessionStorage.setItem(IMP_TOKEN_KEY, it);
+              sessionStorage.setItem(IMP_COMPANY_KEY, ic);
+              setImpersonationToken(it);
+              setImpersonatedCompanyId(ic);
+            }
+          })
+          .catch(() => refreshAuth());
+
+        return () => subscription.unsubscribe();
+      }
+    }
+
+    // Normal flow: check initial session from localStorage
     refreshAuth();
 
     return () => {
