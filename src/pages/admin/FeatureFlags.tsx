@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Search, Eye, EyeOff, Bot, MessageCircle, BarChart3, MessageSquare, Cpu, Mail, Zap } from "lucide-react";
+import { Loader2, Search, Eye, EyeOff, Bot, MessageCircle, BarChart3, MessageSquare, Cpu, Mail, Zap, Percent } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -31,6 +31,8 @@ export default function FeatureFlags() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [bulkConfirm, setBulkConfirm] = useState<{ flagKey: string; value: boolean; count: number } | null>(null);
+  const [rolloutPct, setRolloutPct] = useState<number>(0);
+  const [rolloutConfirm, setRolloutConfirm] = useState<{ flagKey: string; pct: number } | null>(null);
 
   // Fetch flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
@@ -121,18 +123,16 @@ export default function FeatureFlags() {
   const bulkOverrideMutation = useMutation({
     mutationFn: async ({ flagKey, enabled }: { flagKey: string; enabled: boolean }) => {
       if (enabled) {
-        // Upsert overrides for all companies
+        // Single batch upsert for all companies — atomic, no partial state
         const rows = companies.map((c) => ({
           company_id: c.id,
           feature_key: flagKey,
           is_enabled: true,
         }));
-        for (const row of rows) {
-          const { error } = await supabase
-            .from("company_feature_overrides")
-            .upsert(row, { onConflict: "company_id,feature_key" });
-          if (error) throw error;
-        }
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .upsert(rows, { onConflict: "company_id,feature_key" });
+        if (error) throw error;
       } else {
         // Delete all overrides for this flag
         const { error } = await supabase
@@ -148,6 +148,39 @@ export default function FeatureFlags() {
       toast.success(vars.enabled ? "Attivato per tutte le aziende" : "Override rimossi per tutte le aziende");
     },
     onError: () => toast.error("Errore nell'operazione bulk"),
+  });
+
+  // Rollout percentage mutation: enable for top N% of companies (sorted by name, deterministic)
+  const rolloutMutation = useMutation({
+    mutationFn: async ({ flagKey, pct }: { flagKey: string; pct: number }) => {
+      const count = Math.round((pct / 100) * companies.length);
+      const sorted = [...companies].sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const toEnable = sorted.slice(0, count).map((c: any) => c.id);
+      const toDisable = sorted.slice(count).map((c: any) => c.id);
+
+      if (toEnable.length > 0) {
+        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true }));
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .upsert(rows, { onConflict: "company_id,feature_key" });
+        if (error) throw error;
+      }
+      if (toDisable.length > 0) {
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .delete()
+          .eq("feature_key", flagKey)
+          .in("company_id", toDisable);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
+      toast.success(`Rollout applicato: ${vars.pct}% delle aziende`);
+      setRolloutConfirm(null);
+    },
+    onError: () => toast.error("Errore nel rollout"),
   });
 
   const filteredFlags = flags.filter((f: any) =>
@@ -210,6 +243,12 @@ export default function FeatureFlags() {
                       ? `Override attivo su ${activeCount}/${companies.length} aziende`
                       : "Nessun override"}
                   </span>
+                  {companies.length > 0 && activeCount > 0 && (
+                    <span className="flex items-center gap-0.5 font-medium text-primary">
+                      <Percent className="h-3 w-3" />
+                      {Math.round((activeCount / companies.length) * 100)}%
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -244,7 +283,11 @@ export default function FeatureFlags() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setDialogFlagKey(flag.key)}
+                      onClick={() => {
+                        const cur = allOverrides.filter((o: any) => o.feature_key === flag.key && o.is_enabled).length;
+                        setRolloutPct(companies.length > 0 ? Math.round((cur / companies.length) * 100) : 0);
+                        setDialogFlagKey(flag.key);
+                      }}
                     >
                       Gestisci aziende
                     </Button>
@@ -262,7 +305,7 @@ export default function FeatureFlags() {
               </CardContent>
 
               {/* Per-company dialog */}
-              <Dialog open={dialogFlagKey === flag.key} onOpenChange={(open) => { if (!open) { setDialogFlagKey(null); setSearchTerm(""); } }}>
+              <Dialog open={dialogFlagKey === flag.key} onOpenChange={(open) => { if (!open) { setDialogFlagKey(null); setSearchTerm(""); setRolloutPct(0); } }}>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle>Override aziende — {flag.name}</DialogTitle>
@@ -277,6 +320,32 @@ export default function FeatureFlags() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-9 h-9"
                     />
+                  </div>
+
+                  {/* Rollout percentage */}
+                  <div className="flex items-center gap-2 mb-3 p-2.5 rounded-lg border bg-muted/30">
+                    <Percent className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground">Rollout:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={rolloutPct}
+                      onChange={(e) => setRolloutPct(Math.max(0, Math.min(100, Number(e.target.value))))}
+                      className="w-16 h-7 text-sm border rounded px-2 bg-background"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ≈ {Math.round((rolloutPct / 100) * companies.length)} az.
+                    </span>
+                    <Button
+                      size="sm"
+                      className="ml-auto h-7 text-xs"
+                      onClick={() => setRolloutConfirm({ flagKey: flag.key, pct: rolloutPct })}
+                      disabled={rolloutMutation.isPending}
+                    >
+                      Applica
+                    </Button>
                   </div>
 
                   <div className="flex gap-2 mb-3">
@@ -335,6 +404,27 @@ export default function FeatureFlags() {
           );
         })}
       </div>
+
+      {/* Rollout confirm dialog */}
+      <AlertDialog open={!!rolloutConfirm} onOpenChange={(open) => { if (!open) setRolloutConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma rollout graduale</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per impostare il rollout al <strong>{rolloutConfirm?.pct}%</strong> ({Math.round(((rolloutConfirm?.pct ?? 0) / 100) * companies.length)} di {companies.length} aziende).
+              Le aziende vengono selezionate in ordine alfabetico. Questa azione sovrascrive gli override esistenti per questo flag.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => rolloutConfirm && rolloutMutation.mutate({ flagKey: rolloutConfirm.flagKey, pct: rolloutConfirm.pct })}
+            >
+              Applica rollout {rolloutConfirm?.pct}%
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Bulk confirm dialog */}
       <AlertDialog open={!!bulkConfirm} onOpenChange={(open) => { if (!open) setBulkConfirm(null); }}>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Search, Phone, PhoneOutgoing } from "lucide-react";
+import { Download, Search, Phone, PhoneOutgoing, X } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -31,12 +31,29 @@ export default function InternalCallLogsPage() {
   const [search, setSearch] = useState("");
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
+
+  // Build unique agent list from logs
+  const agentOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const log of logs) {
+      if (log.agent_id && log.agent?.name) map.set(log.agent_id, log.agent.name);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [logs]);
+
+  const hasFilters = agentFilter !== "all" || dateFrom || dateTo;
 
   const filtered = useMemo(() => {
     return logs.filter((log) => {
       if (directionFilter !== "all" && log.call_direction !== directionFilter) return false;
       if (statusFilter !== "all" && log.status !== statusFilter) return false;
+      if (agentFilter !== "all" && log.agent_id !== agentFilter) return false;
+      if (dateFrom && log.started_at < dateFrom) return false;
+      if (dateTo && log.started_at > dateTo + "T23:59:59") return false;
       if (search) {
         const s = search.toLowerCase();
         const match =
@@ -48,7 +65,7 @@ export default function InternalCallLogsPage() {
       }
       return true;
     });
-  }, [logs, search, directionFilter, statusFilter]);
+  }, [logs, search, directionFilter, statusFilter, agentFilter, dateFrom, dateTo]);
 
   const handleExportCSV = () => {
     const headers = ["Data", "Contatto", "Telefono", "Agente", "Direzione", "Stato", "Esito", "Durata (s)", "Messaggi", "Riepilogo"];
@@ -123,6 +140,38 @@ export default function InternalCallLogsPage() {
             <SelectItem value="no_answer">Non risposta</SelectItem>
           </SelectContent>
         </Select>
+        {agentOptions.length > 1 && (
+          <Select value={agentFilter} onValueChange={setAgentFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Agente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli agenti</SelectItem>
+              {agentOptions.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Input
+          type="date"
+          className="w-[140px]"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          title="Da data"
+        />
+        <Input
+          type="date"
+          className="w-[140px]"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          title="A data"
+        />
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={() => { setAgentFilter("all"); setDateFrom(""); setDateTo(""); }}>
+            <X className="h-4 w-4 mr-1" /> Reset
+          </Button>
+        )}
       </div>
 
       {/* Table */}

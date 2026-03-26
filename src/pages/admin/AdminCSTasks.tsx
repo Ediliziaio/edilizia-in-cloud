@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { Plus, CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -42,7 +43,7 @@ export default function AdminCSTasks() {
   const [newPriority, setNewPriority] = useState("medium");
   const [newDueDate, setNewDueDate] = useState("");
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: tasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.csTasks.list(filterStatus),
     queryFn: async () => {
       let query = supabase
@@ -56,6 +57,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
       return (data || []) as unknown as CSTask[];
     },
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: companies = [] } = useQuery({
@@ -68,6 +70,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const createTask = useMutation({
@@ -200,7 +203,29 @@ export default function AdminCSTasks() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <p className="text-center text-muted-foreground py-8">Caricamento...</p>
+            <Table>
+              <TableBody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-4 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-14 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-10" /></TableCell>
+                    <TableCell><Skeleton className="h-7 w-16 rounded" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : isError ? (
+            <div className="text-center py-10 space-y-2">
+              <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
+              <p className="text-muted-foreground text-sm">Errore nel caricamento dei task.</p>
+              <button onClick={() => refetch()} className="text-primary text-sm underline inline-flex items-center gap-1">
+                <RefreshCw className="h-3 w-3" /> Riprova
+              </button>
+            </div>
           ) : tasks.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Nessun task trovato</p>
           ) : (

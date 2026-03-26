@@ -121,6 +121,7 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         .from("documenti_fiscali" as never)
         .select("*", { count: "exact" })
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("data_emissione", { ascending: false })
         .range(page * perPage, (page + 1) * perPage - 1);
 
@@ -171,6 +172,7 @@ export function useDocumentoFiscale(id: string | undefined) {
         .from("documenti_fiscali" as never)
         .select("*")
         .eq("id", id!)
+        .eq("company_id", companyId!)
         .single();
 
       if (error) throw error;
@@ -295,9 +297,15 @@ export function useUpdateDocumento() {
   });
 }
 
-// ─── Delete mutation (only bozza) ─────────────────────────────
+// ─── Soft-delete mutation ─────────────────────────────────────
+// Italian fiscal law requires document retention — physical deletion is
+// illegal for emitted invoices. We therefore:
+//   bozza      → stato = annullata, deleted_at = now()  (hidden from all views)
+//   annullata  → deleted_at = now()                     (already annulled, just hide)
+// Emitted invoices must be reversed via nota di credito; this hook refuses them.
 
 export function useDeleteDocumento() {
+  const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -306,27 +314,39 @@ export function useDeleteDocumento() {
         .from("documenti_fiscali" as never)
         .select("stato")
         .eq("id", id)
+        .eq("company_id", companyId!)
         .single();
 
       if (fetchErr) throw fetchErr;
-      const stato = (doc as Record<string, unknown>)?.stato;
+      const stato = (doc as Record<string, unknown>)?.stato as string | undefined;
+
+      if (!stato) throw new Error("Documento non trovato");
+
       if (stato !== "bozza" && stato !== "annullata") {
-        throw new Error("Solo i documenti in bozza o nel cestino possono essere eliminati definitivamente");
+        throw new Error(
+          "I documenti emessi non possono essere eliminati. Emetti una nota di credito per stornare la fattura."
+        );
       }
 
+      // Soft delete: annul + mark as deleted (hidden from all views)
       const { error } = await supabase
         .from("documenti_fiscali" as never)
-        .delete()
-        .eq("id", id);
+        .update({
+          stato: "annullata",
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", id)
+        .eq("company_id", companyId!);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      toast.success("Documento eliminato");
+      toast.success("Documento annullato");
     },
     onError: (err: Error) => {
-      toast.error("Errore nell'eliminazione", { description: err.message });
+      toast.error("Errore nell'annullamento", { description: err.message });
     },
   });
 }

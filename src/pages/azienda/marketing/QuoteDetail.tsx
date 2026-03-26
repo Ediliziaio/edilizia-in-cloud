@@ -129,7 +129,7 @@ export default function QuoteDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/marketing/preventivi")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/marketing/preventivi")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">

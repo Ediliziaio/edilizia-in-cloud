@@ -137,7 +137,7 @@ export default function Scadenzario() {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <Tabs value={tab} onValueChange={setTab} className="flex-1">
-            <TabsList>
+            <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
               <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
               <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
               <TabsTrigger value="da_pagare">Da Pagare ({counts.da_pagare})</TabsTrigger>

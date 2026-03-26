@@ -33,6 +33,7 @@ const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
+const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 
 const queryClient = new QueryClient({
@@ -62,7 +63,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
@@ -76,6 +77,7 @@ const App = () => (
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
+              <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               

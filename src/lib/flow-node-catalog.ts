@@ -977,6 +977,182 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [],
   },
+
+  // ═══ PIATTAFORMA (solo area superadmin) ═══
+  {
+    id: 'azienda_creata',
+    label: 'Nuova azienda registrata',
+    description: 'Si attiva quando viene creata una nuova azienda sulla piattaforma',
+    icon: 'Building',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_COMPANY_CREATED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'azienda.email', label: 'Email admin', type: 'string' },
+      { id: 'azienda.piano', label: 'Piano attuale', type: 'string' },
+      { id: 'azienda.created_at', label: 'Data creazione', type: 'date' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'piano_cambiato',
+    label: 'Piano modificato',
+    description: 'Si attiva quando un\'azienda cambia piano (upgrade o downgrade)',
+    icon: 'CreditCard',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_PLAN_CHANGED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'piano.vecchio', label: 'Piano precedente', type: 'string' },
+      { id: 'piano.nuovo', label: 'Nuovo piano', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'tipo_cambio', label: 'Tipo cambio', type: 'select', required: false, options: [
+        { value: '', label: 'Qualsiasi' },
+        { value: 'upgrade', label: 'Solo upgrade' },
+        { value: 'downgrade', label: 'Solo downgrade' },
+      ]},
+    ],
+  },
+  {
+    id: 'abbonamento_cancellato',
+    label: 'Abbonamento cancellato',
+    description: 'Si attiva quando un\'azienda cancella l\'abbonamento',
+    icon: 'XCircle',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_SUBSCRIPTION_CANCELLED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'abbonamento.piano', label: 'Piano cancellato', type: 'string' },
+      { id: 'abbonamento.motivo', label: 'Motivo cancellazione', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'trial_in_scadenza',
+    label: 'Trial in scadenza',
+    description: 'Si attiva X giorni prima della scadenza del periodo di prova',
+    icon: 'Clock',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_TRIAL_EXPIRING',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'trial.scadenza', label: 'Data scadenza trial', type: 'date' },
+      { id: 'trial.giorni_rimasti', label: 'Giorni rimasti', type: 'number' },
+    ],
+    configSchema: [
+      { id: 'giorni_prima', label: 'Giorni prima della scadenza', type: 'number', required: true, defaultValue: 3, min: 1, max: 30 },
+    ],
+  },
+  {
+    id: 'crediti_ai_bassi',
+    label: 'Crediti AI in esaurimento',
+    description: 'Si attiva quando i crediti AI di un\'azienda scendono sotto la soglia',
+    icon: 'AlertTriangle',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_AI_CREDITS_LOW',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'crediti.saldo', label: 'Saldo attuale (€)', type: 'number' },
+    ],
+    configSchema: [
+      { id: 'soglia_eur', label: 'Soglia minima (€)', type: 'number', required: true, defaultValue: 5, min: 0 },
+    ],
+  },
+  {
+    id: 'ticket_piattaforma_aperto',
+    label: 'Ticket di assistenza aperto',
+    description: 'Si attiva quando un\'azienda apre un nuovo ticket di supporto',
+    icon: 'MessageSquare',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_TICKET_OPENED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'ticket.id', label: 'ID Ticket', type: 'uuid' },
+      { id: 'ticket.titolo', label: 'Titolo ticket', type: 'string' },
+      { id: 'ticket.priorita', label: 'Priorità', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'priorita_filtro', label: 'Filtra per priorità (opzionale)', type: 'select', required: false, options: [
+        { value: '', label: 'Qualsiasi' },
+        { value: 'urgente', label: 'Urgente' },
+        { value: 'alta', label: 'Alta' },
+        { value: 'normale', label: 'Normale' },
+      ]},
+    ],
+  },
+  {
+    id: 'azienda_in_pausa',
+    label: 'Azienda messa in pausa',
+    description: 'Si attiva quando un\'azienda viene sospesa dalla piattaforma',
+    icon: 'PauseCircle',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_COMPANY_PAUSED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'pausa.motivo', label: 'Motivo sospensione', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'cliente_contrattualizzato',
+    label: 'Cliente contrattualizzato (deal vinto)',
+    description: 'Si attiva quando un\'opportunità CRM viene marcata come vinta — ideale per onboarding automatico',
+    icon: 'FileCheck',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_DEAL_WON',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda creata', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'contatto.email', label: 'Email contatto', type: 'string' },
+      { id: 'contatto.first_name', label: 'Nome contatto', type: 'string' },
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'opportunita.value', label: 'Valore contratto (€)', type: 'number' },
+      { id: 'opportunita.piano', label: 'Piano scelto', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'pagamento_ricevuto',
+    label: 'Pagamento ricevuto',
+    description: 'Si attiva quando viene registrato un pagamento da parte di un\'azienda cliente',
+    icon: 'CheckCircle',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_PAYMENT_RECEIVED',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'pagamento.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'pagamento.data', label: 'Data pagamento', type: 'date' },
+      { id: 'pagamento.metodo', label: 'Metodo di pagamento', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'fattura_scaduta',
+    label: 'Fattura scaduta / non pagata',
+    description: 'Si attiva quando una fattura supera la data di scadenza senza pagamento',
+    icon: 'AlertCircle',
+    categoria: 'piattaforma',
+    dbEvent: 'PLATFORM_INVOICE_OVERDUE',
+    outputVariables: [
+      { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
+      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'fattura.importo', label: 'Importo fattura (€)', type: 'number' },
+      { id: 'fattura.scadenza', label: 'Data scadenza', type: 'date' },
+      { id: 'fattura.giorni_ritardo', label: 'Giorni di ritardo', type: 'number' },
+    ],
+    configSchema: [
+      { id: 'giorni_ritardo_min', label: 'Scatta dopo X giorni di ritardo', type: 'number', required: true, defaultValue: 1, min: 1, max: 90 },
+    ],
+  },
 ];
 
 // ─── ACTION CATALOG ──────────────────────────────────────────────────────────
@@ -1386,6 +1562,127 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
       { id: 'label', label: 'Nome sequenza', type: 'text', required: false, placeholder: 'Es: Onboarding 7 giorni' },
     ],
   },
+
+  // ═══ PIATTAFORMA (solo area superadmin) ═══
+  {
+    id: 'invia_email_admin_azienda',
+    label: 'Invia email all\'admin azienda',
+    description: 'Invia un\'email all\'amministratore dell\'azienda coinvolta nel trigger',
+    icon: 'Mail',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'oggetto', label: 'Oggetto email', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Aggiornamento sul tuo account {{azienda.name}}' },
+      { id: 'corpo', label: 'Corpo email', type: 'rich_text', required: true, supportsVariables: true },
+      { id: 'mittente_nome', label: 'Nome mittente (opzionale)', type: 'text', required: false, placeholder: 'Es: Team EdiliziaInCloud' },
+    ],
+  },
+  {
+    id: 'crea_cs_task',
+    label: 'Crea CS task',
+    description: 'Crea un task nel pannello Customer Success assegnato a un membro del team',
+    icon: 'ClipboardList',
+    categoria: 'piattaforma',
+    outputVariables: [
+      { id: 'cs_task.id', label: 'ID CS Task creato', type: 'uuid' },
+    ],
+    configSchema: [
+      { id: 'titolo', label: 'Titolo task', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Contattare {{azienda.name}} post-cancellazione' },
+      { id: 'descrizione', label: 'Note', type: 'textarea', required: false, supportsVariables: true },
+      { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'media', options: [
+        { value: 'urgente', label: 'Urgente' }, { value: 'alta', label: 'Alta' },
+        { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' },
+      ]},
+      { id: 'scadenza_giorni', label: 'Scadenza (giorni dalla creazione)', type: 'number', required: false, min: 0, max: 365 },
+    ],
+  },
+  {
+    id: 'cambia_piano_azienda',
+    label: 'Cambia piano azienda',
+    description: 'Modifica il piano di abbonamento di un\'azienda',
+    icon: 'CreditCard',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'nuovo_piano', label: 'Nuovo piano', type: 'text', required: true, placeholder: 'Es: starter, pro, enterprise', supportsVariables: true },
+      { id: 'motivo', label: 'Motivo del cambio (log interno)', type: 'text', required: false },
+    ],
+  },
+  {
+    id: 'aggiungi_nota_azienda',
+    label: 'Aggiungi nota all\'azienda',
+    description: 'Aggiunge una nota interna al profilo azienda nel pannello admin',
+    icon: 'StickyNote',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'testo', label: 'Testo nota', type: 'textarea', required: true, supportsVariables: true },
+    ],
+  },
+  {
+    id: 'invia_notifica_team_admin',
+    label: 'Notifica team admin',
+    description: 'Invia una notifica interna ai membri del team superadmin',
+    icon: 'Bell',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'messaggio', label: 'Messaggio', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Attenzione: {{azienda.name}} ha cancellato' },
+      { id: 'canale', label: 'Canale', type: 'select', required: true, defaultValue: 'in_app', options: [
+        { value: 'in_app', label: 'Notifica in-app' },
+        { value: 'email', label: 'Email team' },
+      ]},
+    ],
+  },
+  {
+    id: 'crea_account_azienda',
+    label: 'Crea account azienda nel software',
+    description: 'Provisioning automatico: crea l\'account azienda, imposta il piano e invia le credenziali di accesso',
+    icon: 'Building',
+    categoria: 'piattaforma',
+    outputVariables: [
+      { id: 'nuovo_account.id', label: 'ID Account creato', type: 'uuid' },
+      { id: 'nuovo_account.email_admin', label: 'Email admin account', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'piano', label: 'Piano da attivare', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: starter, pro — oppure usa {{opportunita.piano}}' },
+      { id: 'trial_giorni', label: 'Giorni di trial iniziale (0 = nessuno)', type: 'number', required: false, defaultValue: 0, min: 0, max: 90 },
+      { id: 'invia_credenziali', label: 'Invia email con credenziali di accesso', type: 'select', required: true, defaultValue: 'si', options: [
+        { value: 'si', label: 'Sì — invia email automatica' },
+        { value: 'no', label: 'No — gestisco manualmente' },
+      ]},
+    ],
+  },
+  {
+    id: 'invia_fattura',
+    label: 'Genera e invia fattura',
+    description: 'Crea una fattura per l\'azienda e la invia via email',
+    icon: 'FileText',
+    categoria: 'piattaforma',
+    outputVariables: [
+      { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
+      { id: 'fattura.numero', label: 'Numero fattura', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'descrizione', label: 'Descrizione voce', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Abbonamento {{opportunita.piano}} — {{azienda.name}}' },
+      { id: 'importo', label: 'Importo (€)', type: 'number', required: true, supportsVariables: false, min: 0 },
+      { id: 'scadenza_giorni', label: 'Scadenza pagamento (giorni)', type: 'number', required: true, defaultValue: 30, min: 0, max: 365 },
+      { id: 'invia_email', label: 'Invia fattura via email al cliente', type: 'select', required: true, defaultValue: 'si', options: [
+        { value: 'si', label: 'Sì' }, { value: 'no', label: 'No (solo genera)' },
+      ]},
+    ],
+  },
+  {
+    id: 'attiva_onboarding',
+    label: 'Avvia sequenza di onboarding',
+    description: 'Iscrive il nuovo cliente a una sequenza di onboarding (email + task)',
+    icon: 'Rocket',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'sequenza', label: 'Sequenza onboarding', type: 'select', required: true, defaultValue: 'standard', options: [
+        { value: 'standard', label: 'Onboarding standard (7 giorni)' },
+        { value: 'rapido', label: 'Onboarding rapido (3 giorni)' },
+        { value: 'enterprise', label: 'Onboarding enterprise (30 giorni)' },
+      ]},
+      { id: 'assegna_cs', label: 'Assegna Customer Success', type: 'user_select', required: false, helpText: 'Il CS sarà responsabile del follow-up' },
+    ],
+  },
 ];
 
 // ─── Helper maps ─────────────────────────────────────────────────────────────
@@ -1437,6 +1734,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   task: 'Task & Attività',
   comunicazione: 'Comunicazione',
   generale: 'Generale',
+  piattaforma: 'Piattaforma',
   utility: 'Utilità',
 };
 

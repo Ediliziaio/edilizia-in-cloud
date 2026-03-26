@@ -6,32 +6,50 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, HardHat, LayoutGrid, Euro, Users2, Megaphone, Zap, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, HardHat, LayoutGrid, Euro, Users2, Megaphone, Zap, ChevronDown, ChevronRight, Settings } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
-  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS,
-  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
+  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
+  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
   DEFAULT_PERMISSIONS,
   type PermissionSectionDef, type StaffRoleType,
 } from "@/components/users/permissionsDefaults";
 
 export interface StaffPermissions {
+  // ── Cruscotto ──────────────────────────────────────────
+  can_view_cruscotto: boolean;
+  // ── Cantieri & Lavori ──────────────────────────────────
   can_view_dashboard: boolean;
   can_view_orders: boolean;
   can_edit_orders: boolean;
+  can_approve_orders: boolean;
+  can_delete_orders: boolean;
   can_view_warehouse: boolean;
   can_edit_warehouse: boolean;
+  can_manage_warehouse_items: boolean;
   can_view_calendar: boolean;
+  can_view_all_team_calendar: boolean;
   can_view_customers: boolean;
   can_edit_customers: boolean;
-  can_view_employees: boolean;
+  can_export_clients: boolean;
   can_view_tickets: boolean;
   can_edit_tickets: boolean;
+  // ── Finanza ────────────────────────────────────────────
+  can_view_billing: boolean;
+  can_view_prima_nota: boolean;
+  can_view_costs: boolean;
   can_view_forecast: boolean;
-  can_view_settings: boolean;
-  can_edit_settings: boolean;
+  can_view_financial_reports: boolean;
+  can_view_margins: boolean;
+  can_manage_payments: boolean;
+  can_manage_suppliers: boolean;
+  // ── Persone ────────────────────────────────────────────
+  can_view_persone: boolean;
+  can_view_employees: boolean;
+  can_view_users: boolean;
+  // ── Marketing & Vendita ────────────────────────────────
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
   can_view_marketing_dashboard: boolean;
@@ -41,17 +59,29 @@ export interface StaffPermissions {
   can_edit_marketing_opportunities: boolean;
   can_view_marketing_activities: boolean;
   can_view_marketing_appointments: boolean;
-  can_view_marketing_automations: boolean;
-  can_view_marketing_ai_agent: boolean;
   can_view_marketing_email: boolean;
   can_view_marketing_whatsapp: boolean;
   can_view_marketing_reports: boolean;
-  can_view_cruscotto: boolean;
+  // ── Automazioni & AI ───────────────────────────────────
+  can_view_marketing_automations: boolean;
+  can_view_marketing_ai_agent: boolean;
+  // ── Impostazioni (legacy aggregate – auto-computed on save) ───────────
+  can_view_settings: boolean;
+  can_edit_settings: boolean;
+  // ── Impostazioni granulari ─────────────────────────────────────────────
+  can_view_settings_profile: boolean;
+  can_edit_settings_profile: boolean;
+  can_view_settings_orders: boolean;
+  can_edit_settings_orders: boolean;
+  can_view_settings_customization: boolean;
+  can_edit_settings_customization: boolean;
+  can_view_settings_people: boolean;
+  can_edit_settings_people: boolean;
+  can_view_settings_security: boolean;
+  // ── Speciali ───────────────────────────────────────────
   only_assigned: boolean;
-  can_view_billing: boolean;
-  can_view_prima_nota: boolean;
-  can_view_costs: boolean;
-  can_view_persone: boolean;
+  /** Flag interno: l'utente deve cambiare password al primo accesso */
+  must_change_password?: boolean | null;
 }
 
 interface PermissionsDialogProps {
@@ -157,7 +187,7 @@ export function PermissionsDialog({
   };
 
   const handleSubmit = async () => {
-    await onSave(syncLegacyMarketingFlags(permissions));
+    await onSave(syncLegacySettingsFlags(syncLegacyMarketingFlags(permissions)));
     onOpenChange(false);
   };
 
@@ -236,6 +266,8 @@ export function PermissionsDialog({
             sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
           <PermGroup label="Automazioni & AI" icon={Zap} iconColor="text-orange-600"
             sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+          <PermGroup label="Impostazioni" icon={Settings} iconColor="text-slate-600"
+            sections={IMPOSTAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
 
           <Separator />
 

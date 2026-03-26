@@ -160,6 +160,19 @@ Deno.serve(async (req) => {
         .order("sort_order");
       items = itemsData;
 
+      // Load preventivo_impostazioni
+      const { data: impData } = await supabaseAdmin
+        .from("preventivo_impostazioni" as any)
+        .select("*")
+        .eq("company_id", (quoteData as any).company_id)
+        .maybeSingle();
+      const pdfImp: any = impData ?? {};
+
+      // Filter items: skip mostra_nel_pdf=false
+      const allItems = items;
+      const visibileItems = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
+      items = visibileItems;
+
       // Load company info
       const { data: companyData } = await supabaseAdmin
         .from("companies")
@@ -400,40 +413,84 @@ Deno.serve(async (req) => {
       });
       y -= 20;
 
-      for (let idx = 0; idx < items.length; idx++) {
-        const item = items[idx];
-        if (y < 80) {
-          drawWatermark(page);
-          page = pdfDoc.addPage([pageWidth, pageHeight]);
-          y = pageHeight - margin;
-          if (t.layout === "bold") {
-            page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+      // If pdf_mostra_solo_totale: skip item rows, only draw totals
+      const soloTotale = (quote as any).pdf_mostra_solo_totale === true || pdfImp.pdf_mostra_solo_totale === true;
+
+      if (!soloTotale) {
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          const itemCat = (item as any).item_category || "prodotto";
+          const isNota = itemCat === "nota";
+          const isSubtotale = itemCat === "subtotale";
+          const isChild = ["posa", "smaltimento", "trasporto", "nolo"].includes(itemCat);
+          const isOptional = (item as any).is_optional === true;
+
+          if (y < 80) {
+            drawWatermark(page);
+            page = pdfDoc.addPage([pageWidth, pageHeight]);
+            y = pageHeight - margin;
+            if (t.layout === "bold") {
+              page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+            }
           }
-        }
 
-        // Alternate row
-        if (idx % 2 === 0) {
-          page.drawRectangle({ x: itemLeftX, y: y - 3, width: itemWidth, height: 16, color: accentC });
-        }
+          // Nota row: italic text only
+          if (isNota) {
+            page.drawText((item.name || "").substring(0, 90), { x: colX[0], y, size: 8, font: fontItalic, color: grayC, maxWidth: itemWidth });
+            y -= 14;
+            continue;
+          }
 
-        const name = (item.name || "").substring(0, 35);
-        const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
-        const price = `€ ${Number(item.unit_price || 0).toFixed(2)}`;
-        const disc = Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : "—";
-        const vat = `${Number(item.vat_rate || 0)}%`;
-        const total = `€ ${Number(item.line_total || 0).toFixed(2)}`;
+          // Subtotale row: line + bold text
+          if (isSubtotale) {
+            page.drawLine({ start: { x: itemLeftX, y: y + 5 }, end: { x: itemLeftX + itemWidth, y: y + 5 }, thickness: 0.5, color: lightGrayC });
+            const subVal = items.slice(0, idx).reduce((s: number, i: any) => {
+              if ((i as any).is_optional) return s;
+              return s + Number(i.line_total || (i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100)));
+            }, 0);
+            page.drawText("Subtotale", { x: colX[0], y, size: 9, font: fontBold, color: textC });
+            page.drawText(`€ ${subVal.toFixed(2)}`, { x: colX[5], y, size: 9, font: fontBold, color: primaryC });
+            y -= 18;
+            continue;
+          }
 
-        page.drawText(name, { x: colX[0], y, size: 9, font, color: textC });
-        page.drawText(qty, { x: colX[1], y, size: 9, font, color: textC });
-        page.drawText(price, { x: colX[2], y, size: 9, font, color: textC });
-        page.drawText(disc, { x: colX[3], y, size: 9, font, color: textC });
-        page.drawText(vat, { x: colX[4], y, size: 9, font, color: textC });
-        page.drawText(total, { x: colX[5], y, size: 9, font: fontBold, color: textC });
-        y -= 16;
+          // Alternate row background
+          if (idx % 2 === 0) {
+            page.drawRectangle({ x: itemLeftX, y: y - 3, width: itemWidth, height: 16, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
+          }
 
-        if (item.description) {
-          page.drawText(item.description.substring(0, 80), { x: colX[0], y, size: 7, font, color: grayC });
-          y -= 12;
+          // Name prefix for child rows / optional
+          let namePrefix = "";
+          if (isChild) namePrefix = "  \u2514 ";
+          if (isOptional) namePrefix += "[OPZIONALE] ";
+
+          const nameText = (namePrefix + (item.name || "")).substring(0, 40);
+          const rowColor = isChild ? grayC : textC;
+
+          const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
+          const price = `€ ${Number(item.unit_price || 0).toFixed(2)}`;
+          const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
+          const disc = showDiscount && Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : (showDiscount ? "—" : "");
+          const vat = `${Number(item.vat_rate || 0)}%`;
+          const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100)));
+          const totalText = `€ ${lineTotal.toFixed(2)}`;
+
+          page.drawText(nameText, { x: colX[0], y, size: 9, font, color: rowColor });
+          page.drawText(qty, { x: colX[1], y, size: 9, font, color: rowColor });
+          // Show price per row based on setting
+          const showPrezziRiga = (quote as any).pdf_mostra_prezzi_per_riga !== false;
+          if (showPrezziRiga) {
+            page.drawText(price, { x: colX[2], y, size: 9, font, color: rowColor });
+            if (showDiscount) page.drawText(disc, { x: colX[3], y, size: 9, font, color: rowColor });
+            page.drawText(vat, { x: colX[4], y, size: 9, font, color: rowColor });
+          }
+          page.drawText(totalText, { x: colX[5], y, size: 9, font: fontBold, color: isOptional ? grayC : textC });
+          y -= 16;
+
+          if (item.description) {
+            page.drawText(item.description.substring(0, 80), { x: colX[0], y, size: 7, font, color: grayC });
+            y -= 12;
+          }
         }
       }
 

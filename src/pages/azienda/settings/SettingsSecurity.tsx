@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
@@ -9,6 +10,7 @@ import { Key, Shield, FileText, Smartphone } from "lucide-react";
 export default function SettingsSecurity() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const [activeTab, setActiveTab] = useState("password");
 
   if (!isAdmin) {
     return (
@@ -21,7 +23,7 @@ export default function SettingsSecurity() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="password">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="password" className="gap-1.5">
             <Key className="h-3.5 w-3.5" /> Password

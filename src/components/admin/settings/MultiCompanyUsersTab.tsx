@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, KeyRound, Loader2, Building, Users, X, UserPlus } from "lucide-react";
+import { Plus, Trash2, KeyRound, Loader2, Building, Users, X, UserPlus, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -43,7 +43,7 @@ export default function MultiCompanyUsersTab() {
   const [resetTarget, setResetTarget] = useState<MultiCompanyUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<MultiCompanyUser | null>(null);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: [...queryKeys.admin.superAdmins, "multi-company"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -141,6 +141,14 @@ export default function MultiCompanyUsersTab() {
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="text-sm">Errore nel caricamento degli utenti.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-3 w-3 mr-1" /> Riprova
+              </Button>
+            </div>
           ) : users.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />

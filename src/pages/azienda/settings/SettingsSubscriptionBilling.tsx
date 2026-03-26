@@ -65,6 +65,8 @@ function companyStatusBadge(status: string) {
 function CurrentPlanCard() {
   const { data: billing, isLoading } = useBillingInfo();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
+  // Must be called unconditionally at top level — NEVER after an early return
+  const { data: invoices } = useInvoices();
 
   if (isLoading) {
     return (
@@ -81,8 +83,6 @@ function CurrentPlanCard() {
     ? "Gratuito"
     : `${formatCurrency(billing.planPriceMonthly)} / mese`;
 
-  // Find open invoice for "pay now" link
-  const { data: invoices } = useInvoices();
   const failedInvoiceUrl = billing.isInDunning
     ? invoices?.find(i => i.status === "open")?.invoiceUrl ?? null
     : null;

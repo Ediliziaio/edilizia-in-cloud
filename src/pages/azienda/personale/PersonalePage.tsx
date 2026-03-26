@@ -17,26 +17,26 @@ export default function PersonalePage() {
       </div>
 
       <Tabs defaultValue="organigramma" className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="organigramma" className="gap-1.5">
+        <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
+          <TabsTrigger value="organigramma" className="gap-1.5 shrink-0">
             <Network className="h-4 w-4" /> Organigramma
           </TabsTrigger>
-          <TabsTrigger value="profili" className="gap-1.5">
+          <TabsTrigger value="profili" className="gap-1.5 shrink-0">
             <Users className="h-4 w-4" /> Profili
           </TabsTrigger>
-          <TabsTrigger value="timbrature" className="gap-1.5">
+          <TabsTrigger value="timbrature" className="gap-1.5 shrink-0">
             <Clock className="h-4 w-4" /> Timbrature
           </TabsTrigger>
-          <TabsTrigger value="presenze" className="gap-1.5">
+          <TabsTrigger value="presenze" className="gap-1.5 shrink-0">
             <CalendarDays className="h-4 w-4" /> Presenze
           </TabsTrigger>
-          <TabsTrigger value="richieste" className="gap-1.5">
+          <TabsTrigger value="richieste" className="gap-1.5 shrink-0">
             <FileText className="h-4 w-4" /> Richieste
           </TabsTrigger>
-          <TabsTrigger value="sedi" className="gap-1.5">
+          <TabsTrigger value="sedi" className="gap-1.5 shrink-0">
             <MapPin className="h-4 w-4" /> Sedi
           </TabsTrigger>
-          <TabsTrigger value="festivita" className="gap-1.5">
+          <TabsTrigger value="festivita" className="gap-1.5 shrink-0">
             <CalendarCheck className="h-4 w-4" /> Festività
           </TabsTrigger>
         </TabsList>

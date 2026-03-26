@@ -167,11 +167,18 @@ Deno.serve(async (req) => {
         const isAdmin = roles?.some(r => r.role === "super_admin" || r.role === "company_admin");
         if (!isAdmin) return errorResponse("Solo gli amministratori possono processare le richieste", 403);
 
-        const { data: request } = await admin
+        const requestQuery = admin
           .from("gdpr_data_requests")
           .select("*")
-          .eq("id", request_id)
-          .single();
+          .eq("id", request_id);
+
+        // company_admin can only process requests within their own company
+        const isSuperAdminForDeletion = roles?.some((r: any) => r.role === "super_admin");
+        if (!isSuperAdminForDeletion) {
+          requestQuery.eq("company_id", companyId);
+        }
+
+        const { data: request } = await requestQuery.single();
 
         if (!request) return errorResponse("Richiesta non trovata", 404);
 

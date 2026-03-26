@@ -48,7 +48,7 @@ export default function InvoicesList() {
         .from("invoices")
         .select("*")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("issue_date", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return data;
     },
@@ -81,6 +81,12 @@ export default function InvoicesList() {
         payment_method: "bank_transfer",
       });
       if (error) throw error;
+      const { error: updateError } = await supabase.from("invoices").update({
+        status: "paid",
+        paid_amount: inv.total,
+        updated_at: new Date().toISOString(),
+      }).eq("id", inv.id);
+      if (updateError) throw updateError;
     },
     onSuccess: () => {
       toast.success("Fattura segnata come pagata");
@@ -133,7 +139,10 @@ export default function InvoicesList() {
     const receivable = invoices
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
       .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
-    const overdue = invoices.filter((i) => i.status === "overdue");
+    const overdue = invoices.filter((i) => {
+      if (["paid", "cancelled"].includes(i.status)) return false;
+      return i.due_date && new Date(i.due_date) < now;
+    });
     const overdueAmount = overdue.reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
     const issuedThisMonth = invoices.filter(
       (i) => i.issue_date?.startsWith(thisMonth) && i.document_type === "invoice" && i.status !== "cancelled"
@@ -257,7 +266,33 @@ export default function InvoicesList() {
                 : "Nessun risultato per i filtri selezionati."}
             </div>
           ) : (
-            <div className="rounded-lg border overflow-x-auto">
+            <>
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y border rounded-lg">
+              {filtered.map((inv) => {
+                const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                return (
+                  <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
+                        <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
+                      </div>
+                      <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
+                        {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-semibold text-sm">{formatCurrency(Number(inv.total))}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -316,6 +351,7 @@ export default function InvoicesList() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </TabsContent>
 

@@ -255,7 +255,8 @@ Deno.serve(async (req) => {
         stato: "inviata_sdi",
         sdi_id_trasmissione: sdiId,
         sdi_file_xml_url: xmlPath,
-        sdi_stato: "AT",
+        // AT (attesa) only applies to real SDI submissions; manual mode has no SDI lifecycle
+        sdi_stato: provider === "manuale" ? null : "AT",
         trasmissione: provider === "manuale" ? "manuale" : "sdi",
       })
       .eq("id", doc.id);

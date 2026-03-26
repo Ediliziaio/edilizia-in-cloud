@@ -395,6 +395,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   // ── Normalize Italian action IDs to internal handler IDs ──
   const ACTION_ALIASES: Record<string, string> = {
     crea_task: "create_task",
+    aggiorna_task: "update_task",
     invia_email: "send_email",
     invia_whatsapp: "send_whatsapp",
     invia_sms: "send_sms",
@@ -552,6 +553,36 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return { success: true, output: { action: "create_task", title: ncfg.task_title } };
     }
 
+    case "update_task": {
+      // Find the most recent non-completed task for this entity
+      const { data: existingTask } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("company_id", companyId)
+        .neq("status", "completato")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingTask) return { success: false, error: "Nessuna attività trovata da aggiornare" };
+
+      const updateData: Record<string, any> = {};
+      if (ncfg.task_title) updateData.title = ncfg.task_title;
+      if (ncfg.task_notes) updateData.notes = ncfg.task_notes;
+      if (ncfg.task_priority) updateData.priority = ncfg.task_priority;
+      if (ncfg.task_assigned_to) updateData.assigned_to = ncfg.task_assigned_to;
+      if (ncfg.task_status) updateData.status = ncfg.task_status;
+      if (ncfg.task_due_days != null) {
+        const due = new Date();
+        due.setDate(due.getDate() + (parseInt(ncfg.task_due_days) || 0));
+        updateData.due_date = due.toISOString().split("T")[0];
+      }
+
+      const { error } = await supabase.from("tasks").update(updateData).eq("id", existingTask.id);
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "update_task", task_id: existingTask.id, updated: Object.keys(updateData) } };
+    }
+
     case "send_notification": {
       // Insert real notification into lifecycle_notifications
       const title = ncfg.notification_title || "Notifica automazione";
@@ -707,17 +738,17 @@ Tags: ${(aiContact.tags || []).join(", ") || "nessuno"}
 Istruzione: ${aiPrompt}`;
 
         // 2. Call Lovable AI Gateway
-        const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-        if (!lovableApiKey) return { success: false, error: "LOVABLE_API_KEY non configurata" };
+        const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+        if (!openaiApiKey) return { success: false, error: "OPENAI_API_KEY non configurata" };
 
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${lovableApiKey}`,
+            Authorization: `Bearer ${openaiApiKey}`,
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: "gpt-4o-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
@@ -1005,7 +1036,15 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
   // For branching nodes, filter connections by branch label
   let nextConns = connections;
   if (result.branch && (node.node_type === "condition" || node.node_type === "split")) {
-    nextConns = connections.filter((c: AutomationConnection) => c.label === result.branch);
+    if (node.node_type === "split") {
+      // executeSplit returns "a" or "b"; connection labels are "A: 50%" / "B: 50%"
+      nextConns = connections.filter((c: AutomationConnection) =>
+        c.label?.toLowerCase().charAt(0) === result.branch.toLowerCase()
+      );
+    } else {
+      // condition branches: labels are "yes" / "no"
+      nextConns = connections.filter((c: AutomationConnection) => c.label === result.branch);
+    }
     // If no labeled connections found, fall back to all connections
     if (nextConns.length === 0) nextConns = connections;
   }

@@ -58,11 +58,14 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Package className="h-4 w-4" /> OdA Collegati
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base min-w-0">
+          <Package className="h-4 w-4 shrink-0" />
+          <span className="truncate">OdA Collegati</span>
         </CardTitle>
-        <CreatePurchaseOrderButton orderId={orderId} orderCode={orderCode} items={items} />
+        <div className="shrink-0">
+          <CreatePurchaseOrderButton orderId={orderId} orderCode={orderCode} items={items} />
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (

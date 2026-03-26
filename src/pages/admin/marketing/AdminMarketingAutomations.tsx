@@ -3,7 +3,7 @@ import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvi
 import { Loader2, Zap } from "lucide-react";
 import { lazy, Suspense } from "react";
 
-const MarketingAutomations = lazy(() => import("@/pages/azienda/marketing/MarketingAutomations"));
+const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 
 export default function AdminMarketingAutomations() {
   const { hasAccess, permLoading } = useAdminMarketing();
@@ -14,7 +14,7 @@ export default function AdminMarketingAutomations() {
   return (
     <PlatformCompanyProvider>
       <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
-        <MarketingAutomations />
+        <AutomazioniUnified />
       </Suspense>
     </PlatformCompanyProvider>
   );

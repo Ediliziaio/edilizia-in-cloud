@@ -255,12 +255,12 @@ export function OrderEconomics({
           {itemCostBreakdowns.length > 0 ? (
             <div className="space-y-2">
               {itemCostBreakdowns.map((item, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
+                <div key={index} className="flex justify-between items-start text-sm gap-2">
+                  <span className="text-muted-foreground min-w-0 truncate flex-1">
                     {item.name} <span className="text-xs">({item.vatRate}%)</span>
                   </span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground line-through">
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs text-muted-foreground line-through hidden sm:inline">
                       {formatCurrency(item.grossCost)}
                     </span>
                     <span>{formatCurrency(item.netCost)}</span>
@@ -297,13 +297,13 @@ export function OrderEconomics({
                 </div>
               )}
               {teamCostBreakdowns.map((team, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
+                <div key={index} className="flex justify-between items-start text-sm gap-2">
+                  <span className="text-muted-foreground min-w-0 truncate flex-1">
                     {team.name} <span className="text-xs">({team.vatRate}%)</span>
                   </span>
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 shrink-0">
                     {team.vatRate > 0 && (
-                      <span className="text-xs text-muted-foreground line-through">
+                      <span className="text-xs text-muted-foreground line-through hidden sm:inline">
                         {formatCurrency(team.grossCost)}
                       </span>
                     )}

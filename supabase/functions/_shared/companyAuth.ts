@@ -24,7 +24,6 @@ export async function verifyCompanyAccess(
     .select("id")
     .eq("user_id", userId)
     .eq("company_id", companyId)
-    .eq("is_active", true)
     .maybeSingle();
 
   if (mca) return;

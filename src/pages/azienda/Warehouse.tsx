@@ -192,10 +192,10 @@ export default function Warehouse() {
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <WarehouseIcon className="h-8 w-8" />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <WarehouseIcon className="h-6 w-6 sm:h-8 sm:w-8" />
             Magazzino
           </h1>
           <p className="text-muted-foreground">
@@ -207,8 +207,8 @@ export default function Warehouse() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Esporta
+                <Download className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Esporta</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -264,7 +264,7 @@ export default function Warehouse() {
 
       {/* Warehouse Map - toggleable */}
       {viewMode !== "stock" && (
-        <div className="print:hidden">
+        <div className="hidden sm:block print:hidden">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               Mappa Magazzino
@@ -307,31 +307,31 @@ export default function Warehouse() {
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             {/* View mode tabs */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                <TabsList>
-                  <TabsTrigger value="list" className="gap-2">
+                <TabsList className="flex-wrap h-auto">
+                  <TabsTrigger value="list" className="gap-1.5">
                     <List className="h-4 w-4" />
-                    Lista
+                    <span className="hidden sm:inline">Lista</span>
                   </TabsTrigger>
-                  <TabsTrigger value="kanban" className="gap-2">
+                  <TabsTrigger value="kanban" className="gap-1.5">
                     <LayoutGrid className="h-4 w-4" />
-                    Kanban
+                    <span className="hidden sm:inline">Kanban</span>
                   </TabsTrigger>
-                  <TabsTrigger value="calendar" className="gap-2">
+                  <TabsTrigger value="calendar" className="gap-1.5">
                     <CalendarIcon className="h-4 w-4" />
-                    Calendario
+                    <span className="hidden sm:inline">Calendario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="stock" className="gap-2">
+                  <TabsTrigger value="stock" className="gap-1.5">
                     <PackageOpen className="h-4 w-4" />
-                    Giacenze
+                    <span className="hidden sm:inline">Giacenze</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
 
               {viewMode === "list" && (
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full sm:w-[180px]">
                     <SelectValue placeholder="Raggruppa per" />
                   </SelectTrigger>
                   <SelectContent>
@@ -345,11 +345,12 @@ export default function Warehouse() {
             </div>
 
             {/* Quick filters */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0">
               <Button
                 variant={quickFilter === "all" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("all")}
+                className="shrink-0"
               >
                 Tutti
               </Button>
@@ -357,7 +358,7 @@ export default function Warehouse() {
                 variant={quickFilter === "active" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("active")}
-                className="gap-1"
+                className="gap-1 shrink-0"
               >
                 <WarehouseIcon className="h-4 w-4" />
                 Da Lavorare
@@ -371,7 +372,7 @@ export default function Warehouse() {
                 variant={quickFilter === "urgent" ? "destructive" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("urgent")}
-                className="gap-1"
+                className="gap-1 shrink-0"
               >
                 <AlertTriangle className="h-4 w-4" />
                 Urgenti
@@ -385,7 +386,7 @@ export default function Warehouse() {
                 variant={quickFilter === "overdue" ? "destructive" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("overdue")}
-                className="gap-1"
+                className="gap-1 shrink-0"
               >
                 <Clock className="h-4 w-4" />
                 In Ritardo
@@ -399,17 +400,18 @@ export default function Warehouse() {
                 variant={quickFilter === "thisWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
-                className="gap-1"
+                className="gap-1 shrink-0"
               >
                 <Clock className="h-4 w-4" />
-                Questa settimana
+                Questa sett.
               </Button>
               <Button
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
+                className="shrink-0"
               >
-                Prossima settimana
+                Prox. sett.
               </Button>
             </div>
 
@@ -428,7 +430,7 @@ export default function Warehouse() {
               </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-full sm:w-[160px]">
                   <SelectValue placeholder="Stato" />
                 </SelectTrigger>
                 <SelectContent>
@@ -442,7 +444,7 @@ export default function Warehouse() {
               </Select>
 
               <Select value={orderFilter} onValueChange={setOrderFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Ordine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -456,7 +458,7 @@ export default function Warehouse() {
               </Select>
 
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Fornitore" />
                 </SelectTrigger>
                 <SelectContent>

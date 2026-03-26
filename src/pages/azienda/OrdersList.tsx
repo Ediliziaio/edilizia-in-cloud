@@ -756,12 +756,13 @@ export default function OrdersList() {
           <h1 className="text-2xl font-bold">Ordini</h1>
           <p className="text-muted-foreground">Gestisci gli ordini della tua azienda</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Vista tabella/pipeline — solo desktop */}
           <ToggleGroup
             type="single"
             value={viewMode}
             onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
-            className="border rounded-md"
+            className="hidden sm:flex border rounded-md"
           >
             <ToggleGroupItem value="table" aria-label="Vista tabella" className="px-3">
               <LayoutList className="h-4 w-4" />
@@ -776,27 +777,15 @@ export default function OrdersList() {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={exportOrdersCSV}>
-                <Download className="h-4 w-4 mr-2" />
-                Esporta CSV
+                <Download className="h-4 w-4 mr-2" /> Esporta CSV
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Importa da file
+                <Upload className="h-4 w-4 mr-2" /> Importa da file
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings2 className="h-4 w-4 mr-2" />
-                Colonne
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">Colonne visibili</DropdownMenuLabel>
               {OPTIONAL_COLUMNS.map(col => (
                 <DropdownMenuItem key={col.key} onSelect={(e) => e.preventDefault()} onClick={() => toggleColumn(col.key)}>
                   <Checkbox checked={visibleColumns.has(col.key)} className="mr-2" />
@@ -807,8 +796,9 @@ export default function OrdersList() {
           </DropdownMenu>
           <Button asChild>
             <Link to="/azienda/ordini/nuovo">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Ordine
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Nuovo Ordine</span>
+              <span className="sm:hidden">Nuovo</span>
             </Link>
           </Button>
         </div>
@@ -912,30 +902,23 @@ export default function OrdersList() {
           />
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-2">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground hidden sm:block">
                 Mostrando {showingFrom}–{showingTo} di {filteredOrders.length} ordini
               </p>
+              <p className="text-xs text-muted-foreground sm:hidden">
+                {showingFrom}–{showingTo} / {filteredOrders.length}
+              </p>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={safePage <= 1}
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Precedente
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={safePage <= 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Precedente</span>
                 </Button>
-                <span className="text-sm font-medium px-2">
-                  Pagina {safePage} di {totalPages}
+                <span className="text-sm font-medium px-1">
+                  {safePage} / {totalPages}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={safePage >= totalPages}
-                >
-                  Successivo
-                  <ChevronRight className="h-4 w-4 ml-1" />
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={safePage >= totalPages}>
+                  <span className="hidden sm:inline mr-1">Successivo</span>
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>

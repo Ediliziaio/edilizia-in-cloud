@@ -28,7 +28,69 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel }: Pro
   }
 
   return (
-    <div className="rounded-lg border overflow-x-auto">
+    <>
+    {/* Mobile card list */}
+    <div className="sm:hidden divide-y border rounded-lg">
+      {scadenze.map((s) => {
+        const dueDate = new Date(s.due_date);
+        const remaining = s.amount - s.paid_amount;
+        const daysLeft = differenceInDays(dueDate, new Date());
+        const isOverdue = isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
+        const isDueToday = isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
+        const isPaid = s.status === "pagata";
+        const isCancelled = s.status === "annullata";
+        const tipoInfo = TIPO_LABELS[s.tipo] || { label: s.tipo, color: "bg-muted text-muted-foreground" };
+        const refLabel = s.invoices?.invoice_number
+          ? `Fatt. ${s.invoices.invoice_number}`
+          : s.orders?.order_number
+            ? `Ord. ${s.orders.order_number}`
+            : s.suppliers?.name
+              ? s.suppliers.name
+              : s.marketing_contacts
+                ? `${s.marketing_contacts.first_name} ${s.marketing_contacts.last_name}`
+                : null;
+        return (
+          <div key={s.id} className={`px-4 py-3 ${isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isCancelled || isPaid ? "opacity-60" : ""}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  {isPaid && <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                  {isCancelled && <Ban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                  <span className={`text-sm font-medium ${isOverdue ? "text-destructive" : ""}`}>
+                    {format(dueDate, "dd/MM/yyyy", { locale: it })}
+                  </span>
+                  <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
+                    {s.direction === "entrata" ? <ArrowDownLeft className="h-3 w-3 mr-1 inline" /> : <ArrowUpRight className="h-3 w-3 mr-1 inline" />}
+                    {tipoInfo.label}
+                  </Badge>
+                </div>
+                <p className="font-medium text-sm mt-0.5 truncate">{s.description}</p>
+                {refLabel && <p className="text-xs text-muted-foreground">{refLabel}</p>}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isPaid ? "Saldato" : isCancelled ? "Annullata" : isOverdue ? `${Math.abs(daysLeft)} giorni fa` : isDueToday ? "Oggi" : `tra ${daysLeft} giorni`}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className={`font-semibold text-sm font-mono ${s.direction === "entrata" ? "text-green-700" : ""}`}>
+                  {s.direction === "uscita" ? "-" : "+"}{fmtEur(s.amount)}
+                </span>
+                {!isPaid && !isCancelled && s.status === "parziale" && (
+                  <p className="text-xs text-muted-foreground">{fmtEur(remaining)} residuo</p>
+                )}
+                {!isPaid && !isCancelled && (
+                  <Button variant="ghost" size="sm" className="text-xs h-7 px-2 mt-1" onClick={() => onMarkPaid(s)}>
+                    <CreditCard className="h-3.5 w-3.5 mr-1" /> Paga
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    {/* Desktop table */}
+    <div className="hidden sm:block rounded-lg border overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
@@ -159,5 +221,6 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel }: Pro
         </tbody>
       </table>
     </div>
+    </>
   );
 }

@@ -180,7 +180,7 @@ export default function SettingsTeams() {
         .from("teams")
         .select("*")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("name", { ascending: true });
       if (error) throw error;
       return data as Team[];
     },
@@ -247,7 +247,7 @@ export default function SettingsTeams() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("teams").delete().eq("id", id);
+      const { error } = await supabase.from("teams").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success("Team eliminato"); },
@@ -278,8 +278,10 @@ export default function SettingsTeams() {
     mutationFn: async ({ teamId, userId }: { teamId: string; userId: string }) => {
       const { error } = await supabase.from("teams").update({ leader_id: userId, updated_at: new Date().toISOString() }).eq("id", teamId);
       if (error) throw error;
-      await supabase.from("team_members").update({ role_in_team: "member" }).eq("team_id", teamId).neq("user_id", userId);
-      await supabase.from("team_members").update({ role_in_team: "leader" }).eq("team_id", teamId).eq("user_id", userId);
+      const { error: e1 } = await supabase.from("team_members").update({ role_in_team: "member" }).eq("team_id", teamId).neq("user_id", userId);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from("team_members").update({ role_in_team: "leader" }).eq("team_id", teamId).eq("user_id", userId);
+      if (e2) throw e2;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success("Leader impostato"); },
     onError: (e: Error) => toast.error(e.message),

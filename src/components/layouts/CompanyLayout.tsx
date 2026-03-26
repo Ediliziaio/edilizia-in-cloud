@@ -18,6 +18,8 @@ import {
   ArrowLeft,
   Building2,
   Package,
+  Wrench,
+  TrendingUp,
   ListOrdered,
   Truck,
   Users,
@@ -120,20 +122,21 @@ function ImpersonationBanner() {
   };
 
   return (
-    <div className="bg-warning text-warning-foreground px-4 py-2 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4" />
-        <span className="font-medium">
-          Stai visualizzando come: <strong>{impersonatedCompany?.name}</strong>
+    <div className="bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span className="font-medium text-sm truncate">
+          <span className="hidden sm:inline">Stai visualizzando come: </span><strong>{impersonatedCompany?.name}</strong>
         </span>
       </div>
       <Button
         variant="secondary"
         size="sm"
         onClick={handleExit}
+        className="shrink-0"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Torna a Admin
+        <ArrowLeft className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">Torna a Admin</span>
       </Button>
     </div>
   );
@@ -402,6 +405,12 @@ function CompanySidebar() {
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const { setOpenMobile } = useSidebar();
+
+  // Close mobile sidebar on every navigation
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [location.pathname]);
 
   // Exclusive accordion: only one macro-area open at a time
   const findActiveAreaId = useCallback((path: string): string | null => {
@@ -532,126 +541,146 @@ function CompanySidebar() {
               <h2 className="text-lg font-semibold px-3 mb-4">Impostazioni</h2>
             </div>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>La mia azienda</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <Building2 className="h-4 w-4" /><span>Profilo aziendale</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/catalogo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <Package className="h-4 w-4" /><span>Catalogo articoli</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Gestione ordini</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <ListOrdered className="h-4 w-4" /><span>Stati ordine</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <Truck className="h-4 w-4" /><span>Fornitori</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/categorie-costi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <FolderOpen className="h-4 w-4" /><span>Categorie costi</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/automazioni-finanza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <RefreshCw className="h-4 w-4" /><span>Automazioni Finanza</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Marketing e Vendita</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/tag" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <Tag className="h-4 w-4" /><span>Tag</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/campi-personalizzati" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <SlidersHorizontal className="h-4 w-4" /><span>Campi personalizzati</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/sequenze" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <GitBranch className="h-4 w-4" /><span>Sequenze</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/calendari" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <CalendarDays className="h-4 w-4" /><span>Calendari</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/materiali-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <FileStack className="h-4 w-4" /><span>Materiali Preventivi</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {isAdmin && (
+            {(isAdmin || permissions.canViewSettingsProfile) && (
+              <SidebarGroup>
+                <SidebarGroupLabel>La mia azienda</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/template-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                          <Paintbrush className="h-4 w-4" /><span>Template Offerte</span>
+                        <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Building2 className="h-4 w-4" /><span>Profilo aziendale</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  )}
-                  {isAdmin && (
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            {(isAdmin || permissions.canViewSettingsOrders) && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Gestione ordini</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/form-builder" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                          <FileText className="h-4 w-4" /><span>Form & UTM</span>
+                        <NavLink to="/azienda/impostazioni/listino" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Package className="h-4 w-4" /><span>Listino Prodotti</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/tariffe" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Wrench className="h-4 w-4" /><span>Tariffe Aziendali</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/margini" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <TrendingUp className="h-4 w-4" /><span>Preventivi &amp; Margini</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <ListOrdered className="h-4 w-4" /><span>Stati ordine</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Truck className="h-4 w-4" /><span>Fornitori</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/categorie-costi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <FolderOpen className="h-4 w-4" /><span>Categorie costi</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/automazioni-finanza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <RefreshCw className="h-4 w-4" /><span>Automazioni Finanza</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
 
-            {isAdmin && (
+            {(isAdmin || permissions.canViewSettingsCustomization) && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Marketing e Vendita</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/tag" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Tag className="h-4 w-4" /><span>Tag</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/campi-personalizzati" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <SlidersHorizontal className="h-4 w-4" /><span>Campi personalizzati</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/sequenze" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <GitBranch className="h-4 w-4" /><span>Sequenze</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/calendari" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <CalendarDays className="h-4 w-4" /><span>Calendari</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/materiali-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <FileStack className="h-4 w-4" /><span>Materiali Preventivi</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    {(isAdmin || permissions.canEditSettingsCustomization) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink to="/azienda/impostazioni/template-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                            <Paintbrush className="h-4 w-4" /><span>Template Offerte</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                    {(isAdmin || permissions.canEditSettingsCustomization) && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink to="/azienda/impostazioni/form-builder" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                            <FileText className="h-4 w-4" /><span>Form & UTM</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            {(isAdmin || permissions.canViewUsers) && (
               <SidebarGroup>
                 <SidebarGroupLabel>Utenti</SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -668,7 +697,7 @@ function CompanySidebar() {
               </SidebarGroup>
             )}
 
-            {isAdmin && (
+            {(isAdmin || permissions.canViewSettingsPeople) && (
               <SidebarGroup>
                 <SidebarGroupLabel>Team</SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -710,13 +739,15 @@ function CompanySidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                        <Shield className="h-4 w-4" /><span>Privacy & GDPR</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {(isAdmin || permissions.canViewSettingsSecurity) && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Shield className="h-4 w-4" /><span>Privacy & GDPR</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
                   {isAdmin && (
                     <>
                       <SidebarMenuItem>
@@ -930,7 +961,10 @@ export function CompanyLayout() {
   const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
   const { unreadCount: notifUnreadCount } = useNotifications();
-  const { area, areaIcon: AreaIcon, page } = useBreadcrumb();
+  const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
+  const location = useLocation();
+  // True only when the current path goes deeper than the matched nav item (sub-page)
+  const isSubPage = !!pageUrl && location.pathname !== pageUrl;
 
   // Update document title
   useEffect(() => {
@@ -967,16 +1001,33 @@ export function CompanyLayout() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <CompanySidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
           <MultiCompanySwitcher />
           <AnnouncementBanner />
           <SubscriptionBanner />
-          <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
-            <SidebarTrigger />
+          <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
+            {/* Mobile: hamburger (top level) or back arrow (sub-pages) */}
+            {isSubPage ? (
+              <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 -ml-1 shrink-0" onClick={() => navigate(-1)}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            ) : (
+              <SidebarTrigger className="md:hidden h-9 w-9 -ml-1 shrink-0" />
+            )}
+
+            {/* Desktop: sidebar trigger */}
+            <SidebarTrigger className="hidden md:flex" />
+
+            {/* Mobile: current page title */}
+            <span className="md:hidden font-semibold text-base truncate flex-1">
+              {page || area || effectiveCompany?.name || ""}
+            </span>
+
+            {/* Desktop: breadcrumb */}
             {area && (
-              <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <nav className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
                 {AreaIcon && <AreaIcon className="h-3.5 w-3.5" />}
                 <span className="text-xs font-medium">{area}</span>
                 {page && (
@@ -987,11 +1038,12 @@ export function CompanyLayout() {
                 )}
               </nav>
             )}
-            <div className="flex-1" />
-            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
+
+            <div className="hidden md:block flex-1" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
               <Search className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche">
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche">
               <Bell className="h-4 w-4" />
               {notifUnreadCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] font-bold">
@@ -1000,27 +1052,27 @@ export function CompanyLayout() {
               )}
             </Button>
             {showSupport && (
-              <Button variant="outline" size="sm" className="relative" onClick={() => setChannelDialogOpen(true)}>
-                <HeadphonesIcon className="h-4 w-4 mr-2" />
-                Assistenza
+              <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>
+                <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Assistenza</span>
                 {unreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
+                  <Badge variant="destructive" className="ml-1 sm:ml-2 h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
                     {unreadCount}
                   </Badge>
                 )}
               </Button>
             )}
-            <span className="text-sm text-muted-foreground">
+            <span className="hidden md:block text-sm text-muted-foreground truncate max-w-[150px]">
               {effectiveCompany?.name}
             </span>
           </header>
           <OfflineBanner />
           <LifecycleNotificationsBanner />
-          <main className="flex-1 p-6 bg-muted/30">
+          <main className="flex-1 p-3 md:p-6 bg-muted/30">
             <Outlet />
           </main>
           {!effectiveBrand.hidePoweredBy && (
-            <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
+            <footer className="hidden md:block text-center py-2 text-xs text-muted-foreground border-t bg-background">
               Powered by EdiliziaInCloud
             </footer>
           )}

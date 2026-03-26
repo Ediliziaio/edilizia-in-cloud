@@ -11,7 +11,8 @@ import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
 import { getActionIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { CatalogItemRow } from "./CatalogItemRow";
 
-const CATEGORY_ORDER = ["comunicazione", "crm", "task", "ordini", "fatturazione", "preventivi", "assistenza", "cantieri", "generale"];
+const COMPANY_CATEGORY_ORDER = ["comunicazione", "crm", "task", "ordini", "fatturazione", "preventivi", "assistenza", "cantieri", "generale"];
+const ADMIN_CATEGORY_ORDER = ["comunicazione", "crm", "task", "generale", "piattaforma"];
 const CATEGORY_LABELS: Record<string, string> = {
   crm: "CRM & Vendite",
   marketing: "Marketing",
@@ -25,6 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   task: "Task & Attività",
   comunicazione: "Comunicazione",
   generale: "Generale",
+  piattaforma: "Piattaforma",
   logica: "Logica & Flusso",
   utility: "Utilità",
 };
@@ -42,10 +44,12 @@ interface ActionCatalogListProps {
   onSelect: (item: CatalogItem) => void;
   onDragStart: (item: CatalogItem) => void;
   includeConditions?: boolean;
+  isAdmin?: boolean;
 }
 
-export function ActionCatalogList({ search, onSelect, onDragStart, includeConditions = true }: ActionCatalogListProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["comunicazione", "crm"]));
+export function ActionCatalogList({ search, onSelect, onDragStart, includeConditions = true, isAdmin = false }: ActionCatalogListProps) {
+  const CATEGORY_ORDER = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(isAdmin ? ["piattaforma", "comunicazione"] : ["comunicazione", "crm"]));
   const [recents] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("flow_recent_actions") || "[]").slice(0, 5);

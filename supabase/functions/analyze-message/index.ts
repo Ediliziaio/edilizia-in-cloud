@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
-    if (!lovableApiKey) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!openaiApiKey) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
     // Verify caller
@@ -52,6 +52,19 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Verify caller belongs to the requested company (or is super_admin)
+    const { data: callerRoles } = await adminClient.from("user_roles").select("role").eq("user_id", userId);
+    const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
+    if (!isSuperAdmin) {
+      const { data: callerProfile } = await adminClient.from("profiles").select("company_id").eq("id", userId).maybeSingle();
+      if (!callerProfile || callerProfile.company_id !== company_id) {
+        return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Fetch message
@@ -138,14 +151,14 @@ Analizza il messaggio e usa la funzione analyze_message per restituire il risult
 - Identifica l'intent principale del messaggio.
 - Suggerisci azioni concrete.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${openaiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: textToAnalyze },

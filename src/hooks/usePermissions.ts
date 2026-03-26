@@ -16,8 +16,18 @@ export interface Permissions {
   canViewTickets: boolean;
   canEditTickets: boolean;
   canViewForecast: boolean;
-  canViewSettings: boolean;
+  canViewSettings: boolean; // aggregate: true if any canViewSettings* is true
   canViewUsers: boolean;
+  // Granular settings permissions
+  canViewSettingsProfile: boolean;
+  canEditSettingsProfile: boolean;
+  canViewSettingsOrders: boolean;
+  canEditSettingsOrders: boolean;
+  canViewSettingsCustomization: boolean;
+  canEditSettingsCustomization: boolean;
+  canViewSettingsPeople: boolean;
+  canEditSettingsPeople: boolean;
+  canViewSettingsSecurity: boolean;
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
@@ -52,6 +62,11 @@ const ALL_PERMISSIONS: Permissions = {
   canViewCustomers: true, canEditCustomers: true, canViewEmployees: true,
   canViewTickets: true, canEditTickets: true, canViewForecast: true,
   canViewSettings: true, canViewUsers: true,
+  canViewSettingsProfile: true, canEditSettingsProfile: true,
+  canViewSettingsOrders: true, canEditSettingsOrders: true,
+  canViewSettingsCustomization: true, canEditSettingsCustomization: true,
+  canViewSettingsPeople: true, canEditSettingsPeople: true,
+  canViewSettingsSecurity: true,
   canViewMarketing: true, canEditMarketing: true,
   canViewCruscotto: true,
   canViewBilling: true, canViewScadenzario: true,
@@ -73,6 +88,11 @@ const NO_PERMISSIONS: Permissions = {
   canViewCustomers: false, canEditCustomers: false, canViewEmployees: false,
   canViewTickets: false, canEditTickets: false, canViewForecast: false,
   canViewSettings: false, canViewUsers: false,
+  canViewSettingsProfile: false, canEditSettingsProfile: false,
+  canViewSettingsOrders: false, canEditSettingsOrders: false,
+  canViewSettingsCustomization: false, canEditSettingsCustomization: false,
+  canViewSettingsPeople: false, canEditSettingsPeople: false,
+  canViewSettingsSecurity: false,
   canViewMarketing: false, canEditMarketing: false,
   canViewCruscotto: false,
   canViewBilling: false, canViewScadenzario: false,
@@ -134,8 +154,25 @@ export function usePermissions(): Permissions {
       canViewTickets: permissions?.can_view_tickets ?? false,
       canEditTickets: permissions?.can_edit_tickets ?? false,
       canViewForecast: permissions?.can_view_forecast ?? false,
-      canViewSettings: permissions?.can_view_settings ?? false,
-      canViewUsers: permissions?.can_view_settings ?? false,
+      canViewUsers: permissions?.can_view_users ?? false,
+      // Granular settings
+      canViewSettingsProfile:       permissions?.can_view_settings_profile       ?? false,
+      canEditSettingsProfile:       permissions?.can_edit_settings_profile       ?? false,
+      canViewSettingsOrders:        permissions?.can_view_settings_orders        ?? false,
+      canEditSettingsOrders:        permissions?.can_edit_settings_orders        ?? false,
+      canViewSettingsCustomization: permissions?.can_view_settings_customization ?? false,
+      canEditSettingsCustomization: permissions?.can_edit_settings_customization ?? false,
+      canViewSettingsPeople:        permissions?.can_view_settings_people        ?? false,
+      canEditSettingsPeople:        permissions?.can_edit_settings_people        ?? false,
+      canViewSettingsSecurity:      permissions?.can_view_settings_security      ?? false,
+      // Aggregate: true if any granular setting is enabled OR the legacy flag is still set
+      canViewSettings:
+        (permissions?.can_view_settings ?? false) ||
+        (permissions?.can_view_settings_profile ?? false) ||
+        (permissions?.can_view_settings_orders ?? false) ||
+        (permissions?.can_view_settings_customization ?? false) ||
+        (permissions?.can_view_settings_people ?? false) ||
+        (permissions?.can_view_settings_security ?? false),
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
       canViewCruscotto: permissions?.can_view_cruscotto ?? false,

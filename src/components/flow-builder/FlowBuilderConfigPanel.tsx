@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2, Filter, Save } from "lucide-react";
+import { X, Trash2, Filter, Save, CheckCircle, RotateCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { VariablePicker } from "./config-panels/VariablePicker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +28,7 @@ import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
 import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
+import { TagSelector } from "@/components/marketing/TagSelector";
 import type { TriggerFilters } from "@/types/automationBuilder";
 
 interface FlowBuilderConfigPanelProps {
@@ -34,6 +38,7 @@ interface FlowBuilderConfigPanelProps {
   onClose: () => void;
   onSave?: () => void;
   companyId?: string;
+  triggerItemId?: string;
 }
 
 // Item IDs that get specialized panels
@@ -41,6 +46,12 @@ const SPECIALIZED_PANELS = new Set([
   "attendi", "condition_se", "condition_multi",
   "crea_task", "aggiorna_task",
   "invia_email",
+  "aggiungi_tag", "rimuovi_tag",
+]);
+
+// Triggers where the enrolled entity IS a contact (or has a directly linked contact)
+const CONTACT_TRIGGER_CATEGORIES = new Set([
+  "contact", "opportunity", "appointment", "order", "invoice", "quote", "ticket", "task",
 ]);
 
 // Map flow-node-catalog itemId → TriggerConditionBuilder category
@@ -123,6 +134,7 @@ export function FlowBuilderConfigPanel({
   onClose,
   onSave,
   companyId,
+  triggerItemId,
 }: FlowBuilderConfigPanelProps) {
   const catalog = useMemo(
     () => (selectedNode ? getCatalogItem(selectedNode.data?.itemId as string) : null),
@@ -171,6 +183,10 @@ export function FlowBuilderConfigPanel({
   // Determine trigger category for filter builder
   const triggerCategory = TRIGGER_CATEGORY_MAP[itemId] || null;
   const isTrigger = nodeType === "trigger" || catalog?.kind === "trigger";
+
+  // Compute trigger entity type from the flow's trigger item
+  const triggerEntityCategory = triggerItemId ? (TRIGGER_CATEGORY_MAP[triggerItemId] ?? null) : null;
+  const triggerProvidesContact = !!(triggerEntityCategory && CONTACT_TRIGGER_CATEGORIES.has(triggerEntityCategory));
 
   // Filters state
   const filters: TriggerFilters = nodeData.trigger_filters || { logic: "AND", conditions: [] };
@@ -232,6 +248,14 @@ export function FlowBuilderConfigPanel({
           {itemId === "invia_email" && (
             <EmailConfigPanel config={nodeData} onChange={handleChange} />
           )}
+          {(itemId === "aggiungi_tag" || itemId === "rimuovi_tag") && (
+            <TagActionPanel
+              config={nodeData}
+              onChange={handleChange}
+              triggerProvidesContact={triggerProvidesContact}
+              actionType={itemId === "aggiungi_tag" ? "aggiungi" : "rimuovi"}
+            />
+          )}
 
           {/* Generic fields from configSchema (only if NOT specialized) */}
           {!isSpecialized && schema.map((field) => (
@@ -240,6 +264,8 @@ export function FlowBuilderConfigPanel({
               field={field}
               value={nodeData[field.id]}
               onChange={(v) => handleChange(field.id, v)}
+              triggerProvidesContact={triggerProvidesContact}
+              companyId={companyId}
             />
           ))}
 
@@ -319,17 +345,196 @@ export function FlowBuilderConfigPanel({
   );
 }
 
+// ── Specialized panel for Aggiungi / Rimuovi tag ──
+
+const AUTO_CONTACT_VAR = "{{contact.id}}";
+
+function TagActionPanel({
+  config,
+  onChange,
+  triggerProvidesContact,
+  actionType,
+}: {
+  config: Record<string, any>;
+  onChange: (field: string, value: any) => void;
+  triggerProvidesContact: boolean;
+  actionType: "aggiungi" | "rimuovi";
+}) {
+  const [overrideContact, setOverrideContact] = useState(false);
+
+  // Auto-fill contact_id when the trigger provides a contact
+  useEffect(() => {
+    if (triggerProvidesContact && !config.contact_id) {
+      onChange("contact_id", AUTO_CONTACT_VAR);
+    }
+  }, [triggerProvidesContact]);
+
+  const showAutoContact = triggerProvidesContact && !overrideContact;
+  const tags: string[] = Array.isArray(config.tags)
+    ? config.tags
+    : config.tags
+    ? String(config.tags).split(",").map((s: string) => s.trim()).filter(Boolean)
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Contact ID */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">
+          ID Contatto <span className="text-destructive">*</span>
+        </Label>
+
+        {showAutoContact ? (
+          <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-500/10 px-3 py-2.5">
+            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-green-700 dark:text-green-400">Contatto dal trigger</p>
+              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{AUTO_CONTACT_VAR}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setOverrideContact(true)}
+            >
+              Cambia
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Input
+              value={config.contact_id ?? ""}
+              onChange={(e) => onChange("contact_id", e.target.value)}
+              placeholder={AUTO_CONTACT_VAR}
+              className="h-9 text-sm font-mono"
+            />
+            {triggerProvidesContact && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                onClick={() => { onChange("contact_id", AUTO_CONTACT_VAR); setOverrideContact(false); }}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Usa contatto dal trigger
+              </button>
+            )}
+            {!triggerProvidesContact && (
+              <p className="text-[10px] text-muted-foreground">
+                Inserisci l'ID del contatto o una variabile come <span className="font-mono">{AUTO_CONTACT_VAR}</span>.
+                Aggiungi un trigger al flusso per il riempimento automatico.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tags */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">
+          {actionType === "aggiungi" ? "Tag da aggiungere" : "Tag da rimuovere"}{" "}
+          <span className="text-destructive">*</span>
+        </Label>
+        <TagSelector
+          selectedTags={tags}
+          onTagsChange={(t) => onChange("tags", t)}
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Seleziona tag esistenti o creane di nuovi direttamente qui.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Fields that should auto-fill with the contact from the trigger
+const AUTO_FILL_CONTACT_FIELDS = new Set(["contact_id", "entity_id", "cliente_id"]);
+
 // ── Dynamic config field (for non-specialized types) ──
 
 function ConfigField({
   field,
   value,
   onChange,
+  triggerProvidesContact,
+  companyId,
 }: {
   field: ConfigFieldSchema;
   value: any;
   onChange: (v: any) => void;
+  triggerProvidesContact?: boolean;
+  companyId?: string;
 }) {
+  const [overrideAutoFill, setOverrideAutoFill] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-fill contact_id / entity_id / cliente_id from trigger
+  const isAutoFillField = AUTO_FILL_CONTACT_FIELDS.has(field.id);
+  useEffect(() => {
+    if (isAutoFillField && triggerProvidesContact && !value) {
+      onChange(AUTO_CONTACT_VAR);
+    }
+  }, [triggerProvidesContact, isAutoFillField]);
+
+  const showAutoContact = isAutoFillField && triggerProvidesContact && !overrideAutoFill && value === AUTO_CONTACT_VAR;
+
+  // Fetch company users for user_select fields
+  const { data: companyUsers = [] } = useQuery({
+    queryKey: ["config-users", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .eq("company_id", companyId)
+        .order("first_name");
+      return data ?? [];
+    },
+    enabled: field.type === "user_select" && !!companyId,
+    staleTime: 60_000,
+  });
+
+  // Helper: insert variable into text/textarea
+  const insertVariable = (variable: string) => {
+    const el = inputRef.current ?? textareaRef.current;
+    if (el) {
+      const start = el.selectionStart ?? (value?.length ?? 0);
+      const end = el.selectionEnd ?? start;
+      const current = String(value ?? "");
+      onChange(current.slice(0, start) + variable + current.slice(end));
+    } else {
+      onChange((String(value ?? "")) + variable);
+    }
+  };
+
+  // Auto-fill badge for contact ID fields
+  if (showAutoContact) {
+    return (
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">
+          {field.label}
+          {field.required && <span className="ml-0.5 text-destructive">*</span>}
+        </Label>
+        <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-500/10 px-3 py-2.5">
+          <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-green-700 dark:text-green-400">Contatto dal trigger</p>
+            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{AUTO_CONTACT_VAR}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setOverrideAutoFill(true)}
+          >
+            Cambia
+          </Button>
+        </div>
+        {field.helpText && <p className="text-[11px] text-muted-foreground">{field.helpText}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       <Label className="text-xs font-medium">
@@ -338,21 +543,33 @@ function ConfigField({
       </Label>
 
       {field.type === "text" && (
-        <Input
-          value={value ?? field.defaultValue ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          className="h-9 text-sm"
-        />
+        <div className="flex gap-1">
+          <Input
+            ref={inputRef}
+            value={value ?? field.defaultValue ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            className="h-9 text-sm flex-1"
+          />
+          {field.supportsVariables && <VariablePicker onInsert={insertVariable} />}
+        </div>
       )}
 
       {field.type === "textarea" && (
-        <Textarea
-          value={value ?? field.defaultValue ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          className="text-sm min-h-[60px]"
-        />
+        <div className="space-y-1">
+          <Textarea
+            ref={textareaRef}
+            value={value ?? field.defaultValue ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            className="text-sm min-h-[60px]"
+          />
+          {field.supportsVariables && (
+            <div className="flex justify-end">
+              <VariablePicker onInsert={insertVariable} />
+            </div>
+          )}
+        </div>
       )}
 
       {field.type === "number" && (
@@ -396,12 +613,27 @@ function ConfigField({
       })()}
 
       {field.type === "user_select" && (
-        <Input
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder ?? "ID utente o {{variabile}}"}
-          className="h-9 text-sm"
-        />
+        companyUsers.length > 0 ? (
+          <Select value={value ?? ""} onValueChange={onChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Seleziona utente..." />
+            </SelectTrigger>
+            <SelectContent>
+              {companyUsers.map((u: any) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || u.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={value ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder ?? "ID utente o {{variabile}}"}
+            className="h-9 text-sm"
+          />
+        )
       )}
 
       {field.type === "entity_select" && (
@@ -418,11 +650,9 @@ function ConfigField({
       )}
 
       {(field.type === "tags" || field.type === "tag_input") && (
-        <Input
-          value={Array.isArray(value) ? value.join(", ") : (value ?? "")}
-          onChange={(e) => onChange(e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))}
-          placeholder={field.placeholder ?? "tag1, tag2, ..."}
-          className="h-9 text-sm"
+        <TagSelector
+          selectedTags={Array.isArray(value) ? value : (value ? String(value).split(",").map((s: string) => s.trim()).filter(Boolean) : [])}
+          onTagsChange={onChange}
         />
       )}
 
@@ -451,6 +681,18 @@ function ConfigField({
           onChange={(e) => onChange(e.target.value)}
           className="h-9 text-sm"
         />
+      )}
+
+      {/* Override back to auto-fill if applicable */}
+      {isAutoFillField && triggerProvidesContact && overrideAutoFill && (
+        <button
+          type="button"
+          className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+          onClick={() => { onChange(AUTO_CONTACT_VAR); setOverrideAutoFill(false); }}
+        >
+          <RotateCcw className="h-3 w-3" />
+          Usa contatto dal trigger
+        </button>
       )}
 
       {field.helpText && (

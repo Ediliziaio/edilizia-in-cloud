@@ -138,11 +138,13 @@ export default function Calendar() {
       const assignedIds = [...new Set((data || []).map(a => a.assigned_to).filter(Boolean))] as string[];
       let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
       if (assignedIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, first_name, last_name")
           .in("id", assignedIds);
-        if (profiles) {
+        if (profilesError) {
+          console.warn("Could not load assignee profiles:", profilesError.message);
+        } else if (profiles) {
           profilesMap = Object.fromEntries(profiles.map(p => [p.id, { first_name: p.first_name, last_name: p.last_name }]));
         }
       }
@@ -418,7 +420,7 @@ export default function Calendar() {
             <CollapsibleTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 relative">
                 <SlidersHorizontal className="h-4 w-4" />
-                Filtri
+                <span className="hidden sm:inline">Filtri</span>
                 {hasActiveFilters && (
                   <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                     {[statusFilter, customerFilter, employeeFilter, externalTeamFilter, assignedToFilter].filter(f => f !== "all").length}
@@ -433,6 +435,7 @@ export default function Calendar() {
               variant="outline"
               size="sm"
               disabled={syncing}
+              className="hidden sm:flex"
               onClick={async () => {
                 setSyncing(true);
                 await pullBusySlots();
@@ -441,11 +444,11 @@ export default function Calendar() {
               }}
             >
               <RefreshCw className={cn("h-4 w-4 mr-1.5", syncing && "animate-spin")} />
-              <span className="hidden sm:inline">Sync</span>
+              Sync
             </Button>
           )}
           <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
+            <Plus className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Appuntamento</span>
           </Button>
           <Button variant="outline" size="sm" onClick={goToToday}>
@@ -456,10 +459,10 @@ export default function Calendar() {
             variant={layerPanelOpen ? "secondary" : "outline"}
             size="sm"
             onClick={() => setLayerPanelOpen(!layerPanelOpen)}
-            className="gap-1.5"
+            className="hidden sm:flex gap-1.5"
           >
             <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline">Layer</span>
+            Layer
           </Button>
         </div>
       </div>
@@ -468,9 +471,9 @@ export default function Calendar() {
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
         <CollapsibleContent>
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[170px]">
+                <SelectTrigger className="w-full sm:w-[170px]">
                   <SelectValue placeholder="Tutti gli stati" />
                 </SelectTrigger>
                 <SelectContent>
@@ -487,7 +490,7 @@ export default function Calendar() {
               </Select>
 
               <Select value={customerFilter} onValueChange={setCustomerFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Tutti i clienti" />
                 </SelectTrigger>
                 <SelectContent>
@@ -501,7 +504,7 @@ export default function Calendar() {
               </Select>
 
               <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Tutti gli operai" />
                 </SelectTrigger>
                 <SelectContent>
@@ -515,7 +518,7 @@ export default function Calendar() {
               </Select>
 
               <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Tutte le squadre" />
                 </SelectTrigger>
                 <SelectContent>
@@ -529,7 +532,7 @@ export default function Calendar() {
               </Select>
 
               <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Assegnato a" />
                 </SelectTrigger>
                 <SelectContent>

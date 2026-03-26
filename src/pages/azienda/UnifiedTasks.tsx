@@ -213,7 +213,7 @@ export default function UnifiedTasks() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Attività</h1>
           <p className="text-muted-foreground">{stats.active} attività attive</p>
@@ -250,13 +250,13 @@ export default function UnifiedTasks() {
                 />
               </div>
               <Select value={filterFonte} onValueChange={setFilterFonte}>
-                <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[180px] h-9"><SelectValue placeholder="Fonte" /></SelectTrigger>
                 <SelectContent>
                   {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[140px] h-9"><SelectValue placeholder="Stato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="active">Attive</SelectItem>
@@ -266,7 +266,7 @@ export default function UnifiedTasks() {
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Priorità" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[140px] h-9"><SelectValue placeholder="Priorità" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="bassa">Bassa</SelectItem>
@@ -276,7 +276,7 @@ export default function UnifiedTasks() {
                 </SelectContent>
               </Select>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[140px] h-9"><SelectValue placeholder="Categoria" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
@@ -285,7 +285,7 @@ export default function UnifiedTasks() {
                 </SelectContent>
               </Select>
               <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti</SelectItem>
                   {assignees.map((a) => (
@@ -293,7 +293,7 @@ export default function UnifiedTasks() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="flex rounded-md border overflow-hidden ml-auto">
+              <div className="flex rounded-md border overflow-hidden sm:ml-auto">
                 <button
                   onClick={() => setViewMode("list")}
                   className={cn(

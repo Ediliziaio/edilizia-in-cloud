@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminSessions, useRevokeSession } from "@/hooks/useAdminSessions";
 import { toast } from "sonner";
 import {
   Lock, Eye, EyeOff, Shield, Monitor, Trash2, Loader2,
-  RefreshCw, AlertTriangle, CheckCircle2, Smartphone, Info,
+  RefreshCw, AlertTriangle, CheckCircle2, Smartphone, Info, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -337,6 +338,82 @@ function TwoFactorCard() {
   );
 }
 
+// ─── RLS STATUS CARD ───────────────────────────────────────────────────────────
+
+function RlsStatusCard() {
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["admin-rls-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("check-rls-status");
+      if (error) throw error;
+      return data as { tables_without_rls: string[]; count: number; scanned_at: string };
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const hasIssues = (data?.count ?? 0) > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Database className="h-4 w-4" />
+              Stato RLS database
+            </CardTitle>
+            <CardDescription>
+              Verifica che tutte le tabelle abbiano Row Level Security abilitata
+            </CardDescription>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-12 w-full" />
+        ) : hasIssues ? (
+          <div className="space-y-3">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>{data!.count} {data!.count === 1 ? "tabella" : "tabelle"} senza RLS</strong> — rischio di accesso cross-tenant ai dati.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-1">
+              {data!.tables_without_rls.map((t) => (
+                <div key={t} className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  <code className="text-xs bg-destructive/10 px-1.5 py-0.5 rounded">public.{t}</code>
+                </div>
+              ))}
+            </div>
+            {data?.scanned_at && (
+              <p className="text-xs text-muted-foreground">
+                Scansionato: {new Date(data.scanned_at).toLocaleString("it-IT")}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 py-2">
+            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-700 dark:text-green-400">Tutte le tabelle hanno RLS abilitata</p>
+              {data?.scanned_at && (
+                <p className="text-xs text-muted-foreground">
+                  Ultimo check: {new Date(data.scanned_at).toLocaleString("it-IT")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── PAGINA SICUREZZA ─────────────────────────────────────────────────────────
 
 export default function SecurityTab() {
@@ -349,6 +426,7 @@ export default function SecurityTab() {
         </p>
       </div>
 
+      <RlsStatusCard />
       <PasswordCard />
       <TwoFactorCard />
       <SessionsCard />

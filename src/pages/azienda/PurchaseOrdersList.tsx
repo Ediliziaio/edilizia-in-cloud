@@ -92,18 +92,20 @@ export default function PurchaseOrdersList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Package className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Ordini d'Acquisto</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Package className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" />
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Ordini d'Acquisto</h1>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuovo OdA
+        <Button onClick={() => setNewOpen(true)} className="shrink-0">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline ml-1">Nuovo OdA</span>
+          <span className="sm:hidden ml-1">Nuovo</span>
         </Button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">OdA attivi</p>
           <p className="text-xl font-bold">{kpis.activeCount}</p>
@@ -113,7 +115,7 @@ export default function PurchaseOrdersList() {
           <p className="text-xs text-muted-foreground">Totale OdA</p>
           <p className="text-xl font-bold">{orders.length}</p>
         </CardContent></Card>
-        <Card><CardContent className="pt-4 pb-3">
+        <Card className="col-span-2 sm:col-span-1"><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Valore totale</p>
           <p className="text-xl font-bold">{formatCurrency(kpis.totalAll)}</p>
         </CardContent></Card>
@@ -122,11 +124,11 @@ export default function PurchaseOrdersList() {
       {/* Tabs + Search */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <Tabs value={tab} onValueChange={setTab} className="flex-1">
-          <TabsList>
-            <TabsTrigger value="tutti">Tutti ({counts.tutti})</TabsTrigger>
-            <TabsTrigger value="attivi">Attivi ({counts.attivi})</TabsTrigger>
-            <TabsTrigger value="ricevuti">Ricevuti ({counts.ricevuti})</TabsTrigger>
-            <TabsTrigger value="annullati">Annullati</TabsTrigger>
+          <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
+            <TabsTrigger value="tutti" className="shrink-0">Tutti ({counts.tutti})</TabsTrigger>
+            <TabsTrigger value="attivi" className="shrink-0">Attivi ({counts.attivi})</TabsTrigger>
+            <TabsTrigger value="ricevuti" className="shrink-0">Ricevuti ({counts.ricevuti})</TabsTrigger>
+            <TabsTrigger value="annullati" className="shrink-0">Annullati ({counts.annullati})</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:w-64">
@@ -141,7 +143,37 @@ export default function PurchaseOrdersList() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">Nessun ordine d'acquisto trovato.</div>
       ) : (
-        <div className="rounded-lg border overflow-x-auto">
+        <>
+        {/* Mobile card list */}
+        <div className="sm:hidden divide-y border rounded-lg">
+          {filtered.map((o) => (
+            <div
+              key={o.id}
+              className={`flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer ${o.status === "annullato" ? "opacity-50" : ""}`}
+              onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-medium">{o.oda_number}</span>
+                  <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{STATUS_LABELS[o.status] || o.status}</Badge>
+                </div>
+                <div className="text-sm font-medium mt-0.5 flex items-center gap-1">
+                  <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="truncate">{o.suppliers?.name || "—"}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
+                  {o.expected_delivery_date && ` · consegna ${format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}`}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-semibold text-sm">{formatCurrency(Number(o.total))}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Desktop table */}
+        <div className="hidden sm:block rounded-lg border overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted/50">
               <th className="text-left p-3 font-medium">N° OdA</th>
@@ -180,6 +212,7 @@ export default function PurchaseOrdersList() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* New OdA Dialog */}

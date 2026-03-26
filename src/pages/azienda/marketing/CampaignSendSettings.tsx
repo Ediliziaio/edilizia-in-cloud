@@ -43,7 +43,7 @@ export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { effectiveCompany: company } = useAuth();
+  const { effectiveCompany: company, user, role } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [senderName, setSenderName] = useState("");
@@ -260,6 +260,12 @@ export default function CampaignSendSettings() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (role === "super_admin" && user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id, action: "send_email_campaign", target_type: "email_campaign",
+          target_id: id, details: { campaign_id: id, company_id: company?.id, sent: data?.sent, failed: data?.failed },
+        });
+      }
       return data;
     },
     onSuccess: (data: any) => {
@@ -322,7 +328,7 @@ export default function CampaignSendSettings() {
     <div className="flex flex-col h-screen bg-muted/30">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/azienda/marketing/email/campagna/${id}/editor`)}>
+        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(`/azienda/marketing/email/campagna/${id}/editor`)}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Torna al builder
         </Button>
         <div className="flex gap-2">

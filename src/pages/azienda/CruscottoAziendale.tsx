@@ -20,6 +20,7 @@ import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
 import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
 import { BillingKPIWidget } from "@/components/cruscotto/BillingKPIWidget";
 import { ClienteSituazioneWidget } from "@/components/cruscotto/ClienteSituazioneWidget";
+import { MarginalitaWidget } from "@/components/cruscotto/MarginalitaWidget";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -50,23 +51,21 @@ export default function CruscottoAziendale() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between print:mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
           <p className="text-sm text-muted-foreground">Centro di comando — {todayCap}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="print:hidden">
-            <CruscottoFilters filters={filters} onUpdate={updateFilters} />
-          </div>
+        <div className="flex items-center gap-2 flex-wrap print:hidden">
+          <CruscottoFilters filters={filters} onUpdate={updateFilters} />
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 print:hidden"
+            className="gap-1.5"
             onClick={() => window.print()}
           >
             <Download className="h-4 w-4" />
-            Stampa / PDF
+            <span className="hidden sm:inline">Stampa / PDF</span>
           </Button>
         </div>
       </div>
@@ -162,6 +161,11 @@ export default function CruscottoAziendale() {
       {/* SEZIONE 6: OPERAZIONI */}
       <SectionErrorBoundary sectionName="Operazioni">
         <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
+      </SectionErrorBoundary>
+
+      {/* SEZIONE 6b: MARGINALITÀ CANTIERI */}
+      <SectionErrorBoundary sectionName="Marginalità Cantieri">
+        <MarginalitaWidget />
       </SectionErrorBoundary>
 
       {/* SEZIONE 7: PERFORMANCE TEAM & TREND */}

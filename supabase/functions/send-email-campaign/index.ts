@@ -62,6 +62,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Verify caller belongs to the campaign's company (or is super_admin)
+    const { data: callerRoles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+    const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
+
+    if (!isSuperAdmin) {
+      const { data: callerProfile } = await adminClient
+        .from("profiles")
+        .select("company_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!callerProfile || callerProfile.company_id !== campaign.company_id) {
+        return new Response(
+          JSON.stringify({ error: "Non autorizzato: accesso negato a questa campagna" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     if (campaign.status === "sent" || campaign.status === "sending") {
       return new Response(
         JSON.stringify({ error: "Campagna già inviata o in fase di invio" }),

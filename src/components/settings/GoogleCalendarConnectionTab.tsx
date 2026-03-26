@@ -130,7 +130,7 @@ export default function GoogleCalendarConnectionTab() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       // Validate origin to prevent cross-origin message injection
-      const trustedOrigins = [window.location.origin, "https://edilizia-in-cloud.lovable.app"];
+      const trustedOrigins = [window.location.origin];
       if (!trustedOrigins.includes(event.origin)) return;
       if (event.data?.type === "GOOGLE_OAUTH_RESULT") {
         if (event.data.status === "success") {

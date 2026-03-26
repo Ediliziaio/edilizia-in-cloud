@@ -21,7 +21,8 @@ export interface DomainBranding {
   hide_platform_branding: boolean | null;
 }
 
-const MAIN_DOMAINS = ["localhost", "lovable.app", "lovable.dev"];
+// "Main" domains: branding is NOT applied when running on these (dev/platform URLs)
+const MAIN_DOMAINS = ["localhost", "supabase.co"];
 
 function isCustomHostname(hostname: string): boolean {
   return !MAIN_DOMAINS.some((d) => hostname.includes(d));

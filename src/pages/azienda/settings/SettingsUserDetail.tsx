@@ -37,7 +37,7 @@ export default function SettingsUserDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { role } = useAuth();
+  const { role, user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -76,12 +76,12 @@ export default function SettingsUserDetail() {
         .select("role")
         .eq("user_id", userId!);
 
-      // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
+      // Determine effective role with priority: company_admin > salesperson > call_center > company_staff
       const roleSet = new Set(roles?.map(r => r.role) || []);
       let effectiveRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | undefined;
-      if (roleSet.has("salesperson")) effectiveRole = "salesperson";
+      if (roleSet.has("company_admin")) effectiveRole = "company_admin";
+      else if (roleSet.has("salesperson")) effectiveRole = "salesperson";
       else if (roleSet.has("call_center")) effectiveRole = "call_center";
-      else if (roleSet.has("company_admin")) effectiveRole = "company_admin";
       else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
 
       let permissions: StaffPermissions | null = null;
@@ -142,12 +142,32 @@ export default function SettingsUserDetail() {
       filtered.can_view_marketing = hasAnyMarketingView;
       filtered.can_edit_marketing = hasAnyMarketingEdit;
 
-      const { error } = await supabase.from("staff_permissions").update(filtered).eq("user_id", userId!);
+      // Sync legacy settings flags from granular permissions
+      filtered.can_view_settings =
+        ['can_view_settings_profile', 'can_view_settings_orders',
+         'can_view_settings_customization', 'can_view_settings_people',
+         'can_view_settings_security'].some(k => filtered[k]);
+      filtered.can_edit_settings =
+        ['can_edit_settings_profile', 'can_edit_settings_orders',
+         'can_edit_settings_customization', 'can_edit_settings_people'].some(k => filtered[k]);
+
+      const companyId = userData?.company_id;
+      const { error } = await supabase.from("staff_permissions").update(filtered).eq("user_id", userId!).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
+      // Audit log
+      if (currentUser && userData?.company_id) {
+        supabase.from("user_audit_log").insert({
+          company_id: userData.company_id,
+          actor_id: currentUser.id,
+          target_user_id: userId!,
+          action: "permissions_updated",
+          details: {},
+        });
+      }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
     onError: () => {
@@ -209,9 +229,19 @@ export default function SettingsUserDetail() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, newRole) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
+      // Audit log
+      if (currentUser && userData?.company_id) {
+        supabase.from("user_audit_log").insert({
+          company_id: userData.company_id,
+          actor_id: currentUser.id,
+          target_user_id: userId!,
+          action: "role_changed",
+          details: { from: userData.role, to: newRole },
+        });
+      }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
     onError: () => {

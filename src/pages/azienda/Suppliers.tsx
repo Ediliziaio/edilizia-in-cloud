@@ -216,7 +216,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => onBack ? onBack() : navigate("/azienda/fornitori")}>
+        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => onBack ? onBack() : navigate("/azienda/fornitori")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Fornitori
         </Button>
       </div>
@@ -476,7 +476,19 @@ function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; 
   };
 
   return (
-    <div className="rounded-lg border overflow-x-auto">
+    <>
+    <div className="sm:hidden divide-y border rounded-lg">
+      {oda.map((o: any) => (
+        <div key={o.id} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 active:bg-muted" onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2"><span className="font-mono text-xs font-medium">{o.oda_number}</span><Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{o.status}</Badge></div>
+            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}{o.expected_delivery_date ? ` · cons. ${format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}` : ""}</p>
+          </div>
+          <span className="font-semibold text-sm shrink-0">{formatCurrency(Number(o.total))}</span>
+        </div>
+      ))}
+    </div>
+    <div className="hidden sm:block rounded-lg border overflow-x-auto">
       <table className="w-full text-sm">
         <thead><tr className="border-b bg-muted/50">
           <th className="text-left p-3 font-medium">N° OdA</th>
@@ -502,6 +514,8 @@ function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; 
         </tbody>
       </table>
     </div>
+    </>
+
   );
 }
 
@@ -517,7 +531,30 @@ function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoa
           <CalendarClock className="h-4 w-4 mr-1" /> Vai a Scadenzario
         </Button>
       </div>
-      <div className="rounded-lg border overflow-x-auto">
+      <>
+      <div className="sm:hidden divide-y border rounded-lg">
+        {scadenze.map((s: any) => {
+          const remaining = Number(s.amount) - Number(s.paid_amount);
+          const isOverdue = isPast(new Date(s.due_date)) && !isToday(new Date(s.due_date)) && s.status !== "pagata";
+          return (
+            <div key={s.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isOverdue ? "bg-destructive/5" : ""}`}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  {s.status === "pagata" && <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                  <span className={`text-sm font-medium ${isOverdue ? "text-destructive" : ""}`}>{format(new Date(s.due_date), "dd/MM/yyyy", { locale: it })}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.description}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-semibold text-sm">{formatCurrency(Number(s.amount))}</span>
+                {s.status !== "pagata" && <p className="text-xs text-muted-foreground">{formatCurrency(remaining)} res.</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="hidden sm:block rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-muted/50">
             <th className="text-left p-3 font-medium">Scadenza</th>
@@ -555,6 +592,8 @@ function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoa
           </tbody>
         </table>
       </div>
+      </>
+
     </div>
   );
 }
@@ -571,7 +610,21 @@ function PrimaNotaTab({ entries, isLoading, navigate }: { entries: any[]; isLoad
           <BookOpen className="h-4 w-4 mr-1" /> Vai a Prima Nota
         </Button>
       </div>
-      <div className="rounded-lg border overflow-x-auto">
+      <>
+      <div className="sm:hidden divide-y border rounded-lg">
+        {entries.map((e: any) => (
+          <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{e.description}</p>
+              <p className="text-xs text-muted-foreground">{format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })} · {e.account_label || "—"}</p>
+            </div>
+            <span className={`font-semibold text-sm shrink-0 font-mono ${e.direction === "entrata" ? "text-green-700 dark:text-green-400" : "text-destructive"}`}>
+              {e.direction === "uscita" ? "-" : "+"}{formatCurrency(Number(e.amount))}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="hidden sm:block rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-muted/50">
             <th className="text-left p-3 font-medium">Data</th>
@@ -597,6 +650,8 @@ function PrimaNotaTab({ entries, isLoading, navigate }: { entries: any[]; isLoad
           </tbody>
         </table>
       </div>
+      </>
+
     </div>
   );
 }

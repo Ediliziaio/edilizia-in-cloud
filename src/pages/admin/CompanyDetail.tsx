@@ -106,6 +106,21 @@ export default function CompanyDetail() {
     navigate("/azienda");
   };
 
+  const handleDeleteCompany = async () => {
+    try {
+      await h.handleDeleteCompany();
+      toast.success("Azienda eliminata");
+      navigate("/admin/aziende");
+    } catch (err: any) {
+      toast.error("Errore eliminazione azienda", { description: err.message });
+    }
+  };
+
+  const handleExportCompany = () => {
+    h.handleExportCompany();
+    toast.success("Dati esportati");
+  };
+
   // Delete company user
   const handleDeleteUser = async (userId: string, name: string) => {
     setIsDeletingUser(true);
@@ -137,35 +152,6 @@ export default function CompanyDetail() {
     }
   };
 
-  // Delete company
-  const handleDeleteCompany = async () => {
-    try {
-      const { error } = await supabase.from("companies").delete().eq("id", h.company!.id);
-      if (error) throw error;
-      toast.success("Azienda eliminata");
-      navigate("/admin/aziende");
-    } catch (err: any) {
-      toast.error("Errore eliminazione azienda", { description: err.message });
-    }
-  };
-
-  // Export company data
-  const handleExportCompany = () => {
-    if (!h.company) return;
-    const data = {
-      ...h.company,
-      stats: h.stats,
-      team: h.teamData,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${h.company.name.replace(/\s+/g, "_")}_export.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Dati esportati");
-  };
 
   return (
     <div className="space-y-6">

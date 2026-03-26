@@ -1,15 +1,17 @@
-import React, { useState, useMemo, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX } from "lucide-react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,6 +22,7 @@ import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib
 import type { CompanyStatus } from "@/types/auth";
 import type { CompanyOrderStats, CompanyUserCount, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useDebounce } from "@/hooks/useDebounce";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineView";
 import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip";
@@ -71,31 +74,121 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
 type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
 type SortDir = "asc" | "desc";
 type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
+type ColKey = "sector" | "plan" | "mrr" | "users" | "orders" | "lastAccess" | "trial" | "health" | "tags";
+type SavedView = { name: string; params: string };
+
+const PAGE_SIZE = 25;
+const ALL_COLUMNS: { key: ColKey; label: string }[] = [
+  { key: "sector", label: "Settore" },
+  { key: "plan", label: "Piano" },
+  { key: "mrr", label: "MRR" },
+  { key: "users", label: "Utenti" },
+  { key: "orders", label: "Ordini" },
+  { key: "lastAccess", label: "Ultimo Accesso" },
+  { key: "trial", label: "Trial / Scadenza" },
+  { key: "health", label: "Health" },
+  { key: "tags", label: "Tag" },
+];
+const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
 
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sectorFilter, setSectorFilter] = useState("all");
-  const [planFilter, setPlanFilter] = useState("all");
-  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
+  // URL-derived filter state
+  const statusFilter = searchParams.get("status") || "all";
+  const sectorFilter = searchParams.get("sector") || "all";
+  const planFilter = searchParams.get("plan") || "all";
+  const healthFilter = (searchParams.get("health") || "all") as HealthFilter;
+  const sortKey = (searchParams.get("sort") || null) as SortKey | null;
+  const sortDir = (searchParams.get("dir") || "asc") as SortDir;
+  const noPaymentFilter = searchParams.get("noPayment") === "1";
+  const viewMode = (searchParams.get("view") || "list") as "list" | "pipeline";
+
+  // Search is local (debounced) then synced to URL
+  const [inputSearch, setInputSearch] = useState(() => searchParams.get("q") || "");
+  const debouncedSearch = useDebounce(inputSearch, 300);
+
+  // Local UI state
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Configurable columns
+  const [visibleCols, setVisibleCols] = useState<ColKey[]>(() => {
+    try {
+      const saved = localStorage.getItem("companies_visible_cols");
+      if (saved) return JSON.parse(saved) as ColKey[];
+    } catch {}
+    return DEFAULT_COLS;
+  });
+  const toggleCol = useCallback((key: ColKey) => {
+    setVisibleCols((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      localStorage.setItem("companies_visible_cols", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  const col = useCallback((key: ColKey) => visibleCols.includes(key), [visibleCols]);
+
+  // Saved views (localStorage)
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    try { return JSON.parse(localStorage.getItem("companies_saved_views") || "[]"); } catch { return []; }
+  });
+  const [saveViewName, setSaveViewName] = useState("");
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+
+  const saveCurrentView = useCallback(() => {
+    if (!saveViewName.trim()) return;
+    const view: SavedView = { name: saveViewName.trim(), params: searchParams.toString() };
+    setSavedViews((prev) => {
+      const next = [...prev.filter((v) => v.name !== view.name), view];
+      localStorage.setItem("companies_saved_views", JSON.stringify(next));
+      return next;
+    });
+    setSaveViewName("");
+    setSaveViewOpen(false);
+  }, [saveViewName, searchParams]);
+
+  const loadView = useCallback((view: SavedView) => {
+    setSearchParams(new URLSearchParams(view.params), { replace: true });
+    setInputSearch(new URLSearchParams(view.params).get("q") || "");
+    setActivePreset(null);
+  }, [setSearchParams]);
+
+  const deleteView = useCallback((name: string) => {
+    setSavedViews((prev) => {
+      const next = prev.filter((v) => v.name !== name);
+      localStorage.setItem("companies_saved_views", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Update URL params helper
+  const setFilter = useCallback((updates: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([k, v]) => {
+        if (!v || v === "all") next.delete(k); else next.set(k, v);
+      });
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Sync debounced search to URL
+  useEffect(() => {
+    setFilter({ q: debouncedSearch || null });
+  }, [debouncedSearch]); // eslint-disable-line
+
   const toggleSort = useCallback((key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }, [sortKey]);
+    setFilter(sortKey === key
+      ? { dir: sortDir === "asc" ? "desc" : "asc" }
+      : { sort: key, dir: "asc" }
+    );
+  }, [sortKey, sortDir, setFilter]);
 
   const SortIcon = useMemo(() => {
     const Comp = React.memo(({ col }: { col: SortKey }) => {
@@ -263,17 +356,24 @@ export default function CompaniesList() {
     return Array.from(planMap.entries()).map(([id, name]) => ({ id, name }));
   }, [companies]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir]);
+
   const filteredCompanies = useMemo(() => {
     let result = companies.filter((company) => {
       const matchesSearch =
-        company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        company.email.toLowerCase().includes(searchQuery.toLowerCase());
+        company.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        company.email.toLowerCase().includes(debouncedSearch.toLowerCase());
       const matchesStatus = statusFilter === "all" || company.status === statusFilter;
       const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
       const plan = company.subscription_plans as { id: string; name: string } | null;
       const matchesPlan = planFilter === "all" || plan?.id === planFilter;
       const matchesHealth = healthFilter === "all" || (healthData[company.id]?.health === healthFilter);
-      return matchesSearch && matchesStatus && matchesSector && matchesPlan && matchesHealth;
+      const matchesNoPayment = !noPaymentFilter ||
+        ((company.status === "active" || company.status === "trial") &&
+          (!company.payment_method || company.payment_method === "none" || company.payment_method === ""));
+      return matchesSearch && matchesStatus && matchesSector && matchesPlan && matchesHealth && matchesNoPayment;
     });
 
     if (sortKey) {
@@ -305,9 +405,15 @@ export default function CompaniesList() {
     }
 
     return result;
-  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData, healthData]);
+  }, [companies, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData, healthData]);
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all";
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / PAGE_SIZE));
+  const pagedCompanies = useMemo(() =>
+    filteredCompanies.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filteredCompanies, currentPage]
+  );
+
+  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter;
 
   // Smart filter presets
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -333,12 +439,10 @@ export default function CompaniesList() {
       return differenceInDays(new Date(), new Date(la)) > 14;
     }).length;
 
-    const clearFilters = () => {
-      setSearchQuery("");
-      setStatusFilter("all");
-      setSectorFilter("all");
-      setPlanFilter("all");
-      setHealthFilter("all");
+    const applyPreset = (params: Record<string, string>, presetKey: string) => {
+      setInputSearch("");
+      setSearchParams(new URLSearchParams(params), { replace: true });
+      setActivePreset(presetKey);
     };
 
     return [
@@ -349,7 +453,7 @@ export default function CompaniesList() {
         description: "Trial che scadono entro 7 giorni",
         color: "amber",
         count: trialExpiring,
-        apply: () => { clearFilters(); setStatusFilter("trial"); setSortKey("trial"); setSortDir("asc"); setActivePreset("trial_expiring"); },
+        apply: () => applyPreset({ status: "trial", sort: "trial", dir: "asc" }, "trial_expiring"),
       },
       {
         key: "at_risk",
@@ -358,7 +462,7 @@ export default function CompaniesList() {
         description: "Aziende con health score basso",
         color: "red",
         count: atRiskCount,
-        apply: () => { clearFilters(); setHealthFilter("at_risk"); setActivePreset("at_risk"); },
+        apply: () => applyPreset({ health: "at_risk" }, "at_risk"),
       },
       {
         key: "no_payment",
@@ -367,7 +471,7 @@ export default function CompaniesList() {
         description: "Aziende attive/trial senza metodo di pagamento",
         color: "orange",
         count: noPayment,
-        apply: () => { clearFilters(); setActivePreset("no_payment"); /* custom filter handled below */ },
+        apply: () => applyPreset({ noPayment: "1" }, "no_payment"),
       },
       {
         key: "inactive",
@@ -376,30 +480,28 @@ export default function CompaniesList() {
         description: "Aziende attive senza accesso da 14+ giorni",
         color: "gray",
         count: inactive,
-        apply: () => { clearFilters(); setStatusFilter("active"); setSortKey("lastAccess"); setSortDir("asc"); setActivePreset("inactive"); },
+        apply: () => applyPreset({ status: "active", sort: "lastAccess", dir: "asc" }, "inactive"),
       },
     ];
-  }, [companies, healthData, lastAccessData]);
+  }, [companies, healthData, lastAccessData, setInputSearch, setSearchParams]);
 
   const clearAllFilters = useCallback(() => {
-    setSearchQuery("");
-    setStatusFilter("all");
-    setSectorFilter("all");
-    setPlanFilter("all");
-    setHealthFilter("all");
+    setInputSearch("");
+    setSearchParams(new URLSearchParams(), { replace: true });
     setActivePreset(null);
-  }, []);
+  }, [setSearchParams]);
 
   // Active filter labels
   const statusLabelsMap: Record<string, string> = { trial: "Trial", active: "Attivo", suspended: "Sospeso", expired: "Scaduto" };
   const healthLabelsMap: Record<string, string> = { healthy: "Healthy", at_risk: "A rischio", critical: "Critico" };
   const activeFiltersList = useMemo(() => [
-    { key: "search", label: "Cerca", value: searchQuery, onClear: () => setSearchQuery("") },
-    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (statusLabelsMap[statusFilter] || statusFilter), onClear: () => setStatusFilter("all") },
-    { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setSectorFilter("all") },
-    { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setPlanFilter("all") },
-    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (healthLabelsMap[healthFilter] || healthFilter), onClear: () => setHealthFilter("all") },
-  ], [searchQuery, statusFilter, sectorFilter, planFilter, healthFilter, uniquePlans]);
+    { key: "search", label: "Cerca", value: inputSearch, onClear: () => setInputSearch("") },
+    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (statusLabelsMap[statusFilter] || statusFilter), onClear: () => setFilter({ status: null }) },
+    { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setFilter({ sector: null }) },
+    { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setFilter({ plan: null }) },
+    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (healthLabelsMap[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
+    { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
+  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, uniquePlans, setFilter]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -447,6 +549,18 @@ export default function CompaniesList() {
     await impersonateCompany(companyId, permissions);
     navigate("/azienda");
   };
+
+  const queryClient = useQueryClient();
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase
+        .from("companies")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull }),
+  });
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
@@ -511,17 +625,53 @@ export default function CompaniesList() {
         presets={filterPresets}
       />
 
+      {/* Saved Views */}
+      {(savedViews.length > 0 || hasActiveFilters) && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {savedViews.map((view) => (
+            <div key={view.name} className="flex items-center gap-0.5">
+              <Button variant="outline" size="sm" className="h-7 text-xs rounded-r-none border-r-0" onClick={() => loadView(view)}>
+                {view.name}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 w-7 px-0 rounded-l-none text-muted-foreground hover:text-destructive" onClick={() => deleteView(view.name)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+          {hasActiveFilters && (
+            saveViewOpen ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  autoFocus
+                  className="h-7 text-xs w-36"
+                  placeholder="Nome vista..."
+                  value={saveViewName}
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); if (e.key === "Escape") setSaveViewOpen(false); }}
+                />
+                <Button size="sm" className="h-7 text-xs" onClick={saveCurrentView} disabled={!saveViewName.trim()}>Salva</Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSaveViewOpen(false)}>Annulla</Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSaveViewOpen(true)}>
+                + Salva vista
+              </Button>
+            )
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cerca per nome o email..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setActivePreset(null); }}
+            value={inputSearch}
+            onChange={(e) => { setInputSearch(e.target.value); setActivePreset(null); }}
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setActivePreset(null); }}>
+        <Select value={statusFilter} onValueChange={(v) => { setFilter({ status: v }); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti gli stati</SelectItem>
@@ -531,7 +681,7 @@ export default function CompaniesList() {
             <SelectItem value="expired">Scaduto</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={sectorFilter} onValueChange={(v) => { setSectorFilter(v); setActivePreset(null); }}>
+        <Select value={sectorFilter} onValueChange={(v) => { setFilter({ sector: v }); setActivePreset(null); }}>
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="Settore" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i settori</SelectItem>
@@ -540,7 +690,7 @@ export default function CompaniesList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setActivePreset(null); }}>
+        <Select value={planFilter} onValueChange={(v) => { setFilter({ plan: v }); setActivePreset(null); }}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Piano" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i piani</SelectItem>
@@ -549,7 +699,7 @@ export default function CompaniesList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={healthFilter} onValueChange={(v) => { setHealthFilter(v as HealthFilter); setActivePreset(null); }}>
+        <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
           <SelectTrigger className="w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti</SelectItem>
@@ -561,11 +711,31 @@ export default function CompaniesList() {
         <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
           <Download className="h-4 w-4" />
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" title="Colonne visibili">
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {ALL_COLUMNS.map(({ key, label }) => (
+              <DropdownMenuCheckboxItem
+                key={key}
+                checked={col(key)}
+                onCheckedChange={() => toggleCol(key)}
+              >
+                {label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="flex border rounded-md">
-          <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" onClick={() => setViewMode("list")} title="Vista Lista">
+          <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: null })} title="Vista Lista">
             <LayoutList className="h-4 w-4" />
           </Button>
-          <Button variant={viewMode === "pipeline" ? "secondary" : "ghost"} size="icon" onClick={() => setViewMode("pipeline")} title="Vista Pipeline">
+          <Button variant={viewMode === "pipeline" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: "pipeline" })} title="Vista Pipeline">
             <Kanban className="h-4 w-4" />
           </Button>
         </div>
@@ -583,8 +753,26 @@ export default function CompaniesList() {
 
       {isLoading ? (
         <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <CardContent className="p-0">
+            <div className="p-4 space-y-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-14" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : filteredCompanies.length === 0 ? (
@@ -593,9 +781,11 @@ export default function CompaniesList() {
             <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Nessuna azienda trovata</h3>
             <p className="text-muted-foreground text-center mt-2">
-              {searchQuery ? "Prova a modificare i termini di ricerca" : "Inizia creando la prima azienda"}
+              {hasActiveFilters ? "Nessun risultato per i filtri applicati" : "Inizia creando la prima azienda"}
             </p>
-            {!searchQuery && (
+            {hasActiveFilters ? (
+              <Button variant="outline" className="mt-4" onClick={clearAllFilters}>Rimuovi filtri</Button>
+            ) : (
               <Button asChild className="mt-4">
                 <Link to="/admin/aziende/nuova"><Plus className="mr-2 h-4 w-4" />Crea Azienda</Link>
               </Button>
@@ -620,45 +810,30 @@ export default function CompaniesList() {
                     <Checkbox
                       checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
                       onCheckedChange={toggleSelectAll}
+                      title={`Seleziona tutte le ${filteredCompanies.length} aziende filtrate`}
                     />
                   </TableHead>
                   <TableHead className="w-10" />
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>
                     <span className="inline-flex items-center">Azienda<SortIcon col="name" /></span>
                   </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("sector")}>
-                    <span className="inline-flex items-center">Settore<SortIcon col="sector" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("plan")}>
-                    <span className="inline-flex items-center">Piano<SortIcon col="plan" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mrr")}>
-                    <span className="inline-flex items-center">MRR<SortIcon col="mrr" /></span>
-                  </TableHead>
+                  {col("sector") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("sector")}><span className="inline-flex items-center">Settore<SortIcon col="sector" /></span></TableHead>}
+                  {col("plan") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("plan")}><span className="inline-flex items-center">Piano<SortIcon col="plan" /></span></TableHead>}
+                  {col("mrr") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mrr")}><span className="inline-flex items-center">MRR<SortIcon col="mrr" /></span></TableHead>}
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
                     <span className="inline-flex items-center">Stato<SortIcon col="status" /></span>
                   </TableHead>
-                  <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("users")}>
-                    <span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Utenti<SortIcon col="users" /></span>
-                  </TableHead>
-                  <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}>
-                    <span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("lastAccess")}>
-                    <span className="inline-flex items-center">Ultimo Accesso<SortIcon col="lastAccess" /></span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}>
-                    <span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span>
-                  </TableHead>
-                  <TableHead className="text-center">
-                    <span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Health</span>
-                  </TableHead>
-                  <TableHead>Tag</TableHead>
+                  {col("users") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("users")}><span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Utenti<SortIcon col="users" /></span></TableHead>}
+                  {col("orders") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}><span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span></TableHead>}
+                  {col("lastAccess") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("lastAccess")}><span className="inline-flex items-center">Ultimo Accesso<SortIcon col="lastAccess" /></span></TableHead>}
+                  {col("trial") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}><span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span></TableHead>}
+                  {col("health") && <TableHead className="text-center"><span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Health</span></TableHead>}
+                  {col("tags") && <TableHead>Tag</TableHead>}
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCompanies.map((company) => {
+                {pagedCompanies.map((company) => {
                   const status = (company.status || "trial") as CompanyStatus;
                   const cfg = statusConfig[status] || statusConfig.trial;
                   const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
@@ -694,19 +869,30 @@ export default function CompaniesList() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell><Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge></TableCell>
-                        <TableCell>{plan ? <Badge variant="outline">{plan.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
-                        <TableCell>{plan ? <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
-                        <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
-                        <TableCell className="text-center">
-                          <span className="text-sm font-medium">{userCounts[company.id] || 0}</span>
+                        {col("sector") && <TableCell><Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge></TableCell>}
+                        {col("plan") && <TableCell>{plan ? <Badge variant="outline">{plan.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>}
+                        {col("mrr") && <TableCell>{plan ? <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>}
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={status}
+                            onValueChange={(v) => updateStatusMutation.mutate({ id: company.id, status: v })}
+                          >
+                            <SelectTrigger className="h-7 w-[110px] text-xs border-0 shadow-none px-1">
+                              <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="trial">Trial</SelectItem>
+                              <SelectItem value="active">Attivo</SelectItem>
+                              <SelectItem value="suspended">Sospeso</SelectItem>
+                              <SelectItem value="expired">Scaduto</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
-                        <TableCell className="text-center"><span className="text-sm font-medium">{orderStats[company.id]?.count || 0}</span></TableCell>
-                        <TableCell>
-                          <LastAccessBadge lastAccess={lastAccessData[company.id] || null} />
-                        </TableCell>
-                        <TableCell><TrialBadge company={company} /></TableCell>
-                        <TableCell className="text-center">
+                        {col("users") && <TableCell className="text-center"><span className="text-sm font-medium">{userCounts[company.id] || 0}</span></TableCell>}
+                        {col("orders") && <TableCell className="text-center"><span className="text-sm font-medium">{orderStats[company.id]?.count || 0}</span></TableCell>}
+                        {col("lastAccess") && <TableCell><LastAccessBadge lastAccess={lastAccessData[company.id] || null} /></TableCell>}
+                        {col("trial") && <TableCell><TrialBadge company={company} /></TableCell>}
+                        {col("health") && <TableCell className="text-center">
                           {(() => {
                             const hd = healthData[company.id];
                             if (!hd) return <span className="text-xs text-muted-foreground">—</span>;
@@ -714,10 +900,8 @@ export default function CompaniesList() {
                             const labels: Record<string, string> = { healthy: "Healthy", at_risk: "At Risk", critical: "Critical" };
                             return <Badge variant="outline" className={`text-[10px] ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
                           })()}
-                        </TableCell>
-                        <TableCell>
-                          <CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} />
-                        </TableCell>
+                        </TableCell>}
+                        {col("tags") && <TableCell><CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} /></TableCell>}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <CompanyQuickActions company={company} />
@@ -732,7 +916,7 @@ export default function CompaniesList() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={14} className="p-4">
+                          <TableCell colSpan={5 + visibleCols.length} className="p-4">
                             <CompanyExpandedRow
                               company={company}
                               orderStats={orderStats[company.id]}
@@ -750,6 +934,34 @@ export default function CompaniesList() {
                 })}
               </TableBody>
             </Table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
+                <span>
+                  {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredCompanies.length)} di {filteredCompanies.length} aziende
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-2 tabular-nums">{currentPage} / {totalPages}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

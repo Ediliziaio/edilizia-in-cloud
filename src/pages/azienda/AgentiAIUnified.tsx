@@ -35,7 +35,7 @@ export default function AgentiAIUnified() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
           {TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5">
               <tab.icon className="h-4 w-4" />

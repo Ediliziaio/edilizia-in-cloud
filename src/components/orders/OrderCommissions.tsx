@@ -272,12 +272,12 @@ export function OrderCommissions({
                   sp.is_paid && "bg-muted/50"
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">
                       {sp.salesperson.first_name} {sp.salesperson.last_name}
                     </span>
-                    <Badge variant="outline" className="gap-1">
+                    <Badge variant="outline" className="gap-1 text-xs">
                       {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
                       {COMMISSION_TYPE_LABELS[sp.commission_type]?.label}
                     </Badge>
@@ -307,7 +307,7 @@ export function OrderCommissions({
                 </div>
 
                 {!readOnly && (
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-2">
                       <Label className="text-xs">Tipo</Label>
                       <Select

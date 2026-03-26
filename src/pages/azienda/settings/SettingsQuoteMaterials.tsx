@@ -95,8 +95,19 @@ export default function SettingsQuoteMaterials() {
     if (!over || active.id === over.id) return;
 
     setLocalMaterials((prev) => {
-      const oldIdx = prev.findIndex((m) => m.id === active.id);
-      const newIdx = prev.findIndex((m) => m.id === over.id);
+      // When a filter tab is active, drag IDs come from the filtered subset.
+      // We must reorder only within the filtered group and preserve the
+      // relative order of items not in that group.
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      // Find which items belong to the same group as the dragged items
+      const activeItem = prev.find((m) => m.id === activeId);
+      const overItem = prev.find((m) => m.id === overId);
+      if (!activeItem || !overItem) return prev;
+
+      const oldIdx = prev.findIndex((m) => m.id === activeId);
+      const newIdx = prev.findIndex((m) => m.id === overId);
       const reordered = arrayMove(prev, oldIdx, newIdx).map((m, i) => ({
         ...m,
         sort_order: i,
@@ -127,7 +138,7 @@ export default function SettingsQuoteMaterials() {
   }
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, sortIndex }: { file: File; sortIndex: number }) => {
       if (!companyId) throw new Error("Company ID mancante");
       if (file.size > 20 * 1024 * 1024) throw new Error("File troppo grande (max 20MB)");
       if (file.type !== "application/pdf") throw new Error("Solo file PDF");
@@ -148,7 +159,7 @@ export default function SettingsQuoteMaterials() {
           storage_path: storagePath,
           file_size_bytes: file.size,
           created_by: (await supabase.auth.getUser()).data.user!.id,
-          sort_order: localMaterials.length,
+          sort_order: sortIndex,
         });
       if (dbError) throw dbError;
     },
@@ -193,14 +204,18 @@ export default function SettingsQuoteMaterials() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files?.length) return;
+      const baseIndex = localMaterials.length;
       setUploading(true);
-      Promise.all(Array.from(files).map((f) => uploadMutation.mutateAsync(f)))
+      Promise.all(
+        Array.from(files).map((f, i) => uploadMutation.mutateAsync({ file: f, sortIndex: baseIndex + i }))
+      )
+        .catch(() => {/* errors already shown via onError */})
         .finally(() => {
           setUploading(false);
           if (fileInputRef.current) fileInputRef.current.value = "";
         });
     },
-    [uploadMutation]
+    [uploadMutation, localMaterials.length]
   );
 
   const handleDrop = useCallback(
@@ -208,10 +223,13 @@ export default function SettingsQuoteMaterials() {
       e.preventDefault();
       const files = Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf");
       if (!files.length) return;
+      const baseIndex = localMaterials.length;
       setUploading(true);
-      Promise.all(files.map((f) => uploadMutation.mutateAsync(f))).finally(() => setUploading(false));
+      Promise.all(files.map((f, i) => uploadMutation.mutateAsync({ file: f, sortIndex: baseIndex + i })))
+        .catch(() => {/* errors already shown via onError */})
+        .finally(() => setUploading(false));
     },
-    [uploadMutation]
+    [uploadMutation, localMaterials.length]
   );
 
   const handlePreview = async (storagePath: string) => {

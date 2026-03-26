@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -39,6 +40,7 @@ export default function AutomazioniUnified() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const routePrefix = useMarketingRoutePrefix();
   const [categoriaAttiva, setCategoriaAttiva] = useState<CategoriaFiltro>("tutte");
   const [searchQuery, setSearchQuery] = useState("");
   const [vistaTemplates, setVistaTemplates] = useState(false);
@@ -78,11 +80,11 @@ export default function AutomazioniUnified() {
             <FolderPlus className="w-4 h-4 mr-1.5" />
             Crea Cartella
           </Button>
-          <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+          <Button variant="outline" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
             <Sparkles className="w-4 h-4 mr-1.5" />
             Crea tramite AI
           </Button>
-          <Button onClick={() => navigate("/azienda/marketing/automazioni/nuova")}>
+          <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Crea Flusso di lavoro
           </Button>

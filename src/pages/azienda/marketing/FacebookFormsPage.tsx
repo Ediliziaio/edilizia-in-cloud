@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle, Copy, Check } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -19,6 +19,13 @@ export default function FacebookFormsPage() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   // Get integration
   const { data: integration } = useQuery({
@@ -176,6 +183,7 @@ export default function FacebookFormsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome modulo</TableHead>
+                  <TableHead>Form ID</TableHead>
                   <TableHead>Pagina</TableHead>
                   <TableHead className="text-center">Stato</TableHead>
                   <TableHead className="text-right">Lead totali</TableHead>
@@ -188,8 +196,23 @@ export default function FacebookFormsPage() {
                   const counts = leadCounts[form.form_id];
                   return (
                     <TableRow key={form.id}>
-                      <TableCell className="font-medium max-w-[250px] truncate" title={form.form_name}>
+                      <TableCell className="font-medium max-w-[200px] truncate" title={form.form_name}>
                         {form.form_name}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-xs text-muted-foreground">{form.form_id}</span>
+                          <button
+                            type="button"
+                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors"
+                            onClick={() => handleCopyId(form.form_id)}
+                            title="Copia Form ID"
+                          >
+                            {copiedId === form.form_id
+                              ? <Check className="h-3 w-3 text-emerald-500" />
+                              : <Copy className="h-3 w-3 text-muted-foreground" />}
+                          </button>
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {getPageName(form.page_asset_id)}

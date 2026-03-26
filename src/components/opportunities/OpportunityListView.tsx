@@ -28,6 +28,7 @@ export const OpportunityListView = memo(function OpportunityListView({
   onSelect,
 }: ListProps) {
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
+  const [mobileStageId, setMobileStageId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const stageMap = useMemo(() => {
@@ -35,6 +36,11 @@ export const OpportunityListView = memo(function OpportunityListView({
     stages.forEach((s) => { m[s.id] = s.name; });
     return m;
   }, [stages]);
+
+  const mobileOpportunities = useMemo(() => {
+    if (!mobileStageId) return opportunities;
+    return opportunities.filter((o: any) => o.stage_id === mobileStageId);
+  }, [opportunities, mobileStageId]);
 
   const allSelected = opportunities.length > 0 && opportunities.every((o: any) => selectedIds.has(o.id));
   const someSelected = opportunities.some((o: any) => selectedIds.has(o.id)) && !allSelected;
@@ -68,8 +74,129 @@ export const OpportunityListView = memo(function OpportunityListView({
 
   return (
     <>
-      <div className="border rounded-lg overflow-hidden">
-        <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-280px)]">
+      {/* ── MOBILE: card list con filtro per fase ── */}
+      <div className="sm:hidden flex flex-col gap-0">
+        {/* Stage pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <button
+            onClick={() => setMobileStageId(null)}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors",
+              !mobileStageId
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            Tutte ({opportunities.length})
+          </button>
+          {stages.map((stage: any) => {
+            const count = opportunities.filter((o: any) => o.stage_id === stage.id).length;
+            return (
+              <button
+                key={stage.id}
+                onClick={() => setMobileStageId(stage.id)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors",
+                  mobileStageId === stage.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {stage.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Cards */}
+        {mobileOpportunities.length === 0 ? (
+          <div className="text-center text-muted-foreground py-12 text-sm">
+            Nessuna opportunità in questa fase
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {mobileOpportunities.map((opp: any) => {
+              const contact = opp.marketing_contacts;
+              const fullName = contact
+                ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
+                : opp.name;
+              const contactPhone = contact?.phone;
+              const profile = opp.assigned_profile;
+              const ownerInitials = profile
+                ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
+                : null;
+              const ownerName = profile
+                ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+                : null;
+              const statusInfo = STATUS_MAP[opp.status] || STATUS_MAP.open;
+              const tags: string[] = opp.tags || [];
+              const isSelected = selectedIds.has(opp.id);
+
+              return (
+                <div
+                  key={opp.id}
+                  onClick={() => setSelectedOpp(opp)}
+                  className={cn(
+                    "border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card",
+                    isSelected && "border-primary bg-primary/5"
+                  )}
+                >
+                  {/* Top row: name + value */}
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm leading-tight truncate">{opp.name || fullName}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span
+                          className="h-4 w-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+                          style={{ backgroundColor: hashColor(fullName || "?") }}
+                        >
+                          {(fullName?.[0] || "?").toUpperCase()}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate">{fullName || "—"}</span>
+                        {contactPhone && (
+                          <span className="text-xs text-muted-foreground">· {contactPhone}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-base leading-tight">
+                        € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </p>
+                      <Badge className={cn("text-[10px] font-medium border-0 mt-0.5", statusInfo.className)}>
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Bottom row: stage + health + owner + tags */}
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    <Badge variant="outline" className="text-[10px] font-normal py-0">
+                      {stageMap[opp.stage_id] || "—"}
+                    </Badge>
+                    {opp.status === "open" && <DealHealthBadge opportunity={opp} />}
+                    {ownerInitials && (
+                      <div className="flex items-center gap-1 ml-auto">
+                        <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {ownerInitials}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">{ownerName}</span>
+                      </div>
+                    )}
+                    {tags.slice(0, 2).map((t) => (
+                      <Badge key={t} variant="secondary" className="text-[10px] py-0">{t}</Badge>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── DESKTOP: tabella con scroll orizzontale ── */}
+      <div className="hidden sm:block border rounded-lg">
+        <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-320px)] rounded-lg">
+          <div style={{ minWidth: "1000px" }}>
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="bg-muted/40">
@@ -141,6 +268,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                           top: 0,
                           left: 0,
                           width: "100%",
+                          minWidth: "1000px",
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
                         onClick={() => setSelectedOpp(opp)}
@@ -241,6 +369,7 @@ export const OpportunityListView = memo(function OpportunityListView({
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
 

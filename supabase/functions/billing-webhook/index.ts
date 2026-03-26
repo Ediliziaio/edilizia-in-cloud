@@ -3,22 +3,28 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const WEBHOOK_SECRET = Deno.env.get("BILLING_WEBHOOK_SECRET") || "";
 
+const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
 async function verifySignature(req: Request, body: string): Promise<boolean> {
   // CRITICAL: reject all requests if secret is not configured
   if (!WEBHOOK_SECRET) {
     throw new Error("BILLING_WEBHOOK_SECRET not configured");
   }
 
-  const signature = req.headers.get("x-webhook-signature") || 
-                    req.headers.get("x-signature") ||
-                    new URL(req.url).searchParams.get("secret");
-  
+  // Only accept signature from headers — never from query params (prevents replay via URL sharing)
+  const signature = req.headers.get("x-webhook-signature") || req.headers.get("x-signature");
   if (!signature) return false;
 
-  // Simple secret comparison (query param or header)
-  if (signature === WEBHOOK_SECRET) return true;
+  // Replay protection: check timestamp header (providers must send x-webhook-timestamp)
+  const tsHeader = req.headers.get("x-webhook-timestamp");
+  if (tsHeader) {
+    const tsMs = parseInt(tsHeader, 10) * (tsHeader.length <= 10 ? 1000 : 1); // handle seconds or ms
+    if (isNaN(tsMs) || Math.abs(Date.now() - tsMs) > REPLAY_WINDOW_MS) {
+      return false; // reject stale or malformed timestamp
+    }
+  }
 
-  // HMAC verification
+  // HMAC-SHA256 verification
   try {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
@@ -26,8 +32,9 @@ async function verifySignature(req: Request, body: string): Promise<boolean> {
       { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
     );
     const sigBytes = new Uint8Array(
-      signature.match(/.{1,2}/g)?.map((b: string) => parseInt(b, 16)) || []
+      signature.replace(/^sha256=/, "").match(/.{1,2}/g)?.map((b: string) => parseInt(b, 16)) || []
     );
+    if (sigBytes.length === 0) return false;
     return await crypto.subtle.verify("HMAC", key, sigBytes, encoder.encode(body));
   } catch {
     return false;

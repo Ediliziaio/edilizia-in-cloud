@@ -99,7 +99,7 @@ export default function AgentDetailPage() {
     return (
       <div className="p-6 text-center">
         <p className="text-muted-foreground">Agente non trovato.</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/agenti-ai")}>
+        <Button variant="outline" className="mt-4 hidden md:inline-flex" onClick={() => navigate("/azienda/agenti-ai")}>
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Torna agli agenti
         </Button>
       </div>
@@ -113,7 +113,7 @@ export default function AgentDetailPage() {
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center gap-3 mb-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/agenti-ai")}>
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/agenti-ai")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Agenti
           </Button>
         </div>

@@ -27,8 +27,9 @@ Deno.serve(async (req) => {
     // Fix 6: Strict redirect URL validation — reject unauthorized origins
     try {
       const redirectOrigin = new URL(redirect_url).origin;
+      const siteUrl = Deno.env.get("SITE_URL") || "";
       const isAllowed =
-        redirectOrigin.endsWith(".lovable.app") ||
+        (siteUrl && redirectOrigin === new URL(siteUrl).origin) ||
         redirectOrigin.includes("localhost") ||
         redirectOrigin.includes("127.0.0.1");
       if (!isAllowed) {

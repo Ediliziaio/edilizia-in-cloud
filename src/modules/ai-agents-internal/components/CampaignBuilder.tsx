@@ -30,7 +30,7 @@ interface Props {
 export function CampaignBuilder({ open, onClose }: Props) {
   const [step, setStep] = useState(0);
   const { data: agents } = useInternalAgents();
-  const { createCampaign } = useInternalCampaigns();
+  const { createCampaign, startCampaign } = useInternalCampaigns();
 
   // Form state
   const [name, setName] = useState("");
@@ -100,7 +100,13 @@ export function CampaignBuilder({ open, onClose }: Props) {
       };
     }
 
-    await createCampaign.mutateAsync(input);
+    const result = await createCampaign.mutateAsync(input) as any;
+
+    // Auto-start immediately if schedule mode is "immediate"
+    if (scheduleMode === "immediate" && result?.id) {
+      await startCampaign.mutateAsync(result.id);
+    }
+
     onClose();
   };
 

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
 
@@ -109,7 +110,14 @@ function PermissionBadges({ u }: { u: CompanyUser }) {
   if (u.permissions.can_view_employees) internalLabels.push("Dipendenti");
   if (u.permissions.can_view_tickets) internalLabels.push("Assistenza");
   if (u.permissions.can_view_forecast) internalLabels.push("Previsionale");
-  if (u.permissions.can_view_settings) internalLabels.push("Impostazioni");
+  if (
+    u.permissions.can_view_settings ||
+    u.permissions.can_view_settings_profile ||
+    u.permissions.can_view_settings_orders ||
+    u.permissions.can_view_settings_customization ||
+    u.permissions.can_view_settings_people ||
+    u.permissions.can_view_settings_security
+  ) internalLabels.push("Impostazioni");
 
   const hasAnyMarketing = u.permissions.can_view_marketing_dashboard || u.permissions.can_view_marketing_contacts ||
     u.permissions.can_view_marketing_opportunities || u.permissions.can_view_marketing_activities ||
@@ -264,7 +272,7 @@ export function UsersConfig() {
 
   // Fetch team memberships
   const { data: teamMemberships = [] } = useQuery({
-    queryKey: ["team-memberships-filter", effectiveCompanyId],
+    queryKey: ["team-memberships-filter", effectiveCompanyId, teams.map(t => t.id)],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("team_members")
@@ -295,6 +303,10 @@ export function UsersConfig() {
         supabase.from("staff_permissions").select("*").in("user_id", userIds),
       ]);
 
+      if (rolesRes.error) throw rolesRes.error;
+      if (sessionsRes.error) throw sessionsRes.error;
+      if (permsRes.error) throw permsRes.error;
+
       // Group roles by user
       const rolesByUser: Record<string, string[]> = {};
       rolesRes.data?.forEach((r) => {
@@ -321,14 +333,15 @@ export function UsersConfig() {
 
       if (companyUserIds.length === 0) return [];
 
-      const result: CompanyUser[] = companyUserIds.map((uid) => {
-        const profile = profiles.find((p) => p.id === uid)!;
-        return {
+      const result: CompanyUser[] = companyUserIds.flatMap((uid) => {
+        const profile = profiles.find((p) => p.id === uid);
+        if (!profile) return []; // skip orphaned roles without a matching profile
+        return [{
           ...profile,
           effectiveRole: determineEffectiveRole(rolesByUser[uid] || []),
           permissions: permissionsMap[uid] || null,
           active_sessions: sessionsByUser[uid] || 0,
-        };
+        }];
       });
 
       return result;
@@ -374,7 +387,9 @@ export function UsersConfig() {
       // Update permissions for roles that use staff_permissions
       const rolesWithPermissions = ["company_staff", "salesperson", "call_center"];
       if (rolesWithPermissions.includes(data.role_type) && data.permissions && response.data?.user_id) {
-        const { only_assigned, ...permFields } = data.permissions;
+        // Sync legacy aggregate flags before saving
+        const synced = syncLegacySettingsFlags(data.permissions);
+        const { only_assigned, ...permFields } = synced;
         const hasAnyMarketingView = permFields.can_view_marketing_dashboard || permFields.can_view_marketing_contacts ||
           permFields.can_view_marketing_opportunities || permFields.can_view_marketing_activities ||
           permFields.can_view_marketing_appointments || permFields.can_view_marketing_automations ||
@@ -386,7 +401,8 @@ export function UsersConfig() {
         const { error: permUpdateError } = await supabase
           .from("staff_permissions")
           .update({ ...permFields, only_assigned: only_assigned || false })
-          .eq("user_id", response.data.user_id);
+          .eq("user_id", response.data.user_id)
+          .eq("company_id", effectiveCompanyId!);
 
         if (permUpdateError) {
           logger.error("Failed to update permissions:", permUpdateError);
@@ -453,7 +469,8 @@ export function UsersConfig() {
       const { error } = await supabase
         .from("profiles")
         .update({ locked_until: null, failed_login_count: 0 } as never)
-        .eq("id", userId);
+        .eq("id", userId)
+        .eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -509,7 +526,7 @@ export function UsersConfig() {
       ];
     });
 
-    const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -534,14 +551,15 @@ export function UsersConfig() {
     // Parse headers (skip first row)
     const dataRows = lines.slice(1);
     let imported = 0;
-    let errors = 0;
+    const failedRows: { row: number; email: string; reason: string }[] = [];
 
-    for (const line of dataRows) {
+    for (let i = 0; i < dataRows.length; i++) {
+      const line = dataRows[i];
       const cols = line.split(",").map((c) => c.replace(/^"|"$/g, "").trim());
       const [firstName, lastName, email, , roleLabel] = cols;
 
       if (!firstName || !lastName || !email) {
-        errors++;
+        failedRows.push({ row: i + 2, email: email || "—", reason: "Campi obbligatori mancanti" });
         continue;
       }
 
@@ -554,7 +572,7 @@ export function UsersConfig() {
       const roleType = roleMap[(roleLabel || "").toLowerCase()] || "company_staff";
 
       try {
-        const { error } = await supabase.functions.invoke("create-company-staff", {
+        const { data: fnData, error: fnError } = await supabase.functions.invoke("create-company-staff", {
           body: {
             first_name: firstName,
             last_name: lastName,
@@ -563,15 +581,33 @@ export function UsersConfig() {
             role_type: roleType,
           },
         });
-        if (error) throw error;
+        if (fnError) throw fnError;
+        if (fnData?.error) throw new Error(fnData.error);
         imported++;
-      } catch {
-        errors++;
+      } catch (err: any) {
+        const reason = err?.message?.includes("esiste già")
+          ? "Email già in uso"
+          : err?.message || "Errore sconosciuto";
+        failedRows.push({ row: i + 2, email, reason });
       }
     }
 
     queryClient.invalidateQueries({ queryKey: ["company-users"] });
-    toast.success(`Importazione completata: ${imported} utenti importati${errors > 0 ? `, ${errors} errori` : ""}`);
+
+    if (imported > 0) {
+      toast.success(`${imported} utente/i importato/i con successo`);
+    }
+
+    if (failedRows.length > 0) {
+      const preview = failedRows.slice(0, 5);
+      const extra = failedRows.length - preview.length;
+      const detail = preview.map((r) => `Riga ${r.row}: ${r.email} — ${r.reason}`).join("\n");
+      toast.error(`${failedRows.length} riga/e non importata/e`, {
+        description: detail + (extra > 0 ? `\n…e altri ${extra}` : ""),
+        duration: 8000,
+      });
+    }
+
     e.target.value = "";
   };
 
@@ -731,7 +767,7 @@ export function UsersConfig() {
                         {isCurrentUser(u.id) && (
                           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Tu</Badge>
                         )}
-                        {(u.permissions as any)?.must_change_password && (
+                        {u.permissions?.must_change_password && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300 bg-amber-50">
                             Password da cambiare
                           </Badge>

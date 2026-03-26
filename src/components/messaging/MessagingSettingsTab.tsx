@@ -11,8 +11,8 @@ import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loa
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 
-// Public Meta App ID — configure this with your own app
-const META_APP_ID = "YOUR_META_APP_ID";
+// Meta App ID loaded at runtime from platform_settings
+let META_APP_ID = "";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   verified: { label: "Verificato", variant: "default" },
@@ -44,11 +44,12 @@ declare global {
   }
 }
 
-function useFacebookSDK() {
+function useFacebookSDK(metaAppId: string) {
   const loaded = useRef(false);
   const [ready, setReady] = useState(!!window.FB);
 
   useEffect(() => {
+    if (!metaAppId) return; // wait until app ID is loaded
     if (loaded.current || window.FB) {
       if (window.FB) setReady(true);
       return;
@@ -57,7 +58,7 @@ function useFacebookSDK() {
 
     window.fbAsyncInit = () => {
       window.FB.init({
-        appId: META_APP_ID,
+        appId: metaAppId,
         cookie: true,
         xfbml: false,
         version: "v21.0",
@@ -70,7 +71,7 @@ function useFacebookSDK() {
     script.async = true;
     script.defer = true;
     document.body.appendChild(script);
-  }, []);
+  }, [metaAppId]);
 
   return ready;
 }
@@ -90,12 +91,58 @@ export function MessagingSettingsTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const fbReady = useFacebookSDK();
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [messagingLimitTier, setMessagingLimitTier] = useState<string | null>(null);
   const [lastStatusUpdate, setLastStatusUpdate] = useState<string | null>(null);
+
+  // Load Meta App ID from platform_settings
+  const { data: metaAppId = "" } = useQuery({
+    queryKey: ["platform-meta-app-id"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings" as never)
+        .select("value")
+        .eq("key", "meta_app_id")
+        .maybeSingle();
+      const appId = (data as any)?.value || "";
+      META_APP_ID = appId; // keep module var in sync for the FB.login callback
+      return appId;
+    },
+    staleTime: 60_000,
+  });
+
+  // 7-day message stats
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: msgStats } = useQuery({
+    queryKey: ["wa-msg-stats-7d", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: convIds } = await supabase
+        .from("messaging_conversations" as never)
+        .select("id")
+        .eq("company_id", companyId!);
+      const ids = ((convIds || []) as any[]).map((c: any) => c.id);
+      if (!ids.length) return { sent: 0, delivered: 0 };
+      const { data, error } = await supabase
+        .from("messaging_messages" as never)
+        .select("delivery_status")
+        .in("conversation_id", ids)
+        .eq("sender_type", "operator")
+        .gte("created_at", sevenDaysAgo);
+      if (error) throw error;
+      const msgs = (data || []) as any[];
+      const sent = msgs.length;
+      const delivered = msgs.filter((m: any) =>
+        m.delivery_status === "delivered" || m.delivery_status === "read"
+      ).length;
+      return { sent, delivered };
+    },
+  });
+
+  const fbReady = useFacebookSDK(metaAppId);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["whatsapp-config", companyId],
@@ -327,7 +374,7 @@ export function MessagingSettingsTab() {
                     <Send className="h-4 w-4" />
                     <span className="text-xs">Messaggi inviati (7gg)</span>
                   </div>
-                  <p className="text-2xl font-bold">—</p>
+                  <p className="text-2xl font-bold">{msgStats?.sent ?? "—"}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -336,7 +383,7 @@ export function MessagingSettingsTab() {
                     <CheckCheck className="h-4 w-4" />
                     <span className="text-xs">Messaggi consegnati (7gg)</span>
                   </div>
-                  <p className="text-2xl font-bold">—</p>
+                  <p className="text-2xl font-bold">{msgStats?.delivered ?? "—"}</p>
                 </CardContent>
               </Card>
             </div>

@@ -160,6 +160,8 @@ Deno.serve(async (req) => {
 
       if (spError) {
         console.error("Error creating salesperson record:", spError);
+        await cleanup();
+        return errorResponse("Errore durante la creazione del profilo venditore", 500);
       }
     }
 

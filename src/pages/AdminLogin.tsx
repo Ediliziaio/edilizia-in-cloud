@@ -59,18 +59,39 @@ export default function AdminLogin() {
         return;
       }
 
-      // Check 2FA
+      // Check 2FA — fail closed: if the check errors, require 2FA anyway for safety
+      let twoFaEnabled = false;
       try {
-        const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
+        const { data: totpStatus, error: totpError } = await supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
-        if (totpStatus?.enabled) {
-          setView("2fa");
+        if (totpError) {
+          // Cannot determine 2FA status — sign out and show error
+          await supabase.auth.signOut();
+          toast({
+            variant: "destructive",
+            title: "Errore verifica 2FA",
+            description: "Impossibile verificare lo stato 2FA. Riprova.",
+          });
           setIsSubmitting(false);
           return;
         }
+        twoFaEnabled = !!totpStatus?.enabled;
       } catch {
-        // 2FA not configured, continue
+        // Network/function error — sign out and fail closed
+        await supabase.auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Errore verifica 2FA",
+          description: "Impossibile contattare il servizio di autenticazione. Riprova.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      if (twoFaEnabled) {
+        setView("2fa");
+        setIsSubmitting(false);
+        return;
       }
 
       // Verify role after login

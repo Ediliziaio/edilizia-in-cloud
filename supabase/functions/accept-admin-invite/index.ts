@@ -57,9 +57,10 @@ Deno.serve(async (req) => {
       if (signUpErr || !newUser?.user) throw new Error(signUpErr?.message ?? "Errore creazione utente");
       userId = newUser.user.id;
 
-      // Create profile
+      // Create profile with email so the admin shows correctly in the list
       await supabaseAdmin.from("profiles").upsert({
         id: userId,
+        email: invite.email,
         first_name: "",
         last_name: "",
       }, { onConflict: "id" });

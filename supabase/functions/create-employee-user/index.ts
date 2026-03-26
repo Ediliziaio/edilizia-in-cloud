@@ -118,7 +118,10 @@ Deno.serve(async (req) => {
     }
 
     const { error: permError } = await supabaseAdmin.from("staff_permissions").insert(permissionsRecord);
-    if (permError) console.error("Error creating staff_permissions:", permError);
+    if (permError) {
+      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      throw new Error("Errore nella creazione permessi");
+    }
 
     const { error: linkError } = await supabaseAdmin
       .from("employees")

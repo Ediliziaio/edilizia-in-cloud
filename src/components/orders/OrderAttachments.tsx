@@ -371,17 +371,17 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       } : {})}
       className={`relative transition-colors ${editable && isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
     >
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Paperclip className="h-5 w-5" />
-          Documenti Ordine
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 min-w-0">
+          <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+          <span className="truncate">Documenti Ordine</span>
         </CardTitle>
         {editable && (
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" disabled={attachments.length >= MAX_FILES_PER_ORDER}>
-                <Upload className="h-4 w-4 mr-2" />
-                Carica File
+              <Button size="sm" variant="outline" disabled={attachments.length >= MAX_FILES_PER_ORDER} className="shrink-0">
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1.5">Carica File</span>
               </Button>
             </DialogTrigger>
             <DialogContent>

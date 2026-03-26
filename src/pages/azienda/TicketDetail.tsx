@@ -169,7 +169,7 @@ export default function TicketDetail() {
   if (ticketError || messagesError) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/assistenza")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <Alert variant="destructive">
@@ -208,7 +208,7 @@ export default function TicketDetail() {
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Header migliorato con badge */}
       <div className="flex items-start gap-4 pb-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/assistenza")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">

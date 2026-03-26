@@ -82,7 +82,7 @@ function PermissionRow({ member }: { member: AdminMember }) {
           <Avatar className="h-8 w-8">
             <AvatarImage src={member.avatarUrl ?? undefined} />
             <AvatarFallback className="text-xs">
-              {member.firstName[0]}{member.lastName[0]}
+              {member.firstName?.[0] ?? "?"}{member.lastName?.[0] ?? ""}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
@@ -355,14 +355,16 @@ export default function SuperAdminUsersTab() {
             Gestisci gli amministratori e i loro permessi.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> Crea Admin
-          </Button>
-          <Button onClick={() => setShowInvite(true)} className="gap-2">
-            <UserPlus className="h-4 w-4" /> Invita Admin
-          </Button>
-        </div>
+        {saPermissions.can_manage_admins && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowCreate(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Crea Admin
+            </Button>
+            <Button onClick={() => setShowInvite(true)} className="gap-2">
+              <UserPlus className="h-4 w-4" /> Invita Admin
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* KPI strip */}
@@ -463,7 +465,7 @@ export default function SuperAdminUsersTab() {
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={member.avatarUrl ?? undefined} />
                       <AvatarFallback className="text-xs">
-                        {member.firstName[0]}{member.lastName[0]}
+                        {member.firstName?.[0] ?? "?"}{member.lastName?.[0] ?? ""}
                       </AvatarFallback>
                     </Avatar>
                     <div>

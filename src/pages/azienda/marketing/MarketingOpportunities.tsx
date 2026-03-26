@@ -66,7 +66,7 @@ function MarketingOpportunitiesContent() {
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
     selectedPipelineId: { key: "pipeline", defaultValue: "" },
-    viewMode: { key: "view", defaultValue: "kanban" },
+    viewMode: { key: "view", defaultValue: "list" },
     searchInput: { key: "q", defaultValue: "" },
     sortField: { key: "ordina", defaultValue: "created_at" },
     sortDir: { key: "dir", defaultValue: "desc" },
@@ -369,7 +369,7 @@ function MarketingOpportunitiesContent() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-3 overflow-hidden">
+    <div className="flex flex-col h-full gap-3">
       <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
@@ -380,7 +380,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="h-8 w-8" onClick={() => setViewMode("kanban")}>
+              <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -388,7 +388,7 @@ function MarketingOpportunitiesContent() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="h-8 w-8" onClick={() => setViewMode("list")}>
+              <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("list")}>
                 <List className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -399,7 +399,7 @@ function MarketingOpportunitiesContent() {
               <Button
                 variant={layout === "mini" ? "secondary" : "ghost"}
                 size="icon"
-                className="h-8 w-8"
+                className="hidden md:inline-flex h-8 w-8"
                 onClick={() => setLayout(layout === "mini" ? "default" : "mini")}
               >
                 {layout === "mini" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
@@ -407,11 +407,13 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
+          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
           <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" /> Aggiungi opportunità
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Aggiungi opportunità</span>
+            <span className="sm:hidden">Aggiungi</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -420,6 +422,16 @@ function MarketingOpportunitiesContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem className="md:hidden" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
+                <Upload className="mr-2 h-4 w-4" /> Importa CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem className="md:hidden" onClick={() => setViewMode(viewMode === "kanban" ? "list" : "kanban")}>
+                {viewMode === "kanban" ? <List className="mr-2 h-4 w-4" /> : <LayoutGrid className="mr-2 h-4 w-4" />}
+                {viewMode === "kanban" ? "Vista lista" : "Vista Kanban"}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="md:hidden" onClick={() => setCardCustomizeOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={async () => {
                 try {
                   const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
@@ -471,7 +483,7 @@ function MarketingOpportunitiesContent() {
         </div>
       )}
 
-      <div className="flex items-center gap-1 border-b shrink-0">
+      <div className="flex items-center gap-1 border-b shrink-0 overflow-x-auto scrollbar-none">
         <Button
           variant="ghost"
           size="sm"
@@ -515,59 +527,59 @@ function MarketingOpportunitiesContent() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant={onlyMine ? "default" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setOnlyMine(!onlyMine)}
-          >
-            {onlyMine ? "I miei deal" : "Tutti i deal"}
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
-            <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
-            {activeFilterCount > 0 && (
-              <Badge className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs">
-                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {[
-                { field: "name" as const, dir: "asc" as const, label: "Nome (A-Z)" },
-                { field: "name" as const, dir: "desc" as const, label: "Nome (Z-A)" },
-                { field: "value" as const, dir: "desc" as const, label: "Valore (alto-basso)" },
-                { field: "value" as const, dir: "asc" as const, label: "Valore (basso-alto)" },
-                { field: "created_at" as const, dir: "desc" as const, label: "Data creazione ↓" },
-                { field: "created_at" as const, dir: "asc" as const, label: "Data creazione ↑" },
-                { field: "updated_at" as const, dir: "desc" as const, label: "Ultima modifica ↓" },
-                { field: "updated_at" as const, dir: "asc" as const, label: "Ultima modifica ↑" },
-              ].map((opt) => (
-                <DropdownMenuItem
-                  key={`${opt.field}-${opt.dir}`}
-                  onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
-                  className="flex items-center justify-between"
-                >
-                  {opt.label}
-                  {sortField === opt.field && sortDir === opt.dir && <Check className="h-3.5 w-3.5 ml-2" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <div className="flex flex-col gap-2 shrink-0">
+        <div className="relative w-full">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-full pl-8 text-xs" />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              variant={onlyMine ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setOnlyMine(!onlyMine)}
+            >
+              {onlyMine ? "I miei deal" : "Tutti i deal"}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
+              <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri
+              {activeFilterCount > 0 && (
+                <Badge className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {[
+                  { field: "name" as const, dir: "asc" as const, label: "Nome (A-Z)" },
+                  { field: "name" as const, dir: "desc" as const, label: "Nome (Z-A)" },
+                  { field: "value" as const, dir: "desc" as const, label: "Valore (alto-basso)" },
+                  { field: "value" as const, dir: "asc" as const, label: "Valore (basso-alto)" },
+                  { field: "created_at" as const, dir: "desc" as const, label: "Data creazione ↓" },
+                  { field: "created_at" as const, dir: "asc" as const, label: "Data creazione ↑" },
+                  { field: "updated_at" as const, dir: "desc" as const, label: "Ultima modifica ↓" },
+                  { field: "updated_at" as const, dir: "asc" as const, label: "Ultima modifica ↑" },
+                ].map((opt) => (
+                  <DropdownMenuItem
+                    key={`${opt.field}-${opt.dir}`}
+                    onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
+                    className="flex items-center justify-between"
+                  >
+                    {opt.label}
+                    {sortField === opt.field && sortDir === opt.dir && <Check className="h-3.5 w-3.5 ml-2" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <Button variant="link" size="sm" className="h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
+          <Button variant="link" size="sm" className="hidden md:inline-flex h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
             <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
           </Button>
         </div>

@@ -266,17 +266,38 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Fetch existing permissions to merge (prevents partial update from overwriting unrelated fields)
+      const { data: existing } = await supabaseAdmin
+        .from("super_admin_permissions")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const merged = {
+        can_manage_companies: existing?.can_manage_companies ?? false,
+        can_manage_plans: existing?.can_manage_plans ?? false,
+        can_manage_tickets: existing?.can_manage_tickets ?? false,
+        can_manage_referrals: existing?.can_manage_referrals ?? false,
+        can_manage_admins: existing?.can_manage_admins ?? false,
+        can_view_platform_stats: existing?.can_view_platform_stats ?? true,
+        can_manage_marketing: existing?.can_manage_marketing ?? false,
+        allowed_company_ids: existing?.allowed_company_ids ?? null,
+        // Now apply only the fields actually present in the incoming permissions object
+        ...(permissions.can_manage_companies !== undefined && { can_manage_companies: permissions.can_manage_companies }),
+        ...(permissions.can_manage_plans !== undefined && { can_manage_plans: permissions.can_manage_plans }),
+        ...(permissions.can_manage_tickets !== undefined && { can_manage_tickets: permissions.can_manage_tickets }),
+        ...(permissions.can_manage_referrals !== undefined && { can_manage_referrals: permissions.can_manage_referrals }),
+        ...(permissions.can_manage_admins !== undefined && { can_manage_admins: permissions.can_manage_admins }),
+        ...(permissions.can_view_platform_stats !== undefined && { can_view_platform_stats: permissions.can_view_platform_stats }),
+        ...(permissions.can_manage_marketing !== undefined && { can_manage_marketing: permissions.can_manage_marketing }),
+        ...(permissions.allowed_company_ids !== undefined && { allowed_company_ids: permissions.allowed_company_ids }),
+      };
+
       const { error } = await supabaseAdmin
         .from("super_admin_permissions")
         .upsert({
           user_id: userId,
-          can_manage_companies: permissions.can_manage_companies ?? true,
-          can_manage_plans: permissions.can_manage_plans ?? true,
-          can_manage_tickets: permissions.can_manage_tickets ?? true,
-          can_manage_referrals: permissions.can_manage_referrals ?? true,
-          can_manage_admins: permissions.can_manage_admins ?? true,
-          can_view_platform_stats: permissions.can_view_platform_stats ?? true,
-          allowed_company_ids: permissions.allowed_company_ids ?? null,
+          ...merged,
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
 
@@ -331,6 +352,45 @@ Deno.serve(async (req) => {
       await logAudit(supabaseAdmin, callerId, "delete_admin", "user", userId, {
         target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
         email: targetProfile?.email,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === DELETE COMPANY ===
+    if (action === "delete-company") {
+      const { companyId } = body;
+      if (!companyId) {
+        return new Response(JSON.stringify({ error: "companyId obbligatorio" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get company info before deletion for audit
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("name, email")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from("companies")
+        .delete()
+        .eq("id", companyId);
+
+      if (deleteError) throw new Error(deleteError.message);
+
+      await logAudit(supabaseAdmin, callerId, "delete_company", "company", companyId, {
+        company_name: company.name,
+        company_email: company.email,
       });
 
       return new Response(JSON.stringify({ success: true }), {

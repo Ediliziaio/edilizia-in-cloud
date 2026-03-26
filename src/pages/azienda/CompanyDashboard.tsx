@@ -39,23 +39,23 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
       <Collapsible open={open} onOpenChange={setOpen}>
         <CardHeader className="pb-3">
           <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between cursor-pointer">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {urgentItems.length > 0 && <AlertTriangle className="h-5 w-5 text-destructive" />}
-                  <Package className="h-5 w-5 text-primary" />
-                  Alert Magazzino
+            <div className="flex items-center justify-between gap-2 cursor-pointer">
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-1.5 flex-wrap">
+                  {urgentItems.length > 0 && <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />}
+                  <Package className="h-4 w-4 text-primary shrink-0" />
+                  <span className="truncate">Alert Magazzino</span>
                   {urgentItems.length > 0 ? (
-                    <Badge variant="destructive" className="ml-1">{urgentItems.length}</Badge>
+                    <Badge variant="destructive" className="shrink-0">{urgentItems.length}</Badge>
                   ) : (
-                    <Badge variant="secondary" className="ml-1">0</Badge>
+                    <Badge variant="secondary" className="shrink-0">0</Badge>
                   )}
                 </CardTitle>
                 <CardDescription>Articoli con posa imminente</CardDescription>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                  <Link to="/azienda/magazzino">Vai al magazzino</Link>
+                  <Link to="/azienda/magazzino"><span className="hidden sm:inline">Vai al magazzino</span><span className="sm:hidden">Magazzino</span></Link>
                 </Button>
                 <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
               </div>
@@ -194,17 +194,17 @@ export default function CompanyDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <Skeleton className="h-8 w-48 mb-2" />
             <Skeleton className="h-4 w-64" />
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-10 w-36" />
-            <Skeleton className="h-10 w-36" />
+          <div className="flex gap-2 flex-wrap">
+            <Skeleton className="h-9 w-24 sm:w-36" />
+            <Skeleton className="h-9 w-24 sm:w-36" />
           </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -240,13 +240,13 @@ export default function CompanyDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Benvenuto nel pannello di controllo</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 mr-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="outline"
               size="sm"
@@ -255,22 +255,22 @@ export default function CompanyDashboard() {
               className="gap-1.5"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-              Aggiorna
+              <span className="hidden sm:inline">Aggiorna</span>
             </Button>
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
               {lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
-          <Button variant="outline" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link to="/azienda/clienti/nuovo">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Cliente
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Nuovo Cliente</span>
             </Link>
           </Button>
-          <Button asChild>
+          <Button size="sm" asChild>
             <Link to="/azienda/ordini/nuovo">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Ordine
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Nuovo Ordine</span>
             </Link>
           </Button>
         </div>
@@ -360,21 +360,21 @@ export default function CompanyDashboard() {
       )}
 
       {/* Stats Grid with delta % */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Link key={stat.title} to={stat.link}>
             <Card className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 gap-1">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate min-w-0">
                   {stat.title}
                 </CardTitle>
-                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                <div className={`p-1.5 sm:p-2 rounded-lg shrink-0 ${stat.bgColor}`}>
+                  <stat.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-2">
-                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="text-xl sm:text-2xl font-bold">{stat.value}</div>
                   {stat.prevValue !== null && typeof stat.value === "number" && (
                     <DeltaIndicator current={stat.value} previous={stat.prevValue} />
                   )}

@@ -28,6 +28,9 @@ export function useInternalAutomationFlows() {
 }
 
 export function useInternalAutomationFlow(flowId: string | undefined) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   return useQuery({
     queryKey: queryKeys.internalAutomations.flow(flowId),
     queryFn: async () => {
@@ -35,15 +38,19 @@ export function useInternalAutomationFlow(flowId: string | undefined) {
         .from("internal_automation_flows")
         .select("*")
         .eq("id", flowId!)
+        .eq("company_id", companyId!)
         .single();
       if (error) throw error;
       return data as InternalAutomationFlow;
     },
-    enabled: !!flowId,
+    enabled: !!flowId && !!companyId,
   });
 }
 
 export function useInternalAutomationNodes(flowId: string | undefined) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   return useQuery({
     queryKey: queryKeys.internalAutomations.nodes(flowId),
     queryFn: async () => {
@@ -55,11 +62,14 @@ export function useInternalAutomationNodes(flowId: string | undefined) {
       if (error) throw error;
       return (data ?? []) as InternalAutomationNode[];
     },
-    enabled: !!flowId,
+    enabled: !!flowId && !!companyId,
   });
 }
 
 export function useInternalAutomationConnections(flowId: string | undefined) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   return useQuery({
     queryKey: queryKeys.internalAutomations.connections(flowId),
     queryFn: async () => {
@@ -71,11 +81,14 @@ export function useInternalAutomationConnections(flowId: string | undefined) {
       if (error) throw error;
       return (data ?? []) as InternalAutomationConnection[];
     },
-    enabled: !!flowId,
+    enabled: !!flowId && !!companyId,
   });
 }
 
 export function useInternalAutomationExecutionLog(flowId: string | undefined) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   return useQuery({
     queryKey: queryKeys.internalAutomations.log(flowId),
     queryFn: async () => {
@@ -88,7 +101,7 @@ export function useInternalAutomationExecutionLog(flowId: string | undefined) {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!flowId,
+    enabled: !!flowId && !!companyId,
   });
 }
 
@@ -120,14 +133,17 @@ export function useCreateInternalFlow() {
 }
 
 export function useUpdateInternalFlow(flowId: string | undefined) {
+  const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (updates: Partial<InternalAutomationFlow>) => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non caricata");
       const { error } = await (supabase as any)
         .from("internal_automation_flows")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", flowId!);
+        .eq("id", flowId!)
+        .eq("company_id", effectiveCompany.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.all }),
@@ -135,14 +151,17 @@ export function useUpdateInternalFlow(flowId: string | undefined) {
 }
 
 export function useDeleteInternalFlow() {
+  const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (flowId: string) => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non caricata");
       const { error } = await (supabase as any)
         .from("internal_automation_flows")
         .delete()
-        .eq("id", flowId);
+        .eq("id", flowId)
+        .eq("company_id", effectiveCompany.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.internalAutomations.all }),

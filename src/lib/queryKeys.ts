@@ -1008,4 +1008,11 @@ export const queryKeys = {
     list: (companyId: string | undefined, search?: string) =>
       ["articoli-native", "list", companyId, search] as const,
   },
+
+  // ── Entity Custom Field Values (cantieri: OdV, Giornale, POS, DUVRI) ───
+  entityCustomFieldValues: {
+    all: ["entity-custom-field-values"] as const,
+    byEntity: (entityType: string, entityId: string | null) =>
+      ["entity-custom-field-values", entityType, entityId] as const,
+  },
 } as const;

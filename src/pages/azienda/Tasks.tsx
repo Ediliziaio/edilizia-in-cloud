@@ -133,7 +133,7 @@ export default function Tasks() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Attività</h1>
           <p className="text-muted-foreground">{stats.active} attività attive</p>
@@ -148,7 +148,7 @@ export default function Tasks() {
 
       <div className="flex flex-wrap gap-3">
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte</SelectItem>
             <SelectItem value="active">Attive</SelectItem>
@@ -159,7 +159,7 @@ export default function Tasks() {
         </Select>
 
         <Select value={filterPriority} onValueChange={setFilterPriority}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte</SelectItem>
             <SelectItem value="bassa">Bassa</SelectItem>
@@ -170,7 +170,7 @@ export default function Tasks() {
         </Select>
 
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte</SelectItem>
             <SelectItem value="generale">Generale</SelectItem>
@@ -199,6 +199,46 @@ export default function Tasks() {
         <>
           <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
           <Card>
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y">
+            {filteredTasks.map((task) => (
+              <button
+                key={task.id}
+                className={cn(
+                  "w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors",
+                  task.status === "completata" && "opacity-60"
+                )}
+                onClick={() => { setEditingTask(task); setDialogOpen(true); }}
+              >
+                <CheckCircle2
+                  className={cn("h-5 w-5 mt-0.5 shrink-0", task.status === "completata" ? "text-primary" : "text-muted-foreground/40")}
+                />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className={cn("text-sm font-medium", task.status === "completata" && "line-through text-muted-foreground")}>
+                    {task.title}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_CONFIG[task.priority]?.className)}>
+                      {PRIORITY_CONFIG[task.priority]?.label}
+                    </Badge>
+                    {task.due_date && (
+                      <span className={cn("text-xs text-muted-foreground", isOverdue(task) && "text-destructive font-medium")}>
+                        {format(new Date(task.due_date), "dd/MM")}
+                      </span>
+                    )}
+                    {task.assigned_profile && (
+                      <span className="text-xs text-muted-foreground">
+                        {task.assigned_profile.first_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -209,11 +249,11 @@ export default function Tasks() {
                   />
                 </TableHead>
                 <TableHead>Titolo</TableHead>
-                <TableHead>Assegnatario</TableHead>
-                <TableHead>Collegamento</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Priorità</TableHead>
-                <TableHead>Scadenza</TableHead>
+                <TableHead className="hidden md:table-cell">Assegnatario</TableHead>
+                <TableHead className="hidden lg:table-cell">Collegamento</TableHead>
+                <TableHead className="hidden lg:table-cell">Categoria</TableHead>
+                <TableHead className="hidden sm:table-cell">Priorità</TableHead>
+                <TableHead className="hidden sm:table-cell">Scadenza</TableHead>
                 <TableHead>Stato</TableHead>
               </TableRow>
             </TableHeader>
@@ -238,12 +278,12 @@ export default function Tasks() {
                   <TableCell className="font-medium">
                     <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="hidden md:table-cell text-muted-foreground">
                     {task.assigned_profile
                       ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
                       : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     {task.order && (
                       <Link
                         to={`/azienda/ordini/${task.order_id}`}
@@ -262,15 +302,15 @@ export default function Tasks() {
                     )}
                     {!task.order && !task.stock_item && !task.cost && "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[task.category] || task.category}</span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <Badge className={PRIORITY_CONFIG[task.priority]?.className || ""}>
                       {PRIORITY_CONFIG[task.priority]?.label || task.priority}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {task.due_date ? (
                       <span className={cn("text-sm", isOverdue(task) && "text-destructive font-medium")}>
                         {format(new Date(task.due_date), "dd/MM/yyyy")}
@@ -295,6 +335,7 @@ export default function Tasks() {
               ))}
             </TableBody>
           </Table>
+          </div>{/* end hidden sm:block */}
         </Card>
         </>
 

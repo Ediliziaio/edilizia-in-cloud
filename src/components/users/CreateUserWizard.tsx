@@ -11,14 +11,14 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone,
-  ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, AlertTriangle,
+  ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, AlertTriangle, Settings,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
   DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
-  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS,
-  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
+  PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
+  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
   type PermissionSectionDef, type StaffRoleType,
 } from "@/components/users/permissionsDefaults";
 
@@ -205,7 +205,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
 
   const handleSubmit = async () => {
     try {
-      const finalPerms = showPermissions ? syncLegacyMarketingFlags(permissions) : undefined;
+      const finalPerms = showPermissions ? syncLegacySettingsFlags(syncLegacyMarketingFlags(permissions)) : undefined;
       const result = await onSubmit({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -362,6 +362,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
               <PermGroup label="Automazioni & AI" icon={Building2} iconColor="text-orange-600"
                 sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
+              <PermGroup label="Impostazioni" icon={Settings} iconColor="text-slate-600"
+                sections={IMPOSTAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
 
               <Separator />
 

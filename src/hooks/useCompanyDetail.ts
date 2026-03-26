@@ -612,6 +612,41 @@ export function useCompanyDetail(id: string | undefined) {
     createCheckoutMutation.mutate({});
   };
 
+  const handleDeleteCompany = async () => {
+    assertCanManage();
+    if (!id || !company) return;
+    const { data, error } = await supabase.functions.invoke("manage-super-admins", {
+      body: { action: "delete-company", companyId: id },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+  };
+
+  const handleExportCompany = () => {
+    if (!company) return;
+    const exportData = {
+      ...company,
+      stats,
+      team: teamData,
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${company.name.replace(/\s+/g, "_")}_export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (user?.id) {
+      supabase.from("admin_audit_log").insert({
+        user_id: user.id,
+        action: "export_company_data",
+        target_type: "company",
+        target_id: id,
+        details: { company_name: company.name },
+      });
+    }
+  };
+
   return {
     // Data
     company, stats, isLoading, isError, refetch, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
@@ -628,6 +663,6 @@ export function useCompanyDetail(id: string | undefined) {
     // Handlers
     handleImpersonate, handleCreateStaff, handleSavePermissions,
     handleCreateSalesperson, handleCreateEmployee, handleCreateAccount, handleCopyPassword, onSaveDetails,
-    handleUpdatePaymentMethod, handleCreateCheckout,
+    handleUpdatePaymentMethod, handleCreateCheckout, handleDeleteCompany, handleExportCompany,
   };
 }

@@ -217,17 +217,31 @@ async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
 async function fetchFICInvoices(integ: any): Promise<any[]> {
   const base = `https://api.fattureincloud.it/v2/c/${integ.company_external_id}`;
   const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
-  
-  const r = await fetch(`${base}/issued_documents?type=invoice&per_page=50&sort=-date`, { headers: h });
-  if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
-  const d = await r.json();
-  
-  return (d.data || []).map((doc: any) => {
-    const statusMap: Record<string, string> = {
-      ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
-    };
 
-    // Fix #6: Map payment status from FIC — use payments_sum and is_marked
+  // Paginate through all results (100 per page max)
+  const allDocs: any[] = [];
+  let currentPage = 1;
+  while (true) {
+    const r = await fetch(`${base}/issued_documents?type=invoice&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
+    if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
+    if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
+    const d = await r.json();
+
+    const docs = d.data || [];
+    allDocs.push(...docs);
+
+    // Stop if last page
+    const pagination = d.pagination || {};
+    if (!pagination.next_page || docs.length < 100) break;
+    currentPage++;
+    if (currentPage > 20) break; // safety cap: max 2000 invoices
+  }
+
+  const statusMap: Record<string, string> = {
+    ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
+  };
+
+  return allDocs.map((doc: any) => {
     const isPaid = doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0);
     const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
 
@@ -252,18 +266,23 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       taxAmount: doc.amount_vat,
       total: doc.amount_gross,
       paymentMethod: doc.payment_method?.name,
-      lines: (doc.items_list || []).map((item: any) => ({
-        description: item.name,
-        productCode: item.product_code,
-        quantity: item.qty,
-        unit: item.measure,
-        unitPrice: item.net_price,
-        discountPercent: item.discount,
-        taxRate: item.vat?.value || 22,
-        lineNet: item.net_price * item.qty * (1 - (item.discount || 0) / 100),
-        lineTax: 0,
-        lineGross: 0,
-      })),
+      lines: (doc.items_list || []).map((item: any) => {
+        const taxRate = item.vat?.value || 22;
+        const lineNet = Math.round(item.net_price * item.qty * (1 - (item.discount || 0) / 100) * 100) / 100;
+        const lineTax = Math.round(lineNet * (taxRate / 100) * 100) / 100;
+        return {
+          description: item.name,
+          productCode: item.product_code,
+          quantity: item.qty,
+          unit: item.measure,
+          unitPrice: item.net_price,
+          discountPercent: item.discount,
+          taxRate,
+          lineNet,
+          lineTax,
+          lineGross: Math.round((lineNet + lineTax) * 100) / 100,
+        };
+      }),
     };
   });
 }
@@ -301,7 +320,9 @@ async function fetchArubaInvoices(integ: any): Promise<any[]> {
   const d = await r.json();
   
   const statusMap: Record<string, string> = {
-    CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent", SCARTATA: "issued",
+    CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent",
+    SCARTATA: "issued", ERRORE: "issued",
+    PAGATA: "paid", PAGATO: "paid",
   };
 
   return (d.documents || []).map((doc: any) => ({
@@ -328,7 +349,8 @@ async function fetchInvoicetronicInvoices(integ: any): Promise<any[]> {
   const d = await r.json();
   
   const statusMap: Record<string, string> = {
-    Delivered: "delivered", Sent: "sent", Pending: "sent", Error: "issued",
+    Delivered: "delivered", Sent: "sent", Pending: "sent",
+    Error: "issued", Paid: "paid", Accepted: "delivered",
   };
 
   return (d.data || d || []).map((doc: any) => ({

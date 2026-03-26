@@ -2,9 +2,10 @@ import { useState, useCallback, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
+import { getInitials, getAvatarColor } from "@/lib/contactUtils";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { cleanPhone } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
@@ -88,6 +91,8 @@ const CSV_FIELDS: ImportField[] = [
 ];
 
 export default function MarketingContacts() {
+  const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
@@ -868,9 +873,10 @@ export default function MarketingContacts() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Desktop: Export + Import */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={exporting}>
+              <Button variant="outline" className="hidden sm:flex" disabled={exporting}>
                 <Download className="h-4 w-4 mr-2" />
                 {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
                 <ChevronDown className="h-3 w-3 ml-1" />
@@ -885,11 +891,35 @@ export default function MarketingContacts() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Button variant="outline" className="hidden sm:flex" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Importa
           </Button>
+          {/* Mobile: ... menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="sm:hidden h-9 w-9">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Importa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
+                <Download className="mr-2 h-4 w-4" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
+                <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => { setEditingContact(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" /> Aggiungi Contatto
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Aggiungi Contatto</span>
+            <span className="sm:hidden">Aggiungi</span>
           </Button>
         </div>
       </div>
@@ -910,58 +940,109 @@ export default function MarketingContacts() {
       ) : (
         <>
           {/* Filter bar */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={() => setFiltersSheetOpen(true)}
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Filtri avanzati
-                {activeFilterCount > 0 && (
-                  <Badge className="h-4 w-4 p-0 flex items-center justify-center text-[9px] rounded-full">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={() => {
-                  setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-                  setPage(1);
-                }}
-              >
-                <ArrowUpDown className="h-3.5 w-3.5" />
-                Ordina
-              </Button>
+          <div className="flex flex-col gap-2">
+            {/* Mobile: full-width search */}
+            <div className="relative sm:hidden">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cerca contatti..."
+                className="pl-8 h-9 w-full text-sm"
+                value={searchInput}
+                onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Cerca contatti..."
-                  className="pl-8 h-8 w-[220px] text-xs"
-                  value={searchInput}
-                  onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
-                />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setFiltersSheetOpen(true)}>
+                  <Filter className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Filtri avanzati</span>
+                  <span className="sm:hidden">Filtri</span>
+                  {activeFilterCount > 0 && (
+                    <Badge className="h-4 w-4 p-0 flex items-center justify-center text-[9px] rounded-full">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Ordina
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-xs text-muted-foreground"
-                onClick={() => setFieldsSheetOpen(true)}
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                Gestisci campi
-              </Button>
+              {/* Desktop: search + gestisci campi */}
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Cerca contatti..." className="pl-8 h-8 w-[220px] text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                </div>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground" onClick={() => setFieldsSheetOpen(true)}>
+                  <Settings2 className="h-3.5 w-3.5" /> Gestisci campi
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Table */}
+          {/* Mobile: card list */}
+          <div className="sm:hidden flex flex-col gap-2">
+            {isLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : contacts.length === 0 ? (
+              <div className="text-center text-muted-foreground py-12 text-sm">Nessun contatto trovato</div>
+            ) : (
+              contacts.map((c) => {
+                const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
+                const initials = getInitials(c.first_name, c.last_name || "");
+                const color = getAvatarColor(fullName);
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}
+                    className="border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${color}`}>
+                        {initials}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{fullName}</p>
+                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
+                        {c.company_name && <p className="text-xs text-muted-foreground truncate">{c.company_name}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {c.tags?.slice(0, 1).map((t) => (
+                          <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+                        ))}
+                        {c.opp_status === "open" && <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">Aperta</Badge>}
+                        {c.opp_status === "won" && <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">Vinta</Badge>}
+                      </div>
+                    </div>
+                    {(c.email || c.opp_name) && (
+                      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
+                        {c.opp_name
+                          ? <span className="truncate">💼 {c.opp_name}{c.opp_value ? ` · € ${Number(c.opp_value).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : ""}</span>
+                          : <span className="truncate">{c.email}</span>
+                        }
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+            {/* Mobile pagination */}
+            {totalCount > pageSize && (
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Prec
+                </Button>
+                <span className="text-xs text-muted-foreground">{page} / {Math.ceil(totalCount / pageSize)}</span>
+                <Button variant="outline" size="sm" disabled={page * pageSize >= totalCount} onClick={() => setPage(page + 1)}>
+                  Succ <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block">
           <ContactsTable
             contacts={contacts}
             totalCount={totalCount}
@@ -982,6 +1063,7 @@ export default function MarketingContacts() {
             customFields={contactCustomFields}
             customFieldValues={customFieldValues}
           />
+          </div>
         </>
       )}
 

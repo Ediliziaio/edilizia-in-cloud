@@ -127,6 +127,65 @@ export const OrdersTable = React.memo(function OrdersTable({
 
   return (
     <Card>
+      {/* Mobile card list — shown only on xs */}
+      <div className="sm:hidden divide-y">
+        {sortedItems.map((order) => {
+          const due = getAmountDue(order);
+          const collected = getAmountCollected(order);
+          const vatRate = order.vat_rate ?? 22;
+          const totalIvato = order.total_amount * (1 + vatRate / 100);
+          return (
+            <Link
+              key={order.id}
+              to={`/azienda/ordini/${order.id}`}
+              className="flex flex-col gap-2 px-4 py-4 hover:bg-muted/50 active:bg-muted transition-colors"
+            >
+              {/* Riga 1: codice + stato */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-sm">{order.order_code || "—"}</span>
+                {order.status && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 shrink-0"
+                    style={{ borderColor: order.status.color, color: order.status.color }}
+                  >
+                    {order.status.name}
+                  </Badge>
+                )}
+              </div>
+              {/* Riga 2: descrizione + cliente */}
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{order.description || "—"}</p>
+                {order.customer && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {order.customer.first_name} {order.customer.last_name}
+                  </p>
+                )}
+              </div>
+              {/* Riga 3: pagamento + totale */}
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  {due > 0 ? (
+                    <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                      Da ricevere: {formatCurrency(due)}
+                    </span>
+                  ) : collected > 0 ? (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      ✓ Saldato
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Nessun pagamento</span>
+                  )}
+                </div>
+                <p className="font-bold text-base leading-tight shrink-0">{formatCurrency(totalIvato)}</p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Desktop table — hidden on mobile */}
+      <div className="hidden sm:block">
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-primary/10 border-b rounded-t-lg flex-wrap">
@@ -205,18 +264,18 @@ export const OrdersTable = React.memo(function OrdersTable({
                 />
               </TableHead>
               <SortableTableHead column="order_code" label="Codice" sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("date") && <SortableTableHead column="created_at" label="Data" sortConfig={sortConfig} onSort={toggleSort} />}
+              {visibleColumns.has("date") && <SortableTableHead column="created_at" label="Data" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell" />}
               <SortableTableHead column="description" label="Descrizione" sortConfig={sortConfig} onSort={toggleSort} />
-              <SortableTableHead column="customer" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} />
-              <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="total_amount" label="Imponibile" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="due" label="Da Ricevere" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label="Venditore" sortConfig={sortConfig} onSort={toggleSort} />}
-              {visibleColumns.has("labor") && <SortableTableHead column="labor" label="Manodopera" sortConfig={sortConfig} onSort={toggleSort} />}
-              <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} />
+              <SortableTableHead column="customer" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell" />
+              <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />
+              <SortableTableHead column="total_amount" label="Imponibile" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />
+              <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />
+              <SortableTableHead column="due" label="Da Ricevere" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />
+              <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />
+              <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />
+              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label="Venditore" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("labor") && <SortableTableHead column="labor" label="Manodopera" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell" />
               <SortableTableHead column="status" label="Stato" sortConfig={sortConfig} onSort={toggleSort} />
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
@@ -251,40 +310,40 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </Link>
                   </TableCell>
                   {visibleColumns.has("date") && (
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-sm whitespace-nowrap">
                       {format(new Date(order.created_at), "dd/MM/yyyy")}
                     </TableCell>
                   )}
-                  <TableCell className="max-w-[150px] truncate">
+                  <TableCell className="max-w-[120px] sm:max-w-[150px] truncate">
                     {order.description}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {order.customer
                       ? `${order.customer.first_name} ${order.customer.last_name}`
                       : "—"}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden sm:table-cell text-right">
                     {formatCurrency(totalIvato)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden lg:table-cell text-right">
                     {formatCurrency(order.total_amount)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden md:table-cell text-right">
                     <span className={collected > 0 ? "text-emerald-600 dark:text-emerald-400" : ""}>
                       {formatCurrency(collected)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden md:table-cell text-right">
                     <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
                       {formatCurrency(due)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden lg:table-cell text-right">
                     <span className="text-muted-foreground">
                       {formatCurrency(variableCosts)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden lg:table-cell text-right">
                     <span className={`font-medium ${
                       marginPercent >= 30
                         ? "text-emerald-600 dark:text-emerald-400"
@@ -296,16 +355,16 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </span>
                   </TableCell>
                   {visibleColumns.has("salesperson") && (
-                    <TableCell className="text-sm">
+                    <TableCell className="hidden xl:table-cell text-sm">
                       {(salespeopleMap.get(order.id) || []).join(", ") || "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("labor") && (
-                    <TableCell className="text-sm">
+                    <TableCell className="hidden xl:table-cell text-sm">
                       {(laborMap.get(order.id) || []).join(", ") || "—"}
                     </TableCell>
                   )}
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {pending.length === 0 ? (
                       <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">
                         OK
@@ -380,6 +439,7 @@ export const OrdersTable = React.memo(function OrdersTable({
           </TableBody>
         </Table>
       </div>
+      </div>{/* end hidden sm:block */}
     </Card>
   );
 });

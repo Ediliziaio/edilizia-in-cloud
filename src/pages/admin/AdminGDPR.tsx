@@ -11,12 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Shield, CheckCircle, XCircle, Clock, AlertTriangle, FileText } from "lucide-react";
+import { Shield, CheckCircle, XCircle, Clock, AlertTriangle, FileText, RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminGDPR() {
   const queryClient = useQueryClient();
 
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading, isError: isRequestsError, refetch: refetchRequests } = useQuery({
     queryKey: queryKeys.admin.gdprRequests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
@@ -25,6 +26,7 @@ export default function AdminGDPR() {
       if (error) throw error;
       return data as any[];
     },
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: auditLog = [] } = useQuery({
@@ -36,6 +38,7 @@ export default function AdminGDPR() {
       if (error) throw error;
       return data as any[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const processDeletion = useMutation({
@@ -108,7 +111,30 @@ export default function AdminGDPR() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Caricamento...</TableCell></TableRow>
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-7 w-16 rounded" /></TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  ) : isRequestsError ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <AlertTriangle className="h-6 w-6 text-destructive" />
+                          <p className="text-sm">Errore nel caricamento delle richieste.</p>
+                          <Button variant="outline" size="sm" onClick={() => refetchRequests()}>
+                            <RefreshCw className="h-3 w-3 mr-1" /> Riprova
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ) : requests.length === 0 ? (
                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nessuna richiesta</TableCell></TableRow>
                   ) : requests.map((req: any) => (

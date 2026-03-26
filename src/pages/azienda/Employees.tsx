@@ -234,15 +234,20 @@ export default function Employees() {
   };
 
   const handleSelectAllPerms = () => {
-    setCreateUserPermissions((prev) => ({
-      ...DEFAULT_PERMISSIONS,
-      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
-      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
-      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
-      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      only_assigned: prev.only_assigned,
-    }));
+    setCreateUserPermissions((prev) => {
+      const allTrue: Partial<StaffPermissions> = {};
+      ALL_PERMISSION_SECTIONS.forEach(s => {
+        (allTrue as any)[s.viewKey] = true;
+        if (s.editKey) (allTrue as any)[s.editKey] = true;
+      });
+      return {
+        ...DEFAULT_PERMISSIONS,
+        ...allTrue,
+        can_view_marketing: true, can_edit_marketing: true,
+        can_view_settings: true, can_edit_settings: true,
+        only_assigned: prev.only_assigned,
+      };
+    });
   };
 
   const handleDeselectAllPerms = () => {
@@ -274,12 +279,12 @@ export default function Employees() {
       </div>
 
       <Tabs defaultValue="employees" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="employees" className="gap-2"><Users className="h-4 w-4" />Operai ({operai.length})</TabsTrigger>
-          <TabsTrigger value="teams" className="gap-2"><Building2 className="h-4 w-4" />Squadre ({externalTeams.length})</TabsTrigger>
-          <TabsTrigger value="staff-interno" className="gap-2"><Users className="h-4 w-4" />Staff Interno ({staffInterno.length})</TabsTrigger>
-          <TabsTrigger value="worklogs" className="gap-2"><Clock className="h-4 w-4" />Rapportini</TabsTrigger>
-          <TabsTrigger value="leave" className="gap-2"><Palmtree className="h-4 w-4" />Ferie & Permessi</TabsTrigger>
+        <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
+          <TabsTrigger value="employees" className="gap-1.5 shrink-0"><Users className="h-4 w-4" />Operai ({operai.length})</TabsTrigger>
+          <TabsTrigger value="teams" className="gap-1.5 shrink-0"><Building2 className="h-4 w-4" />Squadre ({externalTeams.length})</TabsTrigger>
+          <TabsTrigger value="staff-interno" className="gap-1.5 shrink-0"><Users className="h-4 w-4" /><span className="hidden sm:inline">Staff Interno</span><span className="sm:hidden">Staff</span> ({staffInterno.length})</TabsTrigger>
+          <TabsTrigger value="worklogs" className="gap-1.5 shrink-0"><Clock className="h-4 w-4" />Rapportini</TabsTrigger>
+          <TabsTrigger value="leave" className="gap-1.5 shrink-0"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie & Permessi</span><span className="sm:hidden">Ferie</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">

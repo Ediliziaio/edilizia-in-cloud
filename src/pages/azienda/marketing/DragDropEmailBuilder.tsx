@@ -373,7 +373,7 @@ export default function DragDropEmailBuilder() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/marketing/email")}>
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/marketing/email")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
           </Button>
           <Separator orientation="vertical" className="h-6" />

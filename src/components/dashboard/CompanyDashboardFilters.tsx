@@ -60,10 +60,10 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 py-3">
-      <Filter className="h-4 w-4 text-muted-foreground" />
+      <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
 
-      {/* Date presets */}
-      <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+      {/* Date presets — scroll horizontally on mobile */}
+      <div className="flex flex-nowrap items-center gap-1 rounded-lg border bg-card p-1 w-full sm:w-auto overflow-x-auto scrollbar-none">
         {DATE_PRESETS.map(p =>
           p.value === "custom" ? (
             <Popover key="custom" open={customOpen} onOpenChange={setCustomOpen}>
@@ -71,7 +71,7 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
                 <Button
                   variant={filters.datePreset === "custom" ? "default" : "ghost"}
                   size="sm"
-                  className="h-7 text-xs px-2.5 gap-1.5"
+                  className="h-7 text-xs px-2.5 gap-1.5 shrink-0"
                   onClick={() => {
                     onUpdate({ datePreset: "custom" });
                     setCustomOpen(true);
@@ -105,7 +105,7 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
               key={p.value}
               variant={filters.datePreset === p.value ? "default" : "ghost"}
               size="sm"
-              className="h-7 text-xs px-2.5"
+              className="h-7 text-xs px-2.5 shrink-0"
               onClick={() => onUpdate({ datePreset: p.value })}
             >
               {p.label}

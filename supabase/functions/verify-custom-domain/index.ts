@@ -27,6 +27,18 @@ Deno.serve(async (req) => {
       return errorResponse("Token non valido", 401);
     }
 
+    const userId = claims.claims.sub;
+
+    // Verify caller belongs to the company (or is super_admin)
+    const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
+    if (!isSuperAdmin) {
+      const { data: callerProfile } = await supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle();
+      if (!callerProfile || callerProfile.company_id !== company_id) {
+        return errorResponse("Non autorizzato", 403);
+      }
+    }
+
     // Load branding
     const { data: branding, error } = await supabase
       .from("company_branding")

@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -18,6 +20,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
+import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
@@ -26,6 +29,7 @@ import { WorkflowRightPanel } from "./WorkflowRightPanel";
 import { WorkflowImpostazioni } from "./tabs/WorkflowImpostazioni";
 import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
+import { TestFlowDialog } from "./TestFlowDialog";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +44,7 @@ export function FlowBuilderPage() {
   const flowId = isNewFlowRoute ? undefined : routeId;
   const creationAttemptedRef = useRef(false);
 
+  const isAdmin = useIsAdminMarketing();
   const builder = useAutomationBuilder(flowId);
   const {
     flow, isLoading, isSaving, hasUnsavedChanges, canUndo, canRedo,
@@ -57,6 +62,9 @@ export function FlowBuilderPage() {
   const [catalogContext, setCatalogContext] = useState<"trigger" | "action">("trigger");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [pendingInsertEdgeId, setPendingInsertEdgeId] = useState<string | null>(null);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testEnrollmentId, setTestEnrollmentId] = useState<string | null>(null);
+  const [nodeTestStatus, setNodeTestStatus] = useState<Record<string, "success" | "error" | "skipped">>({});
 
   // ReactFlow state
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
@@ -593,6 +601,12 @@ export function FlowBuilderPage() {
     [rfNodes, selectedNodeId]
   );
 
+  // Trigger context: itemId of the first configured trigger node
+  const triggerItemId = useMemo(() => {
+    const t = rfNodes.find(n => n.type === "trigger" && !n.data?.isEmpty);
+    return (t?.data?.itemId as string) || undefined;
+  }, [rfNodes]);
+
   const handleUpdateNodeData = useCallback(
     (nodeId: string, newData: Record<string, any>) => {
       setRfNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: newData } : n)));
@@ -664,21 +678,125 @@ export function FlowBuilderPage() {
     toast.success("Workflow archiviato");
   }, [updateFlowMutation]);
 
+  const handleBack = useCallback(async () => {
+    const prefix = window.location.pathname.startsWith("/admin") ? "/admin" : "/azienda";
+    const backUrl = `${prefix}/marketing/automazioni`;
+    // If flow was auto-created but user never added any nodes, delete it silently
+    if (flowId && builder.nodes.length === 0) {
+      try {
+        await supabase.from("automation_flows" as any).delete().eq("id", flowId);
+      } catch { /* silently ignore */ }
+    }
+    navigate(backUrl);
+  }, [flowId, builder.nodes.length, navigate]);
+
   // Compute validation errors from nodes
   const validationErrors = useMemo<WorkflowError[]>(() => {
     const errs: WorkflowError[] = [];
-    for (const n of rfNodes) {
-      if (n.type === "note") continue;
-      if (!n.data?.label) {
-        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo senza nome", tipo: "avviso", messaggio: "Il nodo non ha un'etichetta configurata." });
-      }
-    }
-    // Check if there's at least one trigger
-    if (rfNodes.length > 0 && !rfNodes.some((n) => n.type === "trigger")) {
+    const nonNoteNodes = rfNodes.filter(n => n.type !== "note");
+
+    // No trigger at all
+    if (nonNoteNodes.length > 1 && !nonNoteNodes.some(n => n.type === "trigger")) {
       errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso non ha un trigger di avvio." });
     }
+
+    for (const n of nonNoteNodes) {
+      if (n.type === "end") continue;
+
+      // Trigger: empty placeholder not configured
+      if (n.type === "trigger" && n.data?.isEmpty) {
+        errs.push({ nodeId: n.id, nodeLabel: "Trigger", tipo: "errore", messaggio: "Trigger non configurato — seleziona un evento di attivazione." });
+        continue;
+      }
+
+      // Action without type configured
+      if (n.type === "action" && !n.data?.itemId && !n.data?.action_type) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Azione", tipo: "errore", messaggio: "Azione non configurata — apri il nodo e scegli il tipo di azione." });
+      }
+
+      // Condition without field
+      if (n.type === "condition") {
+        const hasField = n.data?.condition_field || n.data?.conditions?.length > 0;
+        if (!hasField) {
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Condizione", tipo: "avviso", messaggio: "Condizione senza criterio configurato." });
+        }
+      }
+
+      // Delay without duration
+      if (n.type === "delay" && !n.data?.delay_value) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "avviso", messaggio: "Durata dell'attesa non impostata." });
+      }
+
+      // Disconnected node (no incoming edge, except trigger)
+      if (n.type !== "trigger") {
+        const hasIncoming = rfEdges.some(e => e.target === n.id);
+        if (!hasIncoming) {
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo", tipo: "avviso", messaggio: "Nodo isolato — nessuna connessione in ingresso." });
+        }
+      }
+
+      // Action / trigger: no outgoing edge (and not goal/end)
+      if (n.type !== "end" && n.type !== "goal") {
+        const hasOutgoing = rfEdges.some(e => e.source === n.id);
+        if (!hasOutgoing) {
+          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Nodo", tipo: "avviso", messaggio: "Nodo terminale senza connessione uscente — aggiungi un'azione successiva." });
+        }
+      }
+    }
+
     return errs;
-  }, [rfNodes]);
+  }, [rfNodes, rfEdges]);
+
+  // Badge counts for tabs
+  const { data: enrollmentCount = 0 } = useQuery({
+    queryKey: ["flow-enrollment-count", flowId],
+    queryFn: async () => {
+      const { count } = await (supabase as any)
+        .from("automation_enrollments")
+        .select("id", { count: "exact", head: true })
+        .eq("flow_id", flowId!);
+      return count ?? 0;
+    },
+    enabled: !!flowId,
+    refetchInterval: activeTab === "cronologia" ? false : 30000,
+  });
+
+  // Canvas overlay: poll execution log after test
+  useQuery({
+    queryKey: ["test-overlay", testEnrollmentId],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("automation_execution_log")
+        .select("node_id, status")
+        .eq("enrollment_id", testEnrollmentId!);
+      if (!data?.length) return null;
+      const statuses: Record<string, "success" | "error" | "skipped"> = {};
+      for (const row of data) {
+        statuses[row.node_id] = row.status;
+      }
+      setNodeTestStatus(statuses);
+      return statuses;
+    },
+    enabled: !!testEnrollmentId,
+    refetchInterval: 2000,
+    refetchIntervalInBackground: false,
+  });
+
+  // Apply canvas overlay colors to nodes
+  useEffect(() => {
+    if (Object.keys(nodeTestStatus).length === 0) return;
+    setRfNodes(nds => nds.map(n => {
+      const dbId = n.data?.dbNodeId || n.id;
+      const status = nodeTestStatus[dbId];
+      if (!status) return { ...n, className: "" };
+      const ring = status === "success"
+        ? "ring-2 ring-green-500 ring-offset-1"
+        : status === "error"
+        ? "ring-2 ring-red-500 ring-offset-1"
+        : "ring-2 ring-muted-foreground ring-offset-1";
+      return { ...n, className: ring };
+    }));
+  }, [nodeTestStatus, setRfNodes]);
 
   // Auto-save removed: manual save only via Ctrl+S or Save button
 
@@ -747,6 +865,22 @@ export function FlowBuilderPage() {
         onTogglePublish={togglePublish}
         onUpdateName={handleUpdateName}
         onArchive={handleArchive}
+        onTest={() => setTestDialogOpen(true)}
+        onBack={handleBack}
+        tabBadges={{ cronologia: enrollmentCount > 0 ? enrollmentCount : undefined }}
+      />
+
+      {/* Test dialog */}
+      <TestFlowDialog
+        open={testDialogOpen}
+        onClose={() => setTestDialogOpen(false)}
+        flow={flow}
+        companyId={effectiveCompany?.id}
+        onEnrollmentCreated={(id) => {
+          setTestEnrollmentId(id);
+          setActiveTab("cronologia");
+          toast.info("Test avviato — visualizzo il percorso in Cronologia");
+        }}
       />
 
       {/* Body */}
@@ -822,6 +956,8 @@ export function FlowBuilderPage() {
             onDragStart={() => {}}
             onSelectItem={handleSelectItem}
             companyId={effectiveCompany?.id}
+            triggerItemId={triggerItemId}
+            isAdmin={isAdmin}
           />
         )}
       </div>

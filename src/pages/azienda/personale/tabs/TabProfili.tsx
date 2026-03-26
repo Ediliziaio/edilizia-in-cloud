@@ -62,52 +62,57 @@ export function TabProfili() {
   return (
     <div className="space-y-4">
       {/* KPI */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-muted"><Users className="h-5 w-5 text-muted-foreground" /></div>
-            <div><p className="text-2xl font-bold">{kpis.totali}</p><p className="text-xs text-muted-foreground">Totali</p></div>
+          <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.totali}</p><p className="text-xs text-muted-foreground">Totali</p></div>
           </CardContent>
         </Card>
         <Card className="border-emerald-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-muted"><UserCheck className="h-5 w-5 text-muted-foreground" /></div>
-            <div><p className="text-2xl font-bold">{kpis.attivi}</p><p className="text-xs text-muted-foreground">Attivi</p></div>
+          <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.attivi}</p><p className="text-xs text-muted-foreground">Attivi</p></div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-muted"><UserX className="h-5 w-5 text-muted-foreground" /></div>
-            <div><p className="text-2xl font-bold">{kpis.cessati}</p><p className="text-xs text-muted-foreground">Cessati</p></div>
+          <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><UserX className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.cessati}</p><p className="text-xs text-muted-foreground">Cessati</p></div>
           </CardContent>
         </Card>
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Cerca nome, email, matricola..." className="pl-9 max-w-[250px] h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={filterStato} onValueChange={(v) => setFilterStato(v as any)}>
-          <SelectTrigger className="w-[120px] h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti</SelectItem>
-            <SelectItem value="attivi">Attivi</SelectItem>
-            <SelectItem value="cessati">Cessati</SelectItem>
-          </SelectContent>
-        </Select>
-        {reparti.length > 0 && (
-          <Select value={filterReparto} onValueChange={setFilterReparto}>
-            <SelectTrigger className="w-[150px] h-9"><SelectValue placeholder="Reparto" /></SelectTrigger>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Cerca nome, email, matricola..." className="pl-9 h-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <Select value={filterStato} onValueChange={(v) => setFilterStato(v as any)}>
+            <SelectTrigger className="w-[110px] shrink-0 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti i reparti</SelectItem>
-              {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              <SelectItem value="tutti">Tutti</SelectItem>
+              <SelectItem value="attivi">Attivi</SelectItem>
+              <SelectItem value="cessati">Cessati</SelectItem>
             </SelectContent>
           </Select>
-        )}
-        <div className="ml-auto">
-          <Button size="sm" onClick={handleNew}><Plus className="h-4 w-4 mr-1" /> Nuovo Profilo</Button>
+        </div>
+        <div className="flex gap-2">
+          {reparti.length > 0 && (
+            <Select value={filterReparto} onValueChange={setFilterReparto}>
+              <SelectTrigger className="flex-1 sm:w-[150px] h-9"><SelectValue placeholder="Reparto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutti">Tutti i reparti</SelectItem>
+                {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" onClick={handleNew} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Nuovo Profilo</span>
+          </Button>
         </div>
       </div>
 

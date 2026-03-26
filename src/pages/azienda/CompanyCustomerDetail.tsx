@@ -85,7 +85,7 @@ export default function CompanyCustomerDetail() {
         .from("orders")
         .select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)")
         .eq("customer_id", id!)
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany?.id ?? "")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -115,7 +115,7 @@ export default function CompanyCustomerDetail() {
       const { data } = await supabase
         .from("documenti_fiscali" as never)
         .select("id, tipo, numero, data_emissione, stato, totale_documento")
-        .eq("anagrafica_id", anagraficaCollegata!.id)
+        .eq("anagrafica_id", anagraficaCollegata?.id ?? "")
         .order("data_emissione", { ascending: false })
         .limit(20);
       return (data ?? []) as unknown as Array<{
@@ -162,7 +162,7 @@ export default function CompanyCustomerDetail() {
           salesperson_id: salespersonId || null,
         })
         .eq("id", id!)
-        .eq("company_id", effectiveCompany!.id);
+        .eq("company_id", effectiveCompany?.id ?? "");
 
       if (error) throw error;
 
@@ -226,7 +226,7 @@ export default function CompanyCustomerDetail() {
   if (!customer) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <p className="text-muted-foreground">Cliente non trovato.</p>
@@ -243,11 +243,11 @@ export default function CompanyCustomerDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/clienti")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/clienti")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{customer.first_name} {customer.last_name}</h1>
+          <h1 className="text-2xl font-bold">{customer.first_name ?? ""} {customer.last_name}</h1>
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
             <div className="flex items-center gap-1">
               <Mail className="h-3.5 w-3.5" />

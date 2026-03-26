@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone, Settings } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
@@ -44,53 +44,73 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     id: "cantieri",
     label: "Cantieri & Lavori",
     modules: [
-      { id: "dashboard", label: "Dashboard", description: "Visualizza la dashboard principale", viewKey: "can_view_dashboard" },
-      { id: "orders", label: "Ordini e Commesse", description: "Gestisci ordini e commesse", viewKey: "can_view_orders", editKey: "can_edit_orders", includes: ["Errori"] },
-      { id: "warehouse", label: "Magazzino", description: "Gestisci inventario e movimenti", viewKey: "can_view_warehouse", editKey: "can_edit_warehouse" },
-      { id: "calendar", label: "Calendario", description: "Visualizza e gestisci il calendario", viewKey: "can_view_calendar" },
-      { id: "customers", label: "Clienti", description: "Gestisci anagrafica clienti", viewKey: "can_view_customers", editKey: "can_edit_customers" },
-      { id: "tickets", label: "Ticket Assistenza", description: "Gestisci ticket di supporto", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
+      { id: "dashboard",        label: "Dashboard",              description: "Visualizza la dashboard principale",       viewKey: "can_view_dashboard" },
+      { id: "orders",           label: "Ordini e Commesse",      description: "Gestisci ordini e commesse",               viewKey: "can_view_orders",               editKey: "can_edit_orders" },
+      { id: "approve-orders",   label: "Approva Ordini",         description: "Può approvare ordini e commesse",          viewKey: "can_approve_orders" },
+      { id: "delete-orders",    label: "Elimina Ordini",         description: "Può eliminare ordini e commesse",          viewKey: "can_delete_orders" },
+      { id: "warehouse",        label: "Magazzino",              description: "Gestisci inventario e movimenti",          viewKey: "can_view_warehouse",            editKey: "can_edit_warehouse" },
+      { id: "warehouse-items",  label: "Gestione Articoli",      description: "Gestisci articoli e listino magazzino",    viewKey: "can_manage_warehouse_items" },
+      { id: "calendar",         label: "Calendario",             description: "Visualizza e gestisci il calendario",      viewKey: "can_view_calendar" },
+      { id: "team-calendar",    label: "Calendario del team",    description: "Visualizza il calendario di tutto il team", viewKey: "can_view_all_team_calendar" },
+      { id: "customers",        label: "Clienti",                description: "Gestisci anagrafica clienti",              viewKey: "can_view_customers",            editKey: "can_edit_customers" },
+      { id: "export-clients",   label: "Esporta Clienti",        description: "Esporta l'anagrafica clienti in CSV",      viewKey: "can_export_clients" },
+      { id: "tickets",          label: "Ticket Assistenza",      description: "Gestisci ticket di supporto",              viewKey: "can_view_tickets",              editKey: "can_edit_tickets" },
     ],
   },
   {
     id: "finanza",
     label: "Finanza",
     modules: [
-      { id: "billing", label: "Fatturazione e Scadenzario", description: "Fatture, scadenzario e tesoreria", viewKey: "can_view_billing", includes: ["Scadenzario", "Tesoreria"] },
-      { id: "prima-nota", label: "Prima Nota e Contabilità", description: "Registrazioni contabili", viewKey: "can_view_prima_nota" },
-      { id: "costs", label: "Costi", description: "Gestione e analisi costi", viewKey: "can_view_costs" },
-      { id: "forecast", label: "Previsionale", description: "Previsioni finanziarie e ordini acquisto", viewKey: "can_view_forecast", includes: ["Ordini Acquisto"] },
+      { id: "billing",          label: "Fatturazione e Scadenzario", description: "Fatture, scadenzario e tesoreria",        viewKey: "can_view_billing",           includes: ["Scadenzario", "Tesoreria"] },
+      { id: "prima-nota",       label: "Prima Nota e Contabilità",   description: "Registrazioni contabili",                 viewKey: "can_view_prima_nota" },
+      { id: "costs",            label: "Costi",                      description: "Gestione e analisi costi",                viewKey: "can_view_costs" },
+      { id: "forecast",         label: "Previsionale",               description: "Previsioni finanziarie e ordini acquisto", viewKey: "can_view_forecast",          includes: ["Ordini Acquisto"] },
+      { id: "financial-reports",label: "Report Finanziari",          description: "Visualizza report e analisi finanziarie", viewKey: "can_view_financial_reports" },
+      { id: "margins",          label: "Visualizza Margini",         description: "Visualizza i margini per ordine",         viewKey: "can_view_margins" },
+      { id: "payments",         label: "Gestione Pagamenti",         description: "Gestisci e registra i pagamenti",         viewKey: "can_manage_payments" },
+      { id: "suppliers",        label: "Gestione Fornitori",         description: "Gestisci l'anagrafica fornitori",         viewKey: "can_manage_suppliers" },
     ],
   },
   {
     id: "persone",
     label: "Persone",
     modules: [
-      { id: "persone", label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica", viewKey: "can_view_persone" },
-      { id: "employees", label: "Gestione Dipendenti", description: "Anagrafica e dati dipendenti", viewKey: "can_view_employees" },
+      { id: "persone",    label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica",   viewKey: "can_view_persone" },
+      { id: "employees",  label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",       viewKey: "can_view_employees" },
+      { id: "users",      label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",   viewKey: "can_view_users" },
     ],
   },
   {
     id: "marketing",
     label: "Marketing & Vendita",
     modules: [
-      { id: "mkt-dashboard", label: "Dashboard Marketing", description: "Panoramica performance marketing", viewKey: "can_view_marketing_dashboard" },
-      { id: "mkt-contacts", label: "Contatti CRM", description: "Gestisci contatti marketing", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
-      { id: "mkt-opportunities", label: "Opportunità", description: "Gestisci pipeline e opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities", includes: ["Preventivi", "Sales OS"] },
-      { id: "mkt-activities", label: "Attività", description: "Visualizza attività marketing", viewKey: "can_view_marketing_activities" },
-      { id: "mkt-appointments", label: "Appuntamenti", description: "Gestisci appuntamenti commerciali", viewKey: "can_view_marketing_appointments" },
-      { id: "mkt-email", label: "Email Marketing", description: "Campagne e template email", viewKey: "can_view_marketing_email" },
-      { id: "mkt-whatsapp", label: "WhatsApp", description: "Messaggistica WhatsApp", viewKey: "can_view_marketing_whatsapp" },
-      { id: "mkt-reports", label: "Reportistica", description: "Report e analisi marketing", viewKey: "can_view_marketing_reports" },
+      { id: "mkt-dashboard",     label: "Dashboard Marketing", description: "Panoramica performance marketing",          viewKey: "can_view_marketing_dashboard" },
+      { id: "mkt-contacts",      label: "Contatti CRM",        description: "Gestisci contatti marketing",              viewKey: "can_view_marketing_contacts",      editKey: "can_edit_marketing_contacts" },
+      { id: "mkt-opportunities", label: "Opportunità",         description: "Gestisci pipeline e opportunità",          viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities", includes: ["Preventivi", "Sales OS"] },
+      { id: "mkt-activities",    label: "Attività",            description: "Visualizza attività marketing",            viewKey: "can_view_marketing_activities" },
+      { id: "mkt-appointments",  label: "Appuntamenti",        description: "Gestisci appuntamenti commerciali",        viewKey: "can_view_marketing_appointments" },
+      { id: "mkt-email",         label: "Email Marketing",     description: "Campagne e template email",                viewKey: "can_view_marketing_email" },
+      { id: "mkt-whatsapp",      label: "WhatsApp",            description: "Messaggistica WhatsApp",                   viewKey: "can_view_marketing_whatsapp" },
+      { id: "mkt-reports",       label: "Reportistica",        description: "Report e analisi marketing",               viewKey: "can_view_marketing_reports" },
     ],
   },
   {
     id: "automazioni",
     label: "Automazioni & AI",
     modules: [
-      { id: "automations", label: "Automazioni", description: "Flussi automatizzati", viewKey: "can_view_marketing_automations" },
-      { id: "ai-agent", label: "Agenti AI", description: "Agenti AI voce e chat", viewKey: "can_view_marketing_ai_agent" },
-      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", editKey: "can_edit_settings" },
+      { id: "automations", label: "Automazioni", description: "Flussi automatizzati",      viewKey: "can_view_marketing_automations" },
+      { id: "ai-agent",    label: "Agenti AI",   description: "Agenti AI voce e chat",     viewKey: "can_view_marketing_ai_agent" },
+    ],
+  },
+  {
+    id: "impostazioni",
+    label: "Impostazioni",
+    modules: [
+      { id: "settings-profile", label: "Profilo Aziendale",   description: "Visualizza e modifica il profilo e i dati aziendali",           viewKey: "can_view_settings_profile",       editKey: "can_edit_settings_profile" },
+      { id: "settings-orders",  label: "Gestione Ordini",    description: "Listino prodotti, tariffe, stati ordine, fornitori e categorie",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
+      { id: "settings-custom",  label: "Personalizzazione",  description: "Tag, campi personalizzati, sequenze, calendari e template",       viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
+      { id: "settings-people",  label: "Team & Persone",     description: "Gestisci venditori, staff operai e team aziendali",              viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
+      { id: "settings-sec",     label: "Sicurezza & Privacy",description: "Privacy, GDPR e impostazioni di sicurezza",                      viewKey: "can_view_settings_security" },
     ],
   },
 ];

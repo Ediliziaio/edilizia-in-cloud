@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 import { logger } from "@/utils/logger";
+import { toast } from "sonner";
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -344,6 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (permissions) {
       if (!permissions.can_manage_companies) {
         logger.error("Missing can_manage_companies permission for impersonation");
+        toast.error("Permesso negato", { description: "Non hai il permesso di accedere alle aziende." });
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "missing_can_manage_companies" },
         });
@@ -352,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (permissions.allowed_company_ids && !permissions.allowed_company_ids.includes(companyId)) {
         logger.error("Company not in allowed_company_ids for impersonation");
+        toast.error("Accesso negato", { description: "Questa azienda non è nella tua lista di aziende permesse." });
         supabase.functions.invoke("log-unauthorized", {
           body: { action: "impersonation", targetId: companyId, reason: "company_not_allowed" },
         });
@@ -366,6 +369,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error || !data?.token) {
         logger.error("Failed to start secure impersonation:", error);
+        toast.error("Errore impersonazione", { description: "Impossibile avviare la sessione aziendale. Riprova." });
         return;
       }
 

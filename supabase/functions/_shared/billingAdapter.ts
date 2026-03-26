@@ -90,8 +90,25 @@ export class Fattura24Adapter implements BillingProviderAdapter {
     } catch (e) { return { success: false, error: String(e) }; }
   }
 
-  async fetchStatus(_id: string): Promise<ProviderStatusResult> {
-    return { success: true, internalStatus: "sent", externalStatus: "unknown" };
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    try {
+      const r = await fetch(`${this.base}/getDocument`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: this.apiKey, docId: externalId }),
+      });
+      if (!r.ok) return { success: false, internalStatus: "issued", error: `HTTP ${r.status}` };
+      const d = await r.json();
+      const doc = d.document || d;
+      const isPaid = doc.paid === true || doc.paymentStatus === "paid";
+      return {
+        success: true,
+        internalStatus: isPaid ? "paid" : "issued",
+        externalStatus: doc.paymentStatus || (isPaid ? "paid" : "issued"),
+      };
+    } catch (e) {
+      return { success: false, internalStatus: "issued", error: String(e) };
+    }
   }
 }
 
@@ -121,8 +138,9 @@ export class ArubaAdapter implements BillingProviderAdapter {
     const map: Record<string, ProviderStatusResult["internalStatus"]> = {
       CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent",
       ERRORE: "issued", SCARTATA: "issued",
+      PAGATA: "paid", PAGATO: "paid",
     };
-    return { success: true, internalStatus: map[d.status] || "sent", externalStatus: d.status, sdiId: d.sdiId?.toString() };
+    return { success: true, internalStatus: map[d.status] || "issued", externalStatus: d.status, sdiId: d.sdiId?.toString() };
   }
 }
 
@@ -150,9 +168,10 @@ export class InvoicetronicAdapter implements BillingProviderAdapter {
     if (!r.ok) return { success: false, internalStatus: "sent" };
     const d = await r.json();
     const map: Record<string, ProviderStatusResult["internalStatus"]> = {
-      Delivered: "delivered", Sent: "sent", Pending: "sent", Error: "issued",
+      Delivered: "delivered", Sent: "sent", Pending: "sent",
+      Error: "issued", Paid: "paid", Accepted: "delivered",
     };
-    return { success: true, internalStatus: map[d.status] || "sent", externalStatus: d.status, sdiId: d.sdi_id?.toString() };
+    return { success: true, internalStatus: map[d.status] || "issued", externalStatus: d.status, sdiId: d.sdi_id?.toString() };
   }
 }
 

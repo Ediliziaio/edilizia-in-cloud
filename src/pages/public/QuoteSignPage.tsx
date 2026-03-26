@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +74,7 @@ export default function QuoteSignPage() {
   const [showRefuseDialog, setShowRefuseDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionDone, setActionDone] = useState<"signed" | "refused" | null>(null);
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -165,7 +167,9 @@ export default function QuoteSignPage() {
   }
 
   const quote = data.quote!;
-  const items = data.items || [];
+  const allItems = data.items || [];
+  // Filter out items not to be shown in PDF
+  const items = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
   const company = data.company || {};
   const status = data.status;
   const hasDiscounts = items.some(i => i.discount_percent > 0);
@@ -184,6 +188,18 @@ export default function QuoteSignPage() {
                 ? "Grazie! L'offerta è stata accettata con successo. Riceverai una conferma a breve."
                 : `Questa offerta è stata accettata da ${quote.signed_by_name || "—"} il ${quote.signed_at ? new Date(quote.signed_at).toLocaleDateString("it-IT") : "—"}.`}
             </p>
+            {data?.pdf_url && (
+              <a
+                href={data.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border"
+                style={{ color: "#1e3a5f", borderColor: "#cbd5e1", background: "#ffffff" }}
+              >
+                <FileDown className="h-4 w-4" />
+                Scarica PDF dell'offerta
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -268,11 +284,16 @@ export default function QuoteSignPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item, idx) => (
+                  {items.map((item, idx) => {
+                    const isChild = ["posa", "smaltimento", "trasporto", "nolo"].includes((item as any).item_category || "");
+                    const namePrefix = isChild ? "└ " : "";
+                    return (
                     <TableRow key={idx}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-sm" style={{ color: "#18181b" }}>{item.name}</p>
+                        <div style={{ paddingLeft: isChild ? "12px" : "0" }}>
+                          <p className="font-medium text-sm" style={{ color: isChild ? "#71717a" : "#18181b" }}>
+                            {namePrefix}{item.name}
+                          </p>
                           {item.description && (
                             <p className="text-xs mt-0.5" style={{ color: "#71717a" }}>{item.description}</p>
                           )}
@@ -292,7 +313,8 @@ export default function QuoteSignPage() {
                         {formatCurrency(item.line_total)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -371,10 +393,22 @@ export default function QuoteSignPage() {
               />
             </div>
 
+            <div className="flex items-start gap-3 p-3 border rounded-lg" style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)" }}>
+              <Checkbox
+                id="accept-terms"
+                checked={accepted}
+                onCheckedChange={(v) => setAccepted(!!v)}
+                className="mt-0.5"
+              />
+              <label htmlFor="accept-terms" className="text-sm cursor-pointer leading-relaxed" style={{ color: "rgba(255,255,255,0.9)" }}>
+                Ho letto e accetto integralmente l'offerta commerciale sopra descritta, compresi i prezzi, le condizioni e i termini di pagamento.
+              </label>
+            </div>
+
             <div className="flex gap-3 flex-wrap">
               <Button
                 onClick={handleSign}
-                disabled={!signName.trim() || submitting}
+                disabled={!accepted || submitting || !signName.trim()}
                 size="lg"
                 className="min-w-[180px]"
                 style={{ background: "#22c55e", color: "#ffffff" }}

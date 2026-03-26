@@ -78,9 +78,10 @@ export default function CreateCustomer() {
       });
 
       if (error) throw error;
+      if (!data) throw new Error("Risposta non valida dal server.");
       if (data.error) throw new Error(data.error);
 
-      setGeneratedPassword(data.password);
+      setGeneratedPassword(data.password ?? "");
       setShowSuccessDialog(true);
     } catch (error: any) {
       logger.error("Create customer error:", error);
@@ -113,7 +114,7 @@ export default function CreateCustomer() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>

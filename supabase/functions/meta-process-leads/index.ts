@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
@@ -143,7 +144,8 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
 
   if (!creds) throw new Error("No credentials found for integration");
 
-  const accessToken = atob(creds.access_token_encrypted);
+  const encKey = getEncryptionKey();
+  const accessToken = await decrypt(creds.access_token_encrypted, encKey);
 
   const leadRes = await fetch(
     `https://graph.facebook.com/v21.0/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
@@ -261,6 +263,12 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (city) updateData.city = city;
       if (address) updateData.address = address;
       if (postalCode) updateData.postal_code = postalCode;
+      // Always update attribution fields from Meta (most recent lead wins)
+      updateData.attr_source = "facebook";
+      updateData.attr_medium = "paid_social";
+      if (lead.campaign_name) updateData.attr_campaign = lead.campaign_name;
+      if (lead.ad_name) updateData.attr_content = lead.ad_name;
+      if (lead.campaign_id) updateData.source_campaign_id = lead.campaign_id;
     }
     updateData.updated_at = new Date().toISOString();
 
@@ -288,7 +296,12 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         tags,
         status: "new",
         assigned_to: pipelineSettings.owner_user_id || null,
-        source_campaign_id: lead.campaign_name || lead.campaign_id || null,
+        source_campaign_id: lead.campaign_id || lead.campaign_name || null,
+        // Attribution fields from Meta Ads
+        attr_source: "facebook",
+        attr_medium: "paid_social",
+        attr_campaign: lead.campaign_name || null,
+        attr_content: lead.ad_name || null,
       })
       .select("id")
       .single();

@@ -30,6 +30,25 @@ Deno.serve(async (req) => {
       return json({ error: "Importo minimo €5.00" }, 400);
     }
 
+    // Verify caller is super_admin or belongs to the requested company
+    const { data: callerRoles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+    const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
+
+    if (!isSuperAdmin) {
+      const { data: callerProfile } = await adminClient
+        .from("profiles")
+        .select("company_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!callerProfile || callerProfile.company_id !== companyId) {
+        return json({ error: "Non autorizzato" }, 403);
+      }
+    }
+
     // Get current credits
     const { data: credits } = await adminClient
       .from("ai_credits")

@@ -76,13 +76,14 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <PenTool className="h-5 w-5" />
-          Firma Digitale
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 min-w-0">
+          <PenTool className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+          <span className="truncate">Firma Digitale</span>
         </CardTitle>
-        <Button size="sm" onClick={() => { setEmail(customerEmail || ""); setName(customerName || ""); setDialogOpen(true); }}>
-          <Send className="h-4 w-4 mr-1" /> Richiedi firma
+        <Button size="sm" onClick={() => { setEmail(customerEmail || ""); setName(customerName || ""); setDialogOpen(true); }} className="shrink-0">
+          <Send className="h-4 w-4" />
+          <span className="hidden sm:inline ml-1">Richiedi firma</span>
         </Button>
       </CardHeader>
       <CardContent>
@@ -95,17 +96,17 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
             {signatures.map((sig) => {
               const statusInfo = STATUS_MAP[sig.status] || STATUS_MAP.pending;
               return (
-                <div key={sig.id} className="flex items-center justify-between border rounded-lg p-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{sig.signer_name || sig.signer_email}</span>
-                      <Badge variant={statusInfo.variant} className="gap-1">
+                <div key={sig.id} className="flex items-center justify-between border rounded-lg p-3 gap-2">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium truncate">{sig.signer_name || sig.signer_email}</span>
+                      <Badge variant={statusInfo.variant} className="gap-1 shrink-0">
                         {statusInfo.icon} {statusInfo.label}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {sig.signer_email} · {format(new Date(sig.created_at), "dd MMM yyyy HH:mm", { locale: it })}
-                      {sig.signed_at && ` · Firmato: ${format(new Date(sig.signed_at), "dd MMM yyyy HH:mm", { locale: it })}`}
+                    <p className="text-xs text-muted-foreground truncate">
+                      {sig.signer_email} · {format(new Date(sig.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                      {sig.signed_at && ` · Firmato: ${format(new Date(sig.signed_at), "dd/MM/yy", { locale: it })}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

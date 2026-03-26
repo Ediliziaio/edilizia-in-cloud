@@ -58,12 +58,15 @@ export function useMarginData(): MarginData {
   const { data: ordersRaw, isLoading: loadingOrders } = useQuery({
     queryKey: queryKeys.margin.orders(companyId),
     queryFn: async () => {
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 24);
       const { data, error } = await supabase
         .from("orders")
         .select("id, order_code, total_amount, vat_rate, description, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
+        .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
-        .limit(500); // sicurezza: margini calcolati sugli ultimi 500 ordini; TODO filtro data rolling 24 mesi
+        .limit(500);
       if (error) throw error;
       return data;
     },

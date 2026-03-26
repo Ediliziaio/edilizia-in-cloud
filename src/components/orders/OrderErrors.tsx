@@ -150,14 +150,14 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5" />
-          Errori / Perdite
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 min-w-0">
+          <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+          <span className="truncate">Errori / Perdite</span>
         </CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Aggiungi
+        <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)} className="shrink-0">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline ml-1">Aggiungi</span>
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">

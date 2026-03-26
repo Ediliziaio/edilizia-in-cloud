@@ -87,16 +87,16 @@ const DashboardCeoStrip = React.memo(function DashboardCeoStrip({
   ];
 
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-2 sm:gap-4 grid-cols-2 lg:grid-cols-4">
       {kpis.map((kpi) => (
         <Card key={kpi.label} className="border-primary/20 bg-primary/5">
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <CardContent className="pt-3 pb-2 px-3 sm:pt-4 sm:pb-3 sm:px-4">
+            <div className="flex items-start justify-between gap-1">
+              <div className="space-y-1 min-w-0 flex-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
                   {kpi.label}
                 </p>
-                <p className={`text-xl font-bold ${
+                <p className={`text-base sm:text-xl font-bold truncate ${
                   kpi.label === "Saldo Cassa Netto"
                     ? netCashFlow >= 0
                       ? "text-emerald-600 dark:text-emerald-400"

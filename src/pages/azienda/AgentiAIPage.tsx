@@ -56,7 +56,7 @@ export default function AgentiAIPage() {
         .from("ai_elevenlabs_config_safe" as never)
         .select("api_key_valida, crediti_rimanenti, piano")
         .eq("company_id", companyId!)
-        .single();
+        .maybeSingle();
       return data as { api_key_valida: boolean; crediti_rimanenti: number; piano: string } | null;
     },
   });

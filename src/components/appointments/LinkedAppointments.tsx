@@ -84,17 +84,17 @@ export function LinkedAppointments({ orderId }: LinkedAppointmentsProps) {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CalendarClock className="h-4 w-4" />
-            Appuntamenti
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-base flex items-center gap-2 min-w-0">
+            <CalendarClock className="h-4 w-4 shrink-0" />
+            <span className="truncate">Appuntamenti</span>
             {activeCount > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">{activeCount}</Badge>
+              <Badge variant="secondary" className="ml-1 text-xs shrink-0">{activeCount}</Badge>
             )}
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={handleAdd}>
-            <Plus className="h-4 w-4 mr-1" />
-            Aggiungi
+          <Button variant="ghost" size="sm" onClick={handleAdd} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Aggiungi</span>
           </Button>
         </CardHeader>
         <CardContent className="pt-0">

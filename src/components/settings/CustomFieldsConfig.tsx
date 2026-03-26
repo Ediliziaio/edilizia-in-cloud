@@ -56,6 +56,11 @@ const FOLDER_COLORS: Record<string, string> = {
   salesperson: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
   external_team: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
   supplier: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  // ── Cantieri ────────────────────────────────────────────────────
+  ordini_variazione: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  giornale_lavori: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  pos_document: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  duvri_document: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
@@ -74,6 +79,11 @@ const FOLDER_LABELS: Record<string, string> = {
   salesperson: "Venditore",
   external_team: "Squadra Esterna",
   supplier: "Fornitore",
+  // ── Cantieri ──
+  ordini_variazione: "Ordine di Variazione",
+  giornale_lavori: "Giornale dei Lavori",
+  pos_document: "POS – Sicurezza",
+  duvri_document: "DUVRI – Sicurezza",
 };
 
 /* ───── helper to build system fields ───── */
@@ -389,6 +399,52 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_sup_notes", "Note", "Fornitore", "supplier", "{{ supplier.notes }}"),
   sysField("sys_sup_active", "Attivo", "Fornitore", "supplier", "{{ supplier.is_active }}"),
   sysField("sys_sup_foreign", "Estero", "Fornitore", "supplier", "{{ supplier.is_foreign }}"),
+
+  // ══════════════════════════════════════
+  // ── Ordine di Variazione ──
+  // ══════════════════════════════════════
+  sysField("sys_odv_id",        "ID OdV",             "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.id }}"),
+  sysField("sys_odv_numero",    "Numero OdV",          "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.numero_odv }}"),
+  sysField("sys_odv_titolo",    "Titolo",              "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.titolo }}"),
+  sysField("sys_odv_importo",   "Importo Aggiuntivo",  "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.impatto_economico }}"),
+  sysField("sys_odv_giorni",    "Giorni Aggiuntivi",   "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.impatto_giorni }}"),
+  sysField("sys_odv_status",    "Stato",               "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.status }}"),
+  sysField("sys_odv_desc",      "Descrizione",         "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.descrizione }}"),
+  sysField("sys_odv_motivaz",   "Motivazione",         "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.motivazione }}"),
+  sysField("sys_odv_richda",    "Richiesto Da",        "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.richiesto_da }}"),
+  sysField("sys_odv_firmato",   "Firmato Da",          "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.firmato_da }}"),
+  sysField("sys_odv_firmato_il","Data Firma",          "Ordine di Variazione", "ordini_variazione", "{{ ordini_variazione.firmato_il }}"),
+
+  // ══════════════════════════════════════
+  // ── Giornale dei Lavori ──
+  // ══════════════════════════════════════
+  sysField("sys_gl_id",         "ID Report",           "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.id }}"),
+  sysField("sys_gl_data",       "Data Lavori",         "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.data_lavori }}"),
+  sysField("sys_gl_resp",       "Responsabile",        "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.responsabile_lavori }}"),
+  sysField("sys_gl_meteo",      "Meteo",               "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.meteo }}"),
+  sysField("sys_gl_avanz",      "Avanzamento %",       "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.avanzamento_percentuale }}"),
+  sysField("sys_gl_attivita",   "Attività Svolte",     "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.attivita_svolte }}"),
+  sysField("sys_gl_problemi",   "Problemi Riscontrati","Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.problemi_riscontrati }}"),
+  sysField("sys_gl_operai",     "N° Operai",           "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.numero_operai }}"),
+
+  // ══════════════════════════════════════
+  // ── POS – Sicurezza Cantiere ──
+  // ══════════════════════════════════════
+  sysField("sys_pos_id",        "ID Documento POS",    "POS – Sicurezza", "pos_document", "{{ pos_document.id }}"),
+  sysField("sys_pos_order",     "Ordine",              "POS – Sicurezza", "pos_document", "{{ pos_document.order_id }}"),
+  sysField("sys_pos_indirizzo", "Indirizzo Cantiere",  "POS – Sicurezza", "pos_document", "{{ pos_document.indirizzo_cantiere }}"),
+  sysField("sys_pos_resp",      "Responsabile Sic.",   "POS – Sicurezza", "pos_document", "{{ pos_document.responsabile_sicurezza }}"),
+  sysField("sys_pos_costi",     "Costi Sicurezza",     "POS – Sicurezza", "pos_document", "{{ pos_document.costi_sicurezza }}"),
+  sysField("sys_pos_status",    "Stato",               "POS – Sicurezza", "pos_document", "{{ pos_document.status }}"),
+
+  // ══════════════════════════════════════
+  // ── DUVRI – Sicurezza Cantiere ──
+  // ══════════════════════════════════════
+  sysField("sys_duvri_id",      "ID Documento DUVRI",  "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.id }}"),
+  sysField("sys_duvri_order",   "Ordine",              "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.order_id }}"),
+  sysField("sys_duvri_indirizzo","Indirizzo Cantiere", "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.indirizzo_cantiere }}"),
+  sysField("sys_duvri_resp",    "Responsabile Sic.",   "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.responsabile_sicurezza }}"),
+  sysField("sys_duvri_status",  "Stato",               "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.status }}"),
 ];
 
 const FIELD_TYPES = [
@@ -406,6 +462,13 @@ const CONTACT_SECTIONS = [
 const OPPORTUNITY_SECTIONS = [
   { value: "opportunity_details", label: "Opportunità Details" },
 ];
+// Cantieri: ogni entity type ha una sezione con lo stesso nome
+const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
+  ordini_variazione: [{ value: "ordini_variazione", label: "Ordine di Variazione" }],
+  giornale_lavori:   [{ value: "giornale_lavori",   label: "Giornale dei Lavori" }],
+  pos_document:      [{ value: "pos_document",      label: "POS – Sicurezza" }],
+  duvri_document:    [{ value: "duvri_document",    label: "DUVRI – Sicurezza" }],
+};
 
 const GROUP_OPTIONS = [
   { value: "all", label: "Tutto" },
@@ -423,6 +486,11 @@ const GROUP_OPTIONS = [
   { value: "salesperson", label: "Venditore" },
   { value: "external_team", label: "Squadra Esterna" },
   { value: "supplier", label: "Fornitore" },
+  // ── Cantieri ──
+  { value: "ordini_variazione", label: "Ordine di Variazione" },
+  { value: "giornale_lavori",   label: "Giornale dei Lavori" },
+  { value: "pos_document",      label: "POS – Sicurezza" },
+  { value: "duvri_document",    label: "DUVRI – Sicurezza" },
 ];
 
 const OBJECT_NAME_MAP: Record<string, string> = {
@@ -440,6 +508,11 @@ const OBJECT_NAME_MAP: Record<string, string> = {
   salesperson: "Venditore",
   external_team: "Squadra Esterna",
   supplier: "Fornitore",
+  // ── Cantieri ──
+  ordini_variazione: "Ordine di Variazione",
+  giornale_lavori: "Giornale dei Lavori",
+  pos_document: "POS – Sicurezza",
+  duvri_document: "DUVRI – Sicurezza",
 };
 
 function toSnakeCase(s: string) {
@@ -456,7 +529,7 @@ export function CustomFieldsConfig() {
   const [name, setName] = useState("");
   const [fieldType, setFieldType] = useState("text");
   const [section, setSection] = useState("general_info");
-  const [objectType, setObjectType] = useState<"contact" | "opportunity">("contact");
+  const [objectType, setObjectType] = useState<string>("contact");
   const [optionsInput, setOptionsInput] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
@@ -482,16 +555,15 @@ export function CustomFieldsConfig() {
 
   const allFields = useMemo<UnifiedField[]>(() => {
     const custom: UnifiedField[] = customFields.map((f: any) => {
-      const isOpp = f.object_type === "opportunity";
+      const objectName = OBJECT_NAME_MAP[f.object_type] ?? f.object_type;
+      const templateNs = f.object_type; // es. 'ordini_variazione'
       return {
         id: f.id,
         name: f.name,
-        object: isOpp ? "Opportunità" : "Contatto",
-        folder: f.section,
-        folderColor: FOLDER_COLORS[f.section] || FOLDER_COLORS.additional_info,
-        uniqueKey: isOpp
-          ? `{{ opportunity.${toSnakeCase(f.name)} }}`
-          : `{{ contact.${toSnakeCase(f.name)} }}`,
+        object: objectName,
+        folder: f.section ?? f.object_type,
+        folderColor: FOLDER_COLORS[f.section ?? f.object_type] || FOLDER_COLORS.additional_info,
+        uniqueKey: `{{ ${templateNs}.${toSnakeCase(f.name)} }}`,
         createdAt: f.created_at,
         isSystem: false,
         fieldType: f.field_type,
@@ -523,12 +595,19 @@ export function CustomFieldsConfig() {
     return result;
   }, [allFields, search, groupBy]);
 
-  const handleObjectTypeChange = (val: "contact" | "opportunity") => {
+  const handleObjectTypeChange = (val: string) => {
     setObjectType(val);
-    setSection(val === "opportunity" ? "opportunity_details" : "general_info");
+    if (val === "opportunity") setSection("opportunity_details");
+    else if (CANTIERE_SECTIONS[val]) setSection(val);
+    else setSection("general_info");
   };
 
-  const availableSections = objectType === "opportunity" ? OPPORTUNITY_SECTIONS : CONTACT_SECTIONS;
+  const availableSections =
+    objectType === "opportunity"
+      ? OPPORTUNITY_SECTIONS
+      : CANTIERE_SECTIONS[objectType]
+      ? CANTIERE_SECTIONS[objectType]
+      : CONTACT_SECTIONS;
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -735,11 +814,15 @@ export function CustomFieldsConfig() {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Oggetto *</Label>
-              <Select value={objectType} onValueChange={(v) => handleObjectTypeChange(v as "contact" | "opportunity")}>
+              <Select value={objectType} onValueChange={handleObjectTypeChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="contact">Contatto</SelectItem>
                   <SelectItem value="opportunity">Opportunità</SelectItem>
+                  <SelectItem value="ordini_variazione">Ordine di Variazione</SelectItem>
+                  <SelectItem value="giornale_lavori">Giornale dei Lavori</SelectItem>
+                  <SelectItem value="pos_document">POS – Sicurezza Cantiere</SelectItem>
+                  <SelectItem value="duvri_document">DUVRI – Sicurezza Cantiere</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -65,7 +65,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           order:orders(description),
           assignee:profiles!tickets_assigned_to_fkey(first_name, last_name)
         `)
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany?.id ?? "")
         .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) throw error;
@@ -137,7 +137,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         <Button asChild>
           <Link to="/azienda/assistenza/nuovo">
             <Plus className="mr-2 h-4 w-4" />
-            Crea Ticket
+            <span className="sm:hidden">Nuovo</span>
+            <span className="hidden sm:inline">Crea Ticket</span>
           </Link>
         </Button>
       </div>
@@ -178,8 +179,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cerca per cliente o oggetto..."
@@ -189,9 +190,9 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="flex-1 sm:w-[180px] sm:flex-none">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
@@ -202,7 +203,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none">
               <SelectValue placeholder="Priorità" />
             </SelectTrigger>
             <SelectContent>
@@ -231,16 +232,66 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </Card>
       ) : (
         <Card>
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y">
+            {filteredTickets.map((ticket) => {
+              const statusColor = getTicketStatusColor(ticket.status);
+              const priorityColor = getTicketPriorityColor(ticket.priority);
+              return (
+                <Link
+                  key={ticket.id}
+                  to={`/azienda/assistenza/${ticket.id}`}
+                  className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors"
+                >
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm line-clamp-1">{ticket.subject}</span>
+                      {unreadByTicket[ticket.id] > 0 && (
+                        <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shrink-0">
+                          {unreadByTicket[ticket.id]}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {ticket.customer?.first_name} {ticket.customer?.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatRelativeTime(ticket.last_message_at || ticket.updated_at)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0"
+                      style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
+                    >
+                      {getTicketStatusLabel(ticket.status)}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0"
+                      style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}
+                    >
+                      {getTicketPriorityLabel(ticket.priority)}
+                    </Badge>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Oggetto</TableHead>
-                <TableHead>Priorità</TableHead>
-                <TableHead>Ordine</TableHead>
+                <TableHead className="hidden sm:table-cell">Priorità</TableHead>
+                <TableHead className="hidden lg:table-cell">Ordine</TableHead>
                 <TableHead>Stato</TableHead>
-                <TableHead>Assegnato a</TableHead>
-                <TableHead>Aggiornato</TableHead>
+                <TableHead className="hidden md:table-cell">Assegnato a</TableHead>
+                <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -273,7 +324,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge
                         variant="outline"
                         style={{
@@ -285,7 +336,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                         {getTicketPriorityLabel(ticket.priority)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {ticket.order ? (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Package className="h-3.5 w-3.5" />
@@ -309,7 +360,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                         {getTicketStatusLabel(ticket.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {ticket.assignee ? (
                         <span className="text-sm">
                           {ticket.assignee.first_name} {ticket.assignee.last_name}
@@ -318,7 +369,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                       {formatRelativeTime(ticket.last_message_at || ticket.updated_at)}
                     </TableCell>
                     <TableCell>
@@ -333,6 +384,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               })}
             </TableBody>
           </Table>
+          </div>{/* end hidden sm:block */}
         </Card>
       )}
     </div>

@@ -34,7 +34,7 @@ export interface Scadenza {
   // joined
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string; client_company_name: string } | null;
-  orders?: { order_number: string } | null;
+  orders?: { order_code: string } | null;
   marketing_contacts?: { first_name: string; last_name: string; company_name: string | null } | null;
 }
 
@@ -65,7 +65,7 @@ export function useScadenzario() {
           *,
           suppliers(name),
           invoices(invoice_number, client_company_name),
-          orders(order_number),
+          orders(order_code),
           marketing_contacts(first_name, last_name, company_name)
         `)
         .eq("company_id", companyId!)

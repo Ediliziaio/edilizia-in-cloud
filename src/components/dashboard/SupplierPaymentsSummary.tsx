@@ -176,13 +176,13 @@ export function SupplierPaymentsSummary({ dateRange }: SupplierPaymentsSummaryPr
         ) : (
           <div className="space-y-4">
             {/* Totals */}
-            <div className="flex items-center justify-between text-sm pb-2 border-b">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm pb-2 border-b gap-1">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" />
                 <span>Pagato: <span className="font-semibold text-green-600">{formatCurrency(totalPaidAll)}</span></span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 text-amber-600" />
+                <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                 <span>Da pagare: <span className="font-semibold text-amber-600">{formatCurrency(totalUnpaidAll)}</span></span>
               </div>
             </div>
@@ -193,9 +193,9 @@ export function SupplierPaymentsSummary({ dateRange }: SupplierPaymentsSummaryPr
                 const paidPercent = supplier.total > 0 ? Math.round((supplier.totalPaid / supplier.total) * 100) : 0;
                 return (
                   <div key={supplier.id || "__none__"} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium truncate max-w-[140px]">{supplier.name}</span>
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate min-w-0 flex-1">{supplier.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {paidPercent === 100 ? (
                           <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 text-xs">
                             Pagato

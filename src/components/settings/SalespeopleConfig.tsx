@@ -209,15 +209,20 @@ export function SalespeopleConfig() {
   };
 
   const handleSelectAllPerms = () => {
-    setAccountPermissions((prev) => ({
-      ...DEFAULT_PERMISSIONS,
-      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
-      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
-      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
-      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      only_assigned: prev.only_assigned,
-    }));
+    setAccountPermissions((prev) => {
+      const allTrue: Partial<StaffPermissions> = {};
+      ALL_PERMISSION_SECTIONS.forEach(s => {
+        (allTrue as any)[s.viewKey] = true;
+        if (s.editKey) (allTrue as any)[s.editKey] = true;
+      });
+      return {
+        ...DEFAULT_PERMISSIONS,
+        ...allTrue,
+        can_view_marketing: true, can_edit_marketing: true,
+        can_view_settings: true, can_edit_settings: true,
+        only_assigned: prev.only_assigned,
+      };
+    });
   };
 
   const handleDeselectAllPerms = () => {
@@ -359,7 +364,7 @@ export function SalespeopleConfig() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="sp-password">Password</Label>
-              <Input id="sp-password" type="text" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} placeholder="Lascia vuoto per generarla automaticamente" />
+              <Input id="sp-password" type="password" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} placeholder="Lascia vuoto per generarla automaticamente" />
               <p className="text-xs text-muted-foreground">Se lasci vuoto, verrà generata automaticamente e mostrata dopo la creazione</p>
             </div>
 

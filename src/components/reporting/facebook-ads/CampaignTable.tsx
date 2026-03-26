@@ -4,7 +4,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { useMetaAdsReport } from "@/hooks/useMetaAdsReport";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
 
@@ -60,6 +62,7 @@ const StatusBadge = ({ status }: { status?: string }) => {
 };
 
 const CampaignTable = ({ report }: Props) => {
+  const navigate = useNavigate();
   const allColumns = getColumnsForLevel(report.level);
   const columns = allColumns.filter((c) => report.visibleColumns.includes(c.key));
 
@@ -176,7 +179,7 @@ const CampaignTable = ({ report }: Props) => {
               </tr>
             ) : (
               report.rows.map((row, i) => (
-                <tr key={`${row.campaign_id}-${i}`} className="border-t border-border/50 hover:bg-muted/20 transition-colors">
+                <tr key={`${row.campaign_id}-${i}`} className="border-t border-border/50 hover:bg-muted/20 transition-colors group">
                   {columns.map((col) => (
                     <td
                       key={col.key}
@@ -189,6 +192,26 @@ const CampaignTable = ({ report }: Props) => {
                       )}
                     </td>
                   ))}
+                  <td className="px-2 py-2.5 w-8">
+                    {row.leads > 0 && row.campaign_name && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex items-center justify-center rounded hover:bg-primary/10 text-primary"
+                              onClick={() => navigate(`/azienda/marketing/contatti?q=${encodeURIComponent(row.campaign_name!)}`)}
+                            >
+                              <Users className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Vedi lead CRM per "{row.campaign_name}"</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

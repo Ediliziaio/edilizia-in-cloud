@@ -89,9 +89,37 @@ Deno.serve(async (req) => {
     }
 
     // Delete in order: staff_permissions, user_roles, profiles, then auth user
-    await adminClient.from("staff_permissions").delete().eq("user_id", userId);
-    await adminClient.from("user_roles").delete().eq("user_id", userId);
-    await adminClient.from("profiles").delete().eq("id", userId);
+    // company_id filter on staff_permissions for defense-in-depth
+    const targetCompanyId = targetProfile?.company_id;
+    const { error: permDeleteError } = await adminClient
+      .from("staff_permissions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("company_id", targetCompanyId ?? "");
+    if (permDeleteError) {
+      console.error("Error deleting staff_permissions:", permDeleteError);
+    }
+
+    const { error: rolesDeleteError } = await adminClient
+      .from("user_roles")
+      .delete()
+      .eq("user_id", userId);
+    if (rolesDeleteError) {
+      console.error("Error deleting user_roles:", rolesDeleteError);
+    }
+
+    const { error: profileDeleteError } = await adminClient
+      .from("profiles")
+      .delete()
+      .eq("id", userId)
+      .eq("company_id", targetCompanyId ?? "");
+    if (profileDeleteError) {
+      console.error("Error deleting profile:", profileDeleteError);
+      return new Response(JSON.stringify({ error: "Errore eliminazione profilo: " + profileDeleteError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteAuthError) {

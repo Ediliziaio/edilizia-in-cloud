@@ -68,7 +68,9 @@ export function TabOrganigramma() {
   const [filterReparto, setFilterReparto] = useState<string>("__all__");
   const [editingProfilo, setEditingProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
+  const [viewMode, setViewMode] = useState<"tree" | "list">(
+    typeof window !== "undefined" && window.innerWidth < 640 ? "list" : "tree"
+  );
 
   const profili = data?.profili || [];
   const reparti = data?.reparti || [];
@@ -142,47 +144,47 @@ export function TabOrganigramma() {
       {/* KPI Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-8 w-8 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{totalActive}</p>
-              <p className="text-xs text-muted-foreground">Dipendenti attivi</p>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold">{totalActive}</p>
+              <p className="text-xs text-muted-foreground truncate">Dipendenti attivi</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Building2 className="h-8 w-8 text-blue-500" />
-            <div>
-              <p className="text-2xl font-bold">{uniqueReparti}</p>
-              <p className="text-xs text-muted-foreground">Reparti</p>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold">{uniqueReparti}</p>
+              <p className="text-xs text-muted-foreground truncate">Reparti</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <MapPin className="h-8 w-8 text-amber-500" />
-            <div>
-              <p className="text-2xl font-bold">{uniqueSedi}</p>
-              <p className="text-xs text-muted-foreground">Sedi</p>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold">{uniqueSedi}</p>
+              <p className="text-xs text-muted-foreground truncate">Sedi</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <UserPlus className="h-8 w-8 text-green-500" />
-            <div>
-              <p className="text-2xl font-bold">{profili.filter((p) => !p.responsabile_id).length}</p>
-              <p className="text-xs text-muted-foreground">Senza responsabile</p>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <UserPlus className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold">{profili.filter((p) => !p.responsabile_id).length}</p>
+              <p className="text-xs text-muted-foreground truncate">Senza resp.</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2 items-center flex-1 min-w-0">
-          <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1 sm:flex-none sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cerca dipendente..."
@@ -192,7 +194,7 @@ export function TabOrganigramma() {
             />
           </div>
           <Select value={filterReparto} onValueChange={setFilterReparto}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="flex-1 sm:w-[160px] sm:flex-none">
               <SelectValue placeholder="Tutti i reparti" />
             </SelectTrigger>
             <SelectContent>
@@ -203,34 +205,22 @@ export function TabOrganigramma() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <div className="flex border rounded-md overflow-hidden">
-            <Button
-              variant={viewMode === "tree" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-none"
-              onClick={() => setViewMode("tree")}
-            >
-              <Network className="h-4 w-4 mr-1" />
-              Albero
+            <Button variant={viewMode === "tree" ? "default" : "ghost"} size="sm" className="rounded-none hidden sm:flex" onClick={() => setViewMode("tree")}>
+              <Network className="h-4 w-4 mr-1" />Albero
             </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              className="rounded-none"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4 mr-1" />
-              Lista
+            <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setViewMode("list")}>
+              <List className="h-4 w-4 mr-1" />Lista
             </Button>
           </div>
           <Button variant="outline" size="sm" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            Sincronizza
+            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline ml-1">Sincronizza</span>
           </Button>
           <Button size="sm" onClick={handleNew}>
-            <UserPlus className="h-4 w-4 mr-1" />
-            Nuovo Profilo
+            <UserPlus className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Nuovo Profilo</span>
           </Button>
         </div>
       </div>

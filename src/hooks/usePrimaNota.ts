@@ -30,8 +30,7 @@ export interface PrimaNotaEntry {
   // joined
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string } | null;
-  orders?: { order_number: string } | null;
-  documenti_fiscali?: { id: string; numero: string; tipo: string } | null;
+  orders?: { order_code: string } | null;
 }
 
 export interface PrimaNotaSaldo {
@@ -61,7 +60,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_number), documenti_fiscali!invoice_id(id, numero, tipo)`)
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code)`)
         .eq("company_id", companyId!)
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })

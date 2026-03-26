@@ -30,6 +30,8 @@ const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/Se
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
+const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
+const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
 const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
@@ -78,6 +80,9 @@ const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
+const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
+const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
+const MarginalitaCantieri = lazy(() => import("@/pages/azienda/MarginalitaCantieri"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
@@ -98,12 +103,14 @@ const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEdit
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
+const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
+const AnalisiPreventivi = lazy(() => import("@/pages/azienda/marketing/AnalisiPreventivi"));
 
 const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
 
@@ -144,6 +151,7 @@ export function companyRoutes() {
         }
       >
         <Route index element={<CompanyDashboard />} />
+        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="cruscotto" element={<CruscottoAziendale />} />
         <Route path="ordini" element={<OrdersList />} />
         <Route path="ordini/nuovo" element={<CreateOrder />} />
@@ -190,6 +198,9 @@ export function companyRoutes() {
         <Route path="prima-nota" element={<PrimaNota />} />
         <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
+        <Route path="sicurezza-cantiere" element={<SicurezzaCantiere />} />
+        <Route path="giornale-lavori" element={<GiornaleLavori />} />
+        <Route path="marginalita" element={<MarginalitaCantieri />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
 
@@ -219,6 +230,7 @@ export function companyRoutes() {
         <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
         <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
+        <Route path="marketing/analisi-preventivi" element={<AnalisiPreventivi />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
         <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
@@ -228,7 +240,10 @@ export function companyRoutes() {
         <Route path="impostazioni" element={<SettingsLayout />}>
           <Route index element={<Navigate to="profilo" replace />} />
           <Route path="profilo" element={<SettingsProfile />} />
-          <Route path="catalogo" element={<SettingsCatalog />} />
+          <Route path="catalogo" element={<Navigate to="../listino" replace />} />
+          <Route path="listino" element={<SettingsCatalog />} />
+          <Route path="tariffe" element={<SettingsTariffe />} />
+          <Route path="margini" element={<SettingsMargini />} />
           <Route path="stati-ordine" element={<SettingsOrderStatus />} />
           <Route path="fornitori" element={<SettingsSuppliers />} />
           <Route path="categorie-costi" element={<SettingsCostCategories />} />

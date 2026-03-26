@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (!signature) {
       // Log rejected attempt
       await supabase.from("sdi_log").insert({
-        company_id: "00000000-0000-0000-0000-000000000000",
+        company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Missing signature header",
       }).catch(() => {});
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     if (signature !== expectedSig) {
       await supabase.from("sdi_log").insert({
-        company_id: "00000000-0000-0000-0000-000000000000",
+        company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Invalid signature",
       }).catch(() => {});
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     if (!doc) {
       // Log unknown SDI ID
       await supabase.from("sdi_log").insert({
-        company_id: "00000000-0000-0000-0000-000000000000",
+        company_id: null as unknown as string,
         evento: "webhook_unknown",
         sdi_id: idTrasmissione,
         messaggio: `Documento non trovato per SDI ID: ${idTrasmissione}`,

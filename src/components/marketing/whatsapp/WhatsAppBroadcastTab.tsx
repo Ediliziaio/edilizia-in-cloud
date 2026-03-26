@@ -10,10 +10,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+
+function BroadcastFailureDetails({ broadcastId }: { broadcastId: string }) {
+  const { data: recipients, isLoading } = useQuery({
+    queryKey: ["broadcast-failed-recipients", broadcastId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_broadcast_recipients" as any)
+        .select("id, phone, contact_name, status, error_message")
+        .eq("broadcast_id", broadcastId)
+        .eq("status", "failed")
+        .order("id")
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  if (isLoading) return <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
+  if (!recipients?.length) return <p className="text-xs text-muted-foreground py-2">Nessun dettaglio disponibile.</p>;
+
+  return (
+    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+      {recipients.map((r) => (
+        <div key={r.id} className="flex items-start gap-2 text-xs py-1 border-t border-border/50">
+          <AlertCircle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <span className="font-medium">{r.contact_name || r.phone}</span>
+            {r.error_message && (
+              <p className="text-muted-foreground truncate">{r.error_message}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function WhatsAppBroadcastTab() {
   const { effectiveCompany } = useAuth();
@@ -24,6 +60,7 @@ export function WhatsAppBroadcastTab() {
   const [templateName, setTemplateName] = useState("");
   const [messageText, setMessageText] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [expandedBroadcast, setExpandedBroadcast] = useState<string | null>(null);
 
   const companyId = effectiveCompany?.id;
 
@@ -251,29 +288,43 @@ export function WhatsAppBroadcastTab() {
             ) : (
               <div className="space-y-3">
                 {broadcasts.map((b: any) => (
-                  <div key={b.id} className="flex items-center justify-between border rounded-lg p-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm font-medium">{b.template_name}</span>
-                        {statusBadge(b.status)}
+                  <div key={b.id} className="border rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-sm font-medium">{b.template_name}</span>
+                          {statusBadge(b.status)}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{b.segment}</span>
+                          <span>•</span>
+                          <span>{b.total_contacts} contatti</span>
+                          <span>•</span>
+                          <span className="text-emerald-600">{b.sent_count} inviati</span>
+                          {b.failed_count > 0 && (
+                            <>
+                              <span>•</span>
+                              <button
+                                type="button"
+                                className="text-destructive flex items-center gap-0.5 hover:underline"
+                                onClick={() => setExpandedBroadcast(expandedBroadcast === b.id ? null : b.id)}
+                              >
+                                {b.failed_count} falliti
+                                {expandedBroadcast === b.id
+                                  ? <ChevronDown className="h-3 w-3" />
+                                  : <ChevronRight className="h-3 w-3" />}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>{b.segment}</span>
-                        <span>•</span>
-                        <span>{b.total_contacts} contatti</span>
-                        <span>•</span>
-                        <span className="text-emerald-600">{b.sent_count} inviati</span>
-                        {b.failed_count > 0 && (
-                          <>
-                            <span>•</span>
-                            <span className="text-destructive">{b.failed_count} falliti</span>
-                          </>
-                        )}
-                      </div>
+                      <span className="text-xs text-muted-foreground ml-3">
+                        {format(new Date(b.created_at), "dd MMM HH:mm", { locale: it })}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(b.created_at), "dd MMM HH:mm", { locale: it })}
-                    </span>
+                    {expandedBroadcast === b.id && b.failed_count > 0 && (
+                      <BroadcastFailureDetails broadcastId={b.id} />
+                    )}
                   </div>
                 ))}
               </div>

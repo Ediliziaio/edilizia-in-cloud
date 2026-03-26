@@ -46,18 +46,20 @@ export function useBreadcrumb(): BreadcrumbResult {
       };
     }
 
-    // Sort by URL length descending so more specific routes match first
-    for (const area of macroAreas) {
-      const sortedItems = [...area.items].sort((a, b) => b.url.length - a.url.length);
-      for (const item of sortedItems) {
-        if (pathname === item.url || pathname.startsWith(item.url + "/")) {
-          return {
-            area: area.title,
-            areaIcon: area.icon,
-            page: item.title,
-            pageUrl: item.url,
-          };
-        }
+    // Flatten all items across all areas, sort globally by URL length descending
+    // so more specific routes always win (e.g. /azienda/prima-nota beats /azienda)
+    const allCandidates = macroAreas.flatMap((area) =>
+      area.items.map((item) => ({ area, item }))
+    ).sort((a, b) => b.item.url.length - a.item.url.length);
+
+    for (const { area, item } of allCandidates) {
+      if (pathname === item.url || pathname.startsWith(item.url + "/")) {
+        return {
+          area: area.title,
+          areaIcon: area.icon,
+          page: item.title,
+          pageUrl: item.url,
+        };
       }
     }
 

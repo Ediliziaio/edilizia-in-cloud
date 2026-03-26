@@ -31,7 +31,7 @@ export interface PurchaseOrder {
   updated_at: string;
   // joined
   suppliers?: { name: string; email: string | null } | null;
-  orders?: { order_number: string } | null;
+  orders?: { order_code: string } | null;
 }
 
 export interface PurchaseOrderItem {
@@ -66,7 +66,7 @@ export function usePurchaseOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("*, suppliers(name, email), orders(order_number)")
+        .select("*, suppliers(name, email), orders(order_code)")
         .eq("company_id", companyId!)
         .order("issue_date", { ascending: false });
       if (error) throw error;
@@ -145,7 +145,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("*, suppliers(name, email, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_number)")
+        .select("*, suppliers(name, email, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_code)")
         .eq("id", poId!)
         .single();
       if (error) throw error;

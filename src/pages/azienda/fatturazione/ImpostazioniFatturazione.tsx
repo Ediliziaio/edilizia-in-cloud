@@ -59,7 +59,7 @@ export default function ImpostazioniFatturazione() {
       </div>
 
       <Tabs defaultValue="azienda">
-        <TabsList className="w-full justify-start">
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
           <TabsTrigger value="azienda">Azienda</TabsTrigger>
           <TabsTrigger value="numeratori">Numeratori</TabsTrigger>
           <TabsTrigger value="template">Template PDF</TabsTrigger>

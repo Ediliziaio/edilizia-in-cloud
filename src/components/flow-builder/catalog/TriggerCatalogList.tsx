@@ -9,7 +9,8 @@ import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
 import { getTriggerIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { CatalogItemRow } from "./CatalogItemRow";
 
-const CATEGORY_ORDER = ["crm", "marketing", "ordini", "fatturazione", "preventivi", "assistenza", "magazzino", "hr", "cantieri", "task", "generale"];
+const COMPANY_CATEGORY_ORDER = ["crm", "marketing", "ordini", "fatturazione", "preventivi", "assistenza", "magazzino", "hr", "cantieri", "task", "generale"];
+const ADMIN_CATEGORY_ORDER = ["crm", "marketing", "comunicazione", "task", "generale", "piattaforma"];
 const CATEGORY_LABELS: Record<string, string> = {
   crm: "CRM & Vendite",
   marketing: "Marketing",
@@ -21,17 +22,21 @@ const CATEGORY_LABELS: Record<string, string> = {
   hr: "HR & Personale",
   cantieri: "Cantieri",
   task: "Task & Attività",
+  comunicazione: "Comunicazione",
   generale: "Generale",
+  piattaforma: "Piattaforma",
 };
 
 interface TriggerCatalogListProps {
   search: string;
   onSelect: (item: CatalogItem) => void;
   onDragStart: (item: CatalogItem) => void;
+  isAdmin?: boolean;
 }
 
-export function TriggerCatalogList({ search, onSelect, onDragStart }: TriggerCatalogListProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["crm"]));
+export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = false }: TriggerCatalogListProps) {
+  const CATEGORY_ORDER = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(isAdmin ? ["piattaforma"] : ["crm"]));
   const [recents] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("flow_recent_triggers") || "[]").slice(0, 5);

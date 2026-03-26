@@ -27,6 +27,8 @@ interface WorkflowRightPanelProps {
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
   companyId?: string;
+  triggerItemId?: string;
+  isAdmin?: boolean;
 }
 
 export function WorkflowRightPanel({
@@ -42,6 +44,8 @@ export function WorkflowRightPanel({
   onDragStart,
   onSelectItem,
   companyId,
+  triggerItemId,
+  isAdmin = false,
 }: WorkflowRightPanelProps) {
   if (mode === "config" && selectedNode) {
     return (
@@ -52,6 +56,7 @@ export function WorkflowRightPanel({
         onClose={onClose}
         onSave={onSave}
         companyId={companyId}
+        triggerItemId={triggerItemId}
       />
     );
   }
@@ -64,6 +69,7 @@ export function WorkflowRightPanel({
       onClose={onClose}
       onDragStart={onDragStart}
       onSelectItem={onSelectItem}
+      isAdmin={isAdmin}
     />
   );
 }
@@ -85,6 +91,7 @@ function CatalogPanel({
   onClose,
   onDragStart,
   onSelectItem,
+  isAdmin = false,
 }: {
   catalogTab: CatalogTab;
   catalogContext: CatalogContext;
@@ -92,6 +99,7 @@ function CatalogPanel({
   onClose: () => void;
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
+  isAdmin?: boolean;
 }) {
   const [search, setSearch] = useState("");
 
@@ -159,7 +167,7 @@ function CatalogPanel({
       {/* Items */}
       <ScrollArea className="flex-1">
         {effectiveTab === "trigger" && (
-          <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} />
+          <TriggerCatalogList search={search} onSelect={handleSelect} onDragStart={onDragStart} isAdmin={isAdmin} />
         )}
         {(effectiveTab === "action" || effectiveTab === "condition") && (
           <ActionCatalogList
@@ -167,6 +175,7 @@ function CatalogPanel({
             onSelect={handleSelect}
             onDragStart={onDragStart}
             includeConditions={effectiveTab === "condition" || effectiveTab === "action"}
+            isAdmin={isAdmin}
           />
         )}
       </ScrollArea>

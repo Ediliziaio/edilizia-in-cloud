@@ -75,10 +75,14 @@ export default function InvoiceDetail() {
   }, [invoice]);
 
   const totals = useMemo(() => {
-    const subtotal = lines.reduce((s, l) => s + Number(l.line_net || 0), 0);
-    const tax = lines.reduce((s, l) => s + Number(l.line_tax || 0), 0);
-    return { subtotal, tax, total: subtotal + tax };
-  }, [lines]);
+    const lineSubtotal = lines.reduce((s, l) => s + Number(l.line_net || 0), 0);
+    const lineTax = lines.reduce((s, l) => s + Number(l.line_tax || 0), 0);
+    // Fall back to invoice-level totals when line_tax is missing (e.g. pre-fix imports)
+    const subtotal = lineSubtotal > 0 ? lineSubtotal : Number(invoice?.subtotal || 0);
+    const tax = lineTax > 0 ? lineTax : Number(invoice?.tax_amount || 0);
+    const total = subtotal + tax || Number(invoice?.total || 0);
+    return { subtotal, tax, total };
+  }, [lines, invoice]);
 
   const fmtEur = (n: number) => formatCurrency(n);
 
@@ -142,7 +146,7 @@ export default function InvoiceDetail() {
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/fatturazione")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/fatturazione")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold">

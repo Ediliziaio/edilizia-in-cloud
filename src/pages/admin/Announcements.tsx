@@ -170,6 +170,7 @@ export default function Announcements() {
       if (error) throw error;
       return data as Announcement[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const createMutation = useMutation({

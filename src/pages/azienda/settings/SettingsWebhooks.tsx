@@ -99,11 +99,11 @@ function WebhookFormDialog({
     try {
       const { data } = await supabase.functions.invoke("send-webhook", {
         body: {
-          webhook_id: webhook?.id || "test",
+          webhook_id: webhook?.id ?? null,
           event_type: "test.ping",
           payload: { message: "Test da Sales OS", timestamp: new Date().toISOString() },
           is_test: true,
-          test_url: !webhook ? url : undefined,
+          test_url: webhook ? undefined : url,
         },
       });
       setTestResult({ status: data?.status, http_status: data?.http_status });
@@ -315,12 +315,14 @@ function DeliveriesSheet({
 // ===== SettingsWebhooks (main page) =====
 export default function SettingsWebhooks() {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id as string;
+  const companyId = (effectiveCompany as any)?.id as string | undefined;
   const { toast } = useToast();
 
-  const { data: webhooks = [], isLoading } = useWebhooks(companyId);
-  const deleteMutation = useDeleteWebhook(companyId);
-  const updateMutation = useUpdateWebhook(companyId);
+  const { data: webhooks = [], isLoading } = useWebhooks(companyId ?? "");
+  const deleteMutation = useDeleteWebhook(companyId ?? "");
+  const updateMutation = useUpdateWebhook(companyId ?? "");
+
+  if (!companyId) return null;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
@@ -341,7 +343,11 @@ export default function SettingsWebhooks() {
   };
 
   const handleToggleActive = async (w: Webhook) => {
-    await updateMutation.mutateAsync({ id: w.id, is_active: !w.is_active });
+    try {
+      await updateMutation.mutateAsync({ id: w.id, is_active: !w.is_active });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile aggiornare lo stato del webhook.", variant: "destructive" });
+    }
   };
 
   return (

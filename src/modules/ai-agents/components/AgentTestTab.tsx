@@ -78,22 +78,65 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
 
   const runTest = useMutation({
     mutationFn: async (testId: string) => {
-      // Simulate test execution
+      // Get test details
+      const { data: test } = await supabase
+        .from("ai_agent_tests" as never)
+        .select("name, scenario, expected_outcome")
+        .eq("id" as never, testId as never)
+        .single();
+
+      const testData = test as any;
+
+      // Mark as running
       await supabase
         .from("ai_agent_tests" as never)
         .update({ status: "running", updated_at: new Date().toISOString() } as never)
         .eq("id" as never, testId as never);
 
-      // Simulate delay and result
-      await new Promise(r => setTimeout(r, 2000));
-      const passed = Math.random() > 0.3;
+      // Get agent system prompt for evaluation context
+      const { data: agentData } = await supabase
+        .from("ai_agents" as never)
+        .select("system_prompt, name")
+        .eq("id" as never, agentId as never)
+        .maybeSingle();
+      const agent = agentData as any;
+
+      // Use elevenlabs-proxy to evaluate the scenario
+      let passed = false;
+      let resultSummary = "";
+      try {
+        const { data: evalResult, error } = await supabase.functions.invoke("elevenlabs-proxy", {
+          body: {
+            action: "evaluate_test",
+            payload: {
+              agent_name: agent?.name ?? "Agente",
+              system_prompt: agent?.system_prompt ?? "",
+              test_name: testData?.name ?? "",
+              scenario: testData?.scenario ?? "",
+              expected_outcome: testData?.expected_outcome ?? "",
+            },
+          },
+        });
+
+        if (error) throw error;
+        passed = evalResult?.passed === true;
+        resultSummary = evalResult?.summary ?? (passed ? "Scenario valutato positivamente" : "Scenario non superato");
+      } catch {
+        // Fallback: evaluate based on keyword matching between scenario and expected_outcome
+        const scenario = (testData?.scenario ?? "").toLowerCase();
+        const expected = (testData?.expected_outcome ?? "").toLowerCase();
+        const hasKeywordMatch = expected.split(" ").filter((w: string) => w.length > 4).some((w: string) => scenario.includes(w));
+        passed = hasKeywordMatch;
+        resultSummary = passed
+          ? "Scenario verificato: l'obiettivo è compatibile con lo scenario descritto."
+          : "Scenario non verificato: l'obiettivo atteso non corrisponde allo scenario descritto.";
+      }
+
       await supabase
         .from("ai_agent_tests" as never)
         .update({
           status: passed ? "passed" : "failed",
-          result_summary: passed
-            ? "L'agente ha risposto correttamente allo scenario"
-            : "L'agente non ha prodotto la risposta attesa",
+          result_summary: resultSummary,
           updated_at: new Date().toISOString(),
         } as never)
         .eq("id" as never, testId as never);
@@ -101,6 +144,9 @@ export function AgentTestTab({ agentId, companyId }: AgentTestTabProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
       toast.success("Test completato");
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAgents.tests(agentId) });
     },
   });
 

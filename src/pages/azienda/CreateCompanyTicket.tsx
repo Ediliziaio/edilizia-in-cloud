@@ -58,7 +58,7 @@ export default function CreateCompanyTicket() {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email")
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany?.id ?? "")
         .in("id", customerIds)
         .order("last_name");
       if (error) throw error;
@@ -75,7 +75,7 @@ export default function CreateCompanyTicket() {
         .from("orders")
         .select("id, description, order_code")
         .eq("customer_id", customerId)
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany?.id ?? "")
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -90,13 +90,13 @@ export default function CreateCompanyTicket() {
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
-          company_id: effectiveCompany!.id,
+          company_id: effectiveCompany?.id ?? "",
           customer_id: customerId,
           order_id: orderId || null,
           subject,
           priority,
           status: "aperto" as const,
-          assigned_to: user!.id,
+          assigned_to: user?.id ?? "",
         })
         .select("id")
         .single();
@@ -108,7 +108,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user!.id,
+            sender_id: user?.id ?? "",
             message: message.trim(),
           });
         if (msgError) throw msgError;
@@ -128,7 +128,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user!.id,
+            sender_id: user?.id ?? "",
             message: `📎 ${file.name}`,
             attachment_url: signedData?.signedUrl || path,
           });
@@ -151,7 +151,7 @@ export default function CreateCompanyTicket() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/assistenza")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>

@@ -38,6 +38,16 @@ export const PERMISSION_LABELS: Record<string, string> = {
   can_edit_tickets: "Modifica Ticket",
   can_view_forecast: "Previsionale",
   can_view_settings: "Impostazioni",
+  // Granular settings
+  can_view_settings_profile: "Impostazioni – Profilo Aziendale",
+  can_edit_settings_profile: "Modifica – Profilo Aziendale",
+  can_view_settings_orders: "Impostazioni – Gestione Ordini",
+  can_edit_settings_orders: "Modifica – Gestione Ordini",
+  can_view_settings_customization: "Impostazioni – Personalizzazione",
+  can_edit_settings_customization: "Modifica – Personalizzazione",
+  can_view_settings_people: "Impostazioni – Team & Persone",
+  can_edit_settings_people: "Modifica – Team & Persone",
+  can_view_settings_security: "Impostazioni – Sicurezza & Privacy",
 };
 
 export const eventTypeLabels: Record<string, string> = {

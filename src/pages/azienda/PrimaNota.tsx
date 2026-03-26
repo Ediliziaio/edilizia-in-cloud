@@ -104,23 +104,25 @@ export default function PrimaNota() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <BookOpen className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold">Prima Nota</h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-1" /> CSV
           </Button>
           <Button onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuova Registrazione
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Nuova Registrazione</span>
+            <span className="sm:hidden">Aggiungi</span>
           </Button>
         </div>
       </div>
 
       {/* Saldo Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">
@@ -179,38 +181,45 @@ export default function PrimaNota() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <ToggleGroup
-          type="single"
-          value={autoView}
-          onValueChange={(v) => v && setAutoView(v as typeof autoView)}
-          className="border rounded-md"
-        >
-          <ToggleGroupItem value="tutte" className="text-xs h-8 px-3">Tutte</ToggleGroupItem>
-          <ToggleGroupItem value="auto" className="text-xs h-8 px-3">
-            <Bot className="h-3 w-3 mr-1" /> Auto
-          </ToggleGroupItem>
-          <ToggleGroupItem value="manuali" className="text-xs h-8 px-3">Manuali</ToggleGroupItem>
-        </ToggleGroup>
-        <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
-        <span className="text-muted-foreground text-sm">→</span>
-        <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
-        <Select value={direction || "all"} onValueChange={(v) => setDirection(v === "all" ? "" : v as any)}>
-          <SelectTrigger className="w-32"><SelectValue placeholder="Direzione" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte</SelectItem>
-            <SelectItem value="entrata">Entrate</SelectItem>
-            <SelectItem value="uscita">Uscite</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="relative flex-1 min-w-[180px]">
+      <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+        {/* Search — full width on mobile, flexible on desktop */}
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
+            className="pl-8 h-10"
           />
+        </div>
+        {/* Second row on mobile: toggles + direction */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <ToggleGroup
+            type="single"
+            value={autoView}
+            onValueChange={(v) => v && setAutoView(v as typeof autoView)}
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="tutte" className="text-xs h-9 px-3">Tutte</ToggleGroupItem>
+            <ToggleGroupItem value="auto" className="text-xs h-9 px-3">
+              <Bot className="h-3 w-3 mr-1" /> Auto
+            </ToggleGroupItem>
+            <ToggleGroupItem value="manuali" className="text-xs h-9 px-3">Manuali</ToggleGroupItem>
+          </ToggleGroup>
+          <Select value={direction || "all"} onValueChange={(v) => setDirection(v === "all" ? "" : v as any)}>
+            <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="Direzione" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte</SelectItem>
+              <SelectItem value="entrata">Entrate</SelectItem>
+              <SelectItem value="uscita">Uscite</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Date range */}
+        <div className="flex items-center gap-2">
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 w-full sm:w-36" />
+          <span className="text-muted-foreground text-sm shrink-0">→</span>
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 w-full sm:w-36" />
         </div>
       </div>
 
@@ -220,18 +229,63 @@ export default function PrimaNota() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : entriesWithBalance.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">Nessun movimento trovato.</div>
+        <div className="rounded-lg border">
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
+            <p className="font-medium text-muted-foreground">Nessun movimento trovato</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">Prova a modificare i filtri o aggiungi la prima registrazione</p>
+            <Button className="mt-4" onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Nuova Registrazione
+            </Button>
+          </div>
+        </div>
       ) : (
-        <div className="rounded-lg border overflow-x-auto">
+        <div className="rounded-lg border overflow-hidden">
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y">
+            {entriesWithBalance.map((e) => (
+              <div key={e.id} className="flex items-start gap-3 px-4 py-3">
+                <div className={`mt-0.5 shrink-0 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                  {e.direction === "entrata"
+                    ? <ArrowDownLeft className="h-4 w-4" />
+                    : <ArrowUpRight className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <p className="text-sm font-medium truncate">{e.description}</p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>{format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}</span>
+                    {e.category && <span>· {CATEGORY_LABELS[e.category] || e.category}</span>}
+                    {e.payment_method && <span>· {e.payment_method}</span>}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`font-mono font-medium text-sm ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                    {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
+                  </p>
+                  {!e.is_auto && (
+                    <button
+                      className="text-muted-foreground hover:text-destructive mt-1"
+                      onClick={() => remove.mutate(e.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium">Categoria</th>
+                <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
                 <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-right p-3 font-medium">Saldo</th>
-                <th className="text-left p-3 font-medium">Metodo</th>
+                <th className="text-right p-3 font-medium hidden md:table-cell">Saldo</th>
+                <th className="text-left p-3 font-medium hidden md:table-cell">Metodo</th>
                 <th className="p-3 w-10"></th>
               </tr>
             </thead>
@@ -244,7 +298,7 @@ export default function PrimaNota() {
                       {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}
                     </div>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 hidden sm:table-cell">
                     <Badge variant="outline" className="text-xs">
                       {CATEGORY_LABELS[e.category] || e.category}
                     </Badge>
@@ -286,12 +340,12 @@ export default function PrimaNota() {
                       {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono">
+                  <td className="p-3 text-right font-mono hidden md:table-cell">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
                       {formatCurrency(e.runningBalance)}
                     </span>
                   </td>
-                  <td className="p-3 text-xs text-muted-foreground capitalize">
+                  <td className="p-3 text-xs text-muted-foreground capitalize hidden md:table-cell">
                     {e.payment_method || "—"}
                   </td>
                   <td className="p-3">
@@ -310,6 +364,7 @@ export default function PrimaNota() {
               ))}
             </tbody>
           </table>
+          </div>{/* end hidden sm:block */}
         </div>
       )}
 

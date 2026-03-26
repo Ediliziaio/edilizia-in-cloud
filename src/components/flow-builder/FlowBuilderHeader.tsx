@@ -6,6 +6,7 @@ import {
   Archive, FlaskConical, Play, Pause,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import type { AutomationFlow } from "@/types/automationBuilder";
 import { useLatestFlowExecution } from "@/hooks/useFlowExecutions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +28,9 @@ interface FlowBuilderHeaderProps {
   onTogglePublish: () => void;
   onUpdateName: (name: string) => void;
   onArchive: () => void;
+  onTest: () => void;
+  onBack?: () => void;
+  tabBadges?: { cronologia?: number; registro?: number };
 }
 
 const TABS: { key: BuilderTab; label: string }[] = [
@@ -50,8 +54,12 @@ export function FlowBuilderHeader({
   onTogglePublish,
   onUpdateName,
   onArchive,
+  onTest,
+  onBack,
+  tabBadges,
 }: FlowBuilderHeaderProps) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const isPublished = flow?.status === "published";
   const { data: lastRun } = useLatestFlowExecution(flow?.id);
 
@@ -76,7 +84,7 @@ export function FlowBuilderHeader({
         variant="ghost"
         size="sm"
         className="text-muted-foreground gap-1.5 shrink-0"
-        onClick={() => navigate("/azienda/automazioni?tab=marketing")}
+        onClick={() => onBack ? onBack() : navigate(`${routePrefix}/automazioni`)}
       >
         <ArrowLeft className="h-4 w-4" />
         <span className="hidden sm:inline text-xs">Flussi</span>
@@ -116,19 +124,29 @@ export function FlowBuilderHeader({
 
       {/* Center: tabs */}
       <div className="flex items-center ml-4 bg-muted rounded-lg p-0.5 shrink-0">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => onTabChange(t.key)}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              activeTab === t.key
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const badge = tabBadges?.[t.key as keyof typeof tabBadges];
+          return (
+            <button
+              key={t.key}
+              onClick={() => onTabChange(t.key)}
+              className={`relative px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                activeTab === t.key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+              {badge != null && badge > 0 && (
+                <span className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center ${
+                  activeTab === t.key ? "bg-white text-primary" : "bg-primary text-primary-foreground"
+                }`}>
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Spacer */}
@@ -156,10 +174,15 @@ export function FlowBuilderHeader({
 
         <div className="h-5 w-px bg-border mx-1" />
 
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" disabled>
-          <FlaskConical className="h-3.5 w-3.5" />
-          Test
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onTest}>
+              <FlaskConical className="h-3.5 w-3.5" />
+              Test
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">Testa il flusso su un contatto</TooltipContent>
+        </Tooltip>
 
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 relative" onClick={onSave} disabled={isSaving}>
           {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}

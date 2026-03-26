@@ -1,21 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
-import { COLOR_PALETTES } from "@/types/quoteTemplate";
+import AIQuotePanel from "@/components/quotes/AIQuotePanel";
 import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
+import {
+  usePreventivoCosti,
+  calcolaMargine,
+  semaforo,
+  calcolaTotaliPreventivo,
+} from "@/hooks/usePreventivoCosti";
+import type { ArticlePro, TariffaPro } from "@/hooks/usePreventivoCosti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -33,19 +43,43 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   ArrowRight,
   Plus,
   Trash2,
   Save,
-  Send,
+  FileCheck,
   Loader2,
   User,
   Package,
   FileStack,
-  FileCheck,
   Palette,
+  ChevronDown,
+  MoreVertical,
+  StickyNote,
+  Tag,
+  Hash,
+  Truck,
+  Layers,
+  TrendingUp,
+  AlertTriangle,
+  Settings2,
 } from "lucide-react";
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface QuoteItem {
   id?: string;
@@ -61,6 +95,338 @@ interface QuoteItem {
   article_template_id?: string | null;
 }
 
+interface QuoteItemPro extends QuoteItem {
+  item_category: string;
+  tariffa_id?: string | null;
+  prezzo_acquisto: number;
+  mostra_nel_pdf: boolean;
+  is_optional: boolean;
+  misura_x?: number | null;
+  misura_y?: number | null;
+  _parentIdx?: number;
+}
+
+// ─── Helper components ────────────────────────────────────────────────────────
+
+function MargineSemaforo({ pct }: { pct: number }) {
+  const s = semaforo(pct);
+  const colors = {
+    green: "bg-green-100 text-green-700",
+    yellow: "bg-yellow-100 text-yellow-700",
+    red: "bg-red-100 text-red-700",
+  };
+  const icons = { green: "🟢", yellow: "🟡", red: "🔴" };
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${colors[s]}`}
+    >
+      {icons[s]} {pct.toFixed(1)}%
+    </span>
+  );
+}
+
+function ProductSearchDialog({
+  open,
+  onClose,
+  articoli,
+  categorie,
+  impostazioni,
+  pianoInstallazione,
+  calcolaPrezzoProdotto,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  articoli: ArticlePro[];
+  categorie: any[];
+  impostazioni: any;
+  pianoInstallazione: number;
+  calcolaPrezzoProdotto: any;
+  onConfirm: (p: ArticlePro, qty: number, x?: number, y?: number) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [cat, setCat] = useState("all");
+  const [pending, setPending] = useState<ArticlePro | null>(null);
+  const [qty, setQty] = useState("1");
+  const [mx, setMx] = useState("");
+  const [my, setMy] = useState("");
+  const [preview, setPreview] = useState<{ pv: number; trovato: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setCat("all");
+      setPending(null);
+      setQty("1");
+      setMx("");
+      setMy("");
+      setPreview(null);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!pending || pending.modalita_prezzo !== "griglia") {
+      setPreview(null);
+      return;
+    }
+    const x = parseFloat(mx),
+      y = parseFloat(my);
+    if (isNaN(x) || isNaN(y) || x <= 0 || y <= 0) {
+      setPreview(null);
+      return;
+    }
+    calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y).then((r: any) =>
+      setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia })
+    );
+  }, [mx, my, qty, pending]);
+
+  const mqPreview =
+    pending?.modalita_prezzo === "mq" && mx && my
+      ? parseFloat(mx) * parseFloat(my)
+      : null;
+
+  const queryLower = query.toLowerCase();
+  const filtered = articoli.filter(
+    (a) =>
+      (cat === "all" || a.categoria_id === cat) &&
+      (query === "" ||
+        a.name.toLowerCase().includes(queryLower) ||
+        (a.sku || "").toLowerCase().includes(queryLower) ||
+        (a.marca || "").toLowerCase().includes(queryLower) ||
+        (a.description || "").toLowerCase().includes(queryLower))
+  );
+
+  const handleSelect = (a: ArticlePro) => {
+    if (a.modalita_prezzo === "pz" || a.modalita_prezzo === "misura_libera") {
+      onConfirm(a, parseFloat(qty) || 1);
+      return;
+    }
+    setPending(a);
+  };
+
+  const handleConfirm = () => {
+    if (!pending) return;
+    const x =
+      pending.modalita_prezzo === "mq"
+        ? parseFloat(mx) * 1000
+        : parseFloat(mx);
+    const y =
+      pending.modalita_prezzo === "mq"
+        ? parseFloat(my) * 1000
+        : parseFloat(my);
+    onConfirm(pending, parseFloat(qty) || 1, x || undefined, y || undefined);
+    setPending(null);
+    setMx("");
+    setMy("");
+  };
+
+  const modalitaBadge = (m: string) => {
+    const map: Record<string, { label: string; className: string }> = {
+      pz: { label: "A pezzo", className: "bg-gray-100 text-gray-700" },
+      mq: { label: "Al mq", className: "bg-blue-100 text-blue-700" },
+      misura_libera: {
+        label: "Misura libera",
+        className: "bg-purple-100 text-purple-700",
+      },
+      griglia: { label: "Griglia", className: "bg-orange-100 text-orange-700" },
+    };
+    const b = map[m] || { label: m, className: "bg-gray-100 text-gray-700" };
+    return (
+      <span className={`text-xs px-2 py-0.5 rounded-full ${b.className}`}>
+        {b.label}
+      </span>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Aggiungi dal listino</DialogTitle>
+        </DialogHeader>
+        {!pending ? (
+          <>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Cerca per nome o SKU..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={cat} onValueChange={setCat}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {categorie.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="space-y-2 pr-2">
+                {filtered.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    Nessun prodotto trovato
+                  </p>
+                ) : (
+                  filtered.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => handleSelect(a)}
+                      className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 text-left transition-colors"
+                    >
+                      {a.immagine_url ? (
+                        <img
+                          src={a.immagine_url}
+                          alt=""
+                          className="h-10 w-10 object-cover rounded shrink-0"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 bg-muted rounded flex items-center justify-center shrink-0">
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">
+                          {a.name}
+                        </div>
+                        {a.sku && (
+                          <div className="text-xs text-muted-foreground">
+                            {a.sku}
+                            {a.marca ? ` · ${a.marca}` : ""}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {modalitaBadge(a.modalita_prezzo || "pz")}
+                        {a.prezzo_vendita ? (
+                          <span className="text-sm font-medium">
+                            €{a.prezzo_vendita.toFixed(2)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+              <button
+                onClick={() => setPending(null)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                ← Torna
+              </button>
+              <span className="font-medium">{pending.name}</span>
+              {modalitaBadge(pending.modalita_prezzo || "pz")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Quantità</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+              </div>
+            </div>
+            {(pending.modalita_prezzo === "griglia" ||
+              pending.modalita_prezzo === "mq") && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>
+                    {pending.modalita_prezzo === "mq"
+                      ? "Larghezza (m)"
+                      : "Larghezza (mm)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={mx}
+                    onChange={(e) => setMx(e.target.value)}
+                    placeholder={
+                      pending.modalita_prezzo === "mq" ? "1.20" : "1200"
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>
+                    {pending.modalita_prezzo === "mq"
+                      ? "Altezza (m)"
+                      : "Altezza (mm)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={my}
+                    onChange={(e) => setMy(e.target.value)}
+                    placeholder={
+                      pending.modalita_prezzo === "mq" ? "2.10" : "2100"
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            {pending.modalita_prezzo === "mq" && mqPreview != null && (
+              <div className="text-sm text-muted-foreground bg-blue-50 rounded p-3">
+                Superficie: <b>{mqPreview.toFixed(2)} mq</b> — Prezzo:{" "}
+                <b>
+                  €
+                  {(
+                    (pending.prezzo_vendita || 0) *
+                    mqPreview *
+                    (parseFloat(qty) || 1)
+                  ).toFixed(2)}
+                </b>
+              </div>
+            )}
+            {pending.modalita_prezzo === "griglia" && preview && (
+              <div
+                className={`text-sm rounded p-3 ${
+                  preview.trovato
+                    ? "bg-green-50 text-green-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {preview.trovato ? (
+                  <>
+                    Prezzo trovato in griglia:{" "}
+                    <b>€{preview.pv.toFixed(2)}</b>
+                  </>
+                ) : (
+                  "Dimensioni non trovate in griglia — verrà usata la cella più vicina"
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPending(null)}>
+                Indietro
+              </Button>
+              <Button
+                onClick={handleConfirm}
+                disabled={
+                  pending.modalita_prezzo === "griglia" && (!mx || !my)
+                }
+              >
+                Conferma e aggiungi
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── STEPS ────────────────────────────────────────────────────────────────────
+
 const STEPS = [
   { key: "cliente", label: "Cliente", icon: User },
   { key: "prodotti", label: "Prodotti", icon: Package },
@@ -68,19 +434,22 @@ const STEPS = [
   { key: "riepilogo", label: "Riepilogo", icon: FileCheck },
 ];
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function QuoteBuilder() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isEdit = !!id;
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isAdmin = role === "company_admin" || role === "super_admin";
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  // Step 1: Client
+  // Step 0: Client
   const [contactId, setContactId] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -95,25 +464,63 @@ export default function QuoteBuilder() {
   const [notes, setNotes] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
 
-  // Step 2: Items
+  // P03: Step 0 extras
+  const [tipoLavoro, setTipoLavoro] = useState("");
+  const [indirizzoLavori, setIndirizzoLavori] = useState("");
+  const [pianoInstallazione, setPianoInstallazione] = useState(0);
+  const [kmCantiere, setKmCantiere] = useState(0);
+
+  // Step 1: Items
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
 
-  // Step 3: Documents
+  // P03: Search dialog
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [smaltimentoAsk, setSmaltimentoAsk] = useState<{ parentIdx: number } | null>(null);
+
+  // Step 2: Documents + PDF settings
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [pdfPrezziRiga, setPdfPrezziRiga] = useState(true);
+  const [pdfSoloTotale, setPdfSoloTotale] = useState(false);
+  const [pdfSconti, setPdfSconti] = useState(false);
+  const [pdfImmagini, setPdfImmagini] = useState(true);
+  const [pdfSchedeTecniche, setPdfSchedeTecniche] = useState(false);
+  const [pdfFirma, setPdfFirma] = useState(true);
 
   // Template
   const { templates, defaultTemplate } = useQuoteTemplates();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  // Set default template on load
   useEffect(() => {
     if (defaultTemplate && !selectedTemplateId && !isEdit) {
       setSelectedTemplateId(defaultTemplate.id);
     }
   }, [defaultTemplate]);
 
-  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) ?? defaultTemplate;
+  const selectedTemplate =
+    templates.find((t) => t.id === selectedTemplateId) ?? defaultTemplate;
+
+  // P03: load impostazioni, tariffe, articoli, categorie
+  const {
+    impostazioni,
+    tariffe,
+    articoli,
+    categorie,
+    calcolaPrezzoProdotto,
+    calcolaTariffaAutomatica,
+  } = usePreventivoCosti(companyId);
+
+  // Sync PDF impostazioni for new quote
+  useEffect(() => {
+    if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
+      setPdfPrezziRiga(impostazioni.pdf_mostra_prezzi_per_riga ?? true);
+      setPdfSoloTotale(impostazioni.pdf_mostra_solo_totale ?? false);
+      setPdfSconti(impostazioni.pdf_mostra_sconti ?? false);
+      setPdfImmagini(impostazioni.pdf_mostra_immagini ?? true);
+      setPdfSchedeTecniche(impostazioni.pdf_includi_schede_tecniche ?? false);
+      setPdfFirma(impostazioni.firma_digitale_abilitata ?? true);
+    }
+  }, [impostazioni, isEdit]);
 
   // Load contacts
   const { data: contacts = [] } = useQuery({
@@ -122,24 +529,11 @@ export default function QuoteBuilder() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number")
+        .select(
+          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number"
+        )
         .eq("company_id", companyId!)
         .order("last_name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Load article templates for import
-  const { data: articles = [] } = useQuery({
-    queryKey: ["article-templates", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("article_templates")
-        .select("id, name, description, unit_price, standard_cost, unit_of_measure, vat_rate")
-        .eq("company_id", companyId!)
-        .order("name");
       if (error) throw error;
       return data;
     },
@@ -223,6 +617,17 @@ export default function QuoteBuilder() {
       if ((existingQuote as any).template_id) {
         setSelectedTemplateId((existingQuote as any).template_id);
       }
+      // P03 extras
+      setTipoLavoro((existingQuote as any).tipo_lavoro || "");
+      setIndirizzoLavori((existingQuote as any).indirizzo_lavori || "");
+      setPianoInstallazione((existingQuote as any).piano_installazione || 0);
+      setKmCantiere((existingQuote as any).km_cantiere || 0);
+      setPdfPrezziRiga((existingQuote as any).pdf_mostra_prezzi_per_riga ?? true);
+      setPdfSoloTotale((existingQuote as any).pdf_mostra_solo_totale ?? false);
+      setPdfSconti((existingQuote as any).pdf_mostra_sconti ?? false);
+      setPdfImmagini((existingQuote as any).pdf_mostra_immagini ?? true);
+      setPdfSchedeTecniche((existingQuote as any).pdf_includi_schede_tecniche ?? false);
+      setPdfFirma((existingQuote as any).firma_digitale_abilitata ?? true);
     }
   }, [existingQuote]);
 
@@ -232,6 +637,7 @@ export default function QuoteBuilder() {
         existingItems.map((i: any) => ({
           id: i.id,
           item_type: i.item_type,
+          item_category: i.item_category || "prodotto",
           name: i.name,
           description: i.description || "",
           quantity: i.quantity,
@@ -241,6 +647,12 @@ export default function QuoteBuilder() {
           unit_of_measure: i.unit_of_measure || "pz",
           sort_order: i.sort_order,
           article_template_id: i.article_template_id,
+          tariffa_id: i.tariffa_id || null,
+          prezzo_acquisto: i.prezzo_acquisto ?? 0,
+          mostra_nel_pdf: i.mostra_nel_pdf ?? true,
+          is_optional: i.is_optional ?? false,
+          misura_x: i.misura_x ?? null,
+          misura_y: i.misura_y ?? null,
         }))
       );
     }
@@ -273,7 +685,6 @@ export default function QuoteBuilder() {
       setClientCompany(c.company_name || "");
       setClientFiscalCode((c as any).fiscal_code || "");
       setClientVatNumber((c as any).vat_number || "");
-      // Compose address from contact fields
       const addressParts = [c.address, c.postal_code, c.city, c.province].filter(Boolean);
       if (addressParts.length > 0) {
         setClientAddress(addressParts.join(", "));
@@ -295,26 +706,248 @@ export default function QuoteBuilder() {
         vat_rate: 22,
         unit_of_measure: "pz",
         sort_order: items.length,
-      },
+        // P03 defaults
+        ...(({
+          item_category: "prodotto",
+          prezzo_acquisto: 0,
+          mostra_nel_pdf: true,
+          is_optional: false,
+        } as any)),
+      } as any,
     ]);
   };
 
-  const importFromCatalog = (article: any) => {
-    setItems([
-      ...items,
+  const addItemPro = (category: string) => {
+    setItems((prev) => [
+      ...prev,
       {
-        item_type: "product",
-        name: article.name,
-        description: article.description || "",
+        item_type: category === "prodotto" ? "product" : "service",
+        item_category: category,
+        name: "",
+        description: "",
         quantity: 1,
-        unit_price: article.unit_price || 0,
+        unit_price: 0,
         discount_percent: 0,
-        vat_rate: article.vat_rate || 22,
-        unit_of_measure: article.unit_of_measure || "pz",
-        sort_order: items.length,
-        article_template_id: article.id,
-      },
+        vat_rate: 22,
+        unit_of_measure: "pz",
+        sort_order: (prev as any[]).length,
+        prezzo_acquisto: 0,
+        mostra_nel_pdf: true,
+        is_optional: false,
+      } as any,
     ]);
+  };
+
+  const addTariffa = (tariffa: TariffaPro, category: string) => {
+    const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
+      tariffa,
+      1,
+      pianoInstallazione
+    );
+    setItems((prev) => [
+      ...prev,
+      {
+        item_type: "service",
+        item_category: category,
+        name: tariffa.nome,
+        description: "",
+        quantity: 1,
+        unit_price: prezzo_vendita,
+        discount_percent: 0,
+        vat_rate: 22,
+        unit_of_measure: tariffa.unita,
+        sort_order: (prev as any[]).length,
+        article_template_id: null,
+        tariffa_id: tariffa.id,
+        prezzo_acquisto,
+        mostra_nel_pdf: true,
+        is_optional: false,
+      } as any,
+    ]);
+  };
+
+  const addSmaltimento = (parentIdx: number) => {
+    const tariffa = tariffe.find((t) => t.tipo === "smaltimento");
+    if (tariffa) {
+      const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
+        tariffa,
+        1,
+        pianoInstallazione
+      );
+      setItems((prev) => [
+        ...prev,
+        {
+          item_type: "service",
+          item_category: "smaltimento",
+          name: tariffa.nome,
+          description: "",
+          quantity: 1,
+          unit_price: prezzo_vendita,
+          discount_percent: 0,
+          vat_rate: 22,
+          unit_of_measure: tariffa.unita,
+          sort_order: (prev as any[]).length,
+          article_template_id: null,
+          tariffa_id: tariffa.id,
+          prezzo_acquisto,
+          mostra_nel_pdf: true,
+          is_optional: false,
+          _parentIdx: parentIdx,
+        } as any,
+      ]);
+    }
+    setSmaltimentoAsk(null);
+  };
+
+  // Aggiunge righe generate dall'AI nel preventivo
+  const aggiungiSezione = async (
+    _nomeSezione: string,
+    righe: Array<{
+      item_category: string;
+      nome: string;
+      descrizione: string;
+      quantita: number;
+      unita_misura: string;
+      article_template_id: string | null;
+      tariffa_id: string | null;
+      misure_x_mm: number | null;
+      misure_y_mm: number | null;
+      unit_price?: number;
+      is_posa_di?: string | null;
+    }>
+  ) => {
+    // Resolve cost prices and VAT for every row before updating state
+    const resolved: QuoteItemPro[] = [];
+
+    for (const r of righe) {
+      let upv = r.unit_price ?? 0;
+      let upa = 0;
+      let vat_rate = 22;
+
+      if (r.article_template_id) {
+        const art = articoli.find((a) => a.id === r.article_template_id);
+        if (art) {
+          vat_rate = art.vat_rate ?? 22;
+          const mx = r.misure_x_mm ?? undefined;
+          const my = r.misure_y_mm ?? undefined;
+          const calc = await calcolaPrezzoProdotto(art, r.quantita, mx, my);
+          const qty = r.quantita || 1;
+          if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
+          upa = qty > 0 ? calc.prezzo_acquisto / qty : calc.prezzo_acquisto;
+        }
+      } else if (r.tariffa_id) {
+        const tar = tariffe.find((t) => t.id === r.tariffa_id);
+        if (tar) {
+          const qty = r.quantita || 1;
+          const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione);
+          if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
+          upa = qty > 0 ? calc.prezzo_acquisto / qty : calc.prezzo_acquisto;
+        }
+      }
+
+      resolved.push({
+        item_type: r.item_category === "prodotto" ? "product" : "service",
+        item_category: r.item_category,
+        name: r.nome,
+        description: r.descrizione ?? "",
+        quantity: r.quantita,
+        unit_price: upv,
+        discount_percent: 0,
+        vat_rate,
+        unit_of_measure: r.unita_misura || "pz",
+        sort_order: 0,
+        article_template_id: r.article_template_id ?? null,
+        tariffa_id: r.tariffa_id ?? null,
+        prezzo_acquisto: upa,
+        mostra_nel_pdf: true,
+        is_optional: false,
+        misura_x: r.misure_x_mm ?? null,
+        misura_y: r.misure_y_mm ?? null,
+      } as QuoteItemPro);
+    }
+
+    setItems((prev) => {
+      const base = [...(prev as QuoteItemPro[])];
+      resolved.forEach((item, idx) => {
+        base.push({ ...item, sort_order: base.length + idx });
+      });
+      return base;
+    });
+  };
+
+  const addProductFromCatalog = async (
+    prodotto: ArticlePro,
+    qty = 1,
+    mx?: number,
+    my?: number
+  ) => {
+    const { prezzo_vendita, prezzo_acquisto } = await calcolaPrezzoProdotto(
+      prodotto,
+      qty,
+      mx,
+      my
+    );
+    const upv = qty > 0 ? prezzo_vendita / qty : prezzo_vendita;
+    const upa = qty > 0 ? prezzo_acquisto / qty : prezzo_acquisto;
+    const newItems: QuoteItemPro[] = [...(items as QuoteItemPro[])];
+    const newItem: QuoteItemPro = {
+      item_type: "product",
+      item_category: "prodotto",
+      name: prodotto.name,
+      description: "",
+      quantity: qty,
+      unit_price: upv,
+      discount_percent: 0,
+      vat_rate: prodotto.vat_rate ?? 22,
+      unit_of_measure: prodotto.unit_of_measure || "pz",
+      sort_order: newItems.length,
+      article_template_id: prodotto.id,
+      prezzo_acquisto: upa,
+      mostra_nel_pdf: true,
+      is_optional: false,
+      misura_x: mx ?? null,
+      misura_y: my ?? null,
+    };
+    newItems.push(newItem);
+    const prodIdx = newItems.length - 1;
+
+    // Auto-posa
+    if (
+      prodotto.ha_montaggio &&
+      prodotto.montaggio_tipo === "separato" &&
+      impostazioni.aggiungi_posa_automatica
+    ) {
+      const tariffa =
+        tariffe.find((t) => t.id === prodotto.montaggio_tariffa_id) ??
+        tariffe.find((t) => t.tipo === "posa");
+      if (tariffa) {
+        const { prezzo_vendita: pvP, prezzo_acquisto: paP } =
+          calcolaTariffaAutomatica(tariffa, qty, pianoInstallazione);
+        const upvP = qty > 0 ? pvP / qty : pvP;
+        const upaP = qty > 0 ? paP / qty : paP;
+        newItems.push({
+          item_type: "service",
+          item_category: "posa",
+          name: tariffa.nome,
+          description: "",
+          quantity: qty,
+          unit_price: upvP,
+          discount_percent: 0,
+          vat_rate: 22,
+          unit_of_measure: tariffa.unita,
+          sort_order: newItems.length,
+          article_template_id: null,
+          tariffa_id: tariffa.id,
+          prezzo_acquisto: upaP,
+          mostra_nel_pdf: true,
+          is_optional: false,
+          _parentIdx: prodIdx,
+        });
+      }
+    }
+    setItems(newItems);
+    if (impostazioni.chiedi_smaltimento) setSmaltimentoAsk({ parentIdx: prodIdx });
+    setSearchOpen(false);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -326,21 +959,17 @@ export default function QuoteBuilder() {
   };
 
   // Calculations
-  const subtotal = items.reduce(
-    (sum, it) => sum + it.quantity * it.unit_price * (1 - it.discount_percent / 100),
-    0
+  const totaliPro = calcolaTotaliPreventivo(
+    items as any[],
+    impostazioni.overhead_percentuale ?? 0
   );
+  const subtotal = totaliPro.subtotale;
   const discountAmt = subtotal * (discountPercent / 100);
-  const vatAmount = items.reduce(
-    (sum, it) =>
-      sum +
-      it.quantity *
-        it.unit_price *
-        (1 - it.discount_percent / 100) *
-        (it.vat_rate / 100) *
-        (1 - discountPercent / 100),
-    0
-  );
+  // VAT must be computed on the discounted taxable base
+  const discountFactor = 1 - discountPercent / 100;
+  const vatAmount =
+    Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) *
+    discountFactor;
   const total = subtotal - discountAmt + vatAmount;
 
   // Save
@@ -367,6 +996,24 @@ export default function QuoteBuilder() {
         discount_percent: discountPercent,
         created_by: user.id,
         template_id: selectedTemplateId || null,
+        // P03 fields
+        tipo_lavoro: tipoLavoro || null,
+        indirizzo_lavori: indirizzoLavori || null,
+        piano_installazione: pianoInstallazione,
+        km_cantiere: kmCantiere,
+        totale_costo_interno: totaliPro.costo_totale,
+        totale_overhead: totaliPro.overhead_totale,
+        margine_totale_percentuale: totaliPro.margine_totale_pct,
+        pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
+        pdf_mostra_solo_totale: pdfSoloTotale,
+        pdf_mostra_sconti: pdfSconti,
+        pdf_mostra_immagini: pdfImmagini,
+        pdf_includi_schede_tecniche: pdfSchedeTecniche,
+        firma_digitale_abilitata: pdfFirma,
+        subtotal: subtotal - discountAmt,
+        discount_amount: discountAmt,
+        vat_amount: vatAmount,
+        total,
       };
 
       let quoteId = id;
@@ -410,6 +1057,16 @@ export default function QuoteBuilder() {
             unit_of_measure: it.unit_of_measure,
             sort_order: idx,
             article_template_id: it.article_template_id || null,
+            // P03
+            item_category: (it as any).item_category || "prodotto",
+            tariffa_id: (it as any).tariffa_id || null,
+            prezzo_acquisto: (it as any).prezzo_acquisto ?? 0,
+            mostra_nel_pdf: (it as any).mostra_nel_pdf ?? true,
+            is_optional: (it as any).is_optional ?? false,
+            misura_x: (it as any).misura_x ?? null,
+            misura_y: (it as any).misura_y ?? null,
+            line_total:
+              it.quantity * it.unit_price * (1 - it.discount_percent / 100),
           }))
         );
         if (itemsErr) throw itemsErr;
@@ -417,7 +1074,10 @@ export default function QuoteBuilder() {
 
       // Attachments
       if (isEdit) {
-        await supabase.from("quote_pdf_attachments").delete().eq("quote_id", quoteId!);
+        await supabase
+          .from("quote_pdf_attachments")
+          .delete()
+          .eq("quote_id", quoteId!);
       }
       if (selectedMaterials.length > 0) {
         await supabase.from("quote_pdf_attachments").insert(
@@ -441,11 +1101,18 @@ export default function QuoteBuilder() {
     }
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/marketing/preventivi")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:inline-flex"
+          onClick={() => navigate("/azienda/marketing/preventivi")}
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
@@ -476,7 +1143,7 @@ export default function QuoteBuilder() {
         ))}
       </div>
 
-      {/* Step content */}
+      {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
         <Card>
           <CardHeader>
@@ -485,14 +1152,18 @@ export default function QuoteBuilder() {
           <CardContent className="space-y-4">
             <div>
               <Label>Seleziona contatto esistente</Label>
-              <Select value={contactId || ""} onValueChange={handleContactSelect}>
+              <Select
+                value={contactId || ""}
+                onValueChange={handleContactSelect}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Cerca contatto..." />
                 </SelectTrigger>
                 <SelectContent>
                   {contacts.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name} {c.company_name ? `(${c.company_name})` : ""}
+                      {c.first_name} {c.last_name}{" "}
+                      {c.company_name ? `(${c.company_name})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -501,248 +1172,798 @@ export default function QuoteBuilder() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Nome cliente *</Label>
-                <Input value={clientName} onChange={(e) => setClientName(e.target.value)} />
+                <Input
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Email</Label>
-                <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+                <Input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Telefono</Label>
-                <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
+                <Input
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Azienda</Label>
-                <Input value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} />
+                <Input
+                  value={clientCompany}
+                  onChange={(e) => setClientCompany(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Codice Fiscale</Label>
-                <Input value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} />
+                <Input
+                  value={clientFiscalCode}
+                  onChange={(e) => setClientFiscalCode(e.target.value)}
+                />
               </div>
               <div>
                 <Label>P.IVA</Label>
-                <Input value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} />
+                <Input
+                  value={clientVatNumber}
+                  onChange={(e) => setClientVatNumber(e.target.value)}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label>Indirizzo</Label>
-                <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} />
+                <Input
+                  value={clientAddress}
+                  onChange={(e) => setClientAddress(e.target.value)}
+                />
               </div>
             </div>
             <hr />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Titolo offerta</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Validità (giorni)</Label>
-                <Input type="number" value={validityDays} onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)} />
+                <Input
+                  type="number"
+                  value={validityDays}
+                  onChange={(e) =>
+                    setValidityDays(parseInt(e.target.value) || 30)
+                  }
+                />
               </div>
               <div className="md:col-span-2">
                 <Label>Descrizione</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                />
               </div>
               <div>
                 <Label>Note (visibili al cliente)</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                />
               </div>
               <div>
                 <Label>Note interne</Label>
-                <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2} />
+                <Textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  rows={2}
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {step === 1 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Prodotti e Servizi</CardTitle>
-              <div className="flex gap-2">
-                <Select onValueChange={(articleId) => {
-                  const art = articles.find((a: any) => a.id === articleId);
-                  if (art) importFromCatalog(art);
-                }}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Importa da catalogo" />
+            {/* P03: Dettagli lavoro */}
+            <hr className="my-2" />
+            <h4 className="font-medium text-sm text-muted-foreground">
+              Dettagli lavoro
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <Label>Tipo di lavoro</Label>
+                <Select value={tipoLavoro} onValueChange={setTipoLavoro}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona tipo..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {articles.map((a: any) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name} — {formatCurrency(a.unit_price || 0)}
+                    <SelectItem value="">Nessuno specificato</SelectItem>
+                    {categorie.map((c: any) => (
+                      <SelectItem key={c.id} value={c.nome}>
+                        {c.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={() => addItem("product")}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Riga
-                </Button>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>Nessun prodotto. Aggiungi una riga o importa dal catalogo.</p>
+              <div className="md:col-span-2">
+                <Label>Indirizzo lavori (se diverso da cliente)</Label>
+                <Input
+                  value={indirizzoLavori}
+                  onChange={(e) => setIndirizzoLavori(e.target.value)}
+                  placeholder="Via, Città"
+                />
               </div>
-            ) : (
-              <div className="space-y-3">
-                {items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-end p-3 border rounded-lg">
-                    <div className="col-span-12 sm:col-span-3">
-                      <Label className="text-xs">Nome</Label>
-                      <Input
-                        value={item.name}
-                        onChange={(e) => updateItem(idx, "name", e.target.value)}
-                        placeholder="Nome prodotto"
-                      />
-                    </div>
-                    <div className="col-span-4 sm:col-span-2">
-                      <Label className="text-xs">Quantità</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={item.quantity}
-                        onChange={(e) => updateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="col-span-4 sm:col-span-2">
-                      <Label className="text-xs">Prezzo unit.</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={item.unit_price}
-                        onChange={(e) => updateItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="col-span-4 sm:col-span-1">
-                      <Label className="text-xs">Sconto %</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={item.discount_percent}
-                        onChange={(e) => updateItem(idx, "discount_percent", parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="col-span-4 sm:col-span-1">
-                      <Label className="text-xs">IVA %</Label>
-                      <Input
-                        type="number"
-                        value={item.vat_rate}
-                        onChange={(e) => updateItem(idx, "vat_rate", parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="col-span-6 sm:col-span-2 flex items-end gap-2">
-                      <div className="flex-1 text-right">
-                        <Label className="text-xs">Totale riga</Label>
-                        <p className="font-medium text-sm py-2">
-                          {formatCurrency(item.quantity * item.unit_price * (1 - item.discount_percent / 100))}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(idx)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Totals summary */}
-            {items.length > 0 && (
-              <div className="mt-6 flex justify-end">
-                <div className="w-full max-w-xs space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotale</span>
-                    <span>{formatCurrency(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-muted-foreground">Sconto globale %</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className="w-20 h-8 text-right"
-                      value={discountPercent}
-                      onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  {discountPercent > 0 && (
-                    <div className="flex justify-between text-destructive">
-                      <span>Sconto</span>
-                      <span>-{formatCurrency(discountAmt)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">IVA</span>
-                    <span>{formatCurrency(vatAmount)}</span>
-                  </div>
-                  <hr />
-                  <div className="flex justify-between font-bold text-base">
-                    <span>Totale</span>
-                    <span>{formatCurrency(total)}</span>
+              {impostazioni.chiedi_piano_installazione && (
+                <div className="md:col-span-2">
+                  <Label>Piano di installazione</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[
+                      { v: 0, l: "Piano Terra" },
+                      { v: 1, l: "1° Piano" },
+                      { v: 2, l: "2° Piano" },
+                      { v: 3, l: "3° Piano" },
+                      { v: 4, l: "4° Piano" },
+                      { v: 5, l: "5°+" },
+                    ].map(({ v, l }) => (
+                      <button
+                        key={v}
+                        onClick={() => setPianoInstallazione(v)}
+                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                          pianoInstallazione === v
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+              {impostazioni.chiedi_trasporto && (
+                <div>
+                  <Label>Distanza cantiere (km)</Label>
+                  <Input
+                    type="number"
+                    value={kmCantiere}
+                    onChange={(e) =>
+                      setKmCantiere(parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Documenti Allegati</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {materials.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileStack className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>Nessun materiale disponibile.</p>
-                <p className="text-sm">Vai in Impostazioni → Materiali Preventivi per caricare PDF.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {materials.map((m: any) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedMaterials.includes(m.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedMaterials([...selectedMaterials, m.id]);
-                        } else {
-                          setSelectedMaterials(selectedMaterials.filter((x) => x !== m.id));
-                        }
-                      }}
-                    />
-                    <FileStack className="h-5 w-5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {m.category} — {(m.file_size_bytes / 1024).toFixed(0)} KB
-                      </p>
+      {/* ── STEP 1: Prodotti ── */}
+      {step === 1 && (
+        <div className="flex gap-6 items-start">
+          {/* Left: items list */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {/* AI Quote Panel */}
+            {companyId && (
+              <AIQuotePanel
+                companyId={companyId}
+                tipoLavoro={tipoLavoro}
+                pianoInstallazione={pianoInstallazione}
+                onRigheGenerate={(sezioni) => {
+                  sezioni.forEach((sez) => aggiungiSezione(sez.nome, sez.righe));
+                }}
+              />
+            )}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle>Prodotti e Servizi</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => setSearchOpen(true)} size="sm">
+                      <Plus className="h-4 w-4 mr-1" /> Dal listino
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addItem("product")}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Riga libera
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <ChevronDown className="h-4 w-4 mr-1" /> Altro
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => addItemPro("nota")}>
+                          <StickyNote className="h-4 w-4 mr-2" /> Nota
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => addItemPro("sconto")}>
+                          <Tag className="h-4 w-4 mr-2" /> Sconto
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => addItemPro("subtotale")}
+                        >
+                          <Hash className="h-4 w-4 mr-2" /> Subtotale
+                        </DropdownMenuItem>
+                        {tariffe.filter((t) => t.tipo === "trasporto").length >
+                          0 && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const t = tariffe.find(
+                                (x) => x.tipo === "trasporto"
+                              );
+                              if (t) addTariffa(t, "trasporto");
+                            }}
+                          >
+                            <Truck className="h-4 w-4 mr-2" /> Trasporto
+                          </DropdownMenuItem>
+                        )}
+                        {tariffe.filter((t) => t.tipo === "nolo").length >
+                          0 && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const t = tariffe.find((x) => x.tipo === "nolo");
+                              if (t) addTariffa(t, "nolo");
+                            }}
+                          >
+                            <Layers className="h-4 w-4 mr-2" /> Nolo
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {(items as QuoteItemPro[]).length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Nessun prodotto</p>
+                    <p className="text-sm">
+                      Aggiungi dal listino o crea una riga libera
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(items as QuoteItemPro[]).map((item, idx) => {
+                      const isChild =
+                        item._parentIdx != null ||
+                        ["posa", "smaltimento", "trasporto", "nolo"].includes(
+                          item.item_category
+                        );
+                      const isNota = item.item_category === "nota";
+                      const isSubtotale = item.item_category === "subtotale";
+                      const isSconto = item.item_category === "sconto";
+                      const margine = calcolaMargine(
+                        item.unit_price * item.quantity,
+                        item.prezzo_acquisto * item.quantity,
+                        impostazioni.overhead_percentuale ?? 0
+                      );
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`border rounded-lg p-3 ${
+                            isChild
+                              ? "ml-6 bg-muted/20 border-dashed"
+                              : ""
+                          } ${isNota ? "bg-amber-50/50" : ""} ${
+                            isSubtotale ? "border-t-2 border-t-border" : ""
+                          }`}
+                        >
+                          {isChild && (
+                            <span className="text-muted-foreground text-xs mr-2">
+                              └
+                            </span>
+                          )}
+                          {isSubtotale ? (
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-sm">
+                                Subtotale
+                              </span>
+                              <span className="font-bold">
+                                {formatCurrency(
+                                  (items as QuoteItemPro[])
+                                    .slice(0, idx)
+                                    .reduce(
+                                      (s, i) =>
+                                        s +
+                                        i.quantity *
+                                          i.unit_price *
+                                          (1 - i.discount_percent / 100),
+                                      0
+                                    )
+                                )}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => removeItem(idx)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : isNota ? (
+                            <div className="flex items-center gap-2">
+                              <StickyNote className="h-4 w-4 text-amber-500 shrink-0" />
+                              <Input
+                                value={item.name}
+                                onChange={(e) =>
+                                  updateItem(idx, "name", e.target.value)
+                                }
+                                placeholder="Testo nota..."
+                                className="flex-1 border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => removeItem(idx)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-12 gap-2 items-end">
+                                <div className="col-span-12 sm:col-span-4">
+                                  <Label className="text-xs">
+                                    Nome{" "}
+                                    {isSconto && (
+                                      <span className="text-red-500">
+                                        (sconto)
+                                      </span>
+                                    )}
+                                  </Label>
+                                  <Input
+                                    value={item.name}
+                                    onChange={(e) =>
+                                      updateItem(idx, "name", e.target.value)
+                                    }
+                                    placeholder="Nome prodotto/servizio"
+                                    className={isSconto ? "text-red-600" : ""}
+                                  />
+                                </div>
+                                <div className="col-span-4 sm:col-span-2">
+                                  <Label className="text-xs">Quantità</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        idx,
+                                        "quantity",
+                                        parseFloat(e.target.value) || 0
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-span-4 sm:col-span-2">
+                                  <Label className="text-xs">€/unit</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={item.unit_price}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        idx,
+                                        "unit_price",
+                                        parseFloat(e.target.value) || 0
+                                      )
+                                    }
+                                    className={isSconto ? "text-red-600" : ""}
+                                  />
+                                </div>
+                                <div className="col-span-4 sm:col-span-1">
+                                  <Label className="text-xs">Sc%</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={item.discount_percent}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        idx,
+                                        "discount_percent",
+                                        parseFloat(e.target.value) || 0
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-span-4 sm:col-span-1">
+                                  <Label className="text-xs">IVA%</Label>
+                                  <Input
+                                    type="number"
+                                    value={item.vat_rate}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        idx,
+                                        "vat_rate",
+                                        parseFloat(e.target.value) || 0
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="col-span-6 sm:col-span-2 flex items-end justify-end gap-1">
+                                  <p
+                                    className={`font-medium text-sm py-2 ${
+                                      isSconto ? "text-red-600" : ""
+                                    }`}
+                                  >
+                                    {formatCurrency(
+                                      item.quantity *
+                                        item.unit_price *
+                                        (1 - item.discount_percent / 100)
+                                    )}
+                                  </p>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                      >
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          const copy = {
+                                            ...(items as QuoteItemPro[])[idx],
+                                            id: undefined,
+                                            sort_order: items.length,
+                                          };
+                                          setItems([...items, copy as any]);
+                                        }}
+                                      >
+                                        Duplica
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          updateItem(
+                                            idx,
+                                            "is_optional",
+                                            !(item as any).is_optional
+                                          )
+                                        }
+                                      >
+                                        {(item as any).is_optional
+                                          ? "Rimuovi optional"
+                                          : "Rendi opzionale"}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          updateItem(
+                                            idx,
+                                            "mostra_nel_pdf",
+                                            !(item as any).mostra_nel_pdf
+                                          )
+                                        }
+                                      >
+                                        {(item as any).mostra_nel_pdf
+                                          ? "Nascondi nel PDF"
+                                          : "Mostra nel PDF"}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => removeItem(idx)}
+                                        className="text-destructive"
+                                      >
+                                        Elimina
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </div>
+                              {/* Badges visibili a tutti */}
+                              {((item as any).is_optional || !(item as any).mostra_nel_pdf) && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  {(item as any).is_optional && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Opzionale
+                                    </Badge>
+                                  )}
+                                  {!(item as any).mostra_nel_pdf && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Nascosto PDF
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              {/* Admin: margine per tutte le categorie con costo noto */}
+                              {isAdmin &&
+                                item.prezzo_acquisto > 0 &&
+                                !["nota", "subtotale", "sconto"].includes(item.item_category) && (
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                    <span>
+                                      Costo:{" "}
+                                      {formatCurrency(
+                                        item.prezzo_acquisto * item.quantity
+                                      )}
+                                    </span>
+                                    <MargineSemaforo pct={margine.margine_percentuale} />
+                                  </div>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Totals in step 1 */}
+                {items.length > 0 && (
+                  <div className="mt-6 flex justify-end">
+                    <div className="w-full max-w-xs space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotale</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground">
+                          Sconto globale %
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          className="w-20 h-8 text-right"
+                          value={discountPercent}
+                          onChange={(e) =>
+                            setDiscountPercent(
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                        />
+                      </div>
+                      {discountPercent > 0 && (
+                        <div className="flex justify-between text-destructive">
+                          <span>Sconto</span>
+                          <span>-{formatCurrency(discountAmt)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">IVA</span>
+                        <span>{formatCurrency(vatAmount)}</span>
+                      </div>
+                      <hr />
+                      <div className="flex justify-between font-bold text-base">
+                        <span>Totale</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
                     </div>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right: summary panel (hidden on mobile) */}
+          <div className="hidden lg:block w-72 shrink-0 sticky top-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Riepilogo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {["prodotto", "posa", "trasporto", "smaltimento", "nolo"].map(
+                  (cat) => {
+                    const catItems = (items as QuoteItemPro[]).filter(
+                      (i) => i.item_category === cat && !i.is_optional
+                    );
+                    if (catItems.length === 0) return null;
+                    const tot = catItems.reduce(
+                      (s, i) =>
+                        s +
+                        i.quantity *
+                          i.unit_price *
+                          (1 - i.discount_percent / 100),
+                      0
+                    );
+                    const labels: Record<string, string> = {
+                      prodotto: "Prodotti",
+                      posa: "Posa",
+                      trasporto: "Trasporto",
+                      smaltimento: "Smaltimento",
+                      nolo: "Nolo",
+                    };
+                    return (
+                      <div key={cat} className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          {labels[cat]}
+                        </span>
+                        <span>{formatCurrency(tot)}</span>
+                      </div>
+                    );
+                  }
+                )}
+                <Separator />
+                {Object.entries(totaliPro.iva_breakdown).map(([rate, amt]) => (
+                  <div
+                    key={rate}
+                    className="flex justify-between text-muted-foreground"
+                  >
+                    <span>IVA {rate}%</span>
+                    <span>{formatCurrency(amt)}</span>
+                  </div>
                 ))}
-                <p className="text-sm text-muted-foreground mt-2">
-                  {selectedMaterials.length} documenti selezionati
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                <Separator />
+                <div className="flex justify-between font-bold text-base">
+                  <span>Totale</span>
+                  <span>{formatCurrency(total)}</span>
+                </div>
+                {/* Admin block */}
+                {isAdmin && totaliPro.costo_totale > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Costo totale</span>
+                        <span>{formatCurrency(totaliPro.costo_totale)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>
+                          Overhead ({impostazioni.overhead_percentuale ?? 0}%)
+                        </span>
+                        <span>
+                          {formatCurrency(totaliPro.overhead_totale)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium">
+                        <span>Margine</span>
+                        <MargineSemaforo pct={totaliPro.margine_totale_pct} />
+                      </div>
+                      {tipoLavoro &&
+                        (() => {
+                          const catData = categorie.find(
+                            (c: any) => c.nome === tipoLavoro
+                          );
+                          const target =
+                            catData?.margine_target_percentuale ??
+                            impostazioni.margine_target_percentuale ??
+                            25;
+                          if (totaliPro.margine_totale_pct < target)
+                            return (
+                              <div className="flex items-center gap-1 text-amber-600">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>
+                                  Target {tipoLavoro}: {target}%
+                                </span>
+                              </div>
+                            );
+                          return null;
+                        })()}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       )}
 
+      {/* ── STEP 2: Documenti + PDF settings ── */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4" />
+                Impostazioni PDF (override per questo preventivo)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                {
+                  k: "pdfPrezziRiga",
+                  v: pdfPrezziRiga,
+                  s: setPdfPrezziRiga,
+                  l: "Mostra prezzo per ogni riga",
+                },
+                {
+                  k: "pdfSoloTotale",
+                  v: pdfSoloTotale,
+                  s: setPdfSoloTotale,
+                  l: "Solo totale finale (senza dettaglio righe)",
+                },
+                {
+                  k: "pdfSconti",
+                  v: pdfSconti,
+                  s: setPdfSconti,
+                  l: "Mostra sconti applicati",
+                },
+                {
+                  k: "pdfImmagini",
+                  v: pdfImmagini,
+                  s: setPdfImmagini,
+                  l: "Includi immagini prodotti",
+                },
+                {
+                  k: "pdfSchedeTecniche",
+                  v: pdfSchedeTecniche,
+                  s: setPdfSchedeTecniche,
+                  l: "Allega schede tecniche PDF",
+                },
+                {
+                  k: "pdfFirma",
+                  v: pdfFirma,
+                  s: setPdfFirma,
+                  l: "Firma digitale abilitata",
+                },
+              ].map(({ k, v, s, l }) => (
+                <div
+                  key={k}
+                  className="flex items-center justify-between py-1"
+                >
+                  <Label className="font-normal">{l}</Label>
+                  <Switch checked={v} onCheckedChange={s} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Documenti Allegati</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {materials.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileStack className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p>Nessun materiale disponibile.</p>
+                  <p className="text-sm">
+                    Vai in Impostazioni → Materiali Preventivi per caricare PDF.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {materials.map((m: any) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedMaterials.includes(m.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedMaterials([...selectedMaterials, m.id]);
+                          } else {
+                            setSelectedMaterials(
+                              selectedMaterials.filter((x) => x !== m.id)
+                            );
+                          }
+                        }}
+                      />
+                      <FileStack className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{m.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {m.category} — {(m.file_size_bytes / 1024).toFixed(0)}{" "}
+                          KB
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {selectedMaterials.length} documenti selezionati
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── STEP 3: Riepilogo ── */}
       {step === 3 && (
         <Card>
           <CardHeader>
@@ -753,10 +1974,38 @@ export default function QuoteBuilder() {
             <div>
               <h3 className="font-medium mb-2">Cliente</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">Nome:</span> {clientName || "—"}</div>
-                <div><span className="text-muted-foreground">Email:</span> {clientEmail || "—"}</div>
-                <div><span className="text-muted-foreground">Azienda:</span> {clientCompany || "—"}</div>
-                <div><span className="text-muted-foreground">Telefono:</span> {clientPhone || "—"}</div>
+                <div>
+                  <span className="text-muted-foreground">Nome:</span>{" "}
+                  {clientName || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Email:</span>{" "}
+                  {clientEmail || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Azienda:</span>{" "}
+                  {clientCompany || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Telefono:</span>{" "}
+                  {clientPhone || "—"}
+                </div>
+                {tipoLavoro && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">
+                      Tipo di lavoro:
+                    </span>{" "}
+                    {tipoLavoro}
+                  </div>
+                )}
+                {indirizzoLavori && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">
+                      Indirizzo lavori:
+                    </span>{" "}
+                    {indirizzoLavori}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -776,11 +2025,26 @@ export default function QuoteBuilder() {
                   <TableBody>
                     {items.map((it, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{it.name || "—"}</TableCell>
-                        <TableCell className="text-right">{it.quantity}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(it.unit_price)}</TableCell>
+                        <TableCell>
+                          {it.name || "—"}
+                          {(it as any).is_optional && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              Opzionale
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {it.quantity}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(it.unit_price)}
+                        </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
+                          {formatCurrency(
+                            it.quantity *
+                              it.unit_price *
+                              (1 - it.discount_percent / 100)
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -816,15 +2080,70 @@ export default function QuoteBuilder() {
               </div>
             </div>
 
+            {/* Admin cost block */}
+            {isAdmin && totaliPro.costo_totale > 0 && (
+              <div className="border rounded-lg p-4 bg-blue-50/50 space-y-2 text-sm">
+                <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-900">
+                  <TrendingUp className="h-4 w-4" />
+                  Analisi costi (solo admin)
+                </h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <span className="text-muted-foreground">
+                    Costo prodotti/servizi
+                  </span>
+                  <span className="text-right">
+                    {formatCurrency(totaliPro.costo_totale)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    Overhead ({impostazioni.overhead_percentuale ?? 0}%)
+                  </span>
+                  <span className="text-right">
+                    {formatCurrency(totaliPro.overhead_totale)}
+                  </span>
+                  <hr className="col-span-2" />
+                  <span className="font-medium">Margine netto</span>
+                  <span className="text-right font-medium flex justify-end gap-2">
+                    {formatCurrency(
+                      totaliPro.subtotale -
+                        totaliPro.costo_totale -
+                        totaliPro.overhead_totale
+                    )}
+                    <MargineSemaforo pct={totaliPro.margine_totale_pct} />
+                  </span>
+                </div>
+                {tipoLavoro &&
+                  (() => {
+                    const catData = categorie.find(
+                      (c: any) => c.nome === tipoLavoro
+                    );
+                    const target =
+                      catData?.margine_target_percentuale ??
+                      impostazioni.margine_target_default ??
+                      25;
+                    return totaliPro.margine_totale_pct < target ? (
+                      <div className="flex items-center gap-2 text-amber-700 bg-amber-50 rounded p-2 text-xs">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        Margine {totaliPro.margine_totale_pct.toFixed(1)}% sotto
+                        target per "{tipoLavoro}": {target}%
+                      </div>
+                    ) : null;
+                  })()}
+              </div>
+            )}
+
             {/* Documents */}
             {selectedMaterials.length > 0 && (
               <div>
-                <h3 className="font-medium mb-2">Documenti allegati ({selectedMaterials.length})</h3>
+                <h3 className="font-medium mb-2">
+                  Documenti allegati ({selectedMaterials.length})
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedMaterials.map((mId) => {
                     const m = materials.find((x: any) => x.id === mId);
                     return m ? (
-                      <Badge key={mId} variant="secondary">{m.name}</Badge>
+                      <Badge key={mId} variant="secondary">
+                        {m.name}
+                      </Badge>
                     ) : null;
                   })}
                 </div>
@@ -841,14 +2160,17 @@ export default function QuoteBuilder() {
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm">Template</Label>
-                    <Select value={selectedTemplateId || ''} onValueChange={setSelectedTemplateId}>
+                    <Select
+                      value={selectedTemplateId || ""}
+                      onValueChange={setSelectedTemplateId}
+                    >
                       <SelectTrigger className="w-full max-w-xs mt-1">
                         <SelectValue placeholder="Seleziona template" />
                       </SelectTrigger>
                       <SelectContent>
-                        {templates.map(tmpl => (
+                        {templates.map((tmpl) => (
                           <SelectItem key={tmpl.id} value={tmpl.id}>
-                            {tmpl.name} {tmpl.is_default ? '(Default)' : ''}
+                            {tmpl.name} {tmpl.is_default ? "(Default)" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -856,11 +2178,15 @@ export default function QuoteBuilder() {
                   </div>
                   {/* Layout quick-select */}
                   <div className="grid grid-cols-4 gap-2">
-                    {(['classic', 'modern', 'minimal', 'bold'] as QuoteTemplateLayout[]).map(layout => (
+                    {(
+                      ["classic", "modern", "minimal", "bold"] as QuoteTemplateLayout[]
+                    ).map((layout) => (
                       <button
                         key={layout}
                         className={`border rounded-lg p-2 text-center text-xs transition-all ${
-                          selectedTemplate?.layout === layout ? 'border-primary ring-1 ring-primary/30 bg-primary/5' : 'border-border opacity-60'
+                          selectedTemplate?.layout === layout
+                            ? "border-primary ring-1 ring-primary/30 bg-primary/5"
+                            : "border-border opacity-60"
                         }`}
                       >
                         <QuoteTemplatePreview
@@ -900,8 +2226,16 @@ export default function QuoteBuilder() {
           Indietro
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => handleSave("bozza")} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          <Button
+            variant="outline"
+            onClick={() => handleSave("bozza")}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Salva Bozza
           </Button>
           {step < STEPS.length - 1 ? (
@@ -910,13 +2244,56 @@ export default function QuoteBuilder() {
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button onClick={() => handleSave("bozza")} disabled={saving || !clientName}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileCheck className="h-4 w-4 mr-2" />}
+            <Button
+              onClick={() => handleSave("bozza")}
+              disabled={saving || !clientName}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileCheck className="h-4 w-4 mr-2" />
+              )}
               Salva Preventivo
             </Button>
           )}
         </div>
       </div>
+
+      {/* ── Dialogs ── */}
+      <ProductSearchDialog
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        articoli={articoli}
+        categorie={categorie}
+        impostazioni={impostazioni}
+        pianoInstallazione={pianoInstallazione}
+        calcolaPrezzoProdotto={calcolaPrezzoProdotto}
+        onConfirm={addProductFromCatalog}
+      />
+
+      {smaltimentoAsk && (
+        <Dialog open={true} onOpenChange={() => setSmaltimentoAsk(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Smaltimento materiale vecchio?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Aggiungere una riga per lo smaltimento del materiale esistente?
+            </p>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSmaltimentoAsk(null)}
+              >
+                No grazie
+              </Button>
+              <Button onClick={() => addSmaltimento(smaltimentoAsk.parentIdx)}>
+                Sì, aggiungi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

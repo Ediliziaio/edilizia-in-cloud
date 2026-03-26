@@ -326,8 +326,8 @@ function buildCallbackHtml(status: string, error?: string): Response {
   const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
   const allowedOrigins = [
     `https://${projectRef}.supabase.co`,
-    "https://edilizia-in-cloud.lovable.app",
-  ];
+    Deno.env.get("SITE_URL") || "",
+  ].filter(Boolean);
   const html = `<!DOCTYPE html><html><body><script>
     var allowedOrigins = ${JSON.stringify(allowedOrigins)};
     var msg = { type: "GOOGLE_OAUTH_RESULT", status: "${status}", error: ${JSON.stringify(error || null)} };

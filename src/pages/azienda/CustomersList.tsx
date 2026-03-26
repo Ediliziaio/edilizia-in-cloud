@@ -400,7 +400,8 @@ export default function CustomersList() {
           <Button asChild>
             <Link to="/azienda/clienti/nuovo">
               <Plus className="mr-2 h-4 w-4" />
-              Nuovo Cliente
+              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">Nuovo Cliente</span>
             </Link>
           </Button>
         </div>
@@ -419,7 +420,7 @@ export default function CustomersList() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Select value={filterSalesperson} onValueChange={handleFilterSalesperson}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <div className="flex items-center gap-2">
                 <UserCheck className="h-4 w-4 text-muted-foreground" />
                 <SelectValue placeholder="Venditore" />
@@ -436,7 +437,7 @@ export default function CustomersList() {
             </SelectContent>
           </Select>
           <Select value={filterOrders} onValueChange={handleFilterOrders}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
                 <SelectValue placeholder="Ordini" />
@@ -497,6 +498,44 @@ export default function CustomersList() {
         </Card>
       ) : (
         <Card>
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y">
+            {customers.map((customer) => {
+              const initials = `${customer.first_name?.[0] || ""}${customer.last_name?.[0] || ""}`.toUpperCase();
+              const fullName = `${customer.first_name} ${customer.last_name}`;
+              return (
+                <Link
+                  key={customer.id}
+                  to={`/azienda/clienti/${customer.id}`}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors"
+                >
+                  <span className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">
+                    {initials || "?"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{fullName}</p>
+                    {customer.phone && (
+                      <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                    )}
+                    {customer.email && (
+                      <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {customer.order_count > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <ClipboardList className="h-3.5 w-3.5" />
+                        <span className="font-medium">{customer.order_count}</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -509,9 +548,9 @@ export default function CustomersList() {
                     <ArrowUpDown className="h-3.5 w-3.5" />
                   </button>
                 </TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefono</TableHead>
-                <TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
+                <TableHead className="hidden md:table-cell">Telefono</TableHead>
+                <TableHead className="hidden lg:table-cell">
                   <button
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
                     onClick={() => toggleSort("created_at")}
@@ -521,8 +560,8 @@ export default function CustomersList() {
                     <ArrowUpDown className="h-3.5 w-3.5" />
                   </button>
                 </TableHead>
-                <TableHead>Venditore</TableHead>
-                <TableHead className="text-center">Ordini</TableHead>
+                <TableHead className="hidden md:table-cell">Venditore</TableHead>
+                <TableHead className="hidden sm:table-cell text-center">Ordini</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -534,13 +573,13 @@ export default function CustomersList() {
                     <TableCell className="font-medium">
                       {customer.first_name} {customer.last_name}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Mail className="h-4 w-4 shrink-0" />
                         <span className="truncate max-w-[180px]">{customer.email}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {customer.phone ? (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Phone className="h-4 w-4" />
@@ -550,12 +589,12 @@ export default function CustomersList() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <span className="text-sm text-muted-foreground">
                         {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: it }) : "—"}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Select
                         value={customer.salesperson_id || "none"}
                         onValueChange={(val) => handleInlineSalesperson(customer.id, val)}
@@ -575,7 +614,7 @@ export default function CustomersList() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="hidden sm:table-cell text-center">
                       <div className="flex items-center justify-center gap-1">
                         <ClipboardList className="h-4 w-4 text-muted-foreground" />
                         <span>{customer.order_count}</span>
@@ -659,14 +698,18 @@ export default function CustomersList() {
               })}
             </TableBody>
           </Table>
+          </div>{/* end hidden sm:block */}
 
           {/* Pagination */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
-            <p className="text-sm text-muted-foreground">
-              Mostrando {rangeStart}–{rangeEnd} di {totalCount} clienti
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t">
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              <span className="hidden sm:inline">Mostrando {rangeStart}–{rangeEnd} di </span>
+              <span className="sm:hidden">{totalCount} </span>
+              <span className="hidden sm:inline">{totalCount} </span>
+              clienti
             </p>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Righe:</span>
                 <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
                   <SelectTrigger className="h-8 w-[70px] text-xs">
@@ -679,8 +722,8 @@ export default function CustomersList() {
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-sm text-muted-foreground">
-                Pagina {page + 1} di {totalPages}
+              <span className="text-xs sm:text-sm text-muted-foreground">
+                {page + 1} / {totalPages}
               </span>
               <div className="flex items-center gap-1">
                 <Button

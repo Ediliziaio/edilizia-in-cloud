@@ -65,45 +65,19 @@ export function useCreateMovimento() {
     }) => {
       if (!companyId) throw new Error("Nessuna azienda");
 
-      // 1. Insert movement
-      const { error: insertErr } = await supabase
-        .from("movimenti_cassa_native" as never)
-        .insert({
-          company_id: companyId,
-          documento_id: input.documento_id,
-          importo: input.importo,
-          tipo: "incasso",
-          metodo: input.metodo,
-          data_movimento: input.data_movimento,
-          riferimento: input.riferimento ?? null,
-          note: input.note ?? null,
-        } as never);
+      // Single atomic RPC — insert movement + update invoice inside one DB transaction.
+      // Eliminates the read-modify-write race condition of the previous two-step approach.
+      const { error } = await supabase.rpc("registra_incasso_atomico" as never, {
+        p_company_id:     companyId,
+        p_documento_id:   input.documento_id,
+        p_importo:        input.importo,
+        p_metodo:         input.metodo,
+        p_data_movimento: input.data_movimento,
+        p_riferimento:    input.riferimento ?? null,
+        p_note:           input.note ?? null,
+      } as never);
 
-      if (insertErr) throw insertErr;
-
-      // 2. Update linked invoice
-      const { data: doc, error: fetchErr } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("totale_da_pagare, importo_pagato")
-        .eq("id", input.documento_id)
-        .single();
-
-      if (fetchErr) throw fetchErr;
-      const d = doc as unknown as { totale_da_pagare: number; importo_pagato: number };
-      const nuovoPagato = d.importo_pagato + input.importo;
-      const nuovoStato = nuovoPagato >= d.totale_da_pagare ? "pagata" : "parzialmente_pagata";
-
-      const { error: updateErr } = await supabase
-        .from("documenti_fiscali" as never)
-        .update({
-          importo_pagato: nuovoPagato,
-          stato: nuovoStato,
-          pagato_at: nuovoStato === "pagata" ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq("id", input.documento_id);
-
-      if (updateErr) throw updateErr;
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
@@ -117,52 +91,21 @@ export function useCreateMovimento() {
 }
 
 export function useDeleteMovimento() {
+  const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Get the movement first to know the amount
-      const { data: mov, error: fetchErr } = await supabase
-        .from("movimenti_cassa_native" as never)
-        .select("*")
-        .eq("id", id)
-        .single();
+      if (!companyId) throw new Error("Nessuna azienda");
 
-      if (fetchErr) throw fetchErr;
-      const m = mov as unknown as MovimentoCassa;
+      // Atomic RPC: deletes movement + reverses importo_pagato on the invoice
+      // inside one DB transaction, preventing partial state.
+      const { error } = await supabase.rpc("storna_incasso_atomico" as never, {
+        p_company_id:   companyId,
+        p_movimento_id: id,
+      } as never);
 
-      // Delete movement
-      const { error: delErr } = await supabase
-        .from("movimenti_cassa_native" as never)
-        .delete()
-        .eq("id", id);
-
-      if (delErr) throw delErr;
-
-      // Recalculate invoice payment
-      if (m.documento_id) {
-        const { data: doc, error: docErr } = await supabase
-          .from("documenti_fiscali" as never)
-          .select("totale_da_pagare, importo_pagato")
-          .eq("id", m.documento_id)
-          .single();
-
-        if (!docErr && doc) {
-          const d = doc as unknown as { totale_da_pagare: number; importo_pagato: number };
-          const nuovoPagato = Math.max(0, d.importo_pagato - m.importo);
-          const nuovoStato = nuovoPagato <= 0 ? "emessa" : "parzialmente_pagata";
-
-          await supabase
-            .from("documenti_fiscali" as never)
-            .update({
-              importo_pagato: nuovoPagato,
-              stato: nuovoStato,
-              pagato_at: null,
-              updated_at: new Date().toISOString(),
-            } as never)
-            .eq("id", m.documento_id);
-        }
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });

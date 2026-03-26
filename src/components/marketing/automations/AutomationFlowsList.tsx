@@ -71,7 +71,7 @@ interface Props {
 }
 
 export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null }: Props) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const queryClient = useQueryClient();
@@ -151,9 +151,16 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   // --- Mutations (kept from original) ---
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("automation_flows").delete().eq("id", id);
+    mutationFn: async (flowId: string) => {
+      const { data: flow } = await supabase.from("automation_flows").select("name").eq("id", flowId).maybeSingle();
+      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId);
       if (error) throw error;
+      if (role === "super_admin" && user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id, action: "delete_automation", target_type: "automation_flow",
+          target_id: flowId, details: { flow_name: flow?.name, company_id: effectiveCompany?.id },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
@@ -233,8 +240,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         if (!hasTrigger) throw new Error("Aggiungi almeno un trigger prima di pubblicare.");
         if (!nodeRows || nodeRows.length < 2) throw new Error("Aggiungi almeno un'azione dopo il trigger.");
       }
+      const { data: flow } = await supabase.from("automation_flows").select("name, status").eq("id", id).maybeSingle();
       const { error } = await supabase.from("automation_flows").update({ status }).eq("id", id);
       if (error) throw error;
+      if (role === "super_admin" && user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id, action: "change_automation_status", target_type: "automation_flow",
+          target_id: id, details: { flow_name: flow?.name, old_status: flow?.status, new_status: status, company_id: effectiveCompany?.id },
+        });
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automation-flows"] }),
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
@@ -244,6 +258,12 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase.from("automation_flows").delete().in("id", ids);
       if (error) throw error;
+      if (role === "super_admin" && user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id, action: "bulk_delete_automations", target_type: "automation_flow",
+          target_id: null, details: { flow_ids: ids, count: ids.length, company_id: effectiveCompany?.id },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automation-flows"] });

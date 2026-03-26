@@ -93,8 +93,9 @@ Deno.serve(async (req) => {
             });
           }
         } else {
-          // Lock non disponibile: attendere e ri-leggere token aggiornato
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // Lock non disponibile: breve attesa con jitter, poi ri-leggere token aggiornato
+          const jitter = 500 + Math.floor(Math.random() * 1500); // 500–2000 ms
+          await new Promise((resolve) => setTimeout(resolve, jitter));
           const { data: refreshed } = await supabase
             .from("billing_integrations").select("access_token")
             .eq("id", integration.id).single();

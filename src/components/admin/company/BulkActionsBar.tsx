@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, X, RefreshCw, Pause, Play, CalendarPlus, CreditCard } from "lucide-react";
+import { Loader2, X, Pause, Play, CalendarPlus, CreditCard, ClipboardList } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -25,8 +26,13 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
   const [confirmAction, setConfirmAction] = useState<{ type: string; label: string; variant: "default" | "destructive" } | null>(null);
   const [planDialog, setPlanDialog] = useState(false);
   const [trialDialog, setTrialDialog] = useState(false);
+  const [csTaskDialog, setCsTaskDialog] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [trialDays, setTrialDays] = useState<number>(7);
+  const [csTitle, setCsTitle] = useState("");
+  const [csDesc, setCsDesc] = useState("");
+  const [csPriority, setCsPriority] = useState("medium");
+  const [csDueDate, setCsDueDate] = useState("");
 
   const selectedCompanies = companies.filter((c) => selectedIds.has(c.id));
   const count = selectedIds.size;
@@ -130,7 +136,32 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
     onError: () => toast.error("Errore nell'estensione trial"),
   });
 
-  const isPending = bulkStatusMutation.isPending || bulkPlanMutation.isPending || bulkExtendTrialMutation.isPending;
+  const bulkCsTaskMutation = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selectedIds);
+      const rows = ids.map((company_id) => ({
+        company_id,
+        title: csTitle,
+        description: csDesc || null,
+        priority: csPriority,
+        due_date: csDueDate || null,
+        created_by: profile?.id || "",
+        assigned_to: profile?.id || "",
+      }));
+      const { error } = await supabase.from("cs_tasks" as never).insert(rows as never);
+      if (error) throw error;
+      await logAuditAction("bulk_create_cs_task", { title: csTitle, count: ids.length });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
+      toast.success(`CS Task creato per ${count} aziend${count === 1 ? "a" : "e"}`);
+      setCsTaskDialog(false);
+      setCsTitle(""); setCsDesc(""); setCsPriority("medium"); setCsDueDate("");
+    },
+    onError: () => toast.error("Errore nella creazione CS Task"),
+  });
+
+  const isPending = bulkStatusMutation.isPending || bulkPlanMutation.isPending || bulkExtendTrialMutation.isPending || bulkCsTaskMutation.isPending;
 
   if (count === 0) return null;
 
@@ -177,6 +208,15 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
           >
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Riattiva
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCsTaskDialog(true)}
+            disabled={isPending}
+          >
+            <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
+            Crea CS Task
           </Button>
         </div>
 
@@ -243,6 +283,55 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             >
               {bulkPlanMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Applica
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk CS Task dialog */}
+      <Dialog open={csTaskDialog} onOpenChange={setCsTaskDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Crea CS Task</DialogTitle>
+            <DialogDescription>
+              Crea un task per {count} aziend{count === 1 ? "a" : "e"} selezionat{count === 1 ? "a" : "e"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Titolo</Label>
+              <Input value={csTitle} onChange={(e) => setCsTitle(e.target.value)} placeholder="Es: Follow-up onboarding" />
+            </div>
+            <div>
+              <Label>Descrizione</Label>
+              <Textarea value={csDesc} onChange={(e) => setCsDesc(e.target.value)} placeholder="Dettagli opzionali" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Priorità</Label>
+                <Select value={csPriority} onValueChange={setCsPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Bassa</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Scadenza</Label>
+                <Input type="date" value={csDueDate} onChange={(e) => setCsDueDate(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCsTaskDialog(false)}>Annulla</Button>
+            <Button
+              onClick={() => bulkCsTaskMutation.mutate()}
+              disabled={!csTitle.trim() || bulkCsTaskMutation.isPending}
+            >
+              {bulkCsTaskMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Crea Task
             </Button>
           </DialogFooter>
         </DialogContent>

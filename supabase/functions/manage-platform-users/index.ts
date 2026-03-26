@@ -256,9 +256,7 @@ Deno.serve(async (req) => {
         const { error: accessError } = await supabaseAdmin
           .from("multi_company_access")
           .insert(accessRows);
-        if (accessError) {
-          console.error("Failed to insert company accesses:", accessError);
-        }
+        if (accessError) throw new Error(`Failed to insert company accesses: ${accessError.message}`);
 
         // Insert staff_permissions for non-admin companies
         if (companyPermissions) {
@@ -329,14 +327,36 @@ Deno.serve(async (req) => {
       };
 
       if (permissions) {
-        updateData.can_manage_companies = permissions.can_manage_companies ?? true;
-        updateData.can_manage_plans = permissions.can_manage_plans ?? true;
-        updateData.can_manage_tickets = permissions.can_manage_tickets ?? true;
-        updateData.can_manage_referrals = permissions.can_manage_referrals ?? true;
-        updateData.can_manage_admins = permissions.can_manage_admins ?? false;
-        updateData.can_view_platform_stats = permissions.can_view_platform_stats ?? true;
-        updateData.can_manage_marketing = permissions.can_manage_marketing ?? false;
-        updateData.allowed_company_ids = permissions.allowed_company_ids ?? null;
+        // Fetch existing record to merge — prevents partial update from overwriting unrelated fields
+        const { data: existingPerms } = await supabaseAdmin
+          .from("super_admin_permissions")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (permissions.can_manage_companies !== undefined) updateData.can_manage_companies = permissions.can_manage_companies;
+        else if (existingPerms) updateData.can_manage_companies = existingPerms.can_manage_companies;
+
+        if (permissions.can_manage_plans !== undefined) updateData.can_manage_plans = permissions.can_manage_plans;
+        else if (existingPerms) updateData.can_manage_plans = existingPerms.can_manage_plans;
+
+        if (permissions.can_manage_tickets !== undefined) updateData.can_manage_tickets = permissions.can_manage_tickets;
+        else if (existingPerms) updateData.can_manage_tickets = existingPerms.can_manage_tickets;
+
+        if (permissions.can_manage_referrals !== undefined) updateData.can_manage_referrals = permissions.can_manage_referrals;
+        else if (existingPerms) updateData.can_manage_referrals = existingPerms.can_manage_referrals;
+
+        if (permissions.can_manage_admins !== undefined) updateData.can_manage_admins = permissions.can_manage_admins;
+        else if (existingPerms) updateData.can_manage_admins = existingPerms.can_manage_admins;
+
+        if (permissions.can_view_platform_stats !== undefined) updateData.can_view_platform_stats = permissions.can_view_platform_stats;
+        else if (existingPerms) updateData.can_view_platform_stats = existingPerms.can_view_platform_stats;
+
+        if (permissions.can_manage_marketing !== undefined) updateData.can_manage_marketing = permissions.can_manage_marketing;
+        else if (existingPerms) updateData.can_manage_marketing = existingPerms.can_manage_marketing;
+
+        if (permissions.allowed_company_ids !== undefined) updateData.allowed_company_ids = permissions.allowed_company_ids;
+        else if (existingPerms) updateData.allowed_company_ids = existingPerms.allowed_company_ids;
       }
 
       if (platformRole !== undefined) updateData.platform_role = platformRole;
@@ -344,16 +364,21 @@ Deno.serve(async (req) => {
       if (department !== undefined) updateData.department = department;
 
       // If changing platform role, also update user_roles table
+      // Upsert new role first, then remove old ones in a single bulk delete — avoids the window where user has no role
       if (platformRole && PLATFORM_ROLES.includes(platformRole)) {
-        // Remove old platform roles
-        for (const role of PLATFORM_ROLES) {
-          await supabaseAdmin.from("user_roles").delete().eq("user_id", userId).eq("role", role);
-        }
-        // Add new role
         await supabaseAdmin.from("user_roles").upsert(
           { user_id: userId, role: platformRole },
           { onConflict: "user_id,role" }
         );
+        // Remove all OTHER platform roles in one query
+        const rolesToRemove = PLATFORM_ROLES.filter((r) => r !== platformRole);
+        if (rolesToRemove.length > 0) {
+          await supabaseAdmin
+            .from("user_roles")
+            .delete()
+            .eq("user_id", userId)
+            .in("role", rolesToRemove);
+        }
       }
 
       const { error } = await supabaseAdmin
@@ -464,9 +489,7 @@ Deno.serve(async (req) => {
         .from("multi_company_access")
         .insert(accessRows);
 
-      if (accessError) {
-        console.error("Failed to insert company accesses:", accessError);
-      }
+      if (accessError) throw new Error(`Failed to insert company accesses: ${accessError.message}`);
 
       await logAudit(supabaseAdmin, callerId, "create_multi_company_user", "user", userId, {
         target_name: `${firstName} ${lastName}`,
@@ -523,9 +546,9 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: true });
       }
 
-      // Bulk replace (original behavior)
-      await supabaseAdmin.from("multi_company_access").delete().eq("user_id", userId);
-
+      // Bulk replace: upsert new rows first, then delete any rows not in the new set
+      // This avoids a window where the user has zero access
+      const newCompanyIds: string[] = [];
       if (companyAccesses && Array.isArray(companyAccesses) && companyAccesses.length > 0) {
         const accessRows = companyAccesses.map((ca: any) => ({
           user_id: userId,
@@ -536,9 +559,28 @@ Deno.serve(async (req) => {
 
         const { error } = await supabaseAdmin
           .from("multi_company_access")
-          .insert(accessRows);
+          .upsert(accessRows, { onConflict: "user_id,company_id" });
 
         if (error) throw new Error(error.message);
+
+        newCompanyIds.push(...companyAccesses.map((ca: any) => ca.companyId));
+      }
+
+      // Delete rows not in the new set
+      if (newCompanyIds.length > 0) {
+        const { error: deleteError } = await supabaseAdmin
+          .from("multi_company_access")
+          .delete()
+          .eq("user_id", userId)
+          .not("company_id", "in", `(${newCompanyIds.join(",")})`);
+        if (deleteError) throw new Error(deleteError.message);
+      } else {
+        // No new accesses → remove all
+        const { error: deleteError } = await supabaseAdmin
+          .from("multi_company_access")
+          .delete()
+          .eq("user_id", userId);
+        if (deleteError) throw new Error(deleteError.message);
       }
 
       const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();

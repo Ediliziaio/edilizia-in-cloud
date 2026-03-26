@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const origin = req.headers.get("origin") || "https://edilizia-in-cloud.lovable.app";
+    const origin = req.headers.get("origin") || Deno.env.get("SITE_URL") || "";
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: company.stripe_customer_id,

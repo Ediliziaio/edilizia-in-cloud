@@ -597,15 +597,15 @@ export function OrderItemsList({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Articoli dell'Ordine
+        <div className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 min-w-0">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+            <span className="truncate">Articoli dell'Ordine</span>
           </CardTitle>
           {editable && (
-            <Button type="button" size="sm" onClick={openAddDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Aggiungi
+            <Button type="button" size="sm" onClick={openAddDialog} className="shrink-0">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1.5">Aggiungi</span>
             </Button>
           )}
         </div>
@@ -631,14 +631,14 @@ export function OrderItemsList({
       <CardContent>
         {/* Source filter */}
         {items.length > 0 && (
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-sm text-muted-foreground">Filtra:</span>
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none pb-1">
+            <span className="text-sm text-muted-foreground shrink-0">Filtra:</span>
             <div className="flex gap-1">
-              <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setSourceFilter("all")}>Tutti</Button>
-              <Button type="button" variant={sourceFilter === "stock" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1" onClick={() => setSourceFilter("stock")}>
+              <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => setSourceFilter("all")}>Tutti</Button>
+              <Button type="button" variant={sourceFilter === "stock" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={() => setSourceFilter("stock")}>
                 <Warehouse className="h-3 w-3" />Da Giacenza
               </Button>
-              <Button type="button" variant={sourceFilter === "supplier" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1" onClick={() => setSourceFilter("supplier")}>
+              <Button type="button" variant={sourceFilter === "supplier" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={() => setSourceFilter("supplier")}>
                 <Package className="h-3 w-3" />Da Fornitore
               </Button>
             </div>
@@ -663,122 +663,106 @@ export function OrderItemsList({
                 key={item.id || index}
                 className={`p-3 rounded-lg space-y-2 ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{item.name}</span>
-                      {item.quantity > 1 && (
-                        <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
-                      )}
-                      {item.stock_item_id ? (
-                        <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                          <Warehouse className="h-3 w-3" />
-                          Da Giacenza
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs gap-1">
-                          <Package className="h-3 w-3" />
-                          Da Fornitore
-                        </Badge>
-                      )}
-                      {/* Payment status badge */}
-                      {(item.payment_method === "50_50" || item.payment_method === "30_70") ? (
-                        <>
-                          {item.deposit_paid && item.balance_paid ? (
-                            <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Tutto pagato
-                            </Badge>
-                          ) : item.deposit_paid ? (
-                            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                              <Clock className="h-3 w-3" />
-                              Acconto pagato
-                            </Badge>
-                          ) : (
-                            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                              <Clock className="h-3 w-3" />
-                              Non pagato
-                            </Badge>
-                          )}
-                        </>
-                      ) : item.is_paid ? (
-                        <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                          <CheckCircle className="h-3 w-3" />
-                          Pagato
-                        </Badge>
-                      ) : (
-                        <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                          <Clock className="h-3 w-3" />
-                          Non pagato
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-                      {(item.supplier_id || item.supplier_name) && (
-                        <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
-                      )}
-                      {item.purchase_price != null && item.purchase_price > 0 && (
-                        <>
-                          <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
-                          <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span>
-                        </>
-                      )}
-                      {item.payment_method && (
-                        <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
-                      )}
-                    </div>
-                    {/* Installment detail line */}
-                    {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-                        <span>
-                          Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? (item.deposit_paid_date ? `✓ ${item.deposit_paid_date}` : "✓") : "—"}
-                        </span>
-                        <span>
-                          Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? (item.balance_paid_date ? `✓ ${item.balance_paid_date}` : "✓") : item.balance_expected_date ? `previsto ${item.balance_expected_date}` : "—"}
-                        </span>
-                      </div>
+                {/* Item info (full width) */}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{item.name}</span>
+                    {item.quantity > 1 && (
+                      <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
                     )}
-                    {item.description && (
-                      <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {showStatusControls ? (
-                      <Select
-                        value={item.status}
-                        onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                            <SelectItem key={status} value={status}>
-                              {config.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {item.stock_item_id ? (
+                      <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                        <Warehouse className="h-3 w-3" />
+                        Da Giacenza
+                      </Badge>
                     ) : (
-                      <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
-                        {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Package className="h-3 w-3" />
+                        Da Fornitore
                       </Badge>
                     )}
-
-                    {(editable || allowEdit) && (
+                    {/* Payment status badge */}
+                    {(item.payment_method === "50_50" || item.payment_method === "30_70") ? (
                       <>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {editable && (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                        {item.deposit_paid && item.balance_paid ? (
+                          <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                            <CheckCircle className="h-3 w-3" />Tutto pagato
+                          </Badge>
+                        ) : item.deposit_paid ? (
+                          <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                            <Clock className="h-3 w-3" />Acconto pagato
+                          </Badge>
+                        ) : (
+                          <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                            <Clock className="h-3 w-3" />Non pagato
+                          </Badge>
                         )}
                       </>
+                    ) : item.is_paid ? (
+                      <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                        <CheckCircle className="h-3 w-3" />Pagato
+                      </Badge>
+                    ) : (
+                      <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                        <Clock className="h-3 w-3" />Non pagato
+                      </Badge>
                     )}
                   </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                    {(item.supplier_id || item.supplier_name) && (
+                      <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
+                    )}
+                    {item.purchase_price != null && item.purchase_price > 0 && (
+                      <span>Costo: {formatCurrency(item.purchase_price * item.quantity)} <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span></span>
+                    )}
+                    {item.payment_method && (
+                      <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
+                    )}
+                  </div>
+                  {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                      <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
+                      <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
+                    </div>
+                  )}
+                  {item.description && (
+                    <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
+                  )}
+                </div>
+
+                {/* Status + actions row */}
+                <div className="flex items-center justify-between gap-2">
+                  {showStatusControls ? (
+                    <Select
+                      value={item.status}
+                      onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
+                    >
+                      <SelectTrigger className="flex-1 sm:flex-none sm:w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                          <SelectItem key={status} value={status}>{config.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
+                      {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
+                    </Badge>
+                  )}
+                  {(editable || allowEdit) && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {editable && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Attachments section */}

@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("companies").update({ stripe_customer_id: stripeCustomerId }).eq("id", company_id);
       }
 
-      const appUrl = supabaseUrl.replace(".supabase.co", ".lovable.app");
+      const appUrl = Deno.env.get("SITE_URL") ?? supabaseUrl.replace(".supabase.co", ".lovable.app");
 
       const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
       }
 
       // Build app URL from supabaseUrl
-      const appUrl = supabaseUrl.replace(".supabase.co", ".lovable.app");
+      const appUrl = Deno.env.get("SITE_URL") ?? supabaseUrl.replace(".supabase.co", ".lovable.app");
 
       // Create Checkout Session (one-time payment)
       const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
           .eq("id", company_id);
       }
 
-      const appUrl = supabaseUrl.replace(".supabase.co", ".lovable.app");
+      const appUrl = Deno.env.get("SITE_URL") ?? supabaseUrl.replace(".supabase.co", ".lovable.app");
 
       const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
@@ -497,7 +497,7 @@ Deno.serve(async (req) => {
         .eq("id", company_id);
     }
 
-    const appUrl = supabaseUrl.replace(".supabase.co", ".lovable.app");
+    const appUrl = Deno.env.get("SITE_URL") ?? supabaseUrl.replace(".supabase.co", ".lovable.app");
 
     // Create Checkout Session
     const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {

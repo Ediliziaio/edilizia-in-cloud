@@ -105,7 +105,7 @@ export default function PurchaseOrderDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/ordini-acquisto")}>
+        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/ordini-acquisto")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Ordini Acquisto
         </Button>
       </div>

@@ -42,6 +42,15 @@ const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/A
 const AdminMarketingWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminMarketingWhatsApp"));
 const AdminMarketingAgents = lazy(() => import("@/pages/admin/marketing/AdminMarketingAgents"));
 const AdminMarketingAutomationBuilder = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomationBuilder"));
+const AdminCampaignEditor = lazy(() => import("@/pages/admin/marketing/AdminCampaignEditor"));
+const AdminDragDropEmailBuilder = lazy(() => import("@/pages/admin/marketing/AdminDragDropEmailBuilder"));
+const AdminCampaignSendSettings = lazy(() => import("@/pages/admin/marketing/AdminCampaignSendSettings"));
+const AdminFacebookForms = lazy(() => import("@/pages/admin/marketing/AdminFacebookForms"));
+const AdminMarketingReportistica = lazy(() => import("@/pages/admin/marketing/AdminMarketingReportistica"));
+const AdminSalesOS = lazy(() => import("@/pages/admin/marketing/AdminSalesOS"));
+const AdminPreventivi = lazy(() => import("@/pages/admin/marketing/AdminPreventivi"));
+const AdminQuoteBuilder = lazy(() => import("@/pages/admin/marketing/AdminQuoteBuilder"));
+const AdminQuoteDetail = lazy(() => import("@/pages/admin/marketing/AdminQuoteDetail"));
 
 export function adminRoutes() {
   return (
@@ -63,6 +72,38 @@ export function adminRoutes() {
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
               <AdminMarketingAutomationBuilder />
+            </ErrorBoundary>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Full-screen Admin Campaign Editor routes - OUTSIDE AdminLayout */}
+      <Route
+        path="/admin/marketing/email/campagna/:id/editor"
+        element={
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
+            <ErrorBoundary title="Errore nell'editor campagna">
+              <AdminCampaignEditor />
+            </ErrorBoundary>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/marketing/email/campagna/:id/builder"
+        element={
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
+            <ErrorBoundary title="Errore nel builder email">
+              <AdminDragDropEmailBuilder />
+            </ErrorBoundary>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/marketing/email/campagna/:id/impostazioni"
+        element={
+          <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
+            <ErrorBoundary title="Errore nelle impostazioni campagna">
+              <AdminCampaignSendSettings />
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -115,6 +156,13 @@ export function adminRoutes() {
         <Route path="marketing/email" element={<AdminEmailMarketing />} />
         <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
         <Route path="marketing/whatsapp" element={<AdminMarketingWhatsApp />} />
+        <Route path="marketing/lead-forms" element={<AdminFacebookForms />} />
+        <Route path="marketing/reportistica" element={<AdminMarketingReportistica />} />
+        <Route path="marketing/sales-os" element={<AdminSalesOS />} />
+        <Route path="marketing/preventivi" element={<AdminPreventivi />} />
+        <Route path="marketing/preventivi/nuovo" element={<AdminQuoteBuilder />} />
+        <Route path="marketing/preventivi/:id" element={<AdminQuoteDetail />} />
+        <Route path="marketing/preventivi/:id/modifica" element={<AdminQuoteBuilder />} />
         <Route path="marketing/agenti-ai/*" element={<AdminMarketingAgents />} />
       </Route>
     </>

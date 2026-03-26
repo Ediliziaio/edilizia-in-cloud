@@ -219,9 +219,13 @@ export function validateDocumento(
         severity: "error",
       });
     }
-    // IVA 0% without natura
+    // IVA 0% without natura — only trigger when aliquota is explicitly "0"
+    // (parseFloat(undefined) = NaN which incorrectly matches 0 via the || operator)
     if (
-      (parseFloat(r.aliquota_iva) || 0) === 0 &&
+      r.aliquota_iva !== undefined &&
+      r.aliquota_iva !== null &&
+      r.aliquota_iva !== "" &&
+      Number(r.aliquota_iva) === 0 &&
       !r.natura_iva
     ) {
       errors.push({

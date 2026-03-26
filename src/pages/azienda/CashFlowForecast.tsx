@@ -125,29 +125,29 @@ export default function CashFlowForecast() {
             Analizza entrate, uscite e flusso di cassa previsto
           </p>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex items-center gap-2 print:hidden flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
             <CalendarClock className="h-4 w-4" />
-            Scadenzario
+            <span className="hidden sm:inline">Scadenzario</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/azienda/prima-nota")} className="gap-1">
             <BookOpen className="h-4 w-4" />
-            Prima Nota
+            <span className="hidden sm:inline">Prima Nota</span>
           </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
             <Download className="h-4 w-4" />
-            Esporta CSV
+            <span className="hidden sm:inline">Esporta CSV</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1 hidden sm:flex">
             <Printer className="h-4 w-4" />
-            Stampa PDF
+            <span className="hidden sm:inline">Stampa PDF</span>
           </Button>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="incassato" className="w-full">
-        <TabsList className="w-full justify-start">
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
           <TabsTrigger value="incassato">Incassato</TabsTrigger>
           <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>

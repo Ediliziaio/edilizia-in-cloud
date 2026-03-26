@@ -5797,6 +5797,7 @@ export type Database = {
           data_emissione: string
           data_scadenza: string | null
           data_validita: string | null
+          deleted_at: string | null
           ddt_aspetto_beni: string | null
           ddt_causale_trasporto: string | null
           ddt_data_ora_consegna: string | null
@@ -5883,6 +5884,7 @@ export type Database = {
           data_emissione?: string
           data_scadenza?: string | null
           data_validita?: string | null
+          deleted_at?: string | null
           ddt_aspetto_beni?: string | null
           ddt_causale_trasporto?: string | null
           ddt_data_ora_consegna?: string | null
@@ -5969,6 +5971,7 @@ export type Database = {
           data_emissione?: string
           data_scadenza?: string | null
           data_validita?: string | null
+          deleted_at?: string | null
           ddt_aspetto_beni?: string | null
           ddt_causale_trasporto?: string | null
           ddt_data_ora_consegna?: string | null
@@ -12590,6 +12593,87 @@ export type Database = {
           },
         ]
       }
+      ordini_variazione: {
+        Row: {
+          id: string
+          company_id: string
+          order_id: string
+          numero_odv: number
+          titolo: string
+          descrizione: string
+          motivazione: string | null
+          impatto_economico: number
+          impatto_giorni: number
+          status: string
+          richiesto_da: string | null
+          richiesto_il: string | null
+          firma_cliente: string | null
+          firmato_da: string | null
+          firmato_il: string | null
+          firma_token: string | null
+          note_interne: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          order_id: string
+          numero_odv: number
+          titolo: string
+          descrizione: string
+          motivazione?: string | null
+          impatto_economico?: number
+          impatto_giorni?: number
+          status?: string
+          richiesto_da?: string | null
+          richiesto_il?: string | null
+          firma_cliente?: string | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          firma_token?: string | null
+          note_interne?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          order_id?: string
+          numero_odv?: number
+          titolo?: string
+          descrizione?: string
+          motivazione?: string | null
+          impatto_economico?: number
+          impatto_giorni?: number
+          status?: string
+          richiesto_da?: string | null
+          richiesto_il?: string | null
+          firma_cliente?: string | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          firma_token?: string | null
+          note_interne?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordini_variazione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_variazione_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_materials: {
         Row: {
           created_at: string | null
@@ -14942,6 +15026,10 @@ export type Database = {
           can_edit_marketing_opportunities: boolean | null
           can_edit_orders: boolean | null
           can_edit_settings: boolean | null
+          can_edit_settings_customization: boolean
+          can_edit_settings_orders: boolean
+          can_edit_settings_people: boolean
+          can_edit_settings_profile: boolean
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
           can_export_clients: boolean
@@ -14974,6 +15062,11 @@ export type Database = {
           can_view_persone: boolean
           can_view_prima_nota: boolean
           can_view_settings: boolean | null
+          can_view_settings_customization: boolean
+          can_view_settings_orders: boolean
+          can_view_settings_people: boolean
+          can_view_settings_profile: boolean
+          can_view_settings_security: boolean
           can_view_tickets: boolean | null
           can_view_users: boolean
           can_view_warehouse: boolean | null
@@ -14994,6 +15087,10 @@ export type Database = {
           can_edit_marketing_opportunities?: boolean | null
           can_edit_orders?: boolean | null
           can_edit_settings?: boolean | null
+          can_edit_settings_customization?: boolean
+          can_edit_settings_orders?: boolean
+          can_edit_settings_people?: boolean
+          can_edit_settings_profile?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
@@ -15026,6 +15123,11 @@ export type Database = {
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
           can_view_settings?: boolean | null
+          can_view_settings_customization?: boolean
+          can_view_settings_orders?: boolean
+          can_view_settings_people?: boolean
+          can_view_settings_profile?: boolean
+          can_view_settings_security?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
           can_view_warehouse?: boolean | null
@@ -15046,6 +15148,10 @@ export type Database = {
           can_edit_marketing_opportunities?: boolean | null
           can_edit_orders?: boolean | null
           can_edit_settings?: boolean | null
+          can_edit_settings_customization?: boolean
+          can_edit_settings_orders?: boolean
+          can_edit_settings_people?: boolean
+          can_edit_settings_profile?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
@@ -15078,6 +15184,11 @@ export type Database = {
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
           can_view_settings?: boolean | null
+          can_view_settings_customization?: boolean
+          can_view_settings_orders?: boolean
+          can_view_settings_people?: boolean
+          can_view_settings_profile?: boolean
+          can_view_settings_security?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
           can_view_warehouse?: boolean | null
@@ -17547,6 +17658,33 @@ export type Database = {
       }
     }
     Views: {
+      v_ordine_marginalita: {
+        Row: {
+          id: string | null
+          company_id: string | null
+          order_code: string | null
+          description: string | null
+          preventivo_contratto: number | null
+          variazioni_approvate: number | null
+          preventivo_totale: number | null
+          costo_acquisti: number | null
+          costo_errori: number | null
+          consuntivo: number | null
+          margine: number | null
+          margine_perc: number | null
+          cliente_nome: string | null
+          work_start_date: string | null
+          work_end_date: string | null
+          created_at: string | null
+        }
+        Insert: {
+          [key: string]: never
+        }
+        Update: {
+          [key: string]: never
+        }
+        Relationships: []
+      }
       ai_elevenlabs_config_safe: {
         Row: {
           aggiornato_il: string | null
