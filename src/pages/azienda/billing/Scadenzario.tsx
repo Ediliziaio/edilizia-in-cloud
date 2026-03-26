@@ -1,17 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarClock, Plus, Loader2, Search, Filter, X } from "lucide-react";
-import { useScadenzario } from "@/hooks/useScadenzario";
+import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
-import { isPast, isToday, startOfMonth, endOfMonth, addDays, addMonths, format } from "date-fns";
+import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 
 const DATE_PRESETS = [
   { label: "Questo mese", value: "questo_mese" },
@@ -37,7 +37,6 @@ function getDateRange(preset: string): { from: string; to: string } | null {
 export default function Scadenzario() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize);
   const [tab, setTab] = useState("tutte");
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
@@ -53,73 +52,72 @@ export default function Scadenzario() {
 
   const hasActiveFilters = datePreset || filterTipo || filterStatus;
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setDatePreset("");
     setCustomFrom("");
     setCustomTo("");
     setFilterTipo("");
     setFilterStatus("");
     setPage(1);
-  };
+  }, []);
 
+  // Derive direction from active tab for server-side filtering
+  const tabDirection: 'entrata' | 'uscita' | null = useMemo(() => {
+    if (tab === "da_incassare") return "entrata";
+    if (tab === "da_pagare") return "uscita";
+    return null;
+  }, [tab]);
+
+  // Derive status from active tab for server-side filtering
+  const tabStatus: string | null = useMemo(() => {
+    if (tab === "pagate") return "pagata";
+    return null;
+  }, [tab]);
+
+  // Compute date range for server-side filtering
+  const serverDateRange = useMemo(() => {
+    if (datePreset === "custom") {
+      return customFrom || customTo ? { from: customFrom || null, to: customTo || null } : null;
+    }
+    if (datePreset && datePreset !== "all") {
+      const range = getDateRange(datePreset);
+      return range ? { from: range.from, to: range.to } : null;
+    }
+    return null;
+  }, [datePreset, customFrom, customTo]);
+
+  const serverFilters: ScadenzarioFilters = useMemo(() => ({
+    direction: tabDirection,
+    status: filterStatus && filterStatus !== "all" ? filterStatus : tabStatus,
+    dateFrom: serverDateRange?.from ?? null,
+    dateTo: serverDateRange?.to ?? null,
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange]);
+
+  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
+
+  // Client-side search filter (text search remains client-side)
   const filtered = useMemo(() => {
-    let list = scadenze;
+    if (!search.trim()) return scadenze;
+    const q = search.toLowerCase();
+    return scadenze.filter((s) =>
+      s.description.toLowerCase().includes(q) ||
+      s.suppliers?.name?.toLowerCase().includes(q) ||
+      s.invoices?.client_company_name?.toLowerCase().includes(q) ||
+      s.invoices?.invoice_number?.toLowerCase().includes(q) ||
+      s.marketing_contacts?.company_name?.toLowerCase().includes(q)
+    );
+  }, [scadenze, search]);
 
-    // Tab filter
-    if (tab === "da_incassare") list = list.filter((s) => s.direction === "entrata" && s.status !== "pagata" && s.status !== "annullata");
-    else if (tab === "da_pagare") list = list.filter((s) => s.direction === "uscita" && s.status !== "pagata" && s.status !== "annullata");
-    else if (tab === "scadute") list = list.filter((s) => {
-      const d = new Date(s.due_date);
-      return isPast(d) && !isToday(d) && s.status !== "pagata" && s.status !== "annullata";
-    });
-    else if (tab === "pagate") list = list.filter((s) => s.status === "pagata");
-
-    // Date range filter
-    const range = datePreset === "custom"
-      ? (customFrom || customTo ? { from: customFrom, to: customTo } : null)
-      : datePreset ? getDateRange(datePreset) : null;
-
-    if (range) {
-      if (range.from) list = list.filter((s) => s.due_date >= range.from);
-      if (range.to) list = list.filter((s) => s.due_date <= range.to);
-    }
-
-    // Tipo filter
-    if (filterTipo) list = list.filter((s) => s.tipo === filterTipo);
-
-    // Status filter
-    if (filterStatus) list = list.filter((s) => s.status === filterStatus);
-
-    // Search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((s) =>
-        s.description.toLowerCase().includes(q) ||
-        s.suppliers?.name?.toLowerCase().includes(q) ||
-        s.invoices?.client_company_name?.toLowerCase().includes(q) ||
-        s.invoices?.invoice_number?.toLowerCase().includes(q) ||
-        s.marketing_contacts?.company_name?.toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [scadenze, tab, search, datePreset, customFrom, customTo, filterTipo, filterStatus]);
-
-  // Counts for tabs
+  // Counts for tabs — use totalCount from server for the active tab; use summary for overdue badge
   const counts = useMemo(() => {
-    const active = scadenze.filter((s) => s.status !== "pagata" && s.status !== "annullata");
-    const overdue = scadenze.filter((s) => {
-      const d = new Date(s.due_date);
-      return isPast(d) && !isToday(d) && s.status !== "pagata" && s.status !== "annullata";
-    });
     return {
-      tutte: scadenze.length,
-      da_incassare: active.filter((s) => s.direction === "entrata").length,
-      da_pagare: active.filter((s) => s.direction === "uscita").length,
-      scadute: overdue.length,
-      pagate: scadenze.filter((s) => s.status === "pagata").length,
+      tutte: tab === "tutte" ? totalCount : 0,
+      da_incassare: tab === "da_incassare" ? totalCount : 0,
+      da_pagare: tab === "da_pagare" ? totalCount : 0,
+      scadute: summary?.scadute_count ?? (tab === "scadute" ? totalCount : 0),
+      pagate: tab === "pagate" ? totalCount : 0,
     };
-  }, [scadenze]);
+  }, [tab, totalCount, summary]);
 
   return (
     <div className="space-y-6">

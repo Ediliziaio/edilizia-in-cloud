@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -35,7 +36,7 @@ interface GiornaleCardProps {
   compact?: boolean;
 }
 
-export function GiornaleCard({ entry, onClick, compact = false }: GiornaleCardProps) {
+export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact = false }: GiornaleCardProps) {
   const meteo = METEO_CONFIG[entry.condizioni_meteo] || METEO_CONFIG.soleggiato;
   const MeteoIcon = meteo.icon;
   const fotoCount = entry.giornale_foto?.length || 0;
@@ -103,4 +104,4 @@ export function GiornaleCard({ entry, onClick, compact = false }: GiornaleCardPr
       </CardContent>
     </Card>
   );
-}
+});

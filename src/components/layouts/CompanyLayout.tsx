@@ -66,7 +66,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
@@ -87,7 +87,7 @@ import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 
 import { CommandPalette } from "@/components/CommandPalette";
 
-function MultiCompanySwitcher() {
+const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
 
   if (role !== "multi_company_user" || multiCompanyAccesses.length <= 1) return null;
@@ -110,9 +110,9 @@ function MultiCompanySwitcher() {
       </div>
     </div>
   );
-}
+});
 
-function ImpersonationBanner() {
+const ImpersonationBanner = memo(function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
   const navigate = useNavigate();
 
@@ -143,7 +143,7 @@ function ImpersonationBanner() {
       </Button>
     </div>
   );
-}
+});
 
 // Macro-area collapsible section component
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange }: {
@@ -396,7 +396,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
   );
 }
 
-function CompanySidebar() {
+const CompanySidebar = memo(function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
@@ -479,7 +479,7 @@ function CompanySidebar() {
     };
   }, [effectiveBrand]);
   
-  const handleLogoutOrExit = async () => {
+  const handleLogoutOrExit = useCallback(async () => {
     if (isImpersonating) {
       await exitImpersonation();
       await supabase.auth.signOut(); // Clean up session on app. subdomain
@@ -487,9 +487,9 @@ function CompanySidebar() {
     } else {
       signOut();
     }
-  };
+  }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
-  const filterNavItems = (items: NavItem[]) => {
+  const filterNavItems = useCallback((items: NavItem[]) => {
     return items.filter((item) => {
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
@@ -504,7 +504,7 @@ function CompanySidebar() {
       }
       return true;
     });
-  };
+  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled]);
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
@@ -951,7 +951,7 @@ function CompanySidebar() {
       </SidebarContent>
     </Sidebar>
   );
-}
+});
 
 export function CompanyLayout() {
   const { effectiveCompany } = useAuth();

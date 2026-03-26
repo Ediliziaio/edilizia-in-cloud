@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ChevronRight } from "lucide-react";
 import { getNodeIcon } from "@/components/flow-builder/nodes/nodeIcons";
 import { getCategoryColor } from "@/components/flow-builder/nodes/nodeStyles";
@@ -9,7 +10,7 @@ interface CatalogItemRowProps {
   onDragStart: (item: CatalogItem) => void;
 }
 
-export function CatalogItemRow({ item, onSelect, onDragStart }: CatalogItemRowProps) {
+export const CatalogItemRow = memo(function CatalogItemRow({ item, onSelect, onDragStart }: CatalogItemRowProps) {
   const Icon = getNodeIcon(item.id, item.kind);
   const colors = getCategoryColor(item.category);
 
@@ -38,4 +39,4 @@ export function CatalogItemRow({ item, onSelect, onDragStart }: CatalogItemRowPr
       <ChevronRight className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary shrink-0" />
     </button>
   );
-}
+});

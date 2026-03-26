@@ -51,15 +51,24 @@ export interface ScadenzarioSummary {
   uscite_previste: number;
 }
 
-export function useScadenzario(page: number = 1, pageSize: number = 50) {
+export interface ScadenzarioFilters {
+  direction?: 'entrata' | 'uscita' | null;
+  status?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+}
+
+export function useScadenzario(page: number = 1, pageSize: number = 50, filters: ScadenzarioFilters = {}) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
+  const { direction, status, dateFrom, dateTo } = filters;
+
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo],
     queryFn: async () => {
-      const { data, error, count } = await supabase
+      let query = supabase
         .from("scadenze")
         .select(`
           *,
@@ -69,8 +78,16 @@ export function useScadenzario(page: number = 1, pageSize: number = 50) {
           marketing_contacts(first_name, last_name, company_name)
         `, { count: "exact" })
         .eq("company_id", companyId!)
-        .range((page - 1) * pageSize, page * pageSize - 1)
         .order("due_date", { ascending: true });
+
+      if (direction) query = query.eq("direction", direction);
+      if (status) query = query.eq("status", status);
+      if (dateFrom) query = query.gte("due_date", dateFrom);
+      if (dateTo) query = query.lte("due_date", dateTo);
+
+      const { data, error, count } = await query
+        .range((page - 1) * pageSize, page * pageSize - 1);
+
       if (error) throw error;
       return { data: data as unknown as Scadenza[], totalCount: count ?? 0 };
     },

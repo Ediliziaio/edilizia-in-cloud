@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -520,6 +520,7 @@ export default function MarketingContacts() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
   const contacts = data?.contacts || [];
   const totalCount = data?.count || 0;

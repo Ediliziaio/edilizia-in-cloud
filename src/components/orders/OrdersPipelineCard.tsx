@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, GripVertical } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
@@ -13,7 +14,7 @@ interface OrdersPipelineCardProps {
   isDraggable?: boolean;
 }
 
-export function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipelineCardProps) {
+export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipelineCardProps) {
   const pendingPayments = getPendingPayments(order);
   const navigate = useNavigate();
   
@@ -107,4 +108,4 @@ export function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipeline
       </Card>
     </div>
   );
-}
+});
