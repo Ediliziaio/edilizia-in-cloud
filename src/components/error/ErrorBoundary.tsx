@@ -69,10 +69,40 @@ export class ErrorBoundary extends React.Component<Props, State> {
     window.location.href = "/";
   };
 
+  private isChunkError(error: Error | null): boolean {
+    if (!error) return false;
+    return (
+      error.name === "ChunkLoadError" ||
+      error.message.includes("Failed to fetch dynamically imported module") ||
+      error.message.includes("Importing a module script failed") ||
+      error.message.includes("Unable to preload CSS") ||
+      /Loading chunk \d+ failed/.test(error.message)
+    );
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return <>{this.props.fallback}</>;
+      }
+
+      // ChunkLoadError = new deploy, old chunk hashes gone → force reload
+      if (this.isChunkError(this.state.error)) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
+            <div className="p-4 rounded-full bg-blue-50 mb-4">
+              <RefreshCw className="h-10 w-10 text-blue-500" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Aggiornamento disponibile</h2>
+            <p className="text-muted-foreground text-sm mb-6 max-w-md">
+              È stato rilasciato un aggiornamento. Ricarica la pagina per continuare.
+            </p>
+            <Button onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Ricarica pagina
+            </Button>
+          </div>
+        );
       }
 
       const title = this.props.title ?? "Qualcosa è andato storto";
