@@ -172,9 +172,9 @@ export default function AdminLogin() {
 
           {/* Title block */}
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Admin Panel</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">Pannello di Controllo</h1>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              Accesso riservato agli amministratori
+              Accesso riservato agli amministratori della piattaforma
             </p>
           </div>
 
@@ -192,6 +192,11 @@ export default function AdminLogin() {
               <Lock className="h-3 w-3" />
               Audit log attivo
             </span>
+          </div>
+
+          <div className="flex items-center gap-2 justify-center mt-4">
+            <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-zinc-400 text-xs">Sistema operativo</span>
           </div>
         </div>
       </div>
@@ -214,9 +219,9 @@ export default function AdminLogin() {
 
           {/* Desktop header */}
           <div className="hidden lg:block text-center space-y-2 mb-8">
-            <h2 className="text-2xl font-bold text-foreground">Accedi</h2>
+            <h2 className="text-2xl font-bold text-foreground">Accesso Amministratori</h2>
             <p className="text-sm text-muted-foreground">
-              Inserisci le credenziali di amministratore
+              Solo per il team interno di Edilizia in Cloud
             </p>
           </div>
 
@@ -302,16 +307,13 @@ export default function AdminLogin() {
                     Verifica in corso...
                   </>
                 ) : (
-                  <>
-                    <Lock className="h-4 w-4 mr-2" />
-                    Accedi al Pannello Admin
-                  </>
+                  "Accedi al Pannello"
                 )}
               </Button>
             </form>
 
-            <p className="text-center text-xs text-white/40 lg:text-muted-foreground pt-1">
-              Accesso monitorato e registrato nel log di audit
+            <p className="text-center text-xs text-white/40 lg:text-muted-foreground">
+              Per recuperare l'accesso contatta il supporto tecnico interno
             </p>
           </div>
         </div>

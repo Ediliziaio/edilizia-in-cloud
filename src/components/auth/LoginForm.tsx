@@ -15,8 +15,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ClipboardList,
-  Calendar,
-  Smartphone,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
@@ -27,9 +27,9 @@ import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 type ViewMode = "login" | "forgot" | "2fa";
 
 const features = [
-  { icon: ClipboardList, text: "Gestione ordini e cantieri in tempo reale" },
-  { icon: Calendar, text: "Calendario, scadenzari e prima nota integrati" },
-  { icon: Smartphone, text: "Accesso da qualsiasi dispositivo, ovunque" },
+  { icon: TrendingUp, text: "Tieni sotto controllo margini e utili in tempo reale" },
+  { icon: ClipboardList, text: "Gestisci ordini, cantieri e scadenzari" },
+  { icon: Users, text: "Team, dipendenti e venditori sempre aggiornati" },
 ];
 
 export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, ref) {
@@ -38,7 +38,6 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const { signIn } = useAuth();
@@ -133,31 +132,6 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: window.location.origin },
-      });
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile accedere con Google. Riprova.",
-        });
-      }
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Si è verificato un errore. Riprova più tardi.",
-      });
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -249,12 +223,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {/* Headline */}
           <div className="space-y-3">
             <h1 className="text-3xl font-bold text-white leading-tight">
-              {isWhiteLabel ? platformName : "La piattaforma per l'edilizia moderna"}
+              {isWhiteLabel ? platformName : "Il tuo gestionale per l'edilizia"}
             </h1>
             <p className="text-white/70 text-base leading-relaxed">
               {isWhiteLabel
                 ? loginSubtitle
-                : "Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto."}
+                : "Controlla margini, cantieri e clienti — tutto in un unico posto."}
             </p>
           </div>
 
@@ -315,8 +289,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "login" && (
             <div className="animate-in fade-in-0 duration-300 space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-foreground">Bentornato</h2>
-                <p className="text-muted-foreground text-sm">Accedi al tuo account</p>
+                <h2 className="text-2xl font-bold text-foreground">Accedi al gestionale</h2>
+                <p className="text-muted-foreground text-sm">Inserisci le tue credenziali per accedere</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-5">
@@ -327,7 +301,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     <Input
                       id="email"
                       type="email"
-                      placeholder="nome@azienda.it"
+                      placeholder="nome@tuaazienda.it"
                       value={email}
                       onChange={(e) => { setFormError(null); setEmail(e.target.value); }}
                       required
@@ -394,57 +368,16 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       Accesso in corso...
                     </>
                   ) : (
-                    "Accedi"
+                    "Accedi al gestionale"
                   )}
                 </Button>
               </form>
 
-              {/* Divider */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white dark:bg-zinc-900 lg:bg-background lg:dark:bg-background px-2 text-muted-foreground">
-                    oppure
-                  </span>
-                </div>
-              </div>
-
-              {/* Google button */}
-              <Button
-                variant="outline"
-                className="w-full h-12 sm:h-11"
-                onClick={handleGoogleLogin}
-                disabled={isGoogleLoading}
-              >
-                {isGoogleLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <svg className="mr-2 h-4 w-4 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                )}
-                Accedi con Google
-              </Button>
-
-              <p className="text-center text-xs text-muted-foreground">
-                Problemi di accesso? Contatta il tuo amministratore
+              <p className="text-center text-xs text-muted-foreground leading-relaxed">
+                L'accesso è riservato agli utenti registrati.<br />
+                <a href="https://www.ediliziaincloud.com" className="text-primary hover:underline font-medium" target="_blank" rel="noopener noreferrer">
+                  Scopri Edilizia in Cloud →
+                </a>
               </p>
             </div>
           )}
@@ -453,18 +386,18 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "forgot" && (
             <div className="animate-in fade-in-0 duration-300 space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-foreground">Recupera password</h2>
+                <h2 className="text-2xl font-bold text-foreground">Reimposta la password</h2>
                 <p className="text-muted-foreground text-sm">
-                  Inserisci la tua email per ricevere il link di reset
+                  Ti invieremo un link via email per reimpostare la password
                 </p>
               </div>
 
               {resetSent ? (
                 <div className="text-center space-y-4 py-4">
                   <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
-                  <p className="text-foreground font-medium">Email inviata!</p>
+                  <p className="text-foreground font-medium">Controlla la tua email</p>
                   <p className="text-sm text-muted-foreground">
-                    Controlla la tua casella di posta e clicca sul link per reimpostare la password.
+                    Abbiamo inviato le istruzioni per reimpostare la password al tuo indirizzo email.
                   </p>
                 </div>
               ) : (
