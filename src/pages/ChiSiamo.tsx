@@ -11,7 +11,7 @@ import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 ───────────────────────────────────────────── */
 function PromoBanner() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#0fa68c] text-white py-2 text-center overflow-hidden">
+    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden">
       <span
         className="absolute inset-0"
         style={{
@@ -85,7 +85,7 @@ const valori = [
     title: "Trasparenza",
     desc: "Prezzi chiari pubblicati sul sito. Nessun commercial che ti chiama ogni giorno. Nessun contratto pluriennale obbligatorio. Puoi vedere tutto, confrontare tutto, decidere senza pressione.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#0fa68c" strokeWidth="1.5" className="w-8 h-8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx="12" cy="12" r="3" />
         <path d="M12 5v1M12 18v1M5 12H4M20 12h-1" strokeLinecap="round" />
@@ -96,13 +96,13 @@ const valori = [
     title: "Costruito per l'edilizia",
     desc: "Ogni funzione nasce da un problema reale di cantiere. Non prendiamo feature dai concorrenti e le copiamo. Ascoltiamo i nostri clienti ogni settimana e costruiamo quello che manca davvero.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#0fa68c" strokeWidth="1.5" className="w-8 h-8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
         <path d="M2 20h20" strokeLinecap="round" />
         <path d="M4 20V10l4-4h8l4 4v10" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M9 20v-6h6v6" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M12 6V4" strokeLinecap="round" />
         <path d="M8 10h8" strokeLinecap="round" />
-        <circle cx="12" cy="3" r="1" fill="#0fa68c" />
+        <circle cx="12" cy="3" r="1" fill="#F97415" />
       </svg>
     ),
   },
@@ -110,7 +110,7 @@ const valori = [
     title: "Risultati o gratis",
     desc: "La nostra garanzia non è marketing. Se il software non ti fa guadagnare più di quanto spendi entro 90 giorni, ti rimborsiamo tutto. È scritto nel contratto.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#0fa68c" strokeWidth="1.5" className="w-8 h-8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
         <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" strokeLinecap="round" strokeLinejoin="round" />
         <polyline points="16 7 22 7 22 13" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M2 21h20" strokeLinecap="round" opacity="0.3" />
@@ -123,7 +123,7 @@ const teamMembers = [
   {
     name: "Marco Verdi",
     initials: "MV",
-    gradient: "linear-gradient(135deg, #1a2744 0%, #0f3460 100%)",
+    gradient: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)",
     role: "CEO & Fondatore",
     quote: "Ex imprenditore edile. Ti capisce perché ci è passato.",
     info: "Risponde entro 4h via email",
@@ -131,7 +131,7 @@ const teamMembers = [
   {
     name: "Sara Colombo",
     initials: "SC",
-    gradient: "linear-gradient(135deg, #0fa68c 0%, #0d8a75 100%)",
+    gradient: "linear-gradient(135deg, #F97415 0%, #e8650e 100%)",
     role: "Head of Customer Success",
     quote: "Risponde al telefono entro 2 squilli. Conosce ogni cliente per nome.",
     info: "Disponibile lun–ven 9–18",
@@ -139,7 +139,7 @@ const teamMembers = [
   {
     name: "Luca Ferretti",
     initials: "LF",
-    gradient: "linear-gradient(135deg, #2a5298 0%, #1a3a6b 100%)",
+    gradient: "linear-gradient(135deg, #2d2d2d 0%, #111111 100%)",
     role: "Lead Developer",
     quote: "10 anni di esperienza in gestionali PMI. Costruisce per la semplicità, non per i premi.",
     info: "Risponde ai bug in meno di 24h",
@@ -147,7 +147,7 @@ const teamMembers = [
   {
     name: "Anna Ricci",
     initials: "AR",
-    gradient: "linear-gradient(135deg, #6b5ea8 0%, #4a3f78 100%)",
+    gradient: "linear-gradient(135deg, #444444 0%, #222222 100%)",
     role: "Consulente del Controllo",
     quote: "Specialista in controllo di gestione per edilizia. Il tuo consulente personale incluso nel piano.",
     info: "Sessione mensile inclusa in ogni piano",
@@ -191,7 +191,7 @@ export default function ChiSiamo() {
   const ctaAnim = useScrollAnimation();
 
   return (
-    <div className="min-h-screen bg-white text-[#1a2744] overflow-x-hidden">
+    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id="jsonld-breadcrumb-chi-siamo" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -206,7 +206,7 @@ export default function ChiSiamo() {
       {/* ── 1. HERO ── */}
       <section
         className="relative pt-36 pb-28 px-6 text-center flex items-center justify-center min-h-[560px]"
-        style={{ background: "#0f1d35" }}
+        style={{ background: "#111111" }}
       >
         {/* Background image */}
         <div
@@ -219,7 +219,7 @@ export default function ChiSiamo() {
         {/* Dark overlay */}
         <div
           className="absolute inset-0"
-          style={{ background: "rgba(26,39,68,0.88)" }}
+          style={{ background: "rgba(17,17,17,0.88)" }}
         />
 
         <div
@@ -233,7 +233,7 @@ export default function ChiSiamo() {
           {/* Badge */}
           <div
             className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-7"
-            style={{ background: "rgba(15,166,140,0.2)", color: "#0fa68c", border: "1px solid rgba(15,166,140,0.35)" }}
+            style={{ background: "rgba(249,116,21,0.2)", color: "#F97415", border: "1px solid rgba(249,116,21,0.35)" }}
           >
             LA NOSTRA STORIA
           </div>
@@ -241,7 +241,7 @@ export default function ChiSiamo() {
           {/* Title */}
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
             Costruito da chi{" "}
-            <span style={{ color: "#0fa68c" }}>ha perso soldi</span>
+            <span style={{ color: "#F97415" }}>ha perso soldi</span>
             {" "}in cantiere.{" "}
             <br className="hidden md:block" />
             Per chi non vuole perderli più.
@@ -262,7 +262,7 @@ export default function ChiSiamo() {
               <div key={i} className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ background: "#0fa68c" }}
+                  style={{ background: "#F97415" }}
                 />
                 <span className="text-white/80 text-sm font-medium">{s.label}</span>
               </div>
@@ -275,7 +275,7 @@ export default function ChiSiamo() {
       <section
         ref={numbersAnim.ref}
         className="py-16 px-6"
-        style={{ background: "#0f1d35" }}
+        style={{ background: "#111111" }}
       >
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4">
           {keyNumbers.map((n, i) => (
@@ -290,7 +290,7 @@ export default function ChiSiamo() {
             >
               <div
                 className="text-3xl md:text-4xl font-extrabold mb-2"
-                style={{ color: "#0fa68c" }}
+                style={{ color: "#F97415" }}
               >
                 {n.value}
               </div>
@@ -315,11 +315,11 @@ export default function ChiSiamo() {
             {/* Founder avatar card */}
             <div
               className="w-full max-w-xs rounded-3xl p-10 text-center shadow-2xl mb-6"
-              style={{ background: "linear-gradient(160deg, #1a2744 0%, #0f1d35 100%)" }}
+              style={{ background: "linear-gradient(160deg, #1a1a1a 0%, #0f0f0f 100%)" }}
             >
               <div
                 className="w-28 h-28 rounded-full flex items-center justify-center text-white font-extrabold text-4xl mx-auto mb-5 shadow-inner"
-                style={{ background: "rgba(15,166,140,0.25)", border: "3px solid rgba(15,166,140,0.5)" }}
+                style={{ background: "rgba(249,116,21,0.25)", border: "3px solid rgba(249,116,21,0.5)" }}
               >
                 MV
               </div>
@@ -327,7 +327,7 @@ export default function ChiSiamo() {
               <div className="text-white/60 text-sm mb-1">CEO & Fondatore</div>
               <div
                 className="text-sm font-semibold mt-2"
-                style={{ color: "#0fa68c" }}
+                style={{ color: "#F97415" }}
               >
                 15 anni nel settore edile
               </div>
@@ -340,9 +340,9 @@ export default function ChiSiamo() {
                   key={i}
                   className="px-3 py-1 rounded-full text-xs font-semibold"
                   style={{
-                    background: "rgba(15,166,140,0.1)",
-                    color: "#0fa68c",
-                    border: "1px solid rgba(15,166,140,0.25)",
+                    background: "rgba(249,116,21,0.1)",
+                    color: "#F97415",
+                    border: "1px solid rgba(249,116,21,0.25)",
                   }}
                 >
                   {pill}
@@ -355,15 +355,15 @@ export default function ChiSiamo() {
           <div>
             <div
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-5"
-              style={{ background: "rgba(15,166,140,0.1)", color: "#0fa68c" }}
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
               La storia del fondatore
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744] mb-7 leading-snug">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-7 leading-snug">
               Da imprenditore edile a costruttore di software.
             </h2>
 
-            <div className="space-y-5 text-[#1a2744]/65 leading-relaxed text-base mb-8">
+            <div className="space-y-5 text-[#111111]/65 leading-relaxed text-base mb-8">
               <p>
                 Marco Verdi ha trascorso più di un decennio a gestire cantieri nel nord Italia. Ristrutturazioni
                 residenziali, capannoni industriali, lavori pubblici. Fatturava bene, i clienti erano soddisfatti,
@@ -390,21 +390,21 @@ export default function ChiSiamo() {
             <blockquote
               className="relative rounded-2xl p-6"
               style={{
-                background: "rgba(15,166,140,0.06)",
-                borderLeft: "4px solid #0fa68c",
+                background: "rgba(249,116,21,0.06)",
+                borderLeft: "4px solid #F97415",
               }}
             >
               <span
                 className="absolute -top-4 left-4 text-6xl font-serif leading-none select-none"
-                style={{ color: "#0fa68c", opacity: 0.4 }}
+                style={{ color: "#F97415", opacity: 0.4 }}
               >
                 "
               </span>
-              <p className="italic text-[#1a2744]/80 leading-relaxed text-base">
+              <p className="italic text-[#111111]/80 leading-relaxed text-base">
                 Non ho creato Edilizia in Cloud per fare soldi con il software. L'ho creato perché ero stanco di
                 non sapere se stavo guadagnando o perdendo. E so che ci sono migliaia di imprenditori come me.
               </p>
-              <footer className="mt-3 text-sm font-semibold" style={{ color: "#0fa68c" }}>
+              <footer className="mt-3 text-sm font-semibold" style={{ color: "#F97415" }}>
                 — Marco Verdi, CEO
               </footer>
             </blockquote>
@@ -427,11 +427,11 @@ export default function ChiSiamo() {
           >
             <div
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(15,166,140,0.1)", color: "#0fa68c" }}
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
               La nostra storia
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744]">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
               Come siamo arrivati qui
             </h2>
           </div>
@@ -441,7 +441,7 @@ export default function ChiSiamo() {
             {/* Central line — hidden on mobile */}
             <div
               className="hidden md:block absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-0.5"
-              style={{ background: "linear-gradient(to bottom, #0fa68c, rgba(15,166,140,0.1))" }}
+              style={{ background: "linear-gradient(to bottom, #F97415, rgba(249,116,21,0.1))" }}
             />
 
             <div className="space-y-10 md:space-y-0">
@@ -462,21 +462,21 @@ export default function ChiSiamo() {
                     <div className="md:hidden flex gap-4 pl-6 relative">
                       <div
                         className="absolute left-0 top-1.5 w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ background: "#0fa68c", boxShadow: "0 0 0 4px rgba(15,166,140,0.15)" }}
+                        style={{ background: "#F97415", boxShadow: "0 0 0 4px rgba(249,116,21,0.15)" }}
                       />
                       <div
                         className="absolute left-1.5 top-4 bottom-0 w-0.5"
-                        style={{ background: "rgba(15,166,140,0.2)" }}
+                        style={{ background: "rgba(249,116,21,0.2)" }}
                       />
                       <div className="pb-8">
                         <span
                           className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
-                          style={{ background: "#0fa68c", color: "white" }}
+                          style={{ background: "#F97415", color: "white" }}
                         >
                           {item.year}
                         </span>
-                        <h3 className="font-bold text-[#1a2744] text-sm mb-1">{item.title}</h3>
-                        <p className="text-[#1a2744]/55 text-xs leading-relaxed">{item.desc}</p>
+                        <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
+                        <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
                       </div>
                     </div>
 
@@ -488,12 +488,12 @@ export default function ChiSiamo() {
                           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 inline-block text-left w-full">
                             <span
                               className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
-                              style={{ background: "#0fa68c", color: "white" }}
+                              style={{ background: "#F97415", color: "white" }}
                             >
                               {item.year}
                             </span>
-                            <h3 className="font-bold text-[#1a2744] text-sm mb-1">{item.title}</h3>
-                            <p className="text-[#1a2744]/55 text-xs leading-relaxed">{item.desc}</p>
+                            <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
+                            <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
                           </div>
                         )}
                       </div>
@@ -502,8 +502,8 @@ export default function ChiSiamo() {
                       <div
                         className="absolute left-1/2 w-4 h-4 rounded-full -translate-x-1/2 z-10 flex-shrink-0"
                         style={{
-                          background: "#0fa68c",
-                          boxShadow: "0 0 0 5px rgba(15,166,140,0.18)",
+                          background: "#F97415",
+                          boxShadow: "0 0 0 5px rgba(249,116,21,0.18)",
                           top: "50%",
                           transform: "translate(-50%, -50%)",
                         }}
@@ -515,12 +515,12 @@ export default function ChiSiamo() {
                           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 inline-block text-left w-full">
                             <span
                               className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
-                              style={{ background: "#0fa68c", color: "white" }}
+                              style={{ background: "#F97415", color: "white" }}
                             >
                               {item.year}
                             </span>
-                            <h3 className="font-bold text-[#1a2744] text-sm mb-1">{item.title}</h3>
-                            <p className="text-[#1a2744]/55 text-xs leading-relaxed">{item.desc}</p>
+                            <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
+                            <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
                           </div>
                         )}
                       </div>
@@ -548,11 +548,11 @@ export default function ChiSiamo() {
           >
             <div
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(15,166,140,0.1)", color: "#0fa68c" }}
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
               I nostri valori
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744]">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
               Quello in cui crediamo davvero
             </h2>
           </div>
@@ -563,7 +563,7 @@ export default function ChiSiamo() {
                 key={i}
                 className="bg-white rounded-2xl p-8 shadow-md transition-all duration-700 hover:shadow-xl hover:-translate-y-1"
                 style={{
-                  borderTop: "3px solid #0fa68c",
+                  borderTop: "3px solid #F97415",
                   opacity: valoriAnim.isVisible ? 1 : 0,
                   transform: valoriAnim.isVisible ? "translateY(0)" : "translateY(28px)",
                   transitionDelay: `${i * 120}ms`,
@@ -571,12 +571,12 @@ export default function ChiSiamo() {
               >
                 <div
                   className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
-                  style={{ background: "rgba(15,166,140,0.1)" }}
+                  style={{ background: "rgba(249,116,21,0.1)" }}
                 >
                   {v.icon}
                 </div>
-                <h3 className="text-lg font-bold text-[#1a2744] mb-3">{v.title}</h3>
-                <p className="text-[#1a2744]/60 text-sm leading-relaxed">{v.desc}</p>
+                <h3 className="text-lg font-bold text-[#111111] mb-3">{v.title}</h3>
+                <p className="text-[#111111]/60 text-sm leading-relaxed">{v.desc}</p>
               </div>
             ))}
           </div>
@@ -598,14 +598,14 @@ export default function ChiSiamo() {
           >
             <div
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(15,166,140,0.1)", color: "#0fa68c" }}
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
               Il team
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744]">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
               Le persone che ti rispondono quando chiami
             </h2>
-            <p className="text-[#1a2744]/50 text-sm mt-3 max-w-md mx-auto">
+            <p className="text-[#111111]/50 text-sm mt-3 max-w-md mx-auto">
               Un team piccolo, focalizzato e autentico. Ogni persona conosce il settore edile.
             </p>
           </div>
@@ -629,19 +629,19 @@ export default function ChiSiamo() {
                 >
                   {member.initials}
                 </div>
-                <h3 className="font-bold text-[#1a2744] text-sm mb-0.5">{member.name}</h3>
+                <h3 className="font-bold text-[#111111] text-sm mb-0.5">{member.name}</h3>
                 <p
                   className="text-xs font-semibold mb-3 uppercase tracking-wide"
-                  style={{ color: "#0fa68c" }}
+                  style={{ color: "#F97415" }}
                 >
                   {member.role}
                 </p>
-                <p className="text-[#1a2744]/55 text-xs leading-relaxed italic mb-3">
+                <p className="text-[#111111]/55 text-xs leading-relaxed italic mb-3">
                   "{member.quote}"
                 </p>
                 <div
                   className="inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold"
-                  style={{ background: "rgba(15,166,140,0.08)", color: "#0fa68c" }}
+                  style={{ background: "rgba(249,116,21,0.08)", color: "#F97415" }}
                 >
                   {member.info}
                 </div>
@@ -652,8 +652,8 @@ export default function ChiSiamo() {
             <div
               className="rounded-2xl p-6 text-center flex flex-col items-center justify-center min-h-[260px] transition-all duration-300 hover:shadow-lg"
               style={{
-                border: "2px dashed rgba(15,166,140,0.35)",
-                background: "rgba(15,166,140,0.03)",
+                border: "2px dashed rgba(249,116,21,0.35)",
+                background: "rgba(249,116,21,0.03)",
                 opacity: teamAnim.isVisible ? 1 : 0,
                 transform: teamAnim.isVisible ? "translateY(0)" : "translateY(28px)",
                 transitionDelay: `${teamMembers.length * 100}ms`,
@@ -662,21 +662,21 @@ export default function ChiSiamo() {
             >
               <div
                 className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
-                style={{ background: "rgba(15,166,140,0.1)" }}
+                style={{ background: "rgba(249,116,21,0.1)" }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="#0fa68c" strokeWidth="1.5" className="w-6 h-6">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-6 h-6">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 8v8M8 12h8" strokeLinecap="round" />
                 </svg>
               </div>
-              <h3 className="font-bold text-[#1a2744] text-sm mb-2">Posizione aperta</h3>
-              <p className="text-[#1a2744]/55 text-xs leading-relaxed mb-4">
+              <h3 className="font-bold text-[#111111] text-sm mb-2">Posizione aperta</h3>
+              <p className="text-[#111111]/55 text-xs leading-relaxed mb-4">
                 Stiamo cercando persone che amano l'edilizia e la tecnologia.
               </p>
               <a
                 href="#"
                 className="text-xs font-bold transition-colors"
-                style={{ color: "#0fa68c" }}
+                style={{ color: "#F97415" }}
               >
                 Vedi le posizioni aperte →
               </a>
@@ -700,11 +700,11 @@ export default function ChiSiamo() {
           >
             <div
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(15,166,140,0.1)", color: "#0fa68c" }}
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
               Press & Riconoscimenti
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1a2744]">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
               Cosa dicono di noi
             </h2>
           </div>
@@ -722,17 +722,17 @@ export default function ChiSiamo() {
                   transitionDelay: `${i * 120}ms`,
                 }}
               >
-                <div className="font-extrabold text-[#1a2744] text-sm mb-4 tracking-tight">
+                <div className="font-extrabold text-[#111111] text-sm mb-4 tracking-tight">
                   {p.source}
                 </div>
                 <blockquote>
                   <span
                     className="text-4xl font-serif leading-none"
-                    style={{ color: "#0fa68c", opacity: 0.5 }}
+                    style={{ color: "#F97415", opacity: 0.5 }}
                   >
                     "
                   </span>
-                  <p className="italic text-[#1a2744]/60 text-sm leading-relaxed -mt-2">
+                  <p className="italic text-[#111111]/60 text-sm leading-relaxed -mt-2">
                     {p.quote}
                   </p>
                 </blockquote>
@@ -745,7 +745,7 @@ export default function ChiSiamo() {
       {/* ── 8. CTA FINALE ── */}
       <section
         className="py-24 px-6 text-center"
-        style={{ background: "#0a0f1e" }}
+        style={{ background: "#0a0a0a" }}
       >
         <div
           ref={ctaAnim.ref}
@@ -768,8 +768,8 @@ export default function ChiSiamo() {
               to="/demo"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base transition-all hover:opacity-90 hover:scale-105 shadow-lg"
               style={{
-                background: "#0fa68c",
-                boxShadow: "0 8px 30px rgba(15,166,140,0.35)",
+                background: "#F97415",
+                boxShadow: "0 8px 30px rgba(249,116,21,0.35)",
               }}
             >
               Prenota Demo Gratuita
