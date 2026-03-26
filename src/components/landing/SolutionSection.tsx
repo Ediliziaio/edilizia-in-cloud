@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Target, TrendingUp, Shield, PieChart, BarChart3, ArrowUpRight } from "lucide-react";
+import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 import AIImage from "./AIImage";
 
 // Pre-calculated bar heights to avoid Math.random() in render
@@ -26,6 +27,7 @@ export default function SolutionSection() {
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.16) 0%, transparent 65%)" }} />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full pointer-events-none blur-[120px]"
         style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
+      <FloatingEdiliziaIcons variant={1} />
 
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2

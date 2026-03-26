@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Play, CheckCircle2 } from "lucide-react";
+import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 
 const bullets = [
   "Nessuna presentazione di vendita — solo il prodotto reale",
@@ -42,6 +43,7 @@ export default function VideoSection() {
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full pointer-events-none blur-[140px]"
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
+      <FloatingEdiliziaIcons variant={2} />
       <div ref={ref} className="max-w-5xl mx-auto px-6 relative z-10">
         {/* Header */}
         <div

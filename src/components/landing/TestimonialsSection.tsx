@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Star, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 import { useRef, useState } from "react";
 
 const clientBadges = [
@@ -101,6 +102,7 @@ export default function TestimonialsSection() {
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none"
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
+      <FloatingEdiliziaIcons variant={4} />
 
       <div ref={ref} className="max-w-7xl mx-auto px-6 relative z-10">
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Building2, TrendingUp, Star, Clock } from "lucide-react";
+import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 
 interface Stat {
   icon: React.ElementType;
@@ -155,6 +156,7 @@ export default function StatsSection() {
       <div className="absolute inset-0 pointer-events-none"
         style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.09) 0%, transparent 100%)" }} />
 
+      <FloatingEdiliziaIcons variant={0} />
       <div ref={ref} className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Heading */}
         <div

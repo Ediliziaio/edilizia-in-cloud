@@ -1,4 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 
 const criteria = [
   { n: "01", title: "È specifico per il tuo settore?", desc: "Edilizia in Cloud è l'unico software creato ESCLUSIVAMENTE per aziende edili. Non un gestionale generico adattato." },
@@ -23,6 +24,7 @@ export default function CriteriaSection() {
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.16) 0%, transparent 65%)" }} />
       <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full pointer-events-none blur-[100px]"
         style={{ background: "radial-gradient(circle, rgba(249,116,21,0.10) 0%, transparent 70%)" }} />
+      <FloatingEdiliziaIcons variant={3} />
       <div ref={ref} className="max-w-4xl mx-auto px-6 relative z-10">
         <h2
           className={`text-3xl md:text-5xl font-extrabold text-white text-center mb-4 transition-all duration-700 ${
