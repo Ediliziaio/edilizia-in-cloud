@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface UserCalendarPrefs {
   id?: string;
@@ -76,6 +77,9 @@ export function useSaveUserCalendarPrefs(userId: string | undefined, companyId: 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", userId] });
     },
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 }
 
@@ -93,6 +97,9 @@ export function useDisconnectGoogleCalendar(userId: string | undefined, companyI
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection", companyId, userId] });
+    },
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
     },
   });
 }

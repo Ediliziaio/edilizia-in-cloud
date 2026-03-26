@@ -167,6 +167,9 @@ export function useAutomationBuilder(flowId: string | undefined) {
       if (error) throw error;
       return data;
     },
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 
   const canPersist = Boolean(flowId && flowId !== "nuova" && flow);
@@ -341,6 +344,9 @@ export function useAutomationBuilder(flowId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.flow(flowId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
+    },
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
     },
   });
 

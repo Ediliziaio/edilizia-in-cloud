@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export type AutomationCategoria =
   | "generale" | "task" | "marketing" | "cantieri" | "crm" | "notifiche";
@@ -90,6 +91,9 @@ export function useToggleAutomazione() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automazioni"] }),
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 }
 
@@ -123,6 +127,9 @@ export function useSaveAutomazione() {
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automazioni"] }),
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 }
 
@@ -137,6 +144,9 @@ export function useDeleteAutomazione() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automazioni"] }),
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 }
 
@@ -171,5 +181,8 @@ export function useAttivaTemplate() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automazioni"] }),
+    onError: (error: any) => {
+      toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
+    },
   });
 }

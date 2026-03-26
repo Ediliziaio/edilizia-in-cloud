@@ -9,6 +9,7 @@ import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { isPast, isToday, startOfMonth, endOfMonth, addDays, addMonths, format } from "date-fns";
 
@@ -34,7 +35,9 @@ function getDateRange(preset: string): { from: string; to: string } | null {
 }
 
 export default function Scadenzario() {
-  const { scadenze, isLoading, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize);
   const [tab, setTab] = useState("tutte");
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
@@ -56,6 +59,7 @@ export default function Scadenzario() {
     setCustomTo("");
     setFilterTipo("");
     setFilterStatus("");
+    setPage(1);
   };
 
   const filtered = useMemo(() => {
@@ -136,7 +140,7 @@ export default function Scadenzario() {
       {/* Tabs + Search + Filters toggle */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <Tabs value={tab} onValueChange={setTab} className="flex-1">
+          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="flex-1">
             <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
               <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
               <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
@@ -153,7 +157,7 @@ export default function Scadenzario() {
               <Input
                 placeholder="Cerca..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="pl-8"
               />
             </div>
@@ -176,7 +180,7 @@ export default function Scadenzario() {
           <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg border bg-muted/30">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Periodo</label>
-              <Select value={datePreset} onValueChange={setDatePreset}>
+              <Select value={datePreset} onValueChange={(v) => { setDatePreset(v); setPage(1); }}>
                 <SelectTrigger className="w-[160px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
@@ -204,7 +208,7 @@ export default function Scadenzario() {
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
-              <Select value={filterTipo} onValueChange={setFilterTipo}>
+              <Select value={filterTipo} onValueChange={(v) => { setFilterTipo(v); setPage(1); }}>
                 <SelectTrigger className="w-[160px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
@@ -221,7 +225,7 @@ export default function Scadenzario() {
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Stato</label>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
                 <SelectTrigger className="w-[140px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
@@ -250,11 +254,21 @@ export default function Scadenzario() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <ScadenzarioTable
-          scadenze={filtered}
-          onMarkPaid={(s) => setPayDialog(s)}
-          onCancel={(id) => cancel.mutate(id)}
-        />
+        <>
+          <ScadenzarioTable
+            scadenze={filtered}
+            onMarkPaid={(s) => setPayDialog(s)}
+            onCancel={(id) => cancel.mutate(id)}
+          />
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          />
+        </>
       )}
 
       {/* Dialogs */}

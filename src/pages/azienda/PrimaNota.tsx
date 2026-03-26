@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useNavigate } from "react-router-dom";
 
@@ -31,6 +32,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function PrimaNota() {
   const navigate = useNavigate();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
@@ -40,13 +43,13 @@ export default function PrimaNota() {
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
-  const { entries, isLoading, saldo, isSaldoLoading, create, remove } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, create, remove } = usePrimaNota({
     fromDate,
     toDate,
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
-  });
+  }, page, pageSize);
 
   // Running balance (from oldest to newest, then reverse for display)
   const entriesWithBalance = useMemo(() => {
@@ -188,7 +191,7 @@ export default function PrimaNota() {
           <Input
             placeholder="Cerca..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-8 h-10"
           />
         </div>
@@ -197,7 +200,7 @@ export default function PrimaNota() {
           <ToggleGroup
             type="single"
             value={autoView}
-            onValueChange={(v) => v && setAutoView(v as typeof autoView)}
+            onValueChange={(v) => { if (v) { setAutoView(v as typeof autoView); setPage(1); } }}
             className="border rounded-md"
           >
             <ToggleGroupItem value="tutte" className="text-xs h-9 px-3">Tutte</ToggleGroupItem>
@@ -206,7 +209,7 @@ export default function PrimaNota() {
             </ToggleGroupItem>
             <ToggleGroupItem value="manuali" className="text-xs h-9 px-3">Manuali</ToggleGroupItem>
           </ToggleGroup>
-          <Select value={direction || "all"} onValueChange={(v) => setDirection(v === "all" ? "" : v as any)}>
+          <Select value={direction || "all"} onValueChange={(v) => { setDirection(v === "all" ? "" : v as any); setPage(1); }}>
             <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="Direzione" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte</SelectItem>
@@ -217,9 +220,9 @@ export default function PrimaNota() {
         </div>
         {/* Date range */}
         <div className="flex items-center gap-2">
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 w-full sm:w-36" />
+          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
           <span className="text-muted-foreground text-sm shrink-0">→</span>
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 w-full sm:w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
         </div>
       </div>
 
@@ -366,6 +369,18 @@ export default function PrimaNota() {
           </table>
           </div>{/* end hidden sm:block */}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && (
+        <TablePagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        />
       )}
 
       {/* Dialog */}

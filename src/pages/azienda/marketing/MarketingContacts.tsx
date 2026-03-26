@@ -519,6 +519,7 @@ export default function MarketingContacts() {
       return { contacts, count: count || 0 };
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
   const contacts = data?.contacts || [];
   const totalCount = data?.count || 0;
@@ -582,7 +583,7 @@ export default function MarketingContacts() {
       invalidate();
       setEditingContact(null);
     },
-    onError: () => toast.error("Errore nel salvataggio"),
+    onError: (error: any) => toast.error("Errore nel salvataggio", { description: error.message || "Operazione non riuscita. Riprova." }),
   });
 
   const deleteMutation = useMutation({
@@ -595,7 +596,7 @@ export default function MarketingContacts() {
       setSelectedIds(new Set());
       invalidate();
     },
-    onError: () => toast.error("Errore nell'eliminazione"),
+    onError: (error: any) => toast.error("Errore nell'eliminazione", { description: error.message || "Operazione non riuscita. Riprova." }),
   });
 
   const handleToggleSelect = useCallback((id: string) => {

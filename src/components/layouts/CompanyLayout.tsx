@@ -1,5 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
+import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -117,8 +118,9 @@ function ImpersonationBanner() {
 
   if (!isImpersonating) return null;
 
-  const handleExit = () => {
-    exitImpersonation();
+  const handleExit = async () => {
+    await exitImpersonation();
+    await supabase.auth.signOut(); // Clean up session on app. subdomain
     navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
@@ -477,9 +479,10 @@ function CompanySidebar() {
     };
   }, [effectiveBrand]);
   
-  const handleLogoutOrExit = () => {
+  const handleLogoutOrExit = async () => {
     if (isImpersonating) {
-      exitImpersonation();
+      await exitImpersonation();
+      await supabase.auth.signOut(); // Clean up session on app. subdomain
       navigateToSubdomain("/admin/aziende", "admin", navigate);
     } else {
       signOut();

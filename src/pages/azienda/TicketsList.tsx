@@ -66,7 +66,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           assignee:profiles!tickets_assigned_to_fkey(first_name, last_name)
         `)
         .eq("company_id", effectiveCompany?.id ?? "")
-        .order("last_message_at", { ascending: false, nullsFirst: false });
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .range(0, 499);
 
       if (error) throw error;
       return data as unknown as TicketListItem[];
