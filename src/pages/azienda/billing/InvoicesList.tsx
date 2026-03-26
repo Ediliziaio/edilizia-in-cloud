@@ -46,13 +46,16 @@ export default function InvoicesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("*")
+        .select("id, company_id, invoice_number, invoice_type, status, issue_date, due_date, total, subtotal, vat_amount, currency, customer_id, order_id, notes, provider, external_id, pdf_url, xml_url, created_at, updated_at")
         .eq("company_id", companyId!)
-        .order("issue_date", { ascending: false, nullsFirst: false });
+        .order("issue_date", { ascending: false, nullsFirst: false })
+        .limit(500);
       if (error) throw error;
       return data;
     },
     enabled: !!companyId,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Check if provider is connected

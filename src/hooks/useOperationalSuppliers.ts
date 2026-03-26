@@ -46,27 +46,30 @@ export function useOperationalSuppliers() {
   const suppliersQuery = useQuery({
     queryKey: ["operational-suppliers", companyId],
     queryFn: async () => {
-      const { data: suppliers, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("name");
-      if (error) throw error;
+      // Run all three queries in parallel
+      const [suppliersRes, odaRes, scadRes] = await Promise.all([
+        supabase
+          .from("suppliers")
+          .select("id, name, email, phone, vat_number, fiscal_code, address, city, province, postal_code, country, website, payment_method, product_category, notes, is_foreign, vat_rate, lead_time_days, min_order_amount, credit_limit, rating, is_active, iban, bank_name, company_id, created_at, updated_at")
+          .eq("company_id", companyId!)
+          .order("name"),
+        supabase
+          .from("purchase_orders")
+          .select("supplier_id, total")
+          .eq("company_id", companyId!)
+          .neq("status", "annullato"),
+        supabase
+          .from("scadenze")
+          .select("supplier_id, amount, paid_amount, status")
+          .eq("company_id", companyId!)
+          .eq("tipo", "pagamento_fornitore")
+          .in("status", ["da_pagare", "parziale"]),
+      ]);
 
-      // Fetch aggregated OdA counts
-      const { data: odaStats } = await supabase
-        .from("purchase_orders")
-        .select("supplier_id, total")
-        .eq("company_id", companyId!)
-        .neq("status", "annullato");
-
-      // Fetch aggregated scadenze
-      const { data: scadStats } = await supabase
-        .from("scadenze")
-        .select("supplier_id, amount, paid_amount, status")
-        .eq("company_id", companyId!)
-        .eq("tipo", "pagamento_fornitore")
-        .in("status", ["da_pagare", "parziale"]);
+      if (suppliersRes.error) throw suppliersRes.error;
+      const suppliers = suppliersRes.data;
+      const odaStats = odaRes.data;
+      const scadStats = scadRes.data;
 
       return (suppliers || []).map((s: any) => {
         const myOda = (odaStats || []).filter((o: any) => o.supplier_id === s.id);
