@@ -249,7 +249,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           to={item.url}
                           className={cn(
                             "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                            active && "bg-primary/10 text-primary font-medium"
+                            active && "bg-primary/10 text-primary font-semibold border-l-primary"
                           )}
                         >
                           <ItemIcon className="h-3.5 w-3.5 shrink-0" />
@@ -290,9 +290,14 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent")}>
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-foreground transition-colors group">
+        <CollapsibleTrigger className={cn(
+          "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150 group",
+          (open || hasActiveChild)
+            ? "text-primary/80"
+            : "text-sidebar-foreground/45 hover:text-sidebar-foreground/80"
+        )}>
           <span className="flex items-center gap-2">
-            <AreaIcon className="h-3.5 w-3.5" />
+            <AreaIcon className={cn("h-3.5 w-3.5 transition-colors duration-150", (open || hasActiveChild) && "text-primary")} />
             {area.title}
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
@@ -322,8 +327,8 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         <NavLink
                           to={item.url}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                            active && "bg-primary/10 text-primary font-medium"
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
+                            active && "bg-primary/10 text-primary font-semibold border-l-primary"
                           )}
                         >
                           <ItemIcon className="h-4 w-4" />
@@ -380,8 +385,8 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   <NavLink
                     to={item.url}
                     end={item.url === "/azienda"}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    activeClassName="bg-primary/10 text-primary font-medium"
+                    className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
+                    activeClassName="bg-primary/10 text-primary font-semibold border-l-primary"
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="font-medium">{item.title}</span>
@@ -531,7 +536,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   return (
     <Sidebar className="border-r" collapsible="icon">
       <div
-        className="flex h-14 items-center border-b px-4 overflow-hidden"
+        className="flex h-14 items-center border-b border-sidebar-border px-4 overflow-hidden bg-sidebar-accent/40"
         style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
       >
         {!isCollapsed && (
@@ -571,7 +576,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Building2 className="h-4 w-4" /><span>Profilo aziendale</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -588,49 +593,49 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/listino" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/listino" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Package className="h-4 w-4" /><span>Listino Prodotti</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/tariffe" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/tariffe" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Wrench className="h-4 w-4" /><span>Tariffe Aziendali</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/margini" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/margini" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <TrendingUp className="h-4 w-4" /><span>Preventivi &amp; Margini</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <ListOrdered className="h-4 w-4" /><span>Stati ordine</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Truck className="h-4 w-4" /><span>Fornitori</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/categorie-costi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/categorie-costi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <FolderOpen className="h-4 w-4" /><span>Categorie costi</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/automazioni-finanza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/automazioni-finanza" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <RefreshCw className="h-4 w-4" /><span>Automazioni Finanza</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -647,35 +652,35 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/tag" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/tag" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Tag className="h-4 w-4" /><span>Tag</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/campi-personalizzati" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/campi-personalizzati" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <SlidersHorizontal className="h-4 w-4" /><span>Campi personalizzati</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/sequenze" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/sequenze" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <GitBranch className="h-4 w-4" /><span>Sequenze</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/calendari" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/calendari" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <CalendarDays className="h-4 w-4" /><span>Calendari</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/materiali-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/materiali-preventivi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <FileStack className="h-4 w-4" /><span>Materiali Preventivi</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -683,7 +688,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                     {(isAdmin || permissions.canEditSettingsCustomization) && (
                       <SidebarMenuItem>
                         <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/template-preventivi" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <NavLink to="/azienda/impostazioni/template-preventivi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                             <Paintbrush className="h-4 w-4" /><span>Template Offerte</span>
                           </NavLink>
                         </SidebarMenuButton>
@@ -692,7 +697,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                     {(isAdmin || permissions.canEditSettingsCustomization) && (
                       <SidebarMenuItem>
                         <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/form-builder" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <NavLink to="/azienda/impostazioni/form-builder" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                             <FileText className="h-4 w-4" /><span>Form & UTM</span>
                           </NavLink>
                         </SidebarMenuButton>
@@ -710,7 +715,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/utenti" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/utenti" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Users className="h-4 w-4" /><span>Utenti</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -727,21 +732,21 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/venditori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/venditori" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <UserCheck className="h-4 w-4" /><span>Venditori</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/staff" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/staff" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <HardHat className="h-4 w-4" /><span>Staff / Operai</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/team" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/team" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Users className="h-4 w-4" /><span>Team</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -757,7 +762,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/sicurezza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                      <NavLink to="/azienda/impostazioni/sicurezza" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                         <Key className="h-4 w-4" /><span>Cambio password</span>
                       </NavLink>
                     </SidebarMenuButton>
@@ -765,7 +770,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                   {(isAdmin || permissions.canViewSettingsSecurity) && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Shield className="h-4 w-4" /><span>Privacy & GDPR</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -775,14 +780,14 @@ const CompanySidebar = memo(function CompanySidebar() {
                     <>
                       <SidebarMenuItem>
                         <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/security-dashboard" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <NavLink to="/azienda/impostazioni/security-dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                             <Shield className="h-4 w-4" /><span>Security Dashboard</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                       <SidebarMenuItem>
                         <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/attivita" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <NavLink to="/azienda/impostazioni/attivita" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                             <ScrollText className="h-4 w-4" /><span>Registro attività</span>
                           </NavLink>
                         </SidebarMenuButton>
@@ -800,56 +805,56 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/integrazioni" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/integrazioni" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Plug className="h-4 w-4" /><span>Integrazioni</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/crediti" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/crediti" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Wallet className="h-4 w-4" /><span>Crediti & Saldo</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/api" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/api" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Key className="h-4 w-4" /><span>API Platform</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/webhook" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/webhook" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Globe className="h-4 w-4" /><span>Webhook</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/numeri-telefono" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/numeri-telefono" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Phone className="h-4 w-4" /><span>Numeri Virtuali</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/branding" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/branding" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Paintbrush className="h-4 w-4" /><span>White-Label</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/abbonamento" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/abbonamento" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Wallet className="h-4 w-4" /><span>Abbonamento</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/fatturazione" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <NavLink to="/azienda/impostazioni/fatturazione" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <FileText className="h-4 w-4" /><span>Fatturazione</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -886,16 +891,16 @@ const CompanySidebar = memo(function CompanySidebar() {
                 );
               })}
             
-            <div className="mt-auto border-t">
+            <div className="mt-auto border-t border-sidebar-border">
               {permissions.canViewSettings && (
-                <div className="px-2 pt-3">
+                <div className="px-2 pt-2">
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild tooltip="Impostazioni">
                         <NavLink
                           to="/azienda/impostazioni"
-                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          activeClassName="bg-muted text-foreground font-medium"
+                          className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
+                          activeClassName="bg-muted text-foreground font-semibold border-l-primary"
                         >
                           <Settings className="h-4 w-4" />
                           <span>Impostazioni</span>
@@ -905,13 +910,13 @@ const CompanySidebar = memo(function CompanySidebar() {
                   </SidebarMenu>
                 </div>
               )}
-              <div className={cn("p-4", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
+              <div className={cn("p-3", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
                 {isCollapsed ? (
                   <>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Avatar className="h-8 w-8 cursor-default">
-                          <AvatarFallback className="bg-muted text-xs">
+                        <Avatar className="h-8 w-8 cursor-default ring-2 ring-sidebar-border">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                             {profile?.first_name?.[0]}{profile?.last_name?.[0]}
                           </AvatarFallback>
                         </Avatar>
@@ -937,10 +942,10 @@ const CompanySidebar = memo(function CompanySidebar() {
                     </Tooltip>
                   </>
                 ) : (
-                  <>
-                    <div className="flex items-center gap-3 mb-4 px-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-muted text-xs">
+                  <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Avatar className="h-8 w-8 ring-2 ring-sidebar-border">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                           {profile?.first_name?.[0]}{profile?.last_name?.[0]}
                         </AvatarFallback>
                       </Avatar>
@@ -949,19 +954,20 @@ const CompanySidebar = memo(function CompanySidebar() {
                           {profile?.first_name} {profile?.last_name}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
+                          {isImpersonating ? "Super Admin" : "Admin"}
                         </p>
                       </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                       onClick={handleLogoutOrExit}
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className="h-3.5 w-3.5" />
                       {isImpersonating ? "Torna a Admin" : "Esci"}
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

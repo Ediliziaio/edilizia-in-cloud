@@ -14,14 +14,14 @@ export function SidebarSubcategory({ label, isOpen, onToggle, children }: Sideba
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between px-3 py-1.5 cursor-pointer rounded-md hover:bg-muted/50 transition-colors"
+        className="flex w-full items-center justify-between px-3 py-1.5 cursor-pointer rounded-md hover:bg-muted/60 transition-all duration-150 group/sub"
       >
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground text-left">
+        <span className="text-[10px] font-bold uppercase tracking-[0.10em] text-muted-foreground/60 group-hover/sub:text-muted-foreground/80 transition-colors text-left">
           {label}
         </span>
         <ChevronDown
           className={cn(
-            "h-3 w-3 text-muted-foreground transition-transform duration-200",
+            "h-3 w-3 text-muted-foreground/50 transition-transform duration-200 group-hover/sub:text-muted-foreground/80",
             isOpen ? "rotate-0" : "-rotate-90"
           )}
         />
