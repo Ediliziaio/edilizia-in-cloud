@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
@@ -83,6 +84,8 @@ async function endSession() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
@@ -432,6 +435,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setImpersonationToken(data.token);
       setImpersonatedCompanyId(companyId);
+      // Wipe the entire React Query cache so the new company's pages always
+      // fetch fresh data instead of showing stale results from the previous context.
+      queryClient.clear();
       return data.token;
     } catch (err) {
       logger.error("Impersonation error:", err);
@@ -450,7 +456,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonationToken(null);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
-  }, []);
+    // Clear the cache so the admin panel doesn't show the impersonated
+    // company's stale data after returning to the admin view.
+    queryClient.clear();
+  }, [queryClient]);
 
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
