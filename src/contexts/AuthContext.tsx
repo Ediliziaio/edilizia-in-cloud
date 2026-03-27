@@ -99,6 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => sessionStorage.getItem(IMP_TOKEN_KEY)
   );
 
+  // Generation counter: each SIGNED_IN/SIGNED_OUT increments this ref.
+  // After fetchUserData resolves, we compare against the current value —
+  // if it changed (e.g. a SIGNED_OUT arrived while fetching), we discard the result.
+  const authGenRef = useRef(0);
+
   // Multi-company state (combined to reduce re-renders)
   const MULTI_COMPANY_KEY = "multi_company_selected";
   const [multiCompanyState, setMultiCompanyState] = useState({
@@ -273,33 +278,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
-          // Use setTimeout to avoid potential race conditions
-          setTimeout(async () => {
-            const userData = await fetchUserData(session.user.id);
-            setState({
-              user: session.user,
-              ...userData,
-              isLoading: false,
-            });
-            // Start session tracking (fire-and-forget)
-            if (!sessionStorage.getItem(SESSION_ID_KEY)) {
-              startSession();
-            }
-            // Track admin session for super_admin users (fire-and-forget)
-            if (userData.role === "super_admin" && event === "SIGNED_IN") {
-              const info = getBrowserInfo();
-              supabase.functions.invoke("upsert-admin-session", {
-                body: {
-                  device_hint: `${info.browser} su ${info.os}`,
-                },
-              }).then((res) => {
-                if (res.data?.session_token) {
-                  sessionStorage.setItem("admin_session_token", res.data.session_token);
-                }
-              }).catch(() => {});
-            }
-          }, 0);
+          // Claim a generation slot. Any concurrent or previous fetch whose
+          // generation no longer matches will be silently discarded.
+          const myGen = ++authGenRef.current;
+
+          const userData = await fetchUserData(session.user.id);
+
+          // Another auth event fired while we were fetching — bail out.
+          if (myGen !== authGenRef.current) return;
+
+          setState({
+            user: session.user,
+            ...userData,
+            isLoading: false,
+          });
+          // Start session tracking (fire-and-forget)
+          if (!sessionStorage.getItem(SESSION_ID_KEY)) {
+            startSession();
+          }
+          // Track admin session for super_admin users (fire-and-forget)
+          if (userData.role === "super_admin" && event === "SIGNED_IN") {
+            const info = getBrowserInfo();
+            supabase.functions.invoke("upsert-admin-session", {
+              body: {
+                device_hint: `${info.browser} su ${info.os}`,
+              },
+            }).then((res) => {
+              if (res.data?.session_token) {
+                sessionStorage.setItem("admin_session_token", res.data.session_token);
+              }
+            }).catch(() => {});
+          }
         } else if (event === "SIGNED_OUT") {
+          // Invalidate any in-flight SIGNED_IN fetch so its setState is discarded.
+          authGenRef.current++;
+
           setState({
             user: null,
             profile: null,
@@ -357,6 +370,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshAuth();
 
     return () => {
+      // Invalidate any in-flight fetch so setState is never called after unmount.
+      authGenRef.current++;
       subscription.unsubscribe();
     };
   }, [fetchUserData, refreshAuth]);
