@@ -30,7 +30,7 @@ export default function AdminLogin() {
   // If logged in but without an admin role, show access denied
   if (!isLoading && user && role && !ADMIN_PLATFORM_ROLES.includes(role as AppRole)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4">
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 text-center space-y-6 max-w-sm">
           <div className="flex justify-center">
             <div className="rounded-full bg-red-500/20 ring-4 ring-red-500/30 p-6">
@@ -39,7 +39,7 @@ export default function AdminLogin() {
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-white">Accesso Negato</h1>
-            <p className="text-zinc-400">
+            <p className="text-white/60">
               Questa pagina è riservata agli amministratori della piattaforma.
             </p>
           </div>
@@ -123,12 +123,12 @@ export default function AdminLogin() {
 
   if (view === "2fa") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-indigo-950 p-4">
-        <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md space-y-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md space-y-6 bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl p-8">
           <div className="text-center space-y-4">
             <div className="flex justify-center">
-              <div className="rounded-full bg-indigo-500/20 ring-4 ring-indigo-500/30 p-5">
-                <Shield className="h-10 w-10 text-indigo-400" />
+              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
+                <Shield className="h-10 w-10 text-[#F97415]" />
               </div>
             </div>
             <div className="space-y-1">
@@ -152,43 +152,46 @@ export default function AdminLogin() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#F97415]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#0a0a0a]">
       {/* Left dark panel — desktop only */}
-      <div className="hidden lg:flex lg:w-[40%] flex-col items-center justify-center p-12 bg-zinc-900 dark:bg-zinc-950">
-        <div className="max-w-xs w-full space-y-10">
-          {/* Shield icon with glow ring */}
+      <div className="hidden lg:flex lg:w-[40%] flex-col items-center justify-center p-12 bg-[#0a0a0a] relative overflow-hidden">
+        {/* Orange ambient orb */}
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[400px] h-[250px] bg-[#F97415]/[0.18] blur-[90px] rounded-full pointer-events-none" />
+
+        <div className="max-w-xs w-full space-y-10 relative z-10">
+          {/* Shield icon with orange glow ring */}
           <div className="flex justify-center">
-            <div className="rounded-full bg-indigo-500/20 ring-4 ring-indigo-500/30 p-6">
-              <Shield className="h-12 w-12 text-indigo-400" />
+            <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-6">
+              <Shield className="h-12 w-12 text-[#F97415]" />
             </div>
           </div>
 
           {/* Title block */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold text-white tracking-tight">Pannello di Controllo</h1>
-            <p className="text-zinc-400 text-sm leading-relaxed">
+            <p className="text-white/60 text-sm leading-relaxed">
               Accesso riservato agli amministratori della piattaforma
             </p>
           </div>
 
           {/* Security badges */}
           <div className="flex flex-col items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white/70 text-xs">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white/60 text-xs">
               <Lock className="h-3 w-3" />
               Connessione cifrata
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white/70 text-xs">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white/60 text-xs">
               <Shield className="h-3 w-3" />
               Autenticazione 2FA
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white/70 text-xs">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white/60 text-xs">
               <Lock className="h-3 w-3" />
               Audit log attivo
             </span>
@@ -196,19 +199,19 @@ export default function AdminLogin() {
 
           <div className="flex items-center gap-2 justify-center mt-4">
             <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-zinc-400 text-xs">Sistema operativo</span>
+            <span className="text-white/60 text-xs">Sistema operativo</span>
           </div>
         </div>
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center min-h-screen lg:min-h-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-indigo-950 lg:bg-none lg:bg-white lg:dark:bg-zinc-900 p-6">
+      <div className="flex-1 flex items-center justify-center min-h-screen lg:min-h-0 bg-[#0a0a0a] p-6">
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-sm">
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-5 mb-8">
             <div className="flex justify-center">
-              <div className="rounded-full bg-indigo-500/20 ring-4 ring-indigo-500/30 p-5">
-                <Shield className="h-10 w-10 text-indigo-400" />
+              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
+                <Shield className="h-10 w-10 text-[#F97415]" />
               </div>
             </div>
             <div className="space-y-1">
@@ -219,19 +222,19 @@ export default function AdminLogin() {
 
           {/* Desktop header */}
           <div className="hidden lg:block text-center space-y-2 mb-8">
-            <h2 className="text-2xl font-bold text-foreground">Accesso Amministratori</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-2xl font-bold text-white">Accesso Amministratori</h2>
+            <p className="text-sm text-white/60">
               Solo per il team interno di Edilizia in Cloud
             </p>
           </div>
 
-          {/* Form card — glassy on mobile, plain on desktop */}
-          <div className="lg:bg-transparent bg-white/5 backdrop-blur-xl border border-white/10 lg:border-0 lg:backdrop-blur-none rounded-2xl lg:rounded-none p-6 lg:p-0 space-y-5">
+          {/* Form card — glass dark on mobile, transparent on desktop */}
+          <div className="lg:bg-transparent bg-white/[0.04] backdrop-blur-xl border border-white/10 lg:border-0 lg:backdrop-blur-none rounded-2xl lg:rounded-none p-6 lg:p-0 space-y-5">
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-2">
                 <Label
                   htmlFor="admin-email"
-                  className="text-white/80 lg:text-foreground text-sm font-medium"
+                  className="text-white/70 text-sm font-medium"
                 >
                   Email
                 </Label>
@@ -248,14 +251,14 @@ export default function AdminLogin() {
                   autoFocus
                   autoComplete="email"
                   disabled={isSubmitting}
-                  className="h-11 bg-white/10 lg:bg-background border-white/20 lg:border-input text-white lg:text-foreground placeholder:text-white/40 lg:placeholder:text-muted-foreground focus-visible:ring-indigo-500"
+                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label
                   htmlFor="admin-password"
-                  className="text-white/80 lg:text-foreground text-sm font-medium"
+                  className="text-white/70 text-sm font-medium"
                 >
                   Password
                 </Label>
@@ -272,12 +275,12 @@ export default function AdminLogin() {
                     required
                     autoComplete="current-password"
                     disabled={isSubmitting}
-                    className="h-11 pr-10 bg-white/10 lg:bg-background border-white/20 lg:border-input text-white lg:text-foreground placeholder:text-white/40 lg:placeholder:text-muted-foreground focus-visible:ring-indigo-500"
+                    className="h-11 pr-10 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/90 lg:text-muted-foreground lg:hover:text-foreground transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/90 transition-colors"
                     tabIndex={-1}
                   >
                     {showPassword ? (
@@ -290,7 +293,7 @@ export default function AdminLogin() {
               </div>
 
               {formError && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 text-sm">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   {formError}
                 </div>
@@ -298,7 +301,7 @@ export default function AdminLogin() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                className="w-full h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -312,7 +315,7 @@ export default function AdminLogin() {
               </Button>
             </form>
 
-            <p className="text-center text-xs text-white/40 lg:text-muted-foreground">
+            <p className="text-center text-xs text-white/40">
               Per recuperare l'accesso contatta il supporto tecnico interno
             </p>
           </div>
