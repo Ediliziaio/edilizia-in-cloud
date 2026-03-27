@@ -30,6 +30,8 @@ export default function GoogleCalendarConnectionTab() {
   const [editingConflict, setEditingConflict] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const pollRef = useRef<number | null>(null);
+  // Safety valve: if the user ignores the popup for >5 min, stop polling.
+  const maxPollTimeoutRef = useRef<number | null>(null);
 
   // Connection status
   const { data: connection, isLoading: loadingConn } = useQuery({
@@ -116,14 +118,24 @@ export default function GoogleCalendarConnectionTab() {
     const left = (screen.width - w) / 2;
     const top = (screen.height - h) / 2;
     const popup = window.open(res.data.url, "google_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+    if (!popup) {
+      toast.error("Il popup è stato bloccato dal browser. Consenti i popup per questo sito e riprova.");
+      return;
+    }
     popupRef.current = popup;
 
+    const stopPolling = () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
+      popupRef.current = null;
+    };
+
     pollRef.current = window.setInterval(() => {
-      if (popupRef.current?.closed) {
-        popupRef.current = null;
-        if (pollRef.current) clearInterval(pollRef.current);
-      }
+      if (popupRef.current?.closed) stopPolling();
     }, 1000);
+
+    // Safety: stop polling after 5 minutes regardless of popup state
+    maxPollTimeoutRef.current = window.setTimeout(stopPolling, 5 * 60 * 1000);
   }, [companyId]);
 
   // Listen for OAuth result
@@ -142,13 +154,15 @@ export default function GoogleCalendarConnectionTab() {
           toast.error("Errore nel collegamento: " + (event.data.error || "sconosciuto"));
         }
         popupRef.current = null;
-        if (pollRef.current) clearInterval(pollRef.current);
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
       }
     };
     window.addEventListener("message", handler);
     return () => {
       window.removeEventListener("message", handler);
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
     };
   }, [queryClient]);
 
