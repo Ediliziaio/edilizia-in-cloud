@@ -120,7 +120,18 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 
   const handleExit = async () => {
     await exitImpersonation();
-    await supabase.auth.signOut(); // Clean up session on app. subdomain
+    // On production (real subdomains), clear the app.* session locally
+    // without invalidating the server-side token used by the admin panel.
+    // On localhost, admin and app share the same localStorage — never sign out
+    // or the admin would get kicked out too.
+    const hostname = window.location.hostname;
+    const isProductionSubdomain =
+      hostname !== "localhost" &&
+      hostname !== "127.0.0.1" &&
+      !hostname.includes("192.168.");
+    if (isProductionSubdomain) {
+      await supabase.auth.signOut({ scope: "local" });
+    }
     navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
@@ -482,7 +493,15 @@ const CompanySidebar = memo(function CompanySidebar() {
   const handleLogoutOrExit = useCallback(async () => {
     if (isImpersonating) {
       await exitImpersonation();
-      await supabase.auth.signOut(); // Clean up session on app. subdomain
+      // Same logic as ImpersonationBanner: only sign out on production subdomains.
+      const hostname = window.location.hostname;
+      const isProductionSubdomain =
+        hostname !== "localhost" &&
+        hostname !== "127.0.0.1" &&
+        !hostname.includes("192.168.");
+      if (isProductionSubdomain) {
+        await supabase.auth.signOut({ scope: "local" });
+      }
       navigateToSubdomain("/admin/aziende", "admin", navigate);
     } else {
       signOut();
