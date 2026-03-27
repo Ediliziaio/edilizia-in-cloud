@@ -100,14 +100,16 @@ export const macroAreas: MacroArea[] = [
     title: "Cantieri & Lavori",
     icon: HardHat,
     items: [
+      // ─── Operativo ───
       { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
       { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
-      { title: "Ticket Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets" },
-      
+      // ─── Pianificazione ───
+      { title: "Ticket Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", groupLabel: "Pianificazione" },
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
-      { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast" },
+      // ─── Controllo ───
+      { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", groupLabel: "Controllo" },
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewOrders" },
       { title: "Marginalità", url: "/azienda/marginalita", icon: PieChart, permissionKey: "canViewOrders" },
       { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },

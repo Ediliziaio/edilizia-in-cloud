@@ -208,8 +208,8 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
               <HoverCardTrigger asChild>
                 <SidebarMenuButton
                   className={cn(
-                    "flex items-center justify-center",
-                    hasActiveChild && "bg-primary/10 text-primary"
+                    "flex items-center justify-center transition-colors",
+                    hasActiveChild ? "bg-primary/10 text-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
                   )}
                 >
                   <AreaIcon className="h-4 w-4" />
@@ -287,18 +287,21 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   // Expanded mode: collapsible section
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <SidebarGroup className={cn("py-0 rounded-lg mx-1.5 transition-colors duration-200", open && "bg-sidebar-accent")}>
+      <SidebarGroup className={cn(
+        "py-0 rounded-lg mx-1.5 transition-colors duration-200",
+        open ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60"
+      )}>
         <CollapsibleTrigger className={cn(
           "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150 group",
           (open || hasActiveChild)
             ? "text-primary/80"
-            : "text-sidebar-foreground/45 hover:text-sidebar-foreground/80"
+            : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
         )}>
           <span className="flex items-center gap-2">
-            <AreaIcon className={cn("h-3.5 w-3.5 transition-colors duration-150", (open || hasActiveChild) && "text-primary")} />
+            <AreaIcon className={cn("h-4 w-4 transition-colors duration-150", (open || hasActiveChild) && "text-primary")} />
             {area.title}
           </span>
-          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
+          <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
           <SidebarGroupContent>
@@ -369,7 +372,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
 
   return (
-    <SidebarGroup className="pb-0">
+    <SidebarGroup className="py-2">
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
@@ -867,7 +870,10 @@ const CompanySidebar = memo(function CompanySidebar() {
             {/* Cruscotto — standalone items */}
             <CruscottoNavItems filterNavItems={filterNavItems} />
 
-            {/* 5 collapsible macro-areas — exclusive accordion */}
+            {/* Separator: divide top-level items from collapsible sections */}
+            <div className="mx-4 border-t border-sidebar-border/60" />
+
+            {/* Collapsible macro-areas — exclusive accordion */}
             {macroAreas
               .filter(a => a.id !== "area_cruscotto")
               .map(area => {
