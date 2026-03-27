@@ -32,8 +32,6 @@ import {
   ChevronDown,
   ChevronRight,
   Plug,
-  Briefcase,
-  Megaphone,
   Tag,
   SlidersHorizontal,
   GitBranch,

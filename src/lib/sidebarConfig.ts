@@ -75,11 +75,6 @@ export interface NavItem {
   groupLabel?: string;
 }
 
-export interface SubcategoryConfig {
-  id: string;
-  label: string;
-}
-
 export interface MacroArea {
   id: string;
   title: string;
@@ -189,23 +184,6 @@ export const macroAreas: MacroArea[] = [
 ];
 
 /** @deprecated Use macroAreas instead */
-export const internalSubcategories: SubcategoryConfig[] = [
-  { id: "gi_operazioni", label: "Operazioni" },
-  { id: "gi_supporto", label: "Clienti & Supporto" },
-  { id: "gi_finanza", label: "Finanza" },
-  { id: "gi_team", label: "Team" },
-  { id: "gi_automation", label: "Automazione & AI" },
-];
-
-/** @deprecated Use macroAreas instead */
-export const marketingSubcategories: SubcategoryConfig[] = [
-  { id: "mkt_crm", label: "CRM" },
-  { id: "mkt_comunicazione", label: "Comunicazione" },
-  { id: "mkt_automation", label: "Automazione & AI" },
-  { id: "mkt_analisi", label: "Analisi" },
-];
-
-/** @deprecated Use macroAreas instead */
 export const internalNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_operazioni" },
   { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
@@ -233,15 +211,6 @@ export const internalNavItems: NavItem[] = [
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal", subcategory: "gi_automation" },
   { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];
-
-/** @deprecated Use macroAreas instead */
-export const cruscottoNavItem: NavItem = {
-  title: "Cruscotto Aziendale",
-  url: "/azienda/cruscotto",
-  icon: Gauge,
-  permissionKey: "canViewCruscotto",
-  category: "internal",
-};
 
 /** @deprecated Use macroAreas instead */
 export const marketingNavItems: NavItem[] = [
