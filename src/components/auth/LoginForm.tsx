@@ -264,22 +264,18 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         </div>
       </div>
 
-      {/* ─── Right form panel (desktop) / Full-screen dark (mobile) ─── */}
+      {/* ─── Right form panel — always light ─── */}
       <div
         className={cn(
-          "flex-1 flex items-center justify-center px-4 py-10 lg:py-12 lg:px-12 bg-[#0a0a0a]",
-          gradientClass
+          "flex-1 flex items-center justify-center px-4 py-10 lg:py-12 lg:px-12 bg-background"
         )}
-        style={loginBgColor ? gradientStyle : undefined}
       >
-        {/* Card — glassmorphism on mobile, clean panel on desktop */}
+        {/* Card — white on mobile, transparent on desktop */}
         <div
           className={cn(
             "w-full max-w-sm",
-            // Mobile card: glass dark
-            "rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-xl shadow-2xl p-8",
-            // Desktop: reset to transparent
-            "lg:rounded-none lg:bg-transparent lg:border-0 lg:backdrop-blur-none lg:shadow-none lg:p-0",
+            "rounded-2xl bg-white dark:bg-zinc-900 border border-border shadow-2xl p-8",
+            "lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:border-0 lg:shadow-none lg:p-0",
             "animate-in fade-in-0 slide-in-from-bottom-4 duration-500"
           )}
         >
@@ -288,7 +284,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             {loginLogoUrl ? (
               <img src={loginLogoUrl} alt={platformName} className="h-11 mx-auto object-contain" />
             ) : (
-              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-11 mx-auto brightness-0 invert" />
+              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-11 mx-auto" />
             )}
           </div>
 
@@ -303,15 +299,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "login" && (
             <div className="animate-in fade-in-0 duration-300 space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-white">Accedi al gestionale</h2>
-                <p className="text-white/60 text-sm">Inserisci le tue credenziali per accedere</p>
+                <h2 className="text-2xl font-bold text-foreground">Accedi al gestionale</h2>
+                <p className="text-muted-foreground text-sm">Inserisci le tue credenziali per accedere</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-white/70">Email</Label>
+                  <Label htmlFor="email">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="email"
                       type="email"
@@ -322,14 +318,14 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       disabled={isLoading}
                       autoComplete="email"
                       autoFocus
-                      className="pl-10 h-12 sm:h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                      className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-white/70">Password</Label>
+                    <Label htmlFor="password">Password</Label>
                     <button
                       type="button"
                       onClick={switchToForgot}
@@ -339,7 +335,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     </button>
                   </div>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -349,12 +345,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       required
                       disabled={isLoading}
                       autoComplete="current-password"
-                      className="pl-10 pr-12 h-12 sm:h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                      className="pl-10 pr-12 h-12 sm:h-11 focus-visible:ring-[#F97415]"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 p-2 -mr-0 text-white/50 hover:text-white/90 transition-colors"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                       aria-label={showPassword ? "Nascondi password" : "Mostra password"}
                     >
@@ -365,7 +361,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
                 {/* Inline error */}
                 {formError && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {formError}
                   </div>
@@ -387,7 +383,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 </Button>
               </form>
 
-              <p className="text-center text-xs text-white/40 leading-relaxed">
+              <p className="text-center text-xs text-muted-foreground leading-relaxed">
                 L'accesso è riservato agli utenti registrati.<br />
                 <a href="https://www.ediliziaincloud.com" className="text-[#F97415] hover:text-[#F97415]/80 font-medium transition-colors" target="_blank" rel="noopener noreferrer">
                   Scopri Edilizia in Cloud →
@@ -400,8 +396,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {view === "forgot" && (
             <div className="animate-in fade-in-0 duration-300 space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-white">Reimposta la password</h2>
-                <p className="text-white/60 text-sm">
+                <h2 className="text-2xl font-bold text-foreground">Reimposta la password</h2>
+                <p className="text-muted-foreground text-sm">
                   Ti invieremo un link via email per reimpostare la password
                 </p>
               </div>
@@ -409,17 +405,17 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
               {resetSent ? (
                 <div className="text-center space-y-4 py-4">
                   <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
-                  <p className="text-white font-medium">Controlla la tua email</p>
-                  <p className="text-sm text-white/60">
+                  <p className="text-foreground font-medium">Controlla la tua email</p>
+                  <p className="text-sm text-muted-foreground">
                     Abbiamo inviato le istruzioni per reimpostare la password al tuo indirizzo email.
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="reset-email" className="text-white/70">Email</Label>
+                    <Label htmlFor="reset-email">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <Input
                         id="reset-email"
                         type="email"
@@ -430,14 +426,14 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                         disabled={isLoading}
                         autoComplete="email"
                         autoFocus
-                        className="pl-10 h-12 sm:h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                        className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
                       />
                     </div>
                   </div>
 
                   {/* Inline error */}
                   {formError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       {formError}
                     </div>
@@ -462,7 +458,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
               <Button
                 variant="ghost"
-                className="w-full text-white/60 hover:text-white hover:bg-white/5"
+                className="w-full"
                 onClick={switchToLogin}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
