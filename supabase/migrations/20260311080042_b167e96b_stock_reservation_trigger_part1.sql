@@ -1,5 +1,5 @@
 -- get_low_stock_alerts
-CREATE FUNCTION get_low_stock_alerts(p_company_id UUID)
+CREATE OR REPLACE FUNCTION get_low_stock_alerts(p_company_id UUID)
 RETURNS TABLE (
   stock_item_id UUID, name TEXT, quantity INTEGER, quantity_reserved INTEGER,
   quantity_available INTEGER, min_stock_level INTEGER, deficit INTEGER, supplier_name TEXT, section_name TEXT

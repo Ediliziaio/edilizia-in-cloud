@@ -1,5 +1,5 @@
 -- get_order_materials_history
-CREATE FUNCTION get_order_materials_history(p_company_id UUID, p_order_id UUID)
+CREATE OR REPLACE FUNCTION get_order_materials_history(p_company_id UUID, p_order_id UUID)
 RETURNS TABLE (
   movement_id UUID, stock_item_name TEXT, order_item_name TEXT, movement_type TEXT,
   quantity INTEGER, unit_cost NUMERIC, lot_number TEXT, notes TEXT, performed_by_name TEXT, created_at TIMESTAMPTZ

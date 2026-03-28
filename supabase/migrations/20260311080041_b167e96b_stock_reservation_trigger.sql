@@ -1,5 +1,5 @@
 -- get_blocked_orders
-CREATE FUNCTION get_blocked_orders(p_company_id UUID)
+CREATE OR REPLACE FUNCTION get_blocked_orders(p_company_id UUID)
 RETURNS TABLE (
   order_id UUID, order_code TEXT, customer_name TEXT, expected_date DATE,
   work_start_date DATE, blocking_items_count BIGINT, missing_items JSONB, urgency_level TEXT
