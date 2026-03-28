@@ -10,11 +10,13 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Auth: either service role key in header or authenticated super_admin
-    const authHeader = req.headers.get("Authorization");
-    const isServiceRole = authHeader === `Bearer ${serviceRoleKey}`;
+    // Sicurezza: accetta cron secret (SEC-003) oppure super_admin JWT
+    const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+    const requestCronSecret = req.headers.get("x-cron-secret");
+    const isCronCall = cronSecret && requestCronSecret === cronSecret;
 
-    if (!isServiceRole) {
+    if (!isCronCall) {
+      const authHeader = req.headers.get("Authorization");
       if (!authHeader) return errorResponse("Missing authorization", 401);
       const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
       if (!user) return errorResponse("Unauthorized", 401);

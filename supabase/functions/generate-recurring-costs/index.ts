@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,16 +14,21 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate user
-    if (authHeader) {
+    // Sicurezza: accetta cron secret (SEC-003) oppure JWT utente valido
+    const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+    const requestCronSecret = req.headers.get("x-cron-secret");
+    const isCronCall = cronSecret && requestCronSecret === cronSecret;
+
+    if (!isCronCall) {
+      if (!authHeader) {
+        console.error("generate-recurring-costs: accesso non autorizzato (nessun auth)");
+        return errorResponse("Non autorizzato", 401);
+      }
       const token = authHeader.replace("Bearer ", "");
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
       if (authError || !user) {
-        return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Non autorizzato", 401);
       }
     }
 

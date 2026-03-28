@@ -115,15 +115,12 @@ async function logDunningEvent(companyId: string, eventType: string, notes: stri
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Allow cron invocation (no user auth needed) or authorized callers
-  const authHeader = req.headers.get("Authorization");
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // Also allow service_role calls from admin
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!authHeader?.includes(serviceKey?.slice(-8) ?? "INVALID")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
-    }
+  // Sicurezza: richiede INTERNAL_CRON_SECRET via header x-cron-secret (SEC-003)
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestCronSecret !== cronSecret) {
+    console.error("process-dunning: accesso non autorizzato");
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
 
   const now = new Date();
