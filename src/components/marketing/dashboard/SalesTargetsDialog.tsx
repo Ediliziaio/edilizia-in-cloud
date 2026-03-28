@@ -38,7 +38,7 @@ export function SalesTargetsDialog() {
         .limit(100);
 
       const { data: targets } = await supabase
-        .from("sales_targets" as any) // TODO: remove 'as any' when types are regenerated
+        .from("sales_targets")
         .select("*")
         .eq("company_id", companyId)
         .eq("period_type", "weekly");
@@ -92,7 +92,7 @@ export function SalesTargetsDialog() {
 
       if (toUpsert.length > 0) {
         const { error } = await supabase
-          .from("sales_targets" as any) // TODO: remove 'as any' when types are regenerated
+          .from("sales_targets")
           .upsert(toUpsert as any, { onConflict: "company_id,user_id,period_type" });
         if (error) throw error;
       }

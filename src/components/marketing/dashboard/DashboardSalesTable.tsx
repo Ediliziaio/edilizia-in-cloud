@@ -50,12 +50,12 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
     queryKey: ["sales-targets", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("sales_targets" as any) // TODO: remove 'as any' when types are regenerated
+        .from("sales_targets")
         .select("user_id, target_revenue, target_contracts, target_appointments")
         .eq("company_id", companyId!)
         .eq("period_type", "weekly");
       if (error) throw error;
-      return (data || []) as unknown as SalesTarget[];
+      return (data || []) as SalesTarget[];
     },
     enabled: !!companyId,
     staleTime: 60_000,
