@@ -6,6 +6,16 @@ import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const TELNYX_BASE = "https://api.telnyx.com/v2";
 
+/** Confronto timing-safe per stringhe (prevenzione timing attack su secret) */
+function timingSafeEqual(a: string, b: string): boolean {
+  const ab = new TextEncoder().encode(a);
+  const bb = new TextEncoder().encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -14,42 +24,56 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // Auth — accept both user token and service role key
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const isServiceCall = token === serviceRoleKey;
-
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    let isServiceCall = false;
     let companyId: string | null = null;
 
-    if (isServiceCall) {
-      // Internal call from other edge functions — company_id must be in body
+    // SEC-015: verifica autenticazione in ordine di preferenza
+    const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+    const requestCronSecret = req.headers.get("x-cron-secret");
+
+    if (requestCronSecret !== null) {
+      // 1) Service call via INTERNAL_CRON_SECRET (metodo preferito)
+      if (!cronSecret || !timingSafeEqual(requestCronSecret, cronSecret)) {
+        return json({ error: "Unauthorized" }, 401);
+      }
+      isServiceCall = true;
     } else {
-      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data: { user }, error: userErr } = await userClient.auth.getUser();
-      if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+      // 2) Bearer token: JWT utente oppure service role key (backward compat)
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return json({ error: "Unauthorized" }, 401);
+      }
 
-      const { data: profile } = await adminClient
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user.id)
-        .single();
+      const token = authHeader.replace("Bearer ", "");
 
-      companyId = profile?.company_id;
-      if (!companyId) return json({ error: "Nessuna azienda associata" }, 403);
+      // Backward compat: service role key come Bearer (timing-safe)
+      if (timingSafeEqual(token, serviceRoleKey)) {
+        isServiceCall = true;
+      } else {
+        // JWT utente normale
+        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user }, error: userErr } = await userClient.auth.getUser();
+        if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+
+        const { data: profile } = await adminClient
+          .from("profiles")
+          .select("company_id")
+          .eq("id", user.id)
+          .single();
+
+        companyId = profile?.company_id;
+        if (!companyId) return json({ error: "Nessuna azienda associata" }, 403);
+      }
     }
 
     const body = await req.json();
     const { action, payload } = body;
 
-    // For service calls, use company_id from body
+    // Per service call il company_id arriva nel body
     if (isServiceCall && body.company_id) {
       companyId = body.company_id;
     }

@@ -669,14 +669,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
       const smsBody = ncfg.sms_body || ncfg.message || "Messaggio automatico";
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const cronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
       try {
         const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
+            "x-cron-secret": cronKey,
           },
           body: JSON.stringify({
             action: "send_sms",
@@ -783,9 +783,10 @@ Istruzione: ${aiPrompt}`;
           return await executeSendWhatsApp(supabase, { ...ncfg, whatsapp_body: generatedText }, entityId, companyId);
         } else if (aiChannel === "sms") {
           if (!aiContact.phone) return { success: false, error: "Contatto senza telefono" };
+          const aiSmsCronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
           const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            headers: { "Content-Type": "application/json", "x-cron-secret": aiSmsCronKey },
             body: JSON.stringify({
               action: "send_sms", company_id: companyId,
               payload: { to: aiContact.phone, body: generatedText, contact_id: entityId },

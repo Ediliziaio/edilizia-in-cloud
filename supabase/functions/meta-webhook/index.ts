@@ -25,21 +25,27 @@ Deno.serve(async (req) => {
     try {
       const body = await req.text();
 
-      // Validate X-Hub-Signature-256
+      // Valida X-Hub-Signature-256 — SEC-016: fail-closed se secret non configurato
       const signature = req.headers.get("x-hub-signature-256");
       const { metaAppSecret: appSecret } = await getMetaCredentials();
 
-      if (appSecret && signature) {
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-          "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-        );
-        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-        const hexSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-        if (signature !== hexSig) {
-          console.error("Invalid webhook signature");
-          return new Response("Invalid signature", { status: 403 });
-        }
+      if (!appSecret) {
+        console.error("meta-webhook: META_APP_SECRET non configurato — richiesta rifiutata");
+        return new Response("Configuration error", { status: 500 });
+      }
+      if (!signature) {
+        console.error("meta-webhook: x-hub-signature-256 mancante");
+        return new Response("Missing signature", { status: 403 });
+      }
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+      const hexSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+      if (signature !== hexSig) {
+        console.error("meta-webhook: firma non valida");
+        return new Response("Invalid signature", { status: 403 });
       }
 
       const payload = JSON.parse(body);

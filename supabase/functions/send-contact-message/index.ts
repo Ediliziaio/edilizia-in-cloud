@@ -277,13 +277,13 @@ Deno.serve(async (req) => {
 
       // Send SMS via Telnyx proxy
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const cronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       try {
         const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
+            "x-cron-secret": cronKey,
           },
           body: JSON.stringify({
             action: "send_sms",
