@@ -359,51 +359,57 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     .slice(0, 10);
 
   return (
-    <div className="space-y-3 rounded-lg border p-4 bg-card">
+    <div className="space-y-2 rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-semibold">Righe documento</Label>
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lista articoli</Label>
         {!disabled && (
-          <div className="flex gap-1">
-            <Popover open={catalogOpen} onOpenChange={setCatalogOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  <PackageSearch className="h-3 w-3 mr-1" />
-                  Da catalogo
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-2" align="end">
-                <Input
-                  placeholder="Cerca articolo..."
-                  value={catalogSearch}
-                  onChange={(e) => setCatalogSearch(e.target.value)}
-                  className="h-8 text-sm mb-2"
-                />
-                <div className="max-h-48 overflow-auto space-y-0.5">
-                  {filteredArticoli.map((art) => (
-                    <button
-                      key={art.id}
-                      className="w-full text-left px-2 py-1.5 hover:bg-accent rounded text-sm"
-                      onClick={() => addFromCatalog(art)}
-                    >
-                      <div className="font-medium truncate">{art.descrizione}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatCurrency(art.prezzo_vendita)} · IVA {art.aliquota_iva}%
-                      </div>
-                    </button>
-                  ))}
-                  {filteredArticoli.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-3">Nessun articolo trovato</p>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
+          <Popover open={catalogOpen} onOpenChange={setCatalogOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2">
+                <PackageSearch className="h-3 w-3 mr-1" />
+                Da catalogo
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-2" align="end">
+              <Input
+                placeholder="Cerca articolo..."
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                className="h-7 text-xs mb-2"
+              />
+              <div className="max-h-48 overflow-auto space-y-0.5">
+                {filteredArticoli.map((art) => (
+                  <button
+                    key={art.id}
+                    className="w-full text-left px-2 py-1.5 hover:bg-accent rounded text-xs"
+                    onClick={() => addFromCatalog(art)}
+                  >
+                    <div className="font-medium truncate">{art.descrizione}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {formatCurrency(art.prezzo_vendita)} · IVA {art.aliquota_iva}%
+                    </div>
+                  </button>
+                ))}
+                {filteredArticoli.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground text-center py-3">Nessun articolo trovato</p>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
 
       {righe.length === 0 ? (
-        <div className="border border-dashed rounded-lg py-8 text-center">
-          <p className="text-sm text-muted-foreground">Nessuna riga. Aggiungi articoli dal catalogo o una riga vuota.</p>
+        <div className="border border-dashed rounded-md py-6 text-center">
+          <p className="text-xs text-muted-foreground mb-2">Nessun articolo. Aggiungi dal catalogo o una riga vuota.</p>
+          {!disabled && (
+            <div className="flex gap-2 justify-center">
+              <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
+                <Plus className="h-3 w-3 mr-1" />
+                Aggiungi voce
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -440,14 +446,14 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
         </div>
       )}
 
-      {/* Footer buttons */}
+      {/* Footer buttons — stile Fatture in Cloud */}
       {!disabled && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="text-xs h-7" onClick={addBlankRow}>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
             <Plus className="h-3 w-3 mr-1" />
-            Aggiungi riga
+            Aggiungi nuova voce
           </Button>
-          <Button variant="ghost" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
+          <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
             + Riga descrittiva
           </Button>
         </div>

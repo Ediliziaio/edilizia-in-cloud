@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
@@ -16,10 +16,9 @@ import { EditorRigheSection } from "./editor/EditorRigheSection";
 import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
-import { EditorPreviewPanel } from "./editor/EditorPreviewPanel";
+import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +30,7 @@ export default function EditorDocumento() {
   const navigate = useNavigate();
   const isCreate = !id;
   const createdRef = useRef(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const location = useLocation();
   const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
@@ -118,66 +118,76 @@ export default function EditorDocumento() {
         }}
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
         validationErrorCount={criticalErrorCount}
+        onPreview={() => setPreviewOpen(true)}
       />
 
-      <div className="flex flex-1 min-h-0">
-        {/* Left panel: continuous scroll form */}
-        <ScrollArea className="w-1/2 border-r">
-          <div className="p-4 space-y-4 pb-8">
-            {/* NC banner */}
-            {state.tipo === "nota_credito" && state.documento_correlato_id && (
-              <div className="flex items-start gap-3 p-3 rounded-md bg-amber-50 border border-amber-200 text-sm">
-                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-amber-800">
-                    Nota di Credito
-                  </p>
-                  <p className="text-amber-700 text-xs mt-0.5">
-                    {state.note_documento}
-                  </p>
-                  <div className="mt-2">
-                    <Select
-                      value={(state as any)._motivo_nc ?? ""}
-                      onValueChange={(v) => dispatch({ type: "SET_FIELD", field: "_motivo_nc" as any, value: v })}
-                      disabled={!isBozza}
-                    >
-                      <SelectTrigger className="h-8 w-48">
-                        <SelectValue placeholder="Motivo storno" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="reso">Reso</SelectItem>
-                        <SelectItem value="annullamento">Annullamento</SelectItem>
-                        <SelectItem value="errore">Errore</SelectItem>
-                        <SelectItem value="sconto_postvendita">Sconto post-vendita</SelectItem>
-                        <SelectItem value="altro">Altro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* Single-page scrollable form — full width, like Fatture in Cloud */}
+      <div className="flex-1 overflow-auto bg-muted/30">
+        <div className="max-w-5xl mx-auto px-4 py-5 space-y-4 pb-24">
+
+          {/* NC banner */}
+          {state.tipo === "nota_credito" && state.documento_correlato_id && (
+            <div className="flex items-start gap-3 p-3 rounded-md bg-amber-50 border border-amber-200 text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800">Nota di Credito</p>
+                <p className="text-amber-700 text-xs mt-0.5">{state.note_documento}</p>
+                <div className="mt-2">
+                  <Select
+                    value={(state as any)._motivo_nc ?? ""}
+                    onValueChange={(v) => dispatch({ type: "SET_FIELD", field: "_motivo_nc" as any, value: v })}
+                    disabled={!isBozza}
+                  >
+                    <SelectTrigger className="h-8 w-48">
+                      <SelectValue placeholder="Motivo storno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="reso">Reso</SelectItem>
+                      <SelectItem value="annullamento">Annullamento</SelectItem>
+                      <SelectItem value="errore">Errore</SelectItem>
+                      <SelectItem value="sconto_postvendita">Sconto post-vendita</SelectItem>
+                      <SelectItem value="altro">Altro</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
+          {/* ═══ TOP SECTION: Cliente + Dati + Pagamento ═══ */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+            <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          </div>
 
-            {/* DDT-specific sections */}
-            {state.tipo === "ddt" && (
-              <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            )}
+          {/* Ordine collegato (solo se presente) */}
+          {(state.ordine_id || searchParams.get("ordine_link")) && (
+            <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          )}
 
+          {/* DDT-specific sections */}
+          {state.tipo === "ddt" && (
+            <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          )}
+
+          {/* ═══ RIGHE + RIEPILOGO ═══ */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
             <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />
           </div>
-        </ScrollArea>
 
-        {/* Right panel: preview */}
-        <div className="w-1/2">
-          <EditorPreviewPanel state={state} />
+          {/* ═══ NOTE ═══ */}
+          <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />
         </div>
       </div>
+
+      {/* Preview Dialog */}
+      <EditorPreviewDialog
+        state={state}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
     </div>
   );
 }

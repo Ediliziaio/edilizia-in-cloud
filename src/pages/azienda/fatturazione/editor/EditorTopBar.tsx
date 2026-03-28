@@ -23,7 +23,7 @@ import { formatRelativeTime } from "@/lib/formatters";
 import type { EditorState } from "./useEditorState";
 import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 
-const TIPO_LABELS: Record<TipoDocumento, string> = {
+const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
   nota_credito: "Nota di Credito",
@@ -33,6 +33,9 @@ const TIPO_LABELS: Record<TipoDocumento, string> = {
   proforma: "Proforma",
   preventivo: "Preventivo",
   ddt: "DDT",
+  integrazione_servizi_estero: "TD17",
+  integrazione_beni_ue: "TD18",
+  integrazione_beni_extra_ue: "TD19",
 };
 
 const STATO_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -57,20 +60,22 @@ interface Props {
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
   validationErrorCount?: number;
+  onPreview?: () => void;
 }
 
-export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount }: Props) {
+export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, onPreview }: Props) {
   const navigate = useNavigate();
   const tipo = state.tipo as TipoDocumento;
   const isBozza = state.stato === "bozza";
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-card shrink-0 h-14">
+    <div className="flex items-center gap-3 px-4 py-2 border-b bg-card shrink-0 h-12">
+      {/* Back + doc type badge */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 hidden md:inline-flex"
+        className="h-8 w-8"
         onClick={() => navigate("/azienda/documenti")}
       >
         <ArrowLeft className="h-4 w-4" />
@@ -81,7 +86,7 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
       </Badge>
 
       {state.numero && (
-        <span className="font-mono text-sm font-medium bg-primary/10 text-primary px-2 py-0.5 rounded">
+        <span className="font-mono text-sm font-semibold text-primary">
           {state.numero}
         </span>
       )}
@@ -90,26 +95,38 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
         {statoConfig.label}
       </Badge>
 
-      <div className="ml-auto flex items-center gap-2">
-        {/* Autosave indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {isSaving ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Salvataggio...</span>
-            </>
-          ) : lastSaved ? (
-            <>
-              <Check className="h-3 w-3 text-emerald-500" />
-              <span>Salvata {formatRelativeTime(lastSaved)}</span>
-            </>
-          ) : (
-            <>
-              <Clock className="h-3 w-3" />
-              <span>Non salvata</span>
-            </>
-          )}
-        </div>
+      {/* Autosave indicator */}
+      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+        {isSaving ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Salvataggio...</span>
+          </>
+        ) : lastSaved ? (
+          <>
+            <Check className="h-3 w-3 text-emerald-500" />
+            <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
+          </>
+        ) : (
+          <>
+            <Clock className="h-3 w-3" />
+            <span className="hidden sm:inline">Non salvata</span>
+          </>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1.5">
+        {/* Preview button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={onPreview}
+        >
+          <Eye className="h-3.5 w-3.5 mr-1.5" />
+          Anteprima
+        </Button>
 
         {/* More menu */}
         <DropdownMenu>
@@ -127,10 +144,6 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
               <Download className="h-3.5 w-3.5 mr-2" />
               Scarica PDF
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Eye className="h-3.5 w-3.5 mr-2" />
-              Anteprima fullscreen
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -139,7 +152,7 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
             <Button
               variant="ghost"
               size="sm"
-              className="text-destructive hover:text-destructive h-8"
+              className="text-destructive hover:text-destructive h-8 text-xs"
               onClick={onDelete}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1" />
@@ -149,7 +162,7 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button size="sm" className="h-8" disabled={(validationErrorCount ?? 0) > 0}>
-                  <Send className="h-3.5 w-3.5 mr-1" />
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
                   Emetti
                 </Button>
               </AlertDialogTrigger>
