@@ -276,7 +276,3 @@ EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'create_order_atomic failed: %', SQLERRM;
 END;
 $$;
-
--- Revoca accesso pubblico e concede solo agli utenti autenticati
-REVOKE ALL ON FUNCTION public.create_order_atomic(jsonb, jsonb, jsonb, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.create_order_atomic(jsonb, jsonb, jsonb, uuid) TO authenticated;
