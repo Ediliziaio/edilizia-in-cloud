@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { ArrowLeft, User, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, Receipt, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
@@ -215,9 +216,9 @@ interface OrderItemAttachmentData {
   file_size: number;
 }
 
-// ── Component ────────────────────────────────────────────────────
+// ── Inner Component ───────────────────────────────────────────────
 
-export default function OrderDetail() {
+function OrderDetailInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -1131,5 +1132,13 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function OrderDetail() {
+  return (
+    <ErrorBoundary title="Errore nel dettaglio ordine">
+      <OrderDetailInner />
+    </ErrorBoundary>
   );
 }

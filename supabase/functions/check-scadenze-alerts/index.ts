@@ -7,6 +7,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Sicurezza: funzione cron — richiede cron secret
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestSecret !== cronSecret) {
+    console.error("check-scadenze-alerts: accesso non autorizzato");
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

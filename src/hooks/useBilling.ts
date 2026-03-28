@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { safeRedirect } from "@/utils/safeRedirect";
 
 // ─── TIPI ─────────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export function useOpenBillingPortal() {
       return data as { url: string };
     },
     onSuccess: ({ url }) => {
-      window.location.href = url;
+      safeRedirect(url);
     },
     onError: (error: Error) => {
       toast.error("Errore nell'apertura del portale fatturazione", {

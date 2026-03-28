@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
@@ -74,8 +75,8 @@ function getScadenzaInfo(doc: DocumentoFiscale) {
   return { scaduta: false, giorni: Math.abs(diffDays), urgente: false };
 }
 
-// ─── Main Page ────────────────────────────────────────────
-export default function DocumentiFiscaliList() {
+// ─── Inner Component ──────────────────────────────────────
+function DocumentiFiscaliListInner() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tipo") ?? "fattura";
@@ -919,5 +920,13 @@ export default function DocumentiFiscaliList() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function DocumentiFiscaliList() {
+  return (
+    <ErrorBoundary title="Errore nella lista documenti fiscali">
+      <DocumentiFiscaliListInner />
+    </ErrorBoundary>
   );
 }

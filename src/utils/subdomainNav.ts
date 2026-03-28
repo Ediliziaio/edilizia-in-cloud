@@ -1,3 +1,5 @@
+import { safeRedirect } from "@/utils/safeRedirect";
+
 /**
  * Builds a full URL for a given path on a specific subdomain.
  * In local development (localhost), returns just the path (no subdomain switching).
@@ -19,7 +21,7 @@ export function getSubdomainUrl(path: string, subdomain: "app" | "admin" | "clie
 
 /**
  * Navigates to a path on the specified subdomain.
- * Uses window.location.href for cross-subdomain navigation (triggers full reload).
+ * Usa safeRedirect per prevenire Open Redirect (SEC-011).
  * Falls back to in-app navigate() in local dev.
  */
 export function navigateToSubdomain(
@@ -29,7 +31,7 @@ export function navigateToSubdomain(
 ): void {
   const url = getSubdomainUrl(path, subdomain);
   if (url.startsWith("http")) {
-    window.location.href = url;
+    safeRedirect(url);
   } else if (navigateFn) {
     navigateFn(url);
   } else {

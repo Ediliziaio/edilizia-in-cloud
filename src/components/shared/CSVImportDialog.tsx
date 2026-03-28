@@ -48,8 +48,16 @@ function autoMatch(fileHeaders: string[], fields: ImportField[]): Record<string,
   return mapping;
 }
 
+// Limite massimo dimensione file per prevenire DoS e ReDoS via xlsx (CVE GHSA-4r6h-8v6p-xvw6)
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
 function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][] }> {
   return new Promise((resolve, reject) => {
+    // Sicurezza: limita dimensione file per prevenire attacchi DoS tramite xlsx malformato
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return reject(new Error(`File troppo grande: massimo ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB consentiti.`));
+    }
+
     const reader = new FileReader();
     const isCSV = file.name.toLowerCase().endsWith(".csv");
 

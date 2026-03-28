@@ -106,7 +106,7 @@ function CsvImportDialog({
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // BUG 4 — wrap FileReader in a Promise
+
   const readFile = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -115,7 +115,7 @@ function CsvImportDialog({
       reader.readAsText(file);
     });
 
-  // BUG 5 — track totalRows in parseFile
+
   const parseFile = async (file: File) => {
     setFileName(file.name);
     try {
@@ -142,7 +142,7 @@ function CsvImportDialog({
     a.href = url; a.download = "template_listino.csv"; a.click();
   };
 
-  // BUG 4 — async pattern using readFile Promise; BUG 6 — categoria_id lookup
+
   const doImport = async () => {
     if (!rows.length) return;
     const fileEl = fileRef.current;
@@ -156,7 +156,6 @@ function CsvImportDialog({
         const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
         return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
       });
-      // BUG 6 — categoria_id lookup by name (case-insensitive)
       const toInsert = allRows.map((r) => {
         const catName = r.categoria || r.category || null;
         let categoriaId: string | null = null;
@@ -236,7 +235,6 @@ function CsvImportDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
-          {/* BUG 5 — show totalRows count */}
           <Button onClick={doImport} disabled={!rows.length || importing}>
             Importa {totalRows > 0 ? `${totalRows}` : ""} prodotti
           </Button>
@@ -413,7 +411,6 @@ function ArticleDialog({
   const [pdfUrl, setPdfUrl] = useState((editingArticle as any)?.pdf_scheda_url ?? "");
 
   // Load griglia when editing a griglia product
-  // BUG 1 — use prezzo_acquisto_netto instead of prezzo_acquisto
   useQuery({
     queryKey: ["listino-griglia-edit", editingArticle?.id],
     enabled: !!editingArticle?.id && editingArticle.modalita_prezzo === "griglia",
@@ -442,7 +439,6 @@ function ArticleDialog({
     if (!name.trim()) { toast.error("Il nome è obbligatorio"); return; }
     setSaving(true);
     try {
-      // BUG 7 — removed note_interne; BUG 8 — removed griglia_unita_x/y; BUG 9 — removed attivo from payload
       const payload: any = {
         company_id: companyId,
         name: name.trim(),
@@ -477,7 +473,6 @@ function ArticleDialog({
         prodottoId = data.id;
       }
 
-      // Save griglia cells — BUG 1: use prezzo_acquisto_netto in upsert payload
       if (modalita === "griglia" && prodottoId && valoriX.length > 0 && valoriY.length > 0) {
         const toUpsert: any[] = [];
         valoriX.forEach((x) => {
@@ -540,7 +535,6 @@ function ArticleDialog({
           </TabsList>
 
           {/* TAB 1 — Anagrafica */}
-          {/* BUG 7 — removed note_interne form input */}
           <TabsContent value="anagrafica" className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -593,7 +587,6 @@ function ArticleDialog({
           </TabsContent>
 
           {/* TAB 2 — Modalità Prezzo */}
-          {/* BUG 3 — wrap radio cards in RadioGroup; BUG 8 — removed griglia_unita_x/y inputs */}
           <TabsContent value="modalita" className="space-y-4 pt-4">
             {editingArticle && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
@@ -824,7 +817,6 @@ export function ArticleCatalog() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
 
-  // BUG 10 — order by name instead of sort_order
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ["article-templates-pro", companyId],
     enabled: !!companyId,
@@ -858,8 +850,6 @@ export function ArticleCatalog() {
     },
   });
 
-  // BUG 9 — toggleAttivo is UI-only optimistic update; keep the attivo column usage here
-  // as it's used for the local UI toggle (the toggle reads/writes attivo in the DB row)
   const toggleAttivoMutation = useMutation({
     mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
       const { error } = await (supabase.from("article_templates") as any).update({ attivo }).eq("id", id);
@@ -1006,7 +996,6 @@ export function ArticleCatalog() {
       </div>
 
       {/* Table */}
-      {/* BUG 12 — colSpan uses isAdmin ? 9 : 8 */}
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>

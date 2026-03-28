@@ -6,6 +6,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Sicurezza: questa funzione usa service_role — richiede cron secret o chiamata interna
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestSecret !== cronSecret) {
+    console.error("compute-health-scores: accesso non autorizzato");
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
