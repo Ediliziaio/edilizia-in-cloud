@@ -116,8 +116,8 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
   const ibanValid = !ibanValue || validateIBAN(ibanValue);
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2">
-      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Metodo di pagamento</Label>
+    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-emerald-400/60 shadow-sm">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-emerald-600/80 dark:text-emerald-400/80">Metodo di pagamento</Label>
 
       {/* Metodo pagamento */}
       <Select

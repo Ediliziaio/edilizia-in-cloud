@@ -73,9 +73,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2">
+    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-primary/60 shadow-sm">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</Label>
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">Cliente</Label>
         {hasCliente && !disabled && (
           <Button
             variant="ghost"

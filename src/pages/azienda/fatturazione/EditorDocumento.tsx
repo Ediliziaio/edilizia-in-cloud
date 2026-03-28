@@ -122,8 +122,8 @@ export default function EditorDocumento() {
       />
 
       {/* Single-page scrollable form — full width, like Fatture in Cloud */}
-      <div className="flex-1 overflow-auto bg-muted/30">
-        <div className="max-w-5xl mx-auto px-4 py-5 space-y-4 pb-24">
+      <div className="flex-1 overflow-auto bg-gradient-to-b from-muted/40 to-muted/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 pb-24">
 
           {/* NC banner */}
           {state.tipo === "nota_credito" && state.documento_correlato_id && (
@@ -155,7 +155,7 @@ export default function EditorDocumento() {
           )}
 
           {/* ═══ TOP SECTION: Cliente + Dati + Pagamento ═══ */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />

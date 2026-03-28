@@ -40,8 +40,8 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
   }
 
   return (
-    <div className="space-y-4 rounded-lg border p-4 bg-card">
-      <Label className="text-sm font-semibold">Note e riferimenti</Label>
+    <div className="space-y-4 rounded-lg border p-4 bg-card shadow-sm">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">Note e riferimenti</Label>
 
       {/* Causali */}
       <div>

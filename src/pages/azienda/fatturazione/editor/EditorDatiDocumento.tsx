@@ -26,8 +26,8 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
   const isScaduta = dataScadenzaParsed && isBefore(dataScadenzaParsed, startOfDay(new Date()));
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2">
-      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dati documento</Label>
+    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-amber-400/60 shadow-sm">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">Dati documento</Label>
 
       {/* Data + Numero inline */}
       <div className="grid grid-cols-2 gap-2">

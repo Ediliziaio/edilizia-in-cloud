@@ -359,9 +359,9 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     .slice(0, 10);
 
   return (
-    <div className="space-y-2 rounded-lg border bg-card p-3">
+    <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lista articoli</Label>
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">Articoli e prestazioni</Label>
         {!disabled && (
           <Popover open={catalogOpen} onOpenChange={setCatalogOpen}>
             <PopoverTrigger asChild>
@@ -400,8 +400,8 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       </div>
 
       {righe.length === 0 ? (
-        <div className="border border-dashed rounded-md py-6 text-center">
-          <p className="text-xs text-muted-foreground mb-2">Nessun articolo. Aggiungi dal catalogo o una riga vuota.</p>
+        <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg py-8 text-center bg-muted/20">
+          <p className="text-sm text-muted-foreground mb-3">Aggiungi il primo articolo o prestazione</p>
           {!disabled && (
             <div className="flex gap-2 justify-center">
               <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>

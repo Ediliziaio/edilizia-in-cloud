@@ -31,8 +31,8 @@ export function EditorTotaliSection({ state, dispatch, disabled }: Props) {
   const suggestBollo = !state.bollo_virtuale && shouldSuggestBollo(state.righe ?? [], state.totale_documento ?? 0);
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2 self-start sticky top-4">
-      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Riepilogo</Label>
+    <div className="rounded-lg border bg-card p-4 space-y-3 self-start sticky top-4 shadow-md border-t-[3px] border-t-primary">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">Riepilogo</Label>
 
       {/* Competenze / Subtotale */}
       <div className="flex justify-between text-xs">
@@ -190,9 +190,9 @@ export function EditorTotaliSection({ state, dispatch, disabled }: Props) {
       </Collapsible>
 
       {/* ═══ TOTALE DA PAGARE ═══ */}
-      <div className="flex justify-between items-center pt-2 border-t">
-        <span className="text-sm font-bold">Totale da pagare</span>
-        <span className="text-base font-bold tabular-nums text-primary">{formatCurrency(state.totale_da_pagare ?? 0)}</span>
+      <div className="flex justify-between items-center pt-3 mt-1 border-t-2 border-primary/20">
+        <span className="text-sm font-bold text-foreground">Totale da pagare</span>
+        <span className="text-lg font-extrabold tabular-nums text-primary">{formatCurrency(state.totale_da_pagare ?? 0)}</span>
       </div>
 
       {/* Validation errors */}

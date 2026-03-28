@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye } from "lucide-react";
+import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,62 +70,83 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b bg-card shrink-0 h-12">
-      {/* Back + doc type badge */}
+    <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
+      {/* Back */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-9 w-9 rounded-full"
         onClick={() => navigate("/azienda/documenti")}
       >
         <ArrowLeft className="h-4 w-4" />
       </Button>
 
-      <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide">
-        {TIPO_LABELS[tipo] ?? tipo}
-      </Badge>
+      {/* Doc type + number */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide border-primary/30 text-primary">
+          {TIPO_LABELS[tipo] ?? tipo}
+        </Badge>
 
-      {state.numero && (
-        <span className="font-mono text-sm font-semibold text-primary">
-          {state.numero}
-        </span>
-      )}
-
-      <Badge variant={statoConfig.variant} className="text-xs">
-        {statoConfig.label}
-      </Badge>
-
-      {/* Autosave indicator */}
-      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-        {isSaving ? (
-          <>
-            <Loader2 className="h-3 w-3 animate-spin" />
-            <span>Salvataggio...</span>
-          </>
-        ) : lastSaved ? (
-          <>
-            <Check className="h-3 w-3 text-emerald-500" />
-            <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
-          </>
-        ) : (
-          <>
-            <Clock className="h-3 w-3" />
-            <span className="hidden sm:inline">Non salvata</span>
-          </>
+        {state.numero && (
+          <span className="font-mono text-base font-bold text-foreground tracking-tight">
+            {state.numero}
+          </span>
         )}
+
+        <Badge
+          variant={statoConfig.variant}
+          className={`text-[11px] font-medium ${
+            state.stato === "pagata"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200"
+              : ""
+          }`}
+        >
+          {statoConfig.label}
+        </Badge>
+      </div>
+
+      {/* Center spacer + autosave indicator */}
+      <div className="ml-auto flex items-center gap-3">
+        {/* Validation error count pill */}
+        {(validationErrorCount ?? 0) > 0 && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+            <AlertCircle className="h-3 w-3" />
+            <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
+          </div>
+        )}
+
+        {/* Autosave indicator */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {isSaving ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="hidden sm:inline">Salvataggio...</span>
+            </>
+          ) : lastSaved ? (
+            <>
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
+            </>
+          ) : (
+            <>
+              <Clock className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Non salvata</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2 border-l pl-3 ml-1">
         {/* Preview button */}
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-xs"
+          className="h-8 text-xs gap-1.5"
           onClick={onPreview}
         >
-          <Eye className="h-3.5 w-3.5 mr-1.5" />
-          Anteprima
+          <Eye className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Anteprima</span>
         </Button>
 
         {/* More menu */}
@@ -152,17 +173,21 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
             <Button
               variant="ghost"
               size="sm"
-              className="text-destructive hover:text-destructive h-8 text-xs"
+              className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1" />
-              Elimina
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Elimina</span>
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="sm" className="h-8" disabled={(validationErrorCount ?? 0) > 0}>
-                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 shadow-sm"
+                  disabled={(validationErrorCount ?? 0) > 0}
+                >
+                  <Send className="h-3.5 w-3.5" />
                   Emetti
                 </Button>
               </AlertDialogTrigger>
