@@ -1,4 +1,8 @@
+-- =============================================================
 -- order_installments: rate di pagamento dinamiche (N rate per ordine)
+-- =============================================================
+
+-- 1. Tabella order_installments
 CREATE TABLE public.order_installments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,

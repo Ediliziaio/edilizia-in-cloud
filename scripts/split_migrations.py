@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Split multi-statement Supabase migration files into single-statement files.
-Uses zero-padded numeric suffixes for correct sort order.
-Original file is renamed to _000, splits get _001, _002, etc.
+Each split file gets a unique timestamp (original + 1 second per statement).
+Validates no timestamp collisions with existing migrations.
 """
 
 import os
@@ -68,40 +68,12 @@ def parse_statements(sql: str) -> list[str]:
     return statements
 
 
-def split_migration(filepath: str) -> int:
-    """Split a migration file. Renames original to _000, creates _001, _002, etc."""
-    with open(filepath, 'r') as f:
-        content = f.read()
-
-    statements = parse_statements(content)
-    if len(statements) <= 1:
-        return 0
-
-    basename = os.path.basename(filepath)
-    dirname = os.path.dirname(filepath)
-    name_no_ext = basename.rsplit('.', 1)[0]
-    timestamp = name_no_ext.split('_')[0]
-    rest = name_no_ext[len(timestamp):]  # e.g., "_uuid-here" or "_descriptive_name"
-
-    # Rename original file to _000 (first statement)
-    new_base = f"{timestamp}_000{rest}.sql"
-    new_base_path = os.path.join(dirname, new_base)
-
-    # Write first statement to _000 file
-    with open(new_base_path, 'w') as f:
-        f.write(statements[0] + '\n')
-
-    # Remove the original file (it's now _000)
-    os.remove(filepath)
-
-    # Write remaining statements to _001, _002, etc.
-    for i, stmt in enumerate(statements[1:], 1):
-        new_name = f"{timestamp}_{i:03d}{rest}.sql"
-        new_path = os.path.join(dirname, new_name)
-        with open(new_path, 'w') as f:
-            f.write(stmt + '\n')
-
-    return len(statements) - 1
+def increment_timestamp(ts: str, n: int) -> str:
+    """Increment a YYYYMMDDHHMMSS timestamp by n seconds."""
+    from datetime import datetime, timedelta
+    dt = datetime.strptime(ts, '%Y%m%d%H%M%S')
+    dt += timedelta(seconds=n)
+    return dt.strftime('%Y%m%d%H%M%S')
 
 
 def main():
@@ -113,33 +85,75 @@ def main():
     files = sorted(f for f in os.listdir(migrations_dir)
                    if f.endswith('.sql') and f[:8] >= MIN_TIMESTAMP[:8])
 
-    # Only process original files (pure digit timestamps, no _NNN suffix)
-    original_files = []
-    for fname in files:
-        timestamp = fname.split('_')[0]
-        if timestamp.isdigit():
-            original_files.append(fname)
+    # Collect all existing timestamps
+    existing_timestamps = set()
+    for f in os.listdir(migrations_dir):
+        if f.endswith('.sql'):
+            ts = f.split('_')[0]
+            if ts.isdigit() and len(ts) == 14:
+                existing_timestamps.add(ts)
 
     total_split = 0
     total_created = 0
+    new_timestamps = set()  # Track what we're creating
 
-    for fname in original_files:
+    for fname in files:
         filepath = os.path.join(migrations_dir, fname)
         if not os.path.exists(filepath):
             continue
+
+        # Extract timestamp and name suffix
+        parts = fname.split('_', 1)
+        timestamp = parts[0]
+        if not timestamp.isdigit() or len(timestamp) != 14:
+            continue
+
+        name_suffix = parts[1] if len(parts) > 1 else 'migration.sql'
+        name_suffix_no_ext = name_suffix.rsplit('.', 1)[0]
 
         with open(filepath, 'r') as f:
             content = f.read()
 
         stmts = parse_statements(content)
-        if len(stmts) > 1:
-            created = split_migration(filepath)
-            if created > 0:
-                total_split += 1
-                total_created += created
-                print(f"  Split {fname}: {len(stmts)} stmts -> {created + 1} files")
+        if len(stmts) <= 1:
+            continue
 
-    # Verify sort order
+        # Check we have room: next N-1 timestamps must be free
+        can_split = True
+        for i in range(1, len(stmts)):
+            new_ts = increment_timestamp(timestamp, i)
+            if new_ts in existing_timestamps or new_ts in new_timestamps:
+                # Collision! Try offset by 100 seconds
+                print(f"  WARNING: Collision at {new_ts} for {fname}, trying offset")
+                can_split = False
+                break
+
+        if not can_split:
+            # Skip this file - needs manual handling
+            print(f"  SKIP {fname}: timestamp collision")
+            continue
+
+        # Split: keep first statement in original file
+        with open(filepath, 'w') as f:
+            f.write(stmts[0] + '\n')
+
+        # Create new files for remaining statements
+        created = 0
+        for i, stmt in enumerate(stmts[1:], 1):
+            new_ts = increment_timestamp(timestamp, i)
+            new_name = f"{new_ts}_{name_suffix_no_ext}_part{i}.sql"
+            new_path = os.path.join(migrations_dir, new_name)
+
+            with open(new_path, 'w') as f:
+                f.write(stmt + '\n')
+
+            new_timestamps.add(new_ts)
+            created += 1
+
+        total_split += 1
+        total_created += created
+        print(f"  Split {fname}: {len(stmts)} stmts -> {created + 1} files")
+
     all_files = sorted(f for f in os.listdir(migrations_dir) if f.endswith('.sql'))
     print(f"\nDone: {total_split} files split, {total_created} new files created")
     print(f"Total migration files: {len(all_files)}")
