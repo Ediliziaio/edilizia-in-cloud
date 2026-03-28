@@ -1,19 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter } from "../_shared/billingAdapter.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { corsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  // Verifica JWT (SEC-013)
+  let userId: string;
+  let supabaseAdmin: ReturnType<typeof createClient>;
+  try {
+    ({ userId, supabaseAdmin } = await requireAuth(req, corsHeaders));
+  } catch (authErr) {
+    if (authErr instanceof Response) return authErr;
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   try {
     const { invoice_id, provider: preferredProvider } = await req.json();
@@ -23,6 +29,18 @@ Deno.serve(async (req) => {
       .from("invoices").select("*").eq("id", invoice_id).single();
     if (!invoice) return json({ error: "Invoice not found" }, 404);
     if (!invoice.external_id) return json({ error: "Invoice not synced yet" }, 400);
+
+    // Verifica ownership: l'utente deve appartenere all'azienda della fattura (SEC-013)
+    const { data: callerRoles } = await supabaseAdmin
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isSuperAdmin = (callerRoles || []).some((r: { role: string }) => r.role === "super_admin");
+    if (!isSuperAdmin) {
+      const { data: callerProfile } = await supabaseAdmin
+        .from("profiles").select("company_id").eq("id", userId).maybeSingle();
+      if (!callerProfile || callerProfile.company_id !== invoice.company_id) {
+        return json({ error: "Non autorizzato" }, 403);
+      }
+    }
 
     // Recupera integrazione attiva
     let query = supabase.from("billing_integrations").select("*")

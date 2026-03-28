@@ -1,19 +1,25 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Protezione cron: solo chiamate interne con INTERNAL_CRON_SECRET (SEC-013)
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestCronSecret !== cronSecret) {
+    console.error("cleanup-sessions: accesso non autorizzato");
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Delete sessions older than 30 days

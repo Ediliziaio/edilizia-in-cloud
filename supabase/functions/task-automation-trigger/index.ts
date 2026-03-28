@@ -1,15 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Protezione DB webhook: solo chiamate interne con INTERNAL_CRON_SECRET (SEC-013)
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestCronSecret !== cronSecret) {
+    console.error("task-automation-trigger: accesso non autorizzato");
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {

@@ -1,11 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { requireAuth } from "../_shared/auth.ts";
+import { corsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -32,6 +28,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verifica JWT (SEC-013)
+  let userId: string;
+  let supabaseAdmin: ReturnType<typeof createClient>;
+  try {
+    ({ userId, supabaseAdmin } = await requireAuth(req, corsHeaders));
+  } catch (authErr) {
+    if (authErr instanceof Response) return authErr;
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const { webhook_id, event_type, payload, is_test, test_url } = await req.json();
 
@@ -39,7 +47,35 @@ Deno.serve(async (req) => {
     let secret: string | null = null;
 
     if (is_test && test_url) {
-      // Test mode with ad-hoc URL (webhook not yet saved)
+      // Test mode: validazione SSRF — solo HTTPS, niente IP interni (SEC-013)
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(test_url);
+      } catch {
+        return new Response(JSON.stringify({ error: "test_url non è un URL valido" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (parsedUrl.protocol !== "https:") {
+        return new Response(JSON.stringify({ error: "test_url deve usare HTTPS" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const hostname = parsedUrl.hostname.toLowerCase();
+      const isInternal =
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "0.0.0.0" ||
+        hostname.startsWith("192.168.") ||
+        hostname.startsWith("10.") ||
+        hostname.startsWith("172.16.") ||
+        hostname.endsWith(".local") ||
+        hostname.endsWith(".internal");
+      if (isInternal) {
+        return new Response(JSON.stringify({ error: "test_url non può puntare a indirizzi interni" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       targetUrl = test_url;
     } else {
       // Fetch webhook config from DB
