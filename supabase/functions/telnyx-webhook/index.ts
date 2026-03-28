@@ -17,11 +17,49 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Leggi body prima della verifica firma
+    const rawBody = await req.text();
+
+    // Verifica firma Ed25519 Telnyx (SEC-012)
+    const sigEd25519 = req.headers.get("telnyx-signature-ed25519");
+    const telnyxTimestamp = req.headers.get("telnyx-timestamp");
+    const telnyxPublicKey = Deno.env.get("TELNYX_PUBLIC_KEY");
+
+    if (telnyxPublicKey) {
+      if (!sigEd25519 || !telnyxTimestamp) {
+        console.error("telnyx-webhook: intestazioni firma mancanti");
+        return new Response("Unauthorized", { status: 401 });
+      }
+      // Prevenzione replay attack: rifiuta se timestamp > 5 minuti
+      const tsSeconds = parseInt(telnyxTimestamp, 10);
+      if (isNaN(tsSeconds) || Math.abs(Date.now() / 1000 - tsSeconds) > 300) {
+        console.error("telnyx-webhook: timestamp non valido o replay attack");
+        return new Response("Unauthorized", { status: 401 });
+      }
+      // Payload firmato da Telnyx: "timestamp|rawBody"
+      const msgBuffer = new TextEncoder().encode(`${telnyxTimestamp}|${rawBody}`);
+      const pubKeyBuffer = Uint8Array.from(atob(telnyxPublicKey), (c) => c.charCodeAt(0));
+      const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        pubKeyBuffer,
+        { name: "Ed25519" },
+        false,
+        ["verify"],
+      );
+      const sigBuffer = Uint8Array.from(atob(sigEd25519), (c) => c.charCodeAt(0));
+      const isValid = await crypto.subtle.verify("Ed25519", cryptoKey, sigBuffer, msgBuffer);
+      if (!isValid) {
+        console.error("telnyx-webhook: firma Ed25519 non valida");
+        return new Response("Unauthorized", { status: 401 });
+      }
+    } else {
+      console.warn("telnyx-webhook: TELNYX_PUBLIC_KEY non configurata, verifica firma saltata");
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const rawBody = await req.text();
     const payload = JSON.parse(rawBody);
 
     // Telnyx sends events in { data: { event_type, payload, ... } } format

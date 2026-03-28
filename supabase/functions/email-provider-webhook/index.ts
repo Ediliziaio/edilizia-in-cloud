@@ -19,6 +19,22 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
+  // Verifica token segreto webhook (SEC-012)
+  // Il provider deve includere ?secret=TOKEN nell'URL o l'header x-webhook-secret
+  const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
+  if (webhookSecret) {
+    const reqUrl = new URL(req.url);
+    const providedSecret =
+      reqUrl.searchParams.get("secret") ||
+      req.headers.get("x-webhook-secret");
+    if (providedSecret !== webhookSecret) {
+      console.error("email-provider-webhook: token segreto non valido");
+      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    }
+  } else {
+    console.warn("email-provider-webhook: WEBHOOK_SECRET non configurato, autenticazione saltata");
+  }
+
   try {
     const url = new URL(req.url);
     const stream = url.searchParams.get("stream") || "marketing";
