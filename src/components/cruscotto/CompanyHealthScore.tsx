@@ -17,7 +17,7 @@ interface Props {
 interface ScoreFactor {
   label: string;
   score: number; // 0-100
-  hasData: boolean; // BUG 5: distinguish no data vs zero
+  hasData: boolean; // distingue "nessun dato" da "zero"
   status: "green" | "yellow" | "red" | "gray";
   summary: string;
 }
@@ -94,7 +94,7 @@ const WEIGHT_LABELS = ["25%", "25%", "20%", "15%", "15%"];
 export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, finance, operations, isLoading }: Props) {
   const factors = useMemo(() => calcFactors(kpi, finance, operations), [kpi, finance, operations]);
 
-  // BUG 5: Only count factors with data
+  // Calcola score solo sui fattori con dati disponibili
   const factorsWithData = factors.filter(f => f.hasData);
   const totalScore = useMemo(() => {
     if (factorsWithData.length === 0) return null;

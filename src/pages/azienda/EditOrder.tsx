@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { logger } from "@/utils/logger";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
@@ -80,7 +81,7 @@ interface OrderData {
   assigned_to: string | null;
 }
 
-export default function EditOrder() {
+function EditOrderInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -866,5 +867,13 @@ export default function EditOrder() {
         onCustomerCreated={handleCustomerCreated}
       />
     </div>
+  );
+}
+
+export default function EditOrder() {
+  return (
+    <ErrorBoundary title="Errore nella modifica ordine">
+      <EditOrderInner />
+    </ErrorBoundary>
   );
 }

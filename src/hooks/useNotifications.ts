@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { playNotificationSound } from "@/lib/notificationSound";
+import { safeRedirect } from "@/utils/safeRedirect";
 
 export interface Notification {
   id: string;
@@ -71,7 +72,7 @@ export function useNotifications() {
           toast(newNotif.title, {
             description: newNotif.body ?? undefined,
             action: newNotif.action_url
-              ? { label: "Vai →", onClick: () => { window.location.href = newNotif.action_url!; } }
+              ? { label: "Vai →", onClick: () => { safeRedirect(newNotif.action_url!, "/"); } }
               : undefined,
             duration: 5000,
           });

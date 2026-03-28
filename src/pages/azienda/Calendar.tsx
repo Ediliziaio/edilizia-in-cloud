@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -28,7 +29,7 @@ import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, Cale
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-export default function Calendar() {
+function CalendarInner() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -700,5 +701,13 @@ export default function Calendar() {
         showOrderSelect={true}
       />
     </div>
+  );
+}
+
+export default function Calendar() {
+  return (
+    <ErrorBoundary title="Errore nel calendario">
+      <CalendarInner />
+    </ErrorBoundary>
   );
 }

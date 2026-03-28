@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { safeRedirect } from "@/utils/safeRedirect";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -209,7 +210,7 @@ export default function SettingsCredits() {
       });
       if (error) throw error;
       if (data?.url) {
-        window.location.href = data.url;
+        safeRedirect(data.url);
       } else {
         toast.error(data?.error || "Errore nella creazione della sessione di pagamento");
       }
@@ -485,7 +486,7 @@ export default function SettingsCredits() {
                               body: { company_id: companyId, type: "ai_credits", amount_eur: amount },
                             });
                             if (error) throw error;
-                            if (data?.url) window.location.href = data.url;
+                            if (data?.url) safeRedirect(data.url);
                             else toast.error(data?.error || "Errore");
                           } catch (e: any) {
                             toast.error(e.message || "Errore");
@@ -556,7 +557,7 @@ export default function SettingsCredits() {
                               body: { company_id: companyId, type: "whatsapp_credits", amount_eur: amount },
                             });
                             if (error) throw error;
-                            if (data?.url) window.location.href = data.url;
+                            if (data?.url) safeRedirect(data.url);
                             else toast.error(data?.error || "Errore");
                           } catch (e: any) {
                             toast.error(e.message || "Errore");

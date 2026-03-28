@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Users, Building2, Clock, Loader2, Check, Copy, Palmtree } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,7 +38,7 @@ const MARKETING_SECTION_KEYS = [
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 
-export default function Employees() {
+function EmployeesInner() {
   const { effectiveCompany } = useAuth();
   
   const queryClient = useQueryClient();
@@ -430,5 +431,13 @@ export default function Employees() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function Employees() {
+  return (
+    <ErrorBoundary title="Errore nella gestione dipendenti">
+      <EmployeesInner />
+    </ErrorBoundary>
   );
 }

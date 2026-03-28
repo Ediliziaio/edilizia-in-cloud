@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown, Calendar, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
@@ -82,7 +83,7 @@ const CUSTOMER_IMPORT_FIELDS: ImportField[] = [
   { key: "notes", label: "Note", required: false },
 ];
 
-export default function CustomersList() {
+function CustomersListInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
   const [filterOrders, setFilterOrders] = useState<string>("all");
@@ -800,5 +801,13 @@ export default function CustomersList() {
         onImport={handleCustomersImport}
       />
     </div>
+  );
+}
+
+export default function CustomersList() {
+  return (
+    <ErrorBoundary title="Errore nella lista clienti">
+      <CustomersListInner />
+    </ErrorBoundary>
   );
 }

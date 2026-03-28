@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,7 +31,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   altro: "Altro",
 };
 
-export default function PrimaNota() {
+function PrimaNotaInner() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -399,5 +400,13 @@ export default function PrimaNota() {
         isPending={create.isPending}
       />
     </div>
+  );
+}
+
+export default function PrimaNota() {
+  return (
+    <ErrorBoundary title="Errore nella prima nota">
+      <PrimaNotaInner />
+    </ErrorBoundary>
   );
 }

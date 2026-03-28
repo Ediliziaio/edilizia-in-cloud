@@ -211,7 +211,9 @@ function DocumentiFiscaliListInner() {
           pagato_at: now,
         });
         ok++;
-      } catch {}
+      } catch (err) {
+        console.error("Errore durante la marcatura come pagato:", err);
+      }
     }
     if (ok > 0) toast.success(`${ok} documenti segnati come pagati`);
     clearSelection();
@@ -229,7 +231,9 @@ function DocumentiFiscaliListInner() {
           await updateMutation.mutateAsync({ id: doc.id, stato: "annullata" as StatoDocumento });
           ok++;
         }
-      } catch {}
+      } catch (err) {
+        console.error("Errore durante eliminazione/annullamento documento:", err);
+      }
     }
     if (ok > 0) toast.success(`${ok} documenti eliminati/annullati`);
     clearSelection();

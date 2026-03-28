@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
+import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -626,7 +627,7 @@ export default function CompaniesList() {
           _ic: companyId,
         });
         const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
-        window.location.href = url;
+        safeRedirect(url);
         return;
       }
     }

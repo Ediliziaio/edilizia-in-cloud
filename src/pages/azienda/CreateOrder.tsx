@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -48,7 +49,7 @@ import {
 } from "@/lib/orderUtils";
 import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
 
-export default function CreateOrder() {
+function CreateOrderInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -762,5 +763,13 @@ export default function CreateOrder() {
         onCustomerCreated={handleCustomerCreated}
       />
     </div>
+  );
+}
+
+export default function CreateOrder() {
+  return (
+    <ErrorBoundary title="Errore nella creazione ordine">
+      <CreateOrderInner />
+    </ErrorBoundary>
   );
 }

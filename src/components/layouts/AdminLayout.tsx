@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
+import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -330,7 +331,7 @@ function AdminMainSidebar() {
           _ic: companyId,
         });
         const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
-        window.location.href = url;
+        safeRedirect(url);
         return;
       }
     }

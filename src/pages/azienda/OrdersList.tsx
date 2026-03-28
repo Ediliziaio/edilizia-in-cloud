@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -45,7 +46,7 @@ const ORDER_IMPORT_FIELDS: ImportField[] = [
   { key: "payment_type", label: "Tipo Pagamento", required: false },
 ];
 
-export default function OrdersList() {
+function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -865,5 +866,13 @@ export default function OrdersList() {
         onImport={handleOrdersImport}
       />
     </div>
+  );
+}
+
+export default function OrdersList() {
+  return (
+    <ErrorBoundary title="Errore nella lista ordini">
+      <OrdersListInner />
+    </ErrorBoundary>
   );
 }
