@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_credits ENABLE ROW LEVEL SECURITY;

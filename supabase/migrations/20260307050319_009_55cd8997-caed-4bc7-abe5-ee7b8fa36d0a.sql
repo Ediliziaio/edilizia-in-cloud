@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_credit_usage ENABLE ROW LEVEL SECURITY;

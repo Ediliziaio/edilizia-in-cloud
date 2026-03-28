@@ -1,0 +1,1 @@
+ALTER TABLE public.sms_logs ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+CREATE INDEX idx_attribution_sessions_session ON public.attribution_sessions(session_id);

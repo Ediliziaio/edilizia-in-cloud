@@ -1,0 +1,1 @@
+ALTER TABLE public.automation_nodes ENABLE ROW LEVEL SECURITY;

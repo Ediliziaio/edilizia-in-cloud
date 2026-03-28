@@ -1,0 +1,25 @@
+-- automation_rules: unified automation rules table
+CREATE TABLE IF NOT EXISTS public.automation_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  descrizione TEXT,
+  categoria TEXT NOT NULL DEFAULT 'generale',
+  icona TEXT,
+  colore TEXT,
+  attiva BOOLEAN DEFAULT true,
+  is_template BOOLEAN DEFAULT false,
+  template_id UUID,
+  trigger_tipo TEXT NOT NULL,
+  trigger_config JSONB DEFAULT '{}'::jsonb,
+  condizioni JSONB DEFAULT '[]'::jsonb,
+  azione_tipo TEXT NOT NULL DEFAULT 'crea_task',
+  azione_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  azioni_secondarie JSONB DEFAULT '[]'::jsonb,
+  esecuzioni_totali INTEGER DEFAULT 0,
+  ultima_esecuzione TIMESTAMPTZ,
+  ultima_esecuzione_ok BOOLEAN,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES public.profiles(id)
+);

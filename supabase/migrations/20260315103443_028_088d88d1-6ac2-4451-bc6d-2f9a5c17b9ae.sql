@@ -1,0 +1,1 @@
+ALTER TABLE ai_agent_knowledge_v2 ENABLE ROW LEVEL SECURITY;

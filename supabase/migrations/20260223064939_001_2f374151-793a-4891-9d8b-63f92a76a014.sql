@@ -1,0 +1,1 @@
+ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;

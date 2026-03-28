@@ -1,0 +1,1 @@
+ALTER TABLE public.quote_templates ENABLE ROW LEVEL SECURITY;

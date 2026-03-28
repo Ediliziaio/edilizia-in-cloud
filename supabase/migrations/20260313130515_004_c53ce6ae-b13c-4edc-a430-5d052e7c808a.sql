@@ -1,0 +1,1 @@
+ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE ai_knowledge_base_v2 ENABLE ROW LEVEL SECURITY;

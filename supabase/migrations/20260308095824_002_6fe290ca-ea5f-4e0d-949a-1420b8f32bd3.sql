@@ -1,0 +1,2 @@
+-- RLS
+ALTER TABLE whatsapp_broadcasts ENABLE ROW LEVEL SECURITY;

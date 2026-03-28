@@ -1,0 +1,1 @@
+ALTER TABLE public.hr_festivita ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.automation_log ENABLE ROW LEVEL SECURITY;

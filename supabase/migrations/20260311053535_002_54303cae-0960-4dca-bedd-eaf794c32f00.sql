@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_validate_lost_reason_category ON marketing_opportunities;

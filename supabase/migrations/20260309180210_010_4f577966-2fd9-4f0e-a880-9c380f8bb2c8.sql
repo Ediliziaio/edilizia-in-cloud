@@ -1,0 +1,1 @@
+ALTER TABLE public.form_views ENABLE ROW LEVEL SECURITY;

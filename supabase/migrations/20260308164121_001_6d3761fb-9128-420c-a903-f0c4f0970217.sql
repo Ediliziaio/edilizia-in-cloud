@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_subscriptions ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.email_campaigns ENABLE ROW LEVEL SECURITY;

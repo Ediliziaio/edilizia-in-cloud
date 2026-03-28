@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_ad_accounts ENABLE ROW LEVEL SECURITY;

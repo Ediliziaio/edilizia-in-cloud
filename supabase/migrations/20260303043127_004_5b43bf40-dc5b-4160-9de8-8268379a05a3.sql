@@ -1,0 +1,1 @@
+ALTER TABLE public.call_logs ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,2 @@
+-- marketing_opportunities.call_center_id
+ALTER TABLE public.marketing_opportunities DROP CONSTRAINT IF EXISTS marketing_opportunities_call_center_id_fkey;

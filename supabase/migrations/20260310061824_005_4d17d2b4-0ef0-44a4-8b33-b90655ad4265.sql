@@ -1,0 +1,1 @@
+ALTER TABLE public.leave_requests ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.cs_tasks ENABLE ROW LEVEL SECURITY;

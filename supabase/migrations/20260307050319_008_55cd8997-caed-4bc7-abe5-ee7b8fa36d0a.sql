@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_credit_topups ENABLE ROW LEVEL SECURITY;

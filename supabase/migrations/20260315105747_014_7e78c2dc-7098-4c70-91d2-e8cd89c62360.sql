@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_chat_sessions ENABLE ROW LEVEL SECURITY;

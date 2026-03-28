@@ -1,0 +1,1 @@
+CREATE INDEX idx_integration_creds_integration ON public.integration_credentials(integration_id);

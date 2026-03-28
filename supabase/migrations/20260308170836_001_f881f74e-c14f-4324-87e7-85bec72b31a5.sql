@@ -1,0 +1,1 @@
+ALTER TABLE public.telnyx_settings ENABLE ROW LEVEL SECURITY;

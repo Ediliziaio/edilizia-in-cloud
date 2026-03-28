@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_kb_categories ENABLE ROW LEVEL SECURITY;

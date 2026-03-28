@@ -1,0 +1,1 @@
+CREATE INDEX idx_bank_reconciliations_transaction ON public.bank_reconciliations(transaction_id);

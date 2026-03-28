@@ -1,0 +1,1 @@
+ALTER TABLE public.email_billing ENABLE ROW LEVEL SECURITY;

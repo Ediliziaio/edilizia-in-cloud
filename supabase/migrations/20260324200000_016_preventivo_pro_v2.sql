@@ -1,0 +1,1 @@
+ALTER TABLE public.listino_griglia ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_assets ENABLE ROW LEVEL SECURITY;

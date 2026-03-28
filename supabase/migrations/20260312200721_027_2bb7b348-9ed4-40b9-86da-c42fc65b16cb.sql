@@ -1,0 +1,1 @@
+ALTER TABLE public.hr_giornate ENABLE ROW LEVEL SECURITY;

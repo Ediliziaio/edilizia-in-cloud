@@ -1,0 +1,1 @@
+ALTER TABLE public.bank_sync_logs ENABLE ROW LEVEL SECURITY;

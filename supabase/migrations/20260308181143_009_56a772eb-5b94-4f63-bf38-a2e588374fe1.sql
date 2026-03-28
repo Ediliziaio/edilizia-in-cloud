@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_credits ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.automation_flows ENABLE ROW LEVEL SECURITY;

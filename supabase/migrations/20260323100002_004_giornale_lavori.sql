@@ -1,0 +1,1 @@
+ALTER TABLE public.giornale_foto ENABLE ROW LEVEL SECURITY;

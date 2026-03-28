@@ -1,0 +1,2 @@
+-- marketing_contact_activities.created_by
+ALTER TABLE public.marketing_contact_activities DROP CONSTRAINT IF EXISTS marketing_contact_activities_created_by_fkey;

@@ -1,0 +1,1 @@
+ALTER TABLE public.gdpr_consents ENABLE ROW LEVEL SECURITY;

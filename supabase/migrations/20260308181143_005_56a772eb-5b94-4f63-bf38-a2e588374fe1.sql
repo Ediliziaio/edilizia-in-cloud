@@ -1,0 +1,1 @@
+CREATE INDEX idx_credit_adjustments_company ON public.admin_credit_adjustments(company_id);

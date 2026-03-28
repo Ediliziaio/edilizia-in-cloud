@@ -1,0 +1,1 @@
+ALTER TABLE public.referral_tiers ENABLE ROW LEVEL SECURITY;

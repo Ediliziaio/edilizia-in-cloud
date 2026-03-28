@@ -1,0 +1,1 @@
+ALTER TABLE ai_phone_numbers_v2 ENABLE ROW LEVEL SECURITY;

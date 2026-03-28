@@ -1,0 +1,1 @@
+ALTER TABLE public.campaign_costs ENABLE ROW LEVEL SECURITY;
