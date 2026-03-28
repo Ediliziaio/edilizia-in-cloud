@@ -178,7 +178,8 @@ export type StatoDocumento =
 
 export type TipoDocumento =
   | 'fattura' | 'fattura_pa' | 'nota_credito' | 'nota_debito'
-  | 'autofattura' | 'fattura_riepilogativa' | 'proforma' | 'preventivo' | 'ddt';
+  | 'autofattura' | 'fattura_riepilogativa' | 'proforma' | 'preventivo' | 'ddt'
+  | 'integrazione_servizi_estero' | 'integrazione_beni_ue' | 'integrazione_beni_extra_ue';
 
 export interface DocumentoFiscale {
   id: string;
@@ -410,6 +411,8 @@ export interface AnagraficaAzienda {
   sdi_provider: 'aruba' | 'infocert' | 'poste' | 'manuale';
   sdi_api_key?: string;
   sdi_configurato: boolean;
+  /** Split payment (scissione pagamenti) per fatture verso PA */
+  split_payment_pa: boolean;
   created_at: string;
   updated_at: string;
 }

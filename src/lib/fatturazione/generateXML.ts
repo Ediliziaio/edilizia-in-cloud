@@ -36,25 +36,43 @@ const TIPO_TO_TD: Record<string, string> = {
   autofattura: "TD20",
   fattura_riepilogativa: "TD24",
   ddt: "TD24",
+  // Fatture estere / autofatture integrazione
+  integrazione_servizi_estero: "TD17",  // Acquisto servizi dall'estero (art.17 c.2)
+  integrazione_beni_ue: "TD18",         // Acquisto beni intracomunitari
+  integrazione_beni_extra_ue: "TD19",   // Acquisto beni art.17 c.2 (extra-UE)
 };
+
+// Tipi documento che richiedono inversione Cedente/Cessionario
+// In questi casi: Cedente = fornitore estero, Cessionario = azienda italiana
+const TIPI_INVERSIONE = ["TD17", "TD18", "TD19"];
 
 // ─── Main Generator ──────────────────────────────────────────
 
+/**
+ * Client-side XML generator — SOLO per preview/download locale.
+ * L'invio reale a SDI usa la versione server-side in supabase/functions/invia-sdi/
+ * che genera un ProgressivoInvio atomico tramite incrementa_progressivo_sdi().
+ */
 export function generateFatturaPAXML(
   doc: DocumentoFiscale,
-  azienda: AnagraficaAzienda
+  azienda: AnagraficaAzienda,
+  progressivoInvio?: string
 ): string {
   const snap = doc.cliente_snapshot;
   const isPa = snap?.tipo_cliente === "PA";
-  const formato = isPa ? "FPA12" : "FPR12";
-  const codiceDestinatario = snap?.codice_sdi || (isPa ? "" : "0000000");
   const tipoDoc = TIPO_TO_TD[doc.tipo] || "TD01";
+  const isInversione = TIPI_INVERSIONE.includes(tipoDoc);
+  // Per autofatture di integrazione (TD17/18/19): formato sempre FPR12, destinatario = proprio codice SDI
+  const formato = isInversione ? "FPR12" : (isPa ? "FPA12" : "FPR12");
+  const codiceDestinatario = isInversione
+    ? (azienda.codice_sdi || "0000000")
+    : (snap?.codice_sdi || (isPa ? "000000" : "0000000"));
   const righe = doc.righe as RigaDocumento[];
   const riepilogo = doc.riepilogo_iva as RiepilogoIVA[];
   const scadenze = (doc.scadenze_pagamento ?? []) as ScadenzaPagamento[];
 
-  // Build ProgressivoInvio from numero
-  const progressivo = doc.numero?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "00001";
+  // In preview mode: fallback to doc number. In production: use atomic counter from DB.
+  const progressivo = progressivoInvio || doc.numero?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "00001";
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <p:FatturaElettronica versione="${formato}" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -68,14 +86,66 @@ export function generateFatturaPAXML(
       <FormatoTrasmissione>${formato}</FormatoTrasmissione>
       <CodiceDestinatario>${esc(codiceDestinatario)}</CodiceDestinatario>`;
 
-  // PEC if no SDI code
-  if (!snap?.codice_sdi && snap?.pec) {
+  // PEC if no SDI code (solo per fatture normali, non per autofatture)
+  if (!isInversione && !snap?.codice_sdi && snap?.pec) {
     xml += `
       <PECDestinatario>${esc(snap.pec)}</PECDestinatario>`;
   }
 
   xml += `
-    </DatiTrasmissione>
+    </DatiTrasmissione>`;
+
+  if (isInversione) {
+    // ── TD17/TD18/TD19: CedentePrestatore = fornitore estero ──
+    xml += `
+    <CedentePrestatore>
+      <DatiAnagrafici>`;
+    if (snap?.partita_iva) {
+      xml += `
+        <IdFiscaleIVA>
+          <IdPaese>${esc(snap.indirizzo_nazione || "XX")}</IdPaese>
+          <IdCodice>${esc(snap.partita_iva)}</IdCodice>
+        </IdFiscaleIVA>`;
+    }
+    if (snap?.codice_fiscale) {
+      xml += `
+        <CodiceFiscale>${esc(snap.codice_fiscale)}</CodiceFiscale>`;
+    }
+    xml += `
+        <Anagrafica>
+          <Denominazione>${esc(snap?.ragione_sociale)}</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${esc(snap?.indirizzo_via || "Estero")}</Indirizzo>
+        <CAP>${esc(snap?.indirizzo_cap || "00000")}</CAP>
+        <Comune>${esc(snap?.indirizzo_comune || "Estero")}</Comune>
+        <Nazione>${esc(snap?.indirizzo_nazione || "XX")}</Nazione>
+      </Sede>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>${esc(azienda.partita_iva)}</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>${esc(azienda.codice_fiscale)}</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>${esc(azienda.ragione_sociale)}</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${esc(azienda.indirizzo_via)}${azienda.indirizzo_numero_civico ? ` ${esc(azienda.indirizzo_numero_civico)}` : ""}</Indirizzo>
+        <CAP>${esc(azienda.indirizzo_cap)}</CAP>
+        <Comune>${esc(azienda.indirizzo_comune)}</Comune>
+        <Provincia>${esc(azienda.indirizzo_provincia)}</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>`;
+  } else {
+    // ── Fattura normale: CedentePrestatore = azienda, CessionarioCommittente = cliente ──
+    xml += `
     <CedentePrestatore>
       <DatiAnagrafici>
         <IdFiscaleIVA>
@@ -96,40 +166,40 @@ export function generateFatturaPAXML(
         <Nazione>${esc(azienda.indirizzo_nazione || "IT")}</Nazione>
       </Sede>`;
 
-  // IscrizioneREA
-  if (azienda.codice_rea) {
-    xml += `
+    // IscrizioneREA
+    if (azienda.codice_rea) {
+      xml += `
       <IscrizioneREA>
         <Ufficio>${esc(azienda.indirizzo_provincia)}</Ufficio>
         <NumeroREA>${esc(azienda.codice_rea)}</NumeroREA>`;
-    if (azienda.capitale_sociale) {
-      xml += `
+      if (azienda.capitale_sociale) {
+        xml += `
         <CapitaleSociale>${fmtNum(azienda.capitale_sociale)}</CapitaleSociale>
         <SocioUnico>SM</SocioUnico>`;
-    }
-    xml += `
+      }
+      xml += `
         <StatoLiquidazione>LN</StatoLiquidazione>
       </IscrizioneREA>`;
-  }
+    }
 
-  xml += `
+    xml += `
     </CedentePrestatore>
     <CessionarioCommittente>
       <DatiAnagrafici>`;
 
-  if (snap?.partita_iva) {
-    xml += `
+    if (snap?.partita_iva) {
+      xml += `
         <IdFiscaleIVA>
           <IdPaese>${esc(snap.indirizzo_nazione || "IT")}</IdPaese>
           <IdCodice>${esc(snap.partita_iva)}</IdCodice>
         </IdFiscaleIVA>`;
-  }
-  if (snap?.codice_fiscale) {
-    xml += `
+    }
+    if (snap?.codice_fiscale) {
+      xml += `
         <CodiceFiscale>${esc(snap.codice_fiscale)}</CodiceFiscale>`;
-  }
+    }
 
-  xml += `
+    xml += `
         <Anagrafica>
           <Denominazione>${esc(snap?.ragione_sociale)}</Denominazione>
         </Anagrafica>
@@ -142,7 +212,10 @@ export function generateFatturaPAXML(
         <Nazione>${esc(snap?.indirizzo_nazione || "IT")}</Nazione>
       </Sede>
     </CessionarioCommittente>
-  </FatturaElettronicaHeader>
+  </FatturaElettronicaHeader>`;
+  }
+
+  xml += `
   <FatturaElettronicaBody>
     <DatiGenerali>
       <DatiGeneraliDocumento>
@@ -199,6 +272,14 @@ export function generateFatturaPAXML(
 
   // Causali
   const causali = (doc.causale ?? []) as string[];
+  // RF19 forfettario: causale obbligatoria per esenzione IVA
+  if (azienda.regime_fiscale === "RF19") {
+    const rf19Causale = "Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 — Regime forfettario";
+    if (!causali.some((c) => c.includes("190/2014") || c.includes("forfettario"))) {
+      xml += `
+        <Causale>${esc(rf19Causale)}</Causale>`;
+    }
+  }
   for (const c of causali) {
     xml += `
         <Causale>${esc(c)}</Causale>`;

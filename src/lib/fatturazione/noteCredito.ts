@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
+import { calcolaRiepilogoIVA } from "./calcoli";
 
 /**
  * Creates a credit note (Nota di Credito) from an existing invoice.
@@ -15,6 +16,7 @@ export async function creaNotaCredito(
     .from("documenti_fiscali" as never)
     .select("*")
     .eq("id", fatturaOriginaleId)
+    .is("deleted_at", null)
     .single();
 
   if (error) throw new Error("Impossibile caricare la fattura originale");
@@ -33,12 +35,16 @@ export async function creaNotaCredito(
         }))
       : [];
 
+  // Ricalcola riepilogo_iva dalle righe della nota di credito
+  const riepilogo_iva = righe.length > 0 ? calcolaRiepilogoIVA(righe) : [];
+
   return {
     tipo: "nota_credito",
     documento_correlato_id: fatturaOriginaleId,
     anagrafica_id: fattura.anagrafica_id,
     cliente_snapshot: fattura.cliente_snapshot,
     righe,
+    riepilogo_iva,
     metodo_pagamento_codice: fattura.metodo_pagamento_codice,
     iban_pagamento: fattura.iban_pagamento,
     note_documento: `Nota di Credito a storno ${modalita === "totale" ? "totale" : "parziale"} della fattura N° ${fattura.numero} del ${fattura.data_emissione}`,
@@ -56,6 +62,7 @@ export async function applicaStornoSuFattura(
     .from("documenti_fiscali" as never)
     .select("totale_da_pagare, importo_pagato")
     .eq("id", fatturaId)
+    .is("deleted_at", null)
     .single();
 
   if (fetchErr) throw fetchErr;

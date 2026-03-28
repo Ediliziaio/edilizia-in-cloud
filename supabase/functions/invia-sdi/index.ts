@@ -48,18 +48,31 @@ function isValidCodiceFiscale(cf: string | null | undefined): boolean {
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
   autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
+  integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18",
+  integrazione_beni_extra_ue: "TD19",
 };
+const TIPI_INVERSIONE = ["TD17", "TD18", "TD19"];
 
-function generateXML(doc: Record<string, any>, azienda: Record<string, any>): string {
+function generateXML(doc: Record<string, any>, azienda: Record<string, any>, progressivoInvio?: string): string {
   const snap = doc.cliente_snapshot || {};
   const isPa = snap.tipo_cliente === "PA";
   const formato = isPa ? "FPA12" : "FPR12";
-  const codDest = snap.codice_sdi || (isPa ? "" : "0000000");
+  // PA: codice destinatario 6 chars obbligatorio; B2B/B2C: default "0000000" (7 chars)
+  const codDest = snap.codice_sdi || (isPa ? "000000" : "0000000");
   const tipoDoc = TIPO_TO_TD[doc.tipo] || "TD01";
   const righe: any[] = doc.righe || [];
-  const riepilogo: any[] = doc.riepilogo_iva || [];
   const scadenze: any[] = doc.scadenze_pagamento || [];
-  const progressivo = (doc.numero || "00001").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
+
+  // Split payment: se PA e split_payment_pa attivo, forza EsigibilitaIVA = "S"
+  const applySplitPayment = isPa && (azienda.split_payment_pa !== false);
+  const riepilogo: any[] = (doc.riepilogo_iva || []).map((r: any) => {
+    if (applySplitPayment && !r.natura && (parseFloat(r.aliquota) || 0) > 0) {
+      return { ...r, esigibilita: "S" };
+    }
+    return r;
+  });
+  // Use atomic counter from DB if provided, fallback to doc number for preview only
+  const progressivo = progressivoInvio || (doc.numero || "00001").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <p:FatturaElettronica versione="${formato}" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -111,7 +124,8 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>): st
         <Numero>${escXml(doc.numero)}</Numero>
         ${doc.ritenuta_acconto && doc.ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.ritenuta_tipo || "RT01")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.ritenuta_aliquota || 20)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.bollo_virtuale ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${fmtNum(doc.bollo_importo || 2)}</ImportoBollo></DatiBollo>` : ""}
-        <ImportoTotaleDocumento>${fmtNum(doc.totale_documento)}</ImportoTotaleDocumento>
+        <ImportoTotaleDocumento>${fmtNum(doc.totale_documento)}</ImportoTotaleDocumento>${azienda.regime_fiscale === "RF19" ? `
+        <Causale>${escXml("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 — Regime forfettario")}</Causale>` : ""}
       </DatiGeneraliDocumento>
       ${(doc.cig || doc.cup) ? `<DatiOrdineAcquisto><IdDocumento>0</IdDocumento>${doc.cig ? `<CodiceCIG>${escXml(doc.cig)}</CodiceCIG>` : ""}${doc.cup ? `<CodiceCUP>${escXml(doc.cup)}</CodiceCUP>` : ""}</DatiOrdineAcquisto>` : ""}
     </DatiGenerali>
@@ -225,6 +239,34 @@ Deno.serve(async (req) => {
     }
 
     const snap = doc.cliente_snapshot || {};
+    const isPaCliente = snap.tipo_cliente === "PA";
+
+    // B6: PA CodiceDestinatario must be exactly 6 alphanumeric chars
+    if (isPaCliente) {
+      const codiceSdi = (snap.codice_sdi || "").trim();
+      if (!codiceSdi || codiceSdi.length !== 6) {
+        validationErrors.push(
+          `Codice Destinatario SDI per PA deve essere esattamente 6 caratteri (attuale: "${codiceSdi || "(vuoto)}")`
+        );
+      }
+    }
+
+    // RF19 forfettario: no IVA, no ritenuta, no split payment
+    if (azienda.regime_fiscale === "RF19") {
+      const righe: any[] = doc.righe || [];
+      const hasIva = righe.some((r: any) => (parseFloat(r.aliquota_iva) || 0) > 0 && !r.natura_iva);
+      if (hasIva) {
+        validationErrors.push(
+          "Regime forfettario RF19: tutte le righe devono avere IVA 0% con natura N2.2 (non soggette)"
+        );
+      }
+      if (doc.ritenuta_acconto) {
+        validationErrors.push(
+          "Regime forfettario RF19: la ritenuta d'acconto non è applicabile"
+        );
+      }
+    }
+
     if (!snap.partita_iva && !snap.codice_fiscale) {
       validationErrors.push("Il cliente deve avere Partita IVA o Codice Fiscale");
     }
@@ -245,8 +287,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Generate atomic ProgressivoInvio (unique per company)
+    const { data: progressivoData, error: progErr } = await supabase
+      .rpc("incrementa_progressivo_sdi", { p_company_id: doc.company_id });
+    if (progErr || !progressivoData) {
+      return new Response(
+        JSON.stringify({ error: "Impossibile generare ProgressivoInvio", details: progErr?.message }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+    const progressivoInvio = progressivoData as string;
+
     // Generate XML
-    const xml = generateXML(doc, azienda);
+    const xml = generateXML(doc, azienda, progressivoInvio);
 
     // Save XML to storage
     const xmlPath = `${doc.company_id}/IT${azienda.partita_iva}_${(doc.numero || "").replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
@@ -258,6 +311,63 @@ Deno.serve(async (req) => {
       console.error("XML upload error:", uploadErr);
     }
 
+    // ── Firma digitale per PA ──
+    // Le fatture verso PA (FPA12) devono essere firmate digitalmente (CAdES-BES / p7m)
+    const requiresFirma = isPaCliente;
+    let xmlToSend = xml;
+    let firmatoP7m = false;
+    let p7mUrl: string | null = null;
+
+    if (requiresFirma) {
+      const firmaProvider = azienda.sdi_firma_provider || "manuale";
+
+      if (firmaProvider === "aruba_sign" && azienda.sdi_firma_api_key) {
+        // Firma automatica via Aruba Sign API
+        try {
+          const firmaResp = await fetch("https://arss.aruba.it/ArubaSignService/ArubaSignService", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${azienda.sdi_firma_api_key}`,
+            },
+            body: JSON.stringify({
+              inputType: "BYNARYNET",
+              binaryInput: btoa(xml),
+              signatureType: "CADES_BES",
+              user: azienda.sdi_firma_username,
+            }),
+          });
+
+          if (firmaResp.ok) {
+            const firmaResult = await firmaResp.json();
+            if (firmaResult.signedDocument) {
+              // Decode and upload p7m
+              const p7mBytes = Uint8Array.from(atob(firmaResult.signedDocument), c => c.charCodeAt(0));
+              const p7mPath = xmlPath + ".p7m";
+              await supabase.storage
+                .from("fatture-xml")
+                .upload(p7mPath, p7mBytes, { upsert: true, contentType: "application/pkcs7-mime" });
+              p7mUrl = p7mPath;
+              firmatoP7m = true;
+            }
+          } else {
+            console.error("Aruba Sign error:", await firmaResp.text());
+          }
+        } catch (e) {
+          console.error("Firma digitale error:", e);
+        }
+      }
+
+      if (!firmatoP7m && firmaProvider === "manuale") {
+        // Modalità manuale: l'XML non firmato viene salvato, l'utente dovrà:
+        // 1. Scaricare l'XML
+        // 2. Firmarlo con il proprio software di firma
+        // 3. Ricaricare il .p7m
+        // Per ora procediamo con l'invio del XML non firmato (Aruba B2B/PA può firmare per conto)
+        console.warn("Fattura PA senza firma digitale - invio XML non firmato");
+      }
+    }
+
     let sdiId: string | null = null;
     let sdiErrors: any[] | null = null;
 
@@ -265,25 +375,42 @@ Deno.serve(async (req) => {
     const provider = azienda.sdi_provider || "manuale";
 
     if (provider === "aruba" && azienda.sdi_api_key) {
-      // Aruba API call with 30s timeout
+      // Aruba Fatturazione Elettronica API
+      // Docs: https://fatturazioneelettronica.aruba.it/apidoc/docs.html
+      // Endpoint corretto: /services/invoice/upload (XML in Base64 dentro JSON)
+      // Per file già firmati (.p7m): /services/invoice/uploadSigned
+      const arubaBaseUrl = "https://ws.fatturazioneelettronica.aruba.it";
+      const uploadEndpoint = firmatoP7m
+        ? `${arubaBaseUrl}/services/invoice/uploadSigned`
+        : `${arubaBaseUrl}/services/invoice/upload`;
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
 
       try {
-        const resp = await fetch("https://api.aruba.it/fatturaelectronica/v1/send", {
+        // Aruba richiede XML codificato in Base64 dentro un JSON
+        const xmlBase64 = btoa(unescape(encodeURIComponent(xml)));
+        const fileName = `IT${azienda.partita_iva}_${progressivoInvio}.xml${firmatoP7m ? ".p7m" : ""}`;
+
+        const resp = await fetch(uploadEndpoint, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${azienda.sdi_api_key}`,
-            "Content-Type": "application/xml",
+            "Content-Type": "application/json;charset=UTF-8",
           },
-          body: xml,
+          body: JSON.stringify({
+            dataFile: xmlBase64,
+            credential: null,
+            domain: null,
+            fileName,
+          }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
 
         if (resp.ok) {
           const result = await resp.json();
-          sdiId = result.id || result.identificativoSdI || crypto.randomUUID();
+          sdiId = result.uploadFileName || result.idSdi || result.id || crypto.randomUUID();
         } else {
           const errText = await resp.text();
           sdiErrors = [{ provider: "aruba", status: resp.status, message: errText }];
@@ -323,6 +450,8 @@ Deno.serve(async (req) => {
         stato: "inviata_sdi",
         sdi_id_trasmissione: sdiId,
         sdi_file_xml_url: xmlPath,
+        sdi_firmato: firmatoP7m,
+        sdi_file_p7m_url: p7mUrl,
         // AT (attesa) only applies to real SDI submissions; manual mode has no SDI lifecycle
         sdi_stato: provider === "manuale" ? null : "AT",
         trasmissione: provider === "manuale" ? "manuale" : "sdi",

@@ -13,7 +13,8 @@ export async function creaFatturaDaDDT(
   const { data, error } = await supabase
     .from("documenti_fiscali" as never)
     .select("*")
-    .in("id", ddtIds);
+    .in("id", ddtIds)
+    .is("deleted_at", null);
 
   if (error) throw error;
   const ddts = (data as unknown as DocumentoFiscale[]) ?? [];

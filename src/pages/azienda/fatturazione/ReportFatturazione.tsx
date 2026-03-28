@@ -36,6 +36,7 @@ function useAllDocumentiForReport() {
           .from("documenti_fiscali" as never)
           .select("numero, data_emissione, tipo, stato, cliente_snapshot, imponibile_totale, iva_totale, totale_documento, importo_pagato")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .order("data_emissione", { ascending: false })
           .range(from, to);
 
