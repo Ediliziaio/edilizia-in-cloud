@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
       const codiceSdi = (snap.codice_sdi || "").trim();
       if (!codiceSdi || codiceSdi.length !== 6) {
         validationErrors.push(
-          `Codice Destinatario SDI per PA deve essere esattamente 6 caratteri (attuale: "${codiceSdi || "(vuoto)}")`
+          `Codice Destinatario SDI per PA deve essere esattamente 6 caratteri (attuale: ${codiceSdi || "(vuoto)"})`
         );
       }
     }

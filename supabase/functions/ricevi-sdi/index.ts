@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
           evento: "fattura_ricevuta_no_match",
           messaggio: `P.IVA destinatario ${destPiva} non trovata`,
           xml_content: xmlBody.slice(0, 5000),
-        }).catch(() => {});
+        }).then(() => {}, () => {});
         return new Response("OK", { status: 200 });
       }
 

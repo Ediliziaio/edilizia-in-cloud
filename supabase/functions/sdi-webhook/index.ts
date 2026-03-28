@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Missing signature header",
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("Unauthorized: missing signature", { status: 401 });
     }
 
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Invalid signature",
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("Unauthorized: invalid signature", { status: 401 });
     }
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         sdi_id: idTrasmissione,
         messaggio: `Documento non trovato per SDI ID: ${idTrasmissione}`,
         xml_content: body.slice(0, 5000),
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("OK", { status: 200 });
     }
 
