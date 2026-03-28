@@ -348,6 +348,3 @@ EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'create_order_atomic failed: %', SQLERRM;
 END;
 $$;
-
-REVOKE ALL ON FUNCTION public.create_order_atomic(jsonb, jsonb, jsonb, uuid, jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.create_order_atomic(jsonb, jsonb, jsonb, uuid, jsonb) TO authenticated;

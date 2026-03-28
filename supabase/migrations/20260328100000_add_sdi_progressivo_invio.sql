@@ -36,6 +36,3 @@ BEGIN
     || LPAD(((v_next - 1) % 99999 + 1)::text, 5, '0');
 END;
 $$;
-
--- Grant execute to authenticated users (Edge Functions use service role)
-GRANT EXECUTE ON FUNCTION incrementa_progressivo_sdi(uuid) TO service_role;

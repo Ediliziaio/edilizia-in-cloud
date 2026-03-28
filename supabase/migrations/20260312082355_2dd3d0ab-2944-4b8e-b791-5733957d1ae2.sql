@@ -100,5 +100,3 @@ BEGIN
   FROM monthly;
 END;
 $$;
-
-GRANT EXECUTE ON FUNCTION public.get_mrr_movements_monthly TO authenticated;
