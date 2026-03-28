@@ -8,6 +8,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Protezione cron: solo chiamate interne (SEC-014)
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  if (!cronSecret || requestCronSecret !== cronSecret) {
+    console.error("meta-health-check: accesso non autorizzato");
+    return errorResponse("Unauthorized", 401);
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
