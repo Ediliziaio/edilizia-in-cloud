@@ -339,7 +339,6 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         source,
         notes,
         tags,
-        status: "new",
         assigned_to: pipelineSettings.owner_user_id || null,
         source_campaign_id: lead.campaign_id || lead.campaign_name || null,
         // Attribution fields from Meta Ads
