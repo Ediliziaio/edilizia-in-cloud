@@ -131,6 +131,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Coins, permissionKey: "canViewBilling", featureKey: "billing_native" },
       { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Archive, permissionKey: "canViewBilling", featureKey: "billing_native" },
       { title: "Report Fiscali", url: "/azienda/documenti/report", icon: BarChart3, permissionKey: "canViewBilling", featureKey: "billing_native" },
+      { title: "Impostazioni Fatt.", url: "/azienda/impostazioni/fatturazione-nativa", icon: Settings, permissionKey: "canViewBilling", featureKey: "billing_native" },
       // ─── Fatturazione esterna (billing_external) ───
       { title: "Fatturazione", url: "/azienda/fatturazione", icon: Receipt, permissionKey: "canViewBilling", featureKey: "billing_external", groupLabel: "Fatturazione e Documenti" },
       { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "billing_external" },
