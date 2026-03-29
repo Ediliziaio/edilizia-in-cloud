@@ -157,7 +157,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
       {scadenze.length > 0 && (
         <div className="space-y-1">
           {scadenze.map((sc, i) => (
-            <div key={i} className="flex items-center gap-1 text-xs">
+            <div key={sc.numero_rata} className="flex items-center gap-1 text-xs">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="h-6 w-[5.5rem] justify-start text-left text-[10px] font-normal px-1.5" disabled={disabled}>

@@ -48,7 +48,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
         <Label className="text-xs text-muted-foreground">Causali</Label>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {causali.map((c, i) => (
-            <Badge key={i} variant="secondary" className="text-xs gap-1">
+            <Badge key={`${c}-${i}`} variant="secondary" className="text-xs gap-1">
               {c}
               {!disabled && (
                 <button onClick={() => removeCausale(i)} className="hover:text-destructive">

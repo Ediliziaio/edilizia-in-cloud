@@ -713,8 +713,8 @@ function OrderDetailInner() {
       {/* Order Alerts */}
       {orderAlerts.length > 0 && (
         <div className="space-y-3">
-          {orderAlerts.map((alert, index) => (
-            <Alert key={index} variant={alert.type === 'urgent' ? 'destructive' : 'default'}
+          {orderAlerts.map((alert) => (
+            <Alert key={`${alert.type}-${alert.title}`} variant={alert.type === 'urgent' ? 'destructive' : 'default'}
               className={cn(
                 alert.type === 'warning' && 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600',
                 alert.type === 'info' && 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600'

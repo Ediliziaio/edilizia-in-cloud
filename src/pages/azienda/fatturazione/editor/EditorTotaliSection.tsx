@@ -44,7 +44,7 @@ export function EditorTotaliSection({ state }: Props) {
 
       {/* IVA breakdown */}
       {(state.riepilogo_iva ?? []).map((r, i) => (
-        <div key={i} className="flex justify-between text-xs">
+        <div key={`${r.aliquota}-${r.natura ?? ''}-${r.esigibilita ?? ''}-${i}`} className="flex justify-between text-xs">
           <span className="text-muted-foreground">
             IVA {r.aliquota}%
             {r.natura ? ` (${String(r.natura).replace("_", ".")})` : ""}

@@ -60,9 +60,9 @@ export function WaterfallChart({ data }: WaterfallChartProps) {
               />
               <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
               <Bar dataKey="net" name="Variazione" radius={[3, 3, 0, 0]} barSize={20}>
-                {data.map((entry, index) => (
+                {data.map((entry) => (
                   <Cell
-                    key={index}
+                    key={entry.week}
                     fill={entry.net >= 0 ? "hsl(142 76% 36%)" : "hsl(0 84% 60%)"}
                   />
                 ))}

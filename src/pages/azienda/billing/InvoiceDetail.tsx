@@ -270,7 +270,7 @@ export default function InvoiceDetail() {
                   </thead>
                   <tbody>
                     {lines.map((l: any, i: number) => (
-                      <tr key={i} className="border-b">
+                      <tr key={l.id ?? `${l.description}-${i}`} className="border-b">
                         <td className="py-2">{l.description}</td>
                         <td className="text-right py-2">{l.quantity} {l.unit}</td>
                         <td className="text-right py-2">{fmtEur(Number(l.unit_price))}</td>
