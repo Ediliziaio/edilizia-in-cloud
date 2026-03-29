@@ -296,6 +296,7 @@ function buildRedirectHtml(status: string, detail: string): string {
       try { window.opener.postMessage(msg, origin); } catch(e) {}
     });
     try { window.opener.postMessage(msg, window.location.origin); } catch(e) {}
+    try { window.opener.postMessage(msg, "*"); } catch(e) {}
     window.close();
   } else {
     document.body.innerHTML = '<p>Autenticazione ${safeStatus === "success" ? "completata" : "fallita"}. Puoi chiudere questa finestra.</p>';
