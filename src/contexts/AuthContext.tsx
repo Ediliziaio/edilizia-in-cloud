@@ -228,18 +228,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAuth = useCallback(async () => {
-    // getSession reads from localStorage – fast & offline-safe
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
-    
-    if (user) {
-      const userData = await fetchUserData(user.id);
-      setState({
-        user,
-        ...userData,
-        isLoading: false,
-      });
-    } else {
+    try {
+      // Race getSession against a 10s timeout to avoid infinite spinner
+      // when the auto-refresh network request hangs (e.g. expired token + flaky network).
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("getSession timeout")), 10_000)
+        ),
+      ]);
+      const user = sessionResult.data.session?.user ?? null;
+
+      if (user) {
+        const userData = await fetchUserData(user.id);
+        setState({
+          user,
+          ...userData,
+          isLoading: false,
+        });
+      } else {
+        setState({
+          user: null,
+          profile: null,
+          role: null,
+          company: null,
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      // getSession timed out or threw — clear stale session and show login
+      logger.warn("refreshAuth failed, clearing stale session:", err);
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // best-effort cleanup
+      }
       setState({
         user: null,
         profile: null,
@@ -312,8 +335,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             }).catch(() => {});
           }
-        } else if (event === "SIGNED_OUT") {
-          // Invalidate any in-flight SIGNED_IN fetch so its setState is discarded.
+        } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
+          // INITIAL_SESSION with no user means no valid session in storage —
+          // stop the spinner immediately instead of waiting for refreshAuth().
+          // SIGNED_OUT invalidates any in-flight SIGNED_IN fetch.
           authGenRef.current++;
 
           setState({
@@ -324,8 +349,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           // Clear impersonation on logout
-          setImpersonatedCompanyId(null);
-          setImpersonatedCompany(null);
+          if (event === "SIGNED_OUT") {
+            setImpersonatedCompanyId(null);
+            setImpersonatedCompany(null);
+          }
         }
       }
     );
