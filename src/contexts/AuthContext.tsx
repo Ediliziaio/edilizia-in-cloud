@@ -32,6 +32,9 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const SESSION_ID_KEY = "user_session_id";
 const IMP_COMPANY_KEY = "imp_company_id";
 const IMP_TOKEN_KEY = "imp_token";
+// Timestamp (ms) of when the impersonation token was created — used to skip redundant
+// remote validation for freshly-minted tokens (avoids an edge-function cold-start per load).
+const IMP_TOKEN_TS_KEY = "imp_token_ts";
 
 function getBrowserInfo() {
   const ua = navigator.userAgent;
@@ -52,15 +55,14 @@ function getBrowserInfo() {
   return { browser, os, device_type: isMobile ? "mobile" : "desktop", user_agent: ua };
 }
 
-async function startSession() {
+// accessToken is passed directly from the auth event — avoids calling getSession()
+// which acquires the Supabase storage lock and can block for several seconds.
+async function startSession(accessToken: string) {
   try {
-    // Only track if we have a valid authenticated session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return;
-
     const info = getBrowserInfo();
     const { data } = await supabase.functions.invoke("track-user-session", {
       body: { action: "start", ...info },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (data?.session_id) {
       sessionStorage.setItem(SESSION_ID_KEY, data.session_id);
@@ -123,8 +125,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (impersonatedCompanyId) sessionStorage.setItem(IMP_COMPANY_KEY, impersonatedCompanyId);
     else sessionStorage.removeItem(IMP_COMPANY_KEY);
-    if (impersonationToken) sessionStorage.setItem(IMP_TOKEN_KEY, impersonationToken);
-    else sessionStorage.removeItem(IMP_TOKEN_KEY);
+    if (impersonationToken) {
+      sessionStorage.setItem(IMP_TOKEN_KEY, impersonationToken);
+      // Record creation time only when the token is freshly set (not already persisted)
+      if (!sessionStorage.getItem(IMP_TOKEN_TS_KEY)) {
+        sessionStorage.setItem(IMP_TOKEN_TS_KEY, String(Date.now()));
+      }
+    } else {
+      sessionStorage.removeItem(IMP_TOKEN_KEY);
+      sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
+    }
   }, [impersonatedCompanyId, impersonationToken]);
 
   // Validate persisted impersonation token on mount
@@ -143,11 +153,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setImpersonatedCompanyId(null);
         setImpersonationToken(null);
         setImpersonatedCompany(null);
+        sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
         return;
       }
 
       // Only validate against the edge function once we know the user is a super_admin.
       if (state.role !== "super_admin") return;
+
+      // Skip remote validation if the token was created less than 5 minutes ago —
+      // it was just minted by impersonateCompany() and doesn't need re-checking.
+      // This avoids an edge-function cold-start (1-3s) on every impersonated page load.
+      const tokenTs = sessionStorage.getItem(IMP_TOKEN_TS_KEY);
+      const tokenAgeMs = tokenTs ? Date.now() - parseInt(tokenTs, 10) : Infinity;
+      if (tokenAgeMs < 5 * 60 * 1000) {
+        logger.info("validateImpersonation: token is fresh, skipping remote validation");
+        return;
+      }
 
       try {
         const { data, error } = await supabase.functions.invoke("secure-impersonation", {
@@ -162,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setImpersonatedCompanyId(null);
           setImpersonationToken(null);
           setImpersonatedCompany(null);
+          sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
         }
         // If valid (or any error/exception): keep impersonation active.
         // fetchImpersonatedCompany will load the company data via its own effect.
@@ -176,25 +198,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserData = useCallback(async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+      // Fetch profile and roles in PARALLEL — they are independent queries.
+      // Previously sequential, adding ~300-600ms per page load.
+      const [profileResult, rolesResult] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", userId),
+      ]);
+
+      const { data: profileData, error: profileError } = profileResult;
+      const { data: rolesData, error: roleError } = rolesResult;
 
       if (profileError) {
-        // Log but do NOT return early — we must still fetch roles so that
-        // super_admin / platform roles are not lost when the profile row
-        // is temporarily unreachable (e.g. a transient JWT / RLS error).
+        // Log but continue — roles are fetched independently so super_admin
+        // role is not lost if the profile row is temporarily unreachable.
         logger.error("Error fetching profile:", profileError);
       }
-
-      // Fetch all roles for priority resolution
-      const { data: rolesData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
 
       if (roleError) {
         logger.error("Error fetching roles:", roleError);
@@ -369,9 +387,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...userData,
             isLoading: false,
           });
-          // Start session tracking (fire-and-forget)
+          // Start session tracking (fire-and-forget, pass token directly to avoid
+          // a redundant getSession() call that would compete for the storage lock)
           if (!sessionStorage.getItem(SESSION_ID_KEY)) {
-            startSession();
+            startSession(session.access_token);
           }
           // Track admin session for super_admin users (fire-and-forget)
           if (userData.role === "super_admin" && event === "SIGNED_IN") {
@@ -419,7 +438,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clear impersonation on logout
           if (event === "SIGNED_OUT") {
             setImpersonatedCompanyId(null);
+            setImpersonationToken(null);
             setImpersonatedCompany(null);
+            sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
           }
         }
       }
@@ -555,6 +576,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonationToken(null);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
+    sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
     // Clear the cache so the admin panel doesn't show the impersonated
     // company's stale data after returning to the admin view.
     queryClient.clear();
