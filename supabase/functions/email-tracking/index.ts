@@ -42,6 +42,25 @@ Deno.serve(async (req) => {
           payload: { campaign_id: campaignId, contact_id: contactId, company_id: companyId },
         });
 
+        // BUG-10: auto_tag — add "opened:<campaignId>" tag to contact
+        const { data: campOpen } = await adminClient
+          .from("email_campaigns")
+          .select("auto_tag")
+          .eq("id", campaignId)
+          .maybeSingle();
+        if (campOpen?.auto_tag) {
+          const { data: ctOpen } = await adminClient
+            .from("marketing_contacts")
+            .select("tags")
+            .eq("id", contactId)
+            .maybeSingle();
+          const updatedTags = [...new Set([...(ctOpen?.tags || []), `opened:${campaignId}`])];
+          await adminClient
+            .from("marketing_contacts")
+            .update({ tags: updatedTags })
+            .eq("id", contactId);
+        }
+
         return new Response(PIXEL_GIF, {
           status: 200,
           headers: {
@@ -76,6 +95,25 @@ Deno.serve(async (req) => {
           entity_type: "contact",
           payload: { campaign_id: campaignId, contact_id: contactId, company_id: companyId, link_url: redirectUrl ? decodeURIComponent(redirectUrl) : null },
         });
+
+        // BUG-10: auto_tag — add "clicked:<campaignId>" tag to contact
+        const { data: campClick } = await adminClient
+          .from("email_campaigns")
+          .select("auto_tag")
+          .eq("id", campaignId)
+          .maybeSingle();
+        if (campClick?.auto_tag) {
+          const { data: ctClick } = await adminClient
+            .from("marketing_contacts")
+            .select("tags")
+            .eq("id", contactId)
+            .maybeSingle();
+          const updatedTags = [...new Set([...(ctClick?.tags || []), `clicked:${campaignId}`])];
+          await adminClient
+            .from("marketing_contacts")
+            .update({ tags: updatedTags })
+            .eq("id", contactId);
+        }
 
         // Redirect to original URL
         if (redirectUrl) {
