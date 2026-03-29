@@ -166,8 +166,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (profileError) {
+        // Log but do NOT return early — we must still fetch roles so that
+        // super_admin / platform roles are not lost when the profile row
+        // is temporarily unreachable (e.g. a transient JWT / RLS error).
         logger.error("Error fetching profile:", profileError);
-        return { profile: null, role: null, company: null };
       }
 
       // Fetch all roles for priority resolution
@@ -228,6 +230,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAuth = useCallback(async () => {
+    // Claim a generation slot so we can detect if SIGNED_IN fires while we wait.
+    const myGen = ++authGenRef.current;
     try {
       // Race getSession against a 10s timeout to avoid infinite spinner
       // when the auto-refresh network request hangs (e.g. expired token + flaky network).
@@ -237,10 +241,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setTimeout(() => reject(new Error("getSession timeout")), 10_000)
         ),
       ]);
+
+      // If a SIGNED_IN / TOKEN_REFRESHED event fired while we were waiting,
+      // that handler already set the correct state — do not override it.
+      if (myGen !== authGenRef.current) return;
+
       const user = sessionResult.data.session?.user ?? null;
 
       if (user) {
         const userData = await fetchUserData(user.id);
+        if (myGen !== authGenRef.current) return;
         setState({
           user,
           ...userData,
@@ -262,9 +272,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Supabase will fire TOKEN_REFRESHED when the renewal succeeds, or SIGNED_OUT
       // if it fails — both are handled in onAuthStateChange below.
       logger.warn("refreshAuth timed out or failed:", err);
-      // Invalidate any in-flight onAuthStateChange fetchUserData.
       authGenRef.current++;
-      setState({
+      // Only reset to logged-out if a SIGNED_IN event has NOT already authenticated
+      // the user while getSession() was hanging. Use functional update to check.
+      setState(prev => prev.user !== null ? prev : {
         user: null,
         profile: null,
         role: null,
