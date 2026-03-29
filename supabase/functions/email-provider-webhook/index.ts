@@ -32,7 +32,10 @@ Deno.serve(async (req) => {
       return new Response("Unauthorized", { status: 401, headers: corsHeaders });
     }
   } else {
-    console.warn("email-provider-webhook: WEBHOOK_SECRET non configurato, autenticazione saltata");
+    return new Response(
+      JSON.stringify({ error: "WEBHOOK_SECRET not configured — endpoint disabled for security" }),
+      { status: 503, headers: corsHeaders }
+    );
   }
 
   try {
@@ -114,6 +117,14 @@ Deno.serve(async (req) => {
               .eq("id", log.id);
           }
         }
+      }
+
+      // BUG-03: Hard bounce or spam → mark contact as unsubscribed to prevent future sends
+      if ((event.type === "bounced" || event.type === "spam") && event.email) {
+        await adminClient
+          .from("marketing_contacts")
+          .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+          .eq("email", event.email);
       }
     }
 
