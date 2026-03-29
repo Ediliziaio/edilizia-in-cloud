@@ -38,6 +38,8 @@ export interface RiepilogoIVAOptions {
   proportionalDiscount?: number;
   /** Split payment (scissione pagamenti) per PA: imposta EsigibilitaIVA = "S" */
   splitPayment?: boolean;
+  /** Default esigibilita from document level */
+  esigibilitaDefault?: "I" | "D" | "S";
 }
 
 export function calcolaRiepilogoIVA(
@@ -52,6 +54,7 @@ export function calcolaRiepilogoIVA(
 
   const proportionalDiscount = options.proportionalDiscount ?? 0;
   const splitPayment = options.splitPayment ?? false;
+  const esigibilitaDefault = options.esigibilitaDefault ?? "I";
 
   const ivaMap = new Map<string, RiepilogoIVA>();
 
@@ -67,7 +70,7 @@ export function calcolaRiepilogoIVA(
         natura: r.natura_iva,
         imponibile: r.imponibile,
         imposta: r.imposta,
-        esigibilita: "I" as const,
+        esigibilita: esigibilitaDefault,
       });
     }
   }
@@ -112,6 +115,8 @@ export interface TotaliOptions {
   arrotondamento?: number;
   /** Split payment per PA: IVA pagata direttamente dall'ente, sottratta dal totale_da_pagare */
   splitPayment?: boolean;
+  /** Default esigibilita from document level */
+  esigibilitaDefault?: "I" | "D" | "S";
 }
 
 export interface TotaliDocumento {
@@ -145,6 +150,7 @@ export function calcolaTotaliDocumento(
   const riepilogo_iva = calcolaRiepilogoIVA(computed, {
     proportionalDiscount: discountRatio,
     splitPayment: options.splitPayment,
+    esigibilitaDefault: options.esigibilitaDefault,
   });
 
   const iva_totale = riepilogo_iva.reduce((s, r) => s + r.imposta, 0);

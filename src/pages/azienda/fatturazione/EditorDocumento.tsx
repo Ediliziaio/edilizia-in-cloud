@@ -31,6 +31,8 @@ import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
 import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
+import { EditorContributiRitenuteSection } from "./editor/EditorContributiRitenuteSection";
+import { EditorPersonalizzazioneSection } from "./editor/EditorPersonalizzazioneSection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -181,11 +183,26 @@ export default function EditorDocumento() {
             </div>
           )}
 
-          {/* ═══ TOP SECTION: Cliente + Dati + Pagamento ═══ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
+            {/* LEFT: Cliente */}
             <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
-            <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
+
+            {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
+            <div className="space-y-4">
+              <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+              {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
+                <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              )}
+              <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            </div>
+
+            {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
+            <div className="space-y-4">
+              <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!isBozza} />
+            </div>
           </div>
 
           {/* Ordine collegato (solo se presente) */}
@@ -198,19 +215,11 @@ export default function EditorDocumento() {
             <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
           )}
 
-          {/* ═══ FATTURAZIONE ELETTRONICA ═══ */}
-          {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-            <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
-          )}
-
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
             <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
           </div>
-
-          {/* ═══ OPZIONI AVANZATE ═══ */}
-          <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
 
           {/* ═══ NOTE ═══ */}
           <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />

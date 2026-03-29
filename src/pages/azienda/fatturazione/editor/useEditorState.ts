@@ -35,6 +35,9 @@ type Action =
 function recalculate(state: EditorState): EditorState {
   const righe = (state.righe ?? []).map(calcolaRiga);
 
+  // Determine split payment: true if esigibilita_iva is 'S' OR if client is PA with split payment
+  const splitPayment = state.esigibilita_iva === "S";
+
   const totali = calcolaTotaliDocumento(righe, {
     scontoGlobalePerc: state.sconto_globale_percentuale,
     scontoGlobaleValore: state.sconto_globale_valore,
@@ -46,6 +49,8 @@ function recalculate(state: EditorState): EditorState {
     cassaAliquota: state.cassa_aliquota,
     cassaImponibile: state.cassa_imponibile,
     arrotondamento: state.arrotondamento,
+    esigibilitaDefault: state.esigibilita_iva as "I" | "D" | "S" | undefined,
+    splitPayment: splitPayment,
   });
 
   return {

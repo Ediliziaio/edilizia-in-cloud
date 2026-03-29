@@ -27,6 +27,12 @@ function fmtDate(d: string | undefined): string {
   return d.slice(0, 10);
 }
 
+// Convert internal natura_iva codes (underscores) to SDI format (dots)
+// e.g., "N2_1" -> "N2.1", "N2_2" -> "N2.2"
+function naturaToXml(n: string): string {
+  return n.replace(/_/g, ".");
+}
+
 // Maps internal tipo to SDI TipoDocumento code
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01",
@@ -363,7 +369,7 @@ export function generateFatturaPAXML(
 
     if (r.natura_iva) {
       xml += `
-        <Natura>${esc(r.natura_iva)}</Natura>`;
+        <Natura>${esc(naturaToXml(r.natura_iva))}</Natura>`;
     }
 
     if (r.riferimento_amministrazione) {
@@ -383,7 +389,7 @@ export function generateFatturaPAXML(
 
     if (r.natura) {
       xml += `
-        <Natura>${esc(r.natura)}</Natura>`;
+        <Natura>${esc(naturaToXml(r.natura))}</Natura>`;
     }
 
     xml += `
