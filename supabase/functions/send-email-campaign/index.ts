@@ -154,7 +154,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const recipients = (contacts ?? []).filter((c: any) => c.email);
+    // GAP-13: Filter out globally suppressed emails (cross-company suppression list)
+    const rawRecipients = (contacts ?? []).filter((c: any) => c.email);
+    const { data: suppressions } = await adminClient
+      .from("email_suppressions")
+      .select("email")
+      .in("email", rawRecipients.map((c: any) => c.email));
+    const suppressedEmails = new Set((suppressions || []).map((s: any) => s.email));
+    const recipients = rawRecipients.filter((c: any) => !suppressedEmails.has(c.email));
 
     if (recipients.length === 0) {
       await adminClient.from("email_campaigns").update({ status: "failed", failed_count: 0, sent_count: 0 }).eq("id", campaignId);

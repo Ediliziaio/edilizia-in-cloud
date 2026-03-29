@@ -125,6 +125,14 @@ Deno.serve(async (req) => {
           .from("marketing_contacts")
           .update({ email_unsubscribed: true, email_unsubscribed_at: now })
           .eq("email", event.email);
+
+        // GAP-13: Add to global suppression list (upsert — ignore if already present)
+        await adminClient
+          .from("email_suppressions")
+          .upsert(
+            { email: event.email, reason: event.type === "bounced" ? "bounce" : "spam", suppressed_at: now },
+            { onConflict: "email", ignoreDuplicates: true }
+          );
       }
     }
 
