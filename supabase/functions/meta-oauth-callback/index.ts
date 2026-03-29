@@ -1,11 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const url = new URL(req.url);
 
   // Handle GET (browser redirect from Meta)
@@ -159,13 +158,46 @@ serve(async (req) => {
         meta_user_name: meData.name || null,
       });
 
+      const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+
       // Fetch pages and save as assets (WITHOUT page access token in metadata)
       const pagesRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${apiVersion}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
       );
       const pagesData = await pagesRes.json();
 
-      if (pagesData.data && Array.isArray(pagesData.data)) {
+      // Raccoglie pagine personali + pagine da Business Manager (deduplicate)
+      const allPages: any[] = [...(pagesData.data || [])];
+      const seenPageIds = new Set(allPages.map((p: any) => p.id));
+
+      try {
+        const bizRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/me/businesses?fields=id,name&access_token=${accessToken}`
+        );
+        const bizData = await bizRes.json();
+
+        for (const biz of bizData.data || []) {
+          try {
+            const bpRes = await fetch(
+              `https://graph.facebook.com/${apiVersion}/${biz.id}/owned_pages` +
+              `?fields=id,name,access_token,instagram_business_account{id,name,username}&access_token=${accessToken}`
+            );
+            const bpData = await bpRes.json();
+            for (const page of bpData.data || []) {
+              if (!seenPageIds.has(page.id)) {
+                allPages.push({ ...page, _biz_name: biz.name });
+                seenPageIds.add(page.id);
+              }
+            }
+          } catch (bizPageErr: any) {
+            console.warn(`BM pages fetch failed for biz ${biz.id}:`, bizPageErr.message);
+          }
+        }
+      } catch (bizErr: any) {
+        console.warn("Business Manager fetch failed (non-fatal):", bizErr.message);
+      }
+
+      if (allPages.length > 0) {
         // Clear old page assets for this integration
         await adminClient
           .from("meta_assets")
@@ -175,7 +207,7 @@ serve(async (req) => {
 
         // Store page access tokens separately in integration_credentials-like storage
         // NOT in meta_assets.metadata (which is client-readable via RLS)
-        const pageAssets = pagesData.data.map((page: any) => ({
+        const pageAssets = allPages.map((page: any) => ({
           integration_id: integration.id,
           company_id,
           asset_type: "page",
@@ -184,18 +216,17 @@ serve(async (req) => {
           selected: false,
           metadata: {
             instagram_business_account: page.instagram_business_account || null,
+            biz_name: page._biz_name || null,
             // page_access_token intentionally NOT stored here (security: RLS-readable)
           },
         }));
 
-        if (pageAssets.length > 0) {
-          await adminClient.from("meta_assets").insert(pageAssets);
-        }
+        await adminClient.from("meta_assets").insert(pageAssets);
 
         // Store page tokens in a secure way: save them in integration_credentials metadata
         // keyed by page_id for retrieval by the proxy
         const pageTokenMap: Record<string, string> = {};
-        for (const page of pagesData.data) {
+        for (const page of allPages) {
           if (page.access_token) {
             pageTokenMap[page.id] = await encrypt(page.access_token, encKey);
           }
@@ -221,7 +252,9 @@ serve(async (req) => {
           provider: "meta",
           meta_user_id: meData.id,
           meta_user_name: meData.name,
-          pages_found: pagesData.data?.length || 0,
+          pages_found: allPages.length,
+          personal_pages: pagesData.data?.length || 0,
+          bm_pages: allPages.length - (pagesData.data?.length || 0),
         },
       });
 

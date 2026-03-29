@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
+const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -67,7 +69,7 @@ Deno.serve(async (req) => {
     switch (action) {
       case "get-assets": {
         const pagesRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
+          `https://graph.facebook.com/${apiVersion}/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
         );
         const pagesData = await pagesRes.json();
         
@@ -112,7 +114,7 @@ Deno.serve(async (req) => {
           : accessToken;
 
         const formsRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${pageAsset.asset_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageAccessToken}`
+          `https://graph.facebook.com/${apiVersion}/${pageAsset.asset_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageAccessToken}`
         );
         const formsData = await formsRes.json();
 
@@ -138,7 +140,7 @@ Deno.serve(async (req) => {
         }
 
         const formRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${form_id}?fields=id,name,questions,status&access_token=${accessToken}`
+          `https://graph.facebook.com/${apiVersion}/${form_id}?fields=id,name,questions,status&access_token=${accessToken}`
         );
         const formData = await formRes.json();
 
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
         }
 
         const leadRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${lead_id}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
+          `https://graph.facebook.com/${apiVersion}/${lead_id}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
         );
         const leadData = await leadRes.json();
 
@@ -194,7 +196,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        let url = `https://graph.facebook.com/v21.0/${bfFormId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name&limit=50&access_token=${bfToken}`;
+        let url = `https://graph.facebook.com/${apiVersion}/${bfFormId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name&limit=50&access_token=${bfToken}`;
         if (mode === "since_date" && since_date) {
           const sinceTs = Math.floor(new Date(since_date).getTime() / 1000);
           url += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]`;
@@ -243,7 +245,7 @@ Deno.serve(async (req) => {
 
       case "disconnect": {
         try {
-          await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`, {
+          await fetch(`https://graph.facebook.com/${apiVersion}/me/permissions?access_token=${accessToken}`, {
             method: "DELETE",
           });
         } catch (e) {
@@ -286,7 +288,7 @@ Deno.serve(async (req) => {
 
       case "get-ad-accounts": {
         const accountsRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
+          `https://graph.facebook.com/${apiVersion}/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
         );
         const accountsData = await accountsRes.json();
         const accounts = accountsData.data || [];
@@ -340,7 +342,7 @@ Deno.serve(async (req) => {
         }
 
         const fields = "campaign_name,campaign_id,adset_name,adset_id,ad_name,ad_id,impressions,clicks,spend,ctr,cpc,actions,action_values,objective,reach";
-        let insightsUrl = `https://graph.facebook.com/v21.0/${ad_account_id}/insights?fields=${fields}&time_range={"since":"${date_start}","until":"${date_end}"}&level=${lvl}&limit=500&access_token=${accessToken}`;
+        let insightsUrl = `https://graph.facebook.com/${apiVersion}/${ad_account_id}/insights?fields=${fields}&time_range={"since":"${date_start}","until":"${date_end}"}&level=${lvl}&limit=500&access_token=${accessToken}`;
         if (increment === "1") {
           insightsUrl += `&time_increment=1`;
         }
@@ -385,11 +387,134 @@ Deno.serve(async (req) => {
         }
 
         const statusRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${statusAccId}/campaigns?fields=id,name,status,objective&limit=500&access_token=${accessToken}`
+          `https://graph.facebook.com/${apiVersion}/${statusAccId}/campaigns?fields=id,name,status,objective&limit=500&access_token=${accessToken}`
         );
         const statusData = await statusRes.json();
 
         result = { campaigns: statusData.data || [] };
+        break;
+      }
+
+      case "send-test-lead": {
+        // Inietta un lead simulato nella coda per testare il flusso end-to-end
+        // senza bisogno di una campagna Meta attiva
+        const { form_id: testFormId, test_data } = body;
+        if (!testFormId) {
+          return new Response(JSON.stringify({ error: "form_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const testLeadId = `test_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+        const defaultTestData = {
+          full_name: "Mario Rossi",
+          email: "mario.test@example.com",
+          phone_number: "+39 333 1234567",
+          city: "Milano",
+          ...((test_data as Record<string, string>) || {}),
+        };
+
+        const { error: insertErr } = await adminClient
+          .from("integration_webhook_events")
+          .insert({
+            company_id,
+            integration_id,
+            provider: "meta",
+            event_type: "leadgen",
+            event_id: testLeadId,
+            payload: {
+              leadgen_id: testLeadId,
+              form_id: testFormId,
+              page_id: null,
+              created_time: Math.floor(Date.now() / 1000),
+              is_test: true,
+              // Simula field_data come se venisse da Meta
+              _test_field_data: Object.entries(defaultTestData).map(([name, value]) => ({
+                name,
+                values: [value],
+              })),
+            },
+            status: "pending",
+            received_at: new Date().toISOString(),
+          });
+
+        if (insertErr) throw new Error(`Test lead insert failed: ${insertErr.message}`);
+
+        await adminClient.from("integration_audit_log").insert({
+          company_id,
+          action: "test_lead_sent",
+          entity_type: "integration",
+          entity_id: integration_id,
+          metadata: { test_lead_id: testLeadId, form_id: testFormId, test_data: defaultTestData },
+        });
+
+        result = { success: true, test_lead_id: testLeadId, queued: true };
+        break;
+      }
+
+      case "subscribe-webhook": {
+        if (!page_asset_id) {
+          return new Response(JSON.stringify({ error: "page_asset_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { data: pageAsset } = await adminClient
+          .from("meta_assets")
+          .select("asset_id")
+          .eq("id", page_asset_id)
+          .single();
+        if (!pageAsset) {
+          return new Response(JSON.stringify({ error: "Page asset not found" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const fbPageId = pageAsset.asset_id;
+        const pageTokens = (creds as any).meta_page_tokens as Record<string, string> | null;
+        if (!pageTokens?.[fbPageId]) {
+          return new Response(JSON.stringify({ error: "Page token not found. Riconnetti Meta." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const pageToken = await decrypt(pageTokens[fbPageId], encKey);
+
+        const subRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${fbPageId}/subscribed_apps`,
+          {
+            method: "POST",
+            body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
+          }
+        );
+        const subData = await subRes.json();
+        if (subData.error) throw new Error(`Meta subscription error: ${subData.error.message}`);
+
+        await adminClient.from("integration_webhook_subscriptions").upsert(
+          {
+            company_id,
+            integration_id,
+            page_id: fbPageId,
+            subscribed_fields: ["leadgen"],
+            status: "active",
+            subscribed_at: new Date().toISOString(),
+          },
+          { onConflict: "integration_id,page_id" }
+        );
+
+        await adminClient.from("integration_audit_log").insert({
+          company_id,
+          action: "webhook_subscribed",
+          entity_type: "integration",
+          entity_id: integration_id,
+          metadata: { page_id: fbPageId, subscribed_fields: ["leadgen"] },
+        });
+
+        result = { success: true, page_id: fbPageId };
         break;
       }
 

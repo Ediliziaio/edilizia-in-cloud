@@ -5,15 +5,23 @@ import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
 
+function verifyCronOrAuth(req: Request): void {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  if (cronSecret && reqSecret === cronSecret) return;
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) return;
+  throw new Error("Unauthorized: missing cron secret or JWT");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Protezione cron: solo chiamate interne (SEC-014)
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  const requestCronSecret = req.headers.get("x-cron-secret");
-  if (!cronSecret || requestCronSecret !== cronSecret) {
+  try {
+    verifyCronOrAuth(req);
+  } catch {
     console.error("meta-process-leads: accesso non autorizzato");
     return errorResponse("Unauthorized", 401);
   }
@@ -139,29 +147,58 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const { company_id, integration_id, payload } = event;
   const leadgenId = payload.leadgen_id;
   const formId = payload.form_id;
+  const processedAt = new Date();
 
   if (!leadgenId || !integration_id) {
     throw new Error("Missing leadgen_id or integration_id");
   }
 
+  // Speed-to-lead: calcola secondi tra ricezione webhook e elaborazione
+  const receivedAt = event.received_at ? new Date(event.received_at) : processedAt;
+  const speedToLeadSeconds = Math.round((processedAt.getTime() - receivedAt.getTime()) / 1000);
+
   const { data: creds } = await adminClient
     .from("integration_credentials")
-    .select("access_token_encrypted")
+    .select("access_token_encrypted, meta_page_tokens")
     .eq("integration_id", integration_id)
     .single();
 
   if (!creds) throw new Error("No credentials found for integration");
 
   const encKey = getEncryptionKey();
-  const accessToken = await decrypt(creds.access_token_encrypted, encKey);
 
-  const leadRes = await fetch(
-    `https://graph.facebook.com/v21.0/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
-  );
-  const lead = await leadRes.json();
+  // Gestione lead di test (iniettati da send-test-lead, senza chiamata a Meta)
+  let lead: any;
+  if (payload.is_test && payload._test_field_data) {
+    lead = {
+      id: leadgenId,
+      form_id: formId,
+      created_time: payload.created_time || new Date().toISOString(),
+      field_data: payload._test_field_data,
+      campaign_name: "TEST",
+      ad_name: "TEST",
+    };
+  } else {
+    // Usa il Page Access Token della pagina specifica (più permessi, richiesto per BM pages)
+    // Fallback al User Access Token se il page token non è disponibile
+    const pageId = payload.page_id ? String(payload.page_id) : null;
+    const pageTokens = (creds as any).meta_page_tokens as Record<string, string> | null;
+    let accessToken: string;
+    if (pageId && pageTokens?.[pageId]) {
+      accessToken = await decrypt(pageTokens[pageId], encKey);
+    } else {
+      accessToken = await decrypt(creds.access_token_encrypted, encKey);
+    }
 
-  if (lead.error) {
-    throw new Error(`Meta API error: ${lead.error.message}`);
+    const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+    const leadRes = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
+    );
+    lead = await leadRes.json();
+
+    if (lead.error) {
+      throw new Error(`Meta API error: ${lead.error.message}`);
+    }
   }
 
   const actualFormId = lead.form_id || formId;
@@ -356,8 +393,32 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       campaign_name: lead.campaign_name || null,
       ad_name: lead.ad_name || null,
       dedupe: existingContact ? "updated" : "created",
+      speed_to_lead_seconds: speedToLeadSeconds,
+      is_test: payload.is_test || false,
     },
   });
+
+  // Notifica in-app all'agente assegnato (solo per nuovi lead non di test)
+  const assignedTo = pipelineSettings.owner_user_id || null;
+  if (assignedTo && !existingContact && !payload.is_test) {
+    const contactName = [
+      firstName || "Lead",
+      lastName || "",
+    ].join(" ").trim();
+    const campaignLabel = lead.campaign_name ? ` · ${lead.campaign_name}` : "";
+    const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+
+    await adminClient.from("notifications").insert({
+      company_id,
+      user_id: assignedTo,
+      type: "meta_lead_assigned",
+      title: `Nuovo lead da Meta${campaignLabel}`,
+      body: `${contactName} è stato assegnato a te tramite Lead Ads.`,
+      entity_type: "marketing_contact",
+      entity_id: contactId,
+      action_url: `${siteUrl}/azienda/marketing/contatti/${contactId}`,
+    });
+  }
 
   return {
     contactId,
@@ -369,12 +430,32 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
 function normalizePhone(phone: string): string {
   if (!phone) return "";
   let normalized = phone.replace(/[^\d+]/g, "");
+
+  // Converti 00XX → +XX
   if (normalized.startsWith("00")) {
     normalized = "+" + normalized.slice(2);
   }
-  if (normalized.match(/^3\d{8,9}$/)) {
-    normalized = "+39" + normalized;
+
+  // Numero mobile italiano senza prefisso (3xx xxxxxxx/xx)
+  if (/^3\d{8,9}$/.test(normalized)) {
+    return "+39" + normalized;
   }
+
+  // Numero fisso italiano senza prefisso (0xx xxxxxxx)
+  if (/^0\d{6,10}$/.test(normalized)) {
+    return "+39" + normalized;
+  }
+
+  // Già internazionale con +
+  if (normalized.startsWith("+")) {
+    return normalized;
+  }
+
+  // Numero a 10 cifre italiano (mobile 3xx o fisso 0xx) senza +39
+  if (/^\d{10}$/.test(normalized) && /^[03]/.test(normalized)) {
+    return "+39" + normalized;
+  }
+
   return normalized;
 }
 

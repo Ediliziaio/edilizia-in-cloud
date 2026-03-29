@@ -8,10 +8,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Protezione cron: solo chiamate interne (SEC-014)
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  const requestCronSecret = req.headers.get("x-cron-secret");
-  if (!cronSecret || requestCronSecret !== cronSecret) {
+  // Protezione cron: accetta CRON_SECRET header o Bearer JWT
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("Authorization");
+  const authorized =
+    (cronSecret && reqSecret === cronSecret) ||
+    authHeader?.startsWith("Bearer ");
+  if (!authorized) {
     console.error("meta-health-check: accesso non autorizzato");
     return errorResponse("Unauthorized", 401);
   }
