@@ -256,19 +256,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (err) {
-      // getSession timed out or threw — clear stale session and show login.
-      // NOTE: do NOT call supabase.auth.signOut() here — it also makes a network
-      // request that would hang for the same reason. Instead, wipe localStorage directly.
-      logger.warn("refreshAuth failed, clearing stale session:", err);
-      // Invalidate any in-flight onAuthStateChange fetchUserData so its setState is discarded.
+      // getSession timed out or threw — show login form.
+      // IMPORTANT: do NOT clear localStorage here. Doing so would destroy the
+      // refresh token that Supabase needs to auto-renew the session in the background.
+      // Supabase will fire TOKEN_REFRESHED when the renewal succeeds, or SIGNED_OUT
+      // if it fails — both are handled in onAuthStateChange below.
+      logger.warn("refreshAuth timed out or failed:", err);
+      // Invalidate any in-flight onAuthStateChange fetchUserData.
       authGenRef.current++;
-      try {
-        Object.keys(localStorage)
-          .filter(k => k.startsWith("sb-"))
-          .forEach(k => localStorage.removeItem(k));
-      } catch {
-        // best-effort
-      }
       setState({
         user: null,
         profile: null,
@@ -353,6 +348,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             }).catch(() => {});
           }
+        } else if (event === "TOKEN_REFRESHED" && session?.user) {
+          // Access token was renewed in the background. Re-fetch user data so role/company
+          // are available after a page-load where the old token had already expired.
+          const myGen = ++authGenRef.current;
+          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+          try {
+            userData = await Promise.race([
+              fetchUserData(session.user.id),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
+              ),
+            ]);
+          } catch {
+            userData = { profile: null, role: null, company: null };
+          }
+          if (myGen !== authGenRef.current) return;
+          setState({ user: session.user, ...userData, isLoading: false });
         } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
           // INITIAL_SESSION with no user means no valid session in storage —
           // stop the spinner immediately instead of waiting for refreshAuth().
