@@ -256,12 +256,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (err) {
-      // getSession timed out or threw — clear stale session and show login
+      // getSession timed out or threw — clear stale session and show login.
+      // NOTE: do NOT call supabase.auth.signOut() here — it also makes a network
+      // request that would hang for the same reason. Instead, wipe localStorage directly.
       logger.warn("refreshAuth failed, clearing stale session:", err);
+      // Invalidate any in-flight onAuthStateChange fetchUserData so its setState is discarded.
+      authGenRef.current++;
       try {
-        await supabase.auth.signOut({ scope: "local" });
+        Object.keys(localStorage)
+          .filter(k => k.startsWith("sb-"))
+          .forEach(k => localStorage.removeItem(k));
       } catch {
-        // best-effort cleanup
+        // best-effort
       }
       setState({
         user: null,
@@ -308,7 +314,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // generation no longer matches will be silently discarded.
           const myGen = ++authGenRef.current;
 
-          const userData = await fetchUserData(session.user.id);
+          // Wrap fetchUserData in a timeout — if Supabase DB requests hang
+          // (e.g. expired token + network issues), we still set isLoading: false.
+          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+          try {
+            userData = await Promise.race([
+              fetchUserData(session.user.id),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
+              ),
+            ]);
+          } catch {
+            userData = { profile: null, role: null, company: null };
+          }
 
           // Another auth event fired while we were fetching — bail out.
           if (myGen !== authGenRef.current) return;
