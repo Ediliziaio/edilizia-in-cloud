@@ -6,6 +6,7 @@ import ReportHeader from "./ReportHeader";
 import KPIGrid from "./KPIGrid";
 import TrendChart from "./TrendChart";
 import CampaignTable from "./CampaignTable";
+import CRMFunnelSection from "./CRMFunnelSection";
 
 const FacebookAdsReport = () => {
   const report = useMetaAdsReport();
@@ -47,6 +48,7 @@ const FacebookAdsReport = () => {
     <div className="space-y-6">
       <ReportHeader report={report} />
       <KPIGrid kpis={report.kpis} dailySeries={report.dailySeries} isLoading={report.isLoading} />
+      <CRMFunnelSection dateRange={report.dateRange} isConnected={report.isConnected} />
       <TrendChart dailySeries={report.dailySeries} isLoading={report.isLoading} />
       <CampaignTable report={report} />
     </div>
