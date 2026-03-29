@@ -569,6 +569,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Clear hash immediately — tokens must not linger in browser history
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
 
+        // ── DB warm-up: fire a lightweight query NOW using the AT from the hash ──
+        // The Supabase project may be hibernated (free tier sleeps after ~5 min of
+        // inactivity).  The warm-up wakes it up in parallel with setSession() so
+        // that by the time SIGNED_IN fires and page hooks run, the DB is already
+        // alive.  We use a raw fetch with the AT directly to avoid any session state.
+        const supabaseUrl: string = (import.meta as any).env?.VITE_SUPABASE_URL ?? "";
+        const supabaseKey: string = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+        if (supabaseUrl && supabaseKey) {
+          fetch(`${supabaseUrl}/rest/v1/subscription_plans?select=id&limit=1`, {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${at}`,
+            },
+          }).catch(() => {});
+          logger.info("DB warm-up query fired (cross-subdomain handoff)");
+        }
+
         // Pre-populate profile cache from the relay so SIGNED_IN fires with cached data.
         // We decode the JWT payload (no signature check needed — setSession validates it)
         // to extract the user ID for the cache key.
@@ -705,6 +722,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // company's stale data after returning to the admin view.
     queryClient.clear();
   }, [queryClient]);
+
+  // ── Supabase keepalive ─────────────────────────────────────────────────────
+  // Free-tier Supabase projects hibernate after ~5 minutes of DB inactivity.
+  // Pages that rely only on cached React Query data (staleTime 2-5 min) may
+  // not issue any real queries for an extended period, causing the next
+  // cross-subdomain navigation to hit a cold DB (10-15s delay).
+  //
+  // Every 4 minutes we fire a trivial SELECT to keep the project awake.
+  // Only runs when a user is authenticated — stops immediately on sign-out.
+  useEffect(() => {
+    if (!state.user) return;
+    const ping = () => {
+      supabase.from("subscription_plans").select("id").limit(1).catch(() => {});
+    };
+    const id = setInterval(ping, 4 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [state.user?.id]);
 
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
