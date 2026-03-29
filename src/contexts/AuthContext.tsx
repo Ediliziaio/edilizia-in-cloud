@@ -36,6 +36,38 @@ const IMP_TOKEN_KEY = "imp_token";
 // remote validation for freshly-minted tokens (avoids an edge-function cold-start per load).
 const IMP_TOKEN_TS_KEY = "imp_token_ts";
 
+// Profile/role/company cache in sessionStorage.
+// After the first successful fetchUserData, we persist {profile, role, company} so that
+// subsequent page refreshes can render the UI immediately while re-validating in background.
+// Keyed by Supabase user ID — automatically invalidated on sign-in as a different user.
+const AUTH_PROFILE_CACHE_KEY = "auth_profile_v1";
+const AUTH_PROFILE_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function readProfileCache(userId: string): { profile: Profile | null; role: AppRole | null; company: Company | null } | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (entry.userId !== userId) return null;
+    if (Date.now() - entry.cachedAt > AUTH_PROFILE_CACHE_TTL_MS) return null;
+    return { profile: entry.profile, role: entry.role as AppRole | null, company: entry.company };
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(userId: string, profile: Profile | null, role: AppRole | null, company: Company | null) {
+  try {
+    sessionStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, role, company, cachedAt: Date.now() }));
+  } catch {
+    // sessionStorage full or unavailable — skip silently
+  }
+}
+
+function clearProfileCache() {
+  try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch {}
+}
+
 // Module-level cache for the latest Supabase access/refresh tokens.
 // Updated by onAuthStateChange — lets other code read the current token WITHOUT
 // calling supabase.auth.getSession() (which acquires the storage lock and can hang).
@@ -218,14 +250,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserData = useCallback(async (userId: string) => {
     try {
-      // Fetch profile and roles in PARALLEL — they are independent queries.
-      // Previously sequential, adding ~300-600ms per page load.
+      // Fetch profile (with company JOIN) and roles in PARALLEL — 2 DB round-trips total.
+      // Previously: profiles → wait → companies (sequential, +300-600ms per load).
+      // Now: profiles+companies join and user_roles fire simultaneously.
       const [profileResult, rolesResult] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("profiles").select("*, company:companies(*)").eq("id", userId).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", userId),
       ]);
 
-      const { data: profileData, error: profileError } = profileResult;
+      const { data: rawProfile, error: profileError } = profileResult;
       const { data: rolesData, error: roleError } = rolesResult;
 
       if (profileError) {
@@ -237,6 +270,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (roleError) {
         logger.error("Error fetching roles:", roleError);
       }
+
+      // Separate company from the joined profile row so the Profile type stays clean
+      const company: Company | null = rawProfile ? ((rawProfile as any).company as Company | null) ?? null : null;
+      const profileData: Profile | null = rawProfile
+        ? (() => { const { company: _c, ...rest } = rawProfile as any; return rest as Profile; })()
+        : null;
 
       // Determine effective role with priority: highest privilege first
       const rolePriority: AppRole[] = [
@@ -258,24 +297,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userRoles = (rolesData || []).map(r => r.role as AppRole);
       const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
 
-      // Fetch company if profile has company_id
-      let company: Company | null = null;
-      if (profileData?.company_id) {
-        const { data: companyData, error: companyError } = await supabase
-          .from("companies")
-          .select("*")
-          .eq("id", profileData.company_id)
-          .maybeSingle();
-
-        if (companyError) {
-          logger.error("Error fetching company:", companyError);
-        } else {
-          company = companyData as Company;
-        }
-      }
-
       return {
-        profile: profileData as Profile | null,
+        profile: profileData,
         role: effectiveRole,
         company,
       };
@@ -395,8 +418,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // generation no longer matches will be silently discarded.
           const myGen = ++authGenRef.current;
 
-          // Wrap fetchUserData in a timeout — if Supabase DB requests hang
-          // (e.g. expired token + network issues), we still set isLoading: false.
+          // ── Fast path: serve cached profile/role/company from sessionStorage ──
+          // On page refresh the user already has a valid session, but fetchUserData
+          // must hit the DB (potentially cold, 10-15s on free tier).  If we have a
+          // fresh cache entry for this user we render the UI immediately and let
+          // the DB re-validation happen in the background.
+          const cached = readProfileCache(session.user.id);
+          if (cached && cached.role !== null) {
+            resolvedRoleRef.current = cached.role;
+            setState({
+              user: session.user,
+              profile: cached.profile,
+              role: cached.role,
+              company: cached.company,
+              isLoading: false, // show UI immediately — background re-validation below
+            });
+          }
+
+          // ── Background (or blocking) re-validation ──
+          // Always re-fetch to keep data fresh. If the cache was used above this
+          // runs silently; if not, it blocks until fetchUserData completes.
           let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
           try {
             userData = await Promise.race([
@@ -413,6 +454,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (myGen !== authGenRef.current) return;
 
           resolvedRoleRef.current = userData.role;
+
+          // Persist to cache so the NEXT page refresh is also instant.
+          if (userData.role !== null) {
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company);
+          }
+
           setState({
             user: session.user,
             ...userData,
@@ -475,12 +522,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             company: null,
             isLoading: false,
           });
-          // Clear impersonation on logout
+          // Clear impersonation + profile cache on logout
           if (event === "SIGNED_OUT") {
             setImpersonatedCompanyId(null);
             setImpersonationToken(null);
             setImpersonatedCompany(null);
             sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
+            clearProfileCache();
           }
         }
       }
