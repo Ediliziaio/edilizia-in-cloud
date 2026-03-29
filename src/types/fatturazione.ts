@@ -112,6 +112,12 @@ export const TIPI_CASSA_PREVIDENZIALE = {
   TC22: 'Cassa Naz. Veterinari',
 } as const;
 
+export const ESIGIBILITA_IVA = {
+  I: 'IVA ad esigibilità immediata',
+  D: 'IVA ad esigibilità differita',
+  S: 'Scissione dei pagamenti (Split Payment)',
+} as const;
+
 // ─── Core interfaces ──────────────────────────────────────────
 
 export interface RigaDocumento {
@@ -205,6 +211,11 @@ export interface DocumentoFiscale {
   sdi_errori?: unknown[];
   sdi_notifica_tipo?: string;
   trasmissione?: 'sdi' | 'pec' | 'manuale';
+
+  // Fatturazione Elettronica — campi editor
+  esigibilita_iva?: 'I' | 'D' | 'S';
+  allega_pdf_sdi?: boolean;
+  emesso_in_seguito_a?: string;
 
   // Righe
   righe: RigaDocumento[];

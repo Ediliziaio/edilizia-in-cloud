@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -42,6 +42,62 @@ interface Props {
 const UNITA_MISURA = ["pz", "h", "gg", "mese", "km", "kg", "l", "m", "m²", "m³", "kWh", "%"];
 const IVA_RATES = ["22", "10", "5", "4", "0"];
 
+// IVA options combining aliquote + nature codes for the combined dropdown
+const IVA_COMBINED_OPTIONS: { value: string; label: string; group: string; aliquota: string; natura?: string }[] = [
+  // Standard rates
+  { value: "22", label: "22%", group: "Aliquote IVA", aliquota: "22" },
+  { value: "10", label: "10%", group: "Aliquote IVA", aliquota: "10" },
+  { value: "5", label: "5%", group: "Aliquote IVA", aliquota: "5" },
+  { value: "4", label: "4%", group: "Aliquote IVA", aliquota: "4" },
+  // N1 – Escluse
+  { value: "0_N1", label: "N1 – Escluse ex art. 15", group: "Escluse / Esenti", aliquota: "0", natura: "N1" },
+  // N2 – Non soggette
+  { value: "0_N2_1", label: "N2.1 – Non soggette art. 7-7septies", group: "Non soggette (N2)", aliquota: "0", natura: "N2_1" },
+  { value: "0_N2_2", label: "N2.2 – Non soggette altri casi", group: "Non soggette (N2)", aliquota: "0", natura: "N2_2" },
+  // N3 – Non imponibili
+  { value: "0_N3_1", label: "N3.1 – Esportazioni", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_1" },
+  { value: "0_N3_2", label: "N3.2 – Cessioni intracomunitarie", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_2" },
+  { value: "0_N3_3", label: "N3.3 – Cessioni verso San Marino", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_3" },
+  { value: "0_N3_4", label: "N3.4 – Op. assimilate alle esportazioni", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_4" },
+  { value: "0_N3_5", label: "N3.5 – Dichiarazioni d'intento", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_5" },
+  { value: "0_N3_6", label: "N3.6 – Altre operazioni non imponibili", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_6" },
+  // N4 – Esenti
+  { value: "0_N4", label: "N4 – Esenti", group: "Escluse / Esenti", aliquota: "0", natura: "N4" },
+  // N5 – Regime del margine
+  { value: "0_N5", label: "N5 – Regime del margine / IVA non esposta", group: "Escluse / Esenti", aliquota: "0", natura: "N5" },
+  // N6 – Reverse charge
+  { value: "0_N6_1", label: "N6.1 – Rottami e materiali", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_1" },
+  { value: "0_N6_2", label: "N6.2 – Oro e argento puro", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_2" },
+  { value: "0_N6_3", label: "N6.3 – Subappalto edile", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_3" },
+  { value: "0_N6_4", label: "N6.4 – Cessione fabbricati", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_4" },
+  { value: "0_N6_5", label: "N6.5 – Telefoni cellulari", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_5" },
+  { value: "0_N6_6", label: "N6.6 – Prodotti elettronici", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_6" },
+  { value: "0_N6_7", label: "N6.7 – Comparto edile e connessi", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_7" },
+  { value: "0_N6_8", label: "N6.8 – Settore energetico", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_8" },
+  { value: "0_N6_9", label: "N6.9 – Reverse charge altri casi", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_9" },
+  // N7
+  { value: "0_N7", label: "N7 – IVA assolta in altro stato UE", group: "Escluse / Esenti", aliquota: "0", natura: "N7" },
+];
+
+/** Build the "value" key from a riga's aliquota + natura */
+function ivaValueFromRiga(riga: RigaDocumento): string {
+  const aliq = riga.aliquota_iva ?? "22";
+  if (parseFloat(aliq) > 0) return aliq;
+  if (riga.natura_iva) return `0_${riga.natura_iva}`;
+  return "0";
+}
+
+/** Display label for a given IVA value */
+function ivaDisplayLabel(riga: RigaDocumento): string {
+  const aliq = riga.aliquota_iva ?? "22";
+  if (parseFloat(aliq) > 0) return `${aliq}%`;
+  if (riga.natura_iva) {
+    const code = riga.natura_iva.replace("_", ".");
+    return code;
+  }
+  return "0%";
+}
+
 // ─── Sortable Row ────────────────────────────────────────────
 
 function SortableRow({
@@ -60,7 +116,6 @@ function SortableRow({
   onDuplicate: (index: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [naturaOpen, setNaturaOpen] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
@@ -135,27 +190,42 @@ function SortableRow({
             placeholder="0"
             disabled={disabled}
           />
-          {/* IVA Select */}
+          {/* IVA Select — combined aliquote + nature codes */}
           <div className="relative">
             <Select
-              value={riga.aliquota_iva}
+              value={ivaValueFromRiga(riga)}
               onValueChange={(v) => {
-                onUpdate(index, "aliquota_iva", v);
-                if (v === "0") {
-                  setNaturaOpen(true);
+                const opt = IVA_COMBINED_OPTIONS.find((o) => o.value === v);
+                if (opt) {
+                  onUpdate(index, "aliquota_iva", opt.aliquota);
+                  onUpdate(index, "natura_iva", opt.natura);
                 } else {
+                  // Fallback for plain "0" selection
+                  onUpdate(index, "aliquota_iva", v);
                   onUpdate(index, "natura_iva", undefined);
                 }
               }}
               disabled={disabled}
             >
-              <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-1">
-                <SelectValue />
+              <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-1 min-w-[3.5rem]">
+                <span className="truncate">{ivaDisplayLabel(riga)}</span>
               </SelectTrigger>
-              <SelectContent>
-                {IVA_RATES.map((r) => (
-                  <SelectItem key={r} value={r} className="text-xs">{r}%</SelectItem>
-                ))}
+              <SelectContent className="max-h-80 w-72">
+                {/* Group by category */}
+                {["Aliquote IVA", "Escluse / Esenti", "Non soggette (N2)", "Non imponibili (N3)", "Reverse Charge (N6)"].map((group) => {
+                  const items = IVA_COMBINED_OPTIONS.filter((o) => o.group === group);
+                  if (items.length === 0) return null;
+                  return (
+                    <SelectGroup key={group}>
+                      <SelectLabel className="text-[10px] font-semibold text-muted-foreground">{group}</SelectLabel>
+                      {items.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  );
+                })}
               </SelectContent>
             </Select>
             {needsNatura && (
@@ -187,25 +257,12 @@ function SortableRow({
           )}
         </div>
 
-        {/* Natura IVA selector (shown when IVA=0%) */}
-        {naturaOpen && (parseFloat(riga.aliquota_iva) || 0) === 0 && (
-          <div className="px-2 pb-2 pl-10">
-            <Select
-              value={riga.natura_iva ?? ""}
-              onValueChange={(v) => {
-                onUpdate(index, "natura_iva", v || undefined);
-                setNaturaOpen(false);
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Seleziona natura IVA..." />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(NATURE_IVA).map(([k, v]) => (
-                  <SelectItem key={k} value={k} className="text-xs">{k} – {v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Natura IVA summary badge when 0% with nature is set */}
+        {riga.natura_iva && (parseFloat(riga.aliquota_iva) || 0) === 0 && (
+          <div className="px-2 pb-1 pl-10">
+            <span className="text-[10px] text-muted-foreground">
+              {riga.natura_iva.replace("_", ".")} – {NATURE_IVA[riga.natura_iva as keyof typeof NATURE_IVA] ?? ""}
+            </span>
           </div>
         )}
 

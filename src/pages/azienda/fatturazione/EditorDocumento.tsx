@@ -29,6 +29,8 @@ import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
+import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
+import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -196,11 +198,19 @@ export default function EditorDocumento() {
             <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
           )}
 
+          {/* ═══ FATTURAZIONE ELETTRONICA ═══ */}
+          {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
+            <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          )}
+
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
             <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
           </div>
+
+          {/* ═══ OPZIONI AVANZATE ═══ */}
+          <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
 
           {/* ═══ NOTE ═══ */}
           <EditorNoteSection state={state} dispatch={dispatch} disabled={!isBozza} />

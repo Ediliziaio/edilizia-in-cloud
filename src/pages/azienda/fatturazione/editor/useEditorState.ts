@@ -200,6 +200,15 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       probabilita_chiusura: state.probabilita_chiusura,
       testo_intro: state.testo_intro,
       testo_conclusivo: state.testo_conclusivo,
+      esigibilita_iva: state.esigibilita_iva,
+      allega_pdf_sdi: state.allega_pdf_sdi,
+      emesso_in_seguito_a: state.emesso_in_seguito_a,
+      codice_commessa_convenzione: state.codice_commessa_convenzione,
+      cassa_ritenuta: state.cassa_ritenuta,
+      ddt_causale_trasporto: state.ddt_causale_trasporto,
+      ddt_numero_colli: state.ddt_numero_colli,
+      ddt_peso: state.ddt_peso,
+      ddt_aspetto_beni: state.ddt_aspetto_beni,
     });
 
     if (serialized === prevStateRef.current) return;
@@ -250,6 +259,15 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           probabilita_chiusura: state.probabilita_chiusura,
           testo_intro: state.testo_intro,
           testo_conclusivo: state.testo_conclusivo,
+          esigibilita_iva: state.esigibilita_iva,
+          allega_pdf_sdi: state.allega_pdf_sdi,
+          emesso_in_seguito_a: state.emesso_in_seguito_a,
+          codice_commessa_convenzione: state.codice_commessa_convenzione,
+          cassa_ritenuta: state.cassa_ritenuta,
+          ddt_causale_trasporto: state.ddt_causale_trasporto,
+          ddt_numero_colli: state.ddt_numero_colli,
+          ddt_peso: state.ddt_peso,
+          ddt_aspetto_beni: state.ddt_aspetto_beni,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
@@ -295,6 +313,15 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     probabilita_chiusura: state.probabilita_chiusura,
     testo_intro: state.testo_intro,
     testo_conclusivo: state.testo_conclusivo,
+    esigibilita_iva: state.esigibilita_iva,
+    allega_pdf_sdi: state.allega_pdf_sdi,
+    emesso_in_seguito_a: state.emesso_in_seguito_a,
+    codice_commessa_convenzione: state.codice_commessa_convenzione,
+    cassa_ritenuta: state.cassa_ritenuta,
+    ddt_causale_trasporto: state.ddt_causale_trasporto,
+    ddt_numero_colli: state.ddt_numero_colli,
+    ddt_peso: state.ddt_peso,
+    ddt_aspetto_beni: state.ddt_aspetto_beni,
   }) !== prevStateRef.current;
 
   // Flush autosave and save immediately
@@ -347,6 +374,15 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           probabilita_chiusura: state.probabilita_chiusura,
           testo_intro: state.testo_intro,
           testo_conclusivo: state.testo_conclusivo,
+          esigibilita_iva: state.esigibilita_iva,
+          allega_pdf_sdi: state.allega_pdf_sdi,
+          emesso_in_seguito_a: state.emesso_in_seguito_a,
+          codice_commessa_convenzione: state.codice_commessa_convenzione,
+          cassa_ritenuta: state.cassa_ritenuta,
+          ddt_causale_trasporto: state.ddt_causale_trasporto,
+          ddt_numero_colli: state.ddt_numero_colli,
+          ddt_peso: state.ddt_peso,
+          ddt_aspetto_beni: state.ddt_aspetto_beni,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
