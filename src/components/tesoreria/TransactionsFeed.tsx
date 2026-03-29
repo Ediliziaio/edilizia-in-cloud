@@ -136,19 +136,33 @@ export default function TransactionsFeed({ companyId }: Props) {
     }
   }
 
+  function getExportRows() {
+    return transactions.map((tx) => ({
+      Data: tx.booking_date || "",
+      Descrizione: tx.description || "",
+      Creditore: tx.creditor_name || "",
+      Debitore: tx.debtor_name || "",
+      "IBAN Creditore": tx.creditor_iban || "",
+      "IBAN Debitore": tx.debtor_iban || "",
+      Conto: tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "",
+      Categoria: tx.category || "",
+      Tipo: tx.transaction_type === "credit" ? "Entrata" : "Uscita",
+      Importo: tx.amount,
+      Valuta: tx.currency || "EUR",
+      Riferimento: tx.reference || "",
+      Stato: tx.status || "",
+      Note: tx.note || "",
+    }));
+  }
+
   function exportCSV() {
-    const headers = ["Data", "Descrizione", "Conto", "Categoria", "Tipo", "Importo", "Valuta", "Note"];
-    const rows = transactions.map((tx) => [
-      tx.booking_date || "",
-      `"${(tx.description || "").replace(/"/g, '""')}"`,
-      tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "",
-      tx.category || "",
-      tx.transaction_type === "credit" ? "Entrata" : "Uscita",
-      tx.amount,
-      tx.currency,
-      `"${(tx.note || "").replace(/"/g, '""')}"`,
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const rows = getExportRows();
+    if (rows.length === 0) return;
+    const headers = Object.keys(rows[0]);
+    const csvRows = rows.map((r) =>
+      headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+    );
+    const csv = [headers.join(","), ...csvRows].join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -156,6 +170,20 @@ export default function TransactionsFeed({ companyId }: Props) {
     a.download = `transazioni_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportXLSX() {
+    try {
+      const xlsx = await import("xlsx");
+      const rows = getExportRows();
+      if (rows.length === 0) return;
+      const ws = xlsx.utils.json_to_sheet(rows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, "Transazioni");
+      xlsx.writeFile(wb, `transazioni_${new Date().toISOString().split("T")[0]}.xlsx`);
+    } catch {
+      toast.error("Libreria XLSX non disponibile, usa l'export CSV");
+    }
   }
 
   // Summary
@@ -215,6 +243,7 @@ export default function TransactionsFeed({ companyId }: Props) {
             <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="w-[150px]" />
             <Button variant="ghost" size="sm" onClick={resetFilters}><X className="h-4 w-4 mr-1" /> Reset</Button>
             <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportXLSX}><Download className="h-4 w-4 mr-1" /> XLSX</Button>
           </div>
         </CardContent>
       </Card>

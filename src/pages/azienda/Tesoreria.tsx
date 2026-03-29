@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2 } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,6 +12,9 @@ import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
 import BankConnectionsList from "@/components/tesoreria/BankConnectionsList";
 import BankReconciliation from "@/components/tesoreria/BankReconciliation";
+import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
+import BankAlertRules from "@/components/tesoreria/BankAlertRules";
+import CategorizationRules from "@/components/tesoreria/CategorizationRules";
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
@@ -152,6 +155,12 @@ export default function Tesoreria() {
           <TabsTrigger value="riconciliazione" className="gap-2">
             <Link2 className="h-4 w-4" /> Riconciliazione
           </TabsTrigger>
+          <TabsTrigger value="previsioni" className="gap-2">
+            <TrendingUp className="h-4 w-4" /> Previsioni
+          </TabsTrigger>
+          <TabsTrigger value="impostazioni" className="gap-2">
+            <Settings className="h-4 w-4" /> Impostazioni
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -171,6 +180,15 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="riconciliazione">
           <BankReconciliation companyId={effectiveCompany?.id || ""} />
+        </TabsContent>
+        <TabsContent value="previsioni">
+          <CashFlowForecast companyId={effectiveCompany?.id || ""} />
+        </TabsContent>
+        <TabsContent value="impostazioni">
+          <div className="space-y-8">
+            <BankAlertRules companyId={effectiveCompany?.id || ""} />
+            <CategorizationRules companyId={effectiveCompany?.id || ""} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
