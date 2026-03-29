@@ -36,6 +36,17 @@ const IMP_TOKEN_KEY = "imp_token";
 // remote validation for freshly-minted tokens (avoids an edge-function cold-start per load).
 const IMP_TOKEN_TS_KEY = "imp_token_ts";
 
+// Module-level cache for the latest Supabase access/refresh tokens.
+// Updated by onAuthStateChange — lets other code read the current token WITHOUT
+// calling supabase.auth.getSession() (which acquires the storage lock and can hang).
+let _cachedAccessToken: string | null = null;
+let _cachedRefreshToken: string | null = null;
+
+/** Returns the last known access + refresh tokens without acquiring any lock. */
+export function getCachedTokens() {
+  return { accessToken: _cachedAccessToken, refreshToken: _cachedRefreshToken };
+}
+
 function getBrowserInfo() {
   const ua = navigator.userAgent;
   let browser = "Unknown";
@@ -110,6 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // if it changed (e.g. a SIGNED_OUT arrived while fetching), we discard the result.
   const authGenRef = useRef(0);
 
+  // Ref that always holds the latest resolved role — lets TOKEN_REFRESHED read the
+  // current role synchronously without a stale closure or calling setState.
+  const resolvedRoleRef = useRef<AppRole | null>(null);
+
   // Multi-company state (combined to reduce re-renders)
   const MULTI_COMPANY_KEY = "multi_company_selected";
   const [multiCompanyState, setMultiCompanyState] = useState({
@@ -126,9 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (impersonatedCompanyId) sessionStorage.setItem(IMP_COMPANY_KEY, impersonatedCompanyId);
     else sessionStorage.removeItem(IMP_COMPANY_KEY);
     if (impersonationToken) {
+      // Always overwrite timestamp when a NEW token is stored — this ensures
+      // validateImpersonation skips the remote call for fresh tokens.
+      // We compare with what's already in sessionStorage: if the value changed
+      // (new impersonation) we record a fresh timestamp; if it's the same token
+      // (re-render) we only write the timestamp when it's missing (first hydration).
+      const storedToken = sessionStorage.getItem(IMP_TOKEN_KEY);
       sessionStorage.setItem(IMP_TOKEN_KEY, impersonationToken);
-      // Record creation time only when the token is freshly set (not already persisted)
-      if (!sessionStorage.getItem(IMP_TOKEN_TS_KEY)) {
+      if (storedToken !== impersonationToken || !sessionStorage.getItem(IMP_TOKEN_TS_KEY)) {
         sessionStorage.setItem(IMP_TOKEN_TS_KEY, String(Date.now()));
       }
     } else {
@@ -360,6 +380,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener BEFORE checking initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Keep the module-level token cache fresh — allows getCachedTokens() to
+        // return the current tokens WITHOUT acquiring the Supabase storage lock.
+        if (session?.access_token) {
+          _cachedAccessToken = session.access_token;
+          _cachedRefreshToken = session.refresh_token ?? null;
+        } else if (event === "SIGNED_OUT") {
+          _cachedAccessToken = null;
+          _cachedRefreshToken = null;
+        }
+
         if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
           // Claim a generation slot. Any concurrent or previous fetch whose
           // generation no longer matches will be silently discarded.
@@ -382,6 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Another auth event fired while we were fetching — bail out.
           if (myGen !== authGenRef.current) return;
 
+          resolvedRoleRef.current = userData.role;
           setState({
             user: session.user,
             ...userData,
@@ -406,22 +437,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }).catch(() => {});
           }
         } else if (event === "TOKEN_REFRESHED" && session?.user) {
-          // Access token was renewed in the background. Re-fetch user data so role/company
-          // are available after a page-load where the old token had already expired.
-          const myGen = ++authGenRef.current;
-          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
-          try {
-            userData = await Promise.race([
-              fetchUserData(session.user.id),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
-              ),
-            ]);
-          } catch {
-            userData = { profile: null, role: null, company: null };
+          // Access token renewed in the background.
+          // If the role was already resolved (happy path), just update the User object
+          // to hold the fresh JWT — no DB queries needed (role/company don't change on refresh).
+          // If role is still null (initial fetchUserData failed/timed-out), do a full retry.
+          if (resolvedRoleRef.current !== null) {
+            // Fast path — only update the user token, skip all DB queries
+            setState(prev => ({ ...prev, user: session.user }));
+          } else {
+            // Slow path — role was never resolved; use TOKEN_REFRESHED as a retry opportunity
+            const myGen = ++authGenRef.current;
+            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+            try {
+              userData = await Promise.race([
+                fetchUserData(session.user.id),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
+                ),
+              ]);
+            } catch {
+              userData = { profile: null, role: null, company: null };
+            }
+            if (myGen !== authGenRef.current) return;
+            resolvedRoleRef.current = userData.role;
+            setState({ user: session.user, ...userData, isLoading: false });
           }
-          if (myGen !== authGenRef.current) return;
-          setState({ user: session.user, ...userData, isLoading: false });
         } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
           // INITIAL_SESSION with no user means no valid session in storage —
           // stop the spinner immediately instead of waiting for refreshAuth().

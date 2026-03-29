@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, getCachedTokens } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -618,22 +618,15 @@ export default function CompaniesList() {
     e.stopPropagation();
     const impToken = await impersonateCompany(companyId, permissions);
     if (impToken) {
-      // Race getSession against a 5s timeout — the storage lock can block briefly
-      // if autoRefreshToken is running concurrently.
-      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] | null = null;
-      try {
-        const result = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("getSession timeout")), 5_000)),
-        ]);
-        session = result.data.session;
-      } catch {
-        // Timeout or error — fall back to the non-hash redirect below
-      }
-      if (session) {
+      // Use the module-level cached tokens — they are kept up-to-date by
+      // onAuthStateChange and never require acquiring the Supabase storage lock.
+      // This eliminates the getSession() delay (up to 10s) that occurred when
+      // autoRefreshToken held the mutex.
+      const { accessToken, refreshToken } = getCachedTokens();
+      if (accessToken && refreshToken) {
         const params = new URLSearchParams({
-          _at: session.access_token,
-          _rt: session.refresh_token ?? '',
+          _at: accessToken,
+          _rt: refreshToken,
           _it: impToken,
           _ic: companyId,
         });
