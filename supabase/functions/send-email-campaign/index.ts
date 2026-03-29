@@ -226,8 +226,8 @@ Deno.serve(async (req) => {
       recipientsB = shuffled.slice(splitIdx);
     }
 
-    // Send emails in parallel batches of 5
-    const BATCH_SIZE = 5;
+    // Send emails in parallel batches (BUG-08: was 5, increased to avoid timeout on large lists)
+    const BATCH_SIZE = 50;
 
     async function sendToContact(contact: any, abVariant?: string) {
       try {
@@ -247,6 +247,15 @@ Deno.serve(async (req) => {
           .replace(/\{\{last_name\}\}/g, contact.last_name || "")
           .replace(/\{\{email\}\}/g, contact.email || "");
 
+        // Inject UTM parameters before click-tracking wraps links (BUG-07)
+        if (campaign.utm_tracking) {
+          const utmParams = `utm_source=email&utm_medium=email&utm_campaign=${encodeURIComponent(campaign.name || "")}`;
+          html = html.replace(/href="(https?:\/\/[^"]+)"/g, (_m: string, linkUrl: string) => {
+            const sep = linkUrl.includes("?") ? "&" : "?";
+            return `href="${linkUrl}${sep}${utmParams}"`;
+          });
+        }
+
         // Add tracking pixel
         const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking?type=open&cid=${campaignId}&rid=${contact.id}&co=${companyId}`;
         html += `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none" alt="" />`;
@@ -262,6 +271,9 @@ Deno.serve(async (req) => {
 
         // Add unsubscribe link
         const unsubUrl = `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${campaignId}&rid=${contact.id}&co=${companyId}`;
+        // Replace {{unsubscribe_url}} placeholder in HTML (BUG-09) — done after click-tracking
+        // so the unsub link goes directly to the unsub endpoint, not through the click tracker
+        html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
         const unsubHeader = `<${unsubUrl}>`;
 
         const result = await sendViaProvider(settings.provider, settings.apiKey, {
