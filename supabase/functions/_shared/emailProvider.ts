@@ -58,6 +58,33 @@ function extractName(from: string): string | undefined {
 }
 
 /**
+ * Fetch with exponential backoff retry on 429 (rate limit) responses.
+ * GAP-19: max 3 attempts, base delay 1000ms.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+  baseDelayMs = 1000
+): Promise<Response> {
+  let lastResponse: Response | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429) return res;
+    lastResponse = res;
+    if (attempt < maxAttempts) {
+      // Honour Retry-After header if present, otherwise exponential backoff
+      const retryAfter = res.headers.get("Retry-After");
+      const delayMs = retryAfter
+        ? Math.min(parseInt(retryAfter, 10) * 1000, 30_000)
+        : baseDelayMs * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return lastResponse!;
+}
+
+/**
  * Send an email via the configured provider.
  * Supports: sendgrid, brevo, resend, elastic_email, mailgun
  */
@@ -109,7 +136,7 @@ export async function sendViaProvider(
       }
       body = JSON.stringify(payload);
       // SendGrid returns message ID in x-message-id response header — do early return
-      const sgRes = await fetch(url, { method: "POST", headers, body });
+      const sgRes = await fetchWithRetry(url, { method: "POST", headers, body });
       const sgMsgId = sgRes.headers.get("x-message-id") || undefined;
       const sgJson = await sgRes.json().catch(() => ({}));
       return { ok: sgRes.ok, status: sgRes.status, body: sgJson, providerMessageId: sgMsgId };
@@ -189,7 +216,7 @@ export async function sendViaProvider(
         }
       }
 
-      const res = await fetch(url, { method: "POST", headers, body: formData });
+      const res = await fetchWithRetry(url, { method: "POST", headers, body: formData });
       const json = await res.json().catch(() => ({}));
       return {
         ok: res.ok,
@@ -225,7 +252,7 @@ export async function sendViaProvider(
     }
   }
 
-  const res = await fetch(url, { method: "POST", headers, body });
+  const res = await fetchWithRetry(url, { method: "POST", headers, body });
   const json = await res.json().catch(() => ({}));
 
   return {
