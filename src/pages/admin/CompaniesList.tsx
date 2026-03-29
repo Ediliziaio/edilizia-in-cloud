@@ -96,7 +96,7 @@ const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "las
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { impersonateCompany } = useAuth();
+  const { impersonateCompany, profile, role, company } = useAuth();
   const navigate = useNavigate();
 
   // URL-derived filter state
@@ -620,15 +620,34 @@ export default function CompaniesList() {
     if (impToken) {
       // Use the module-level cached tokens — they are kept up-to-date by
       // onAuthStateChange and never require acquiring the Supabase storage lock.
-      // This eliminates the getSession() delay (up to 10s) that occurred when
-      // autoRefreshToken held the mutex.
       const { accessToken, refreshToken } = getCachedTokens();
       if (accessToken && refreshToken) {
+        // Build _pr (profile relay): the SA profile/role/company serialised as
+        // base64url JSON.  On app.*, AuthContext reads this to pre-populate its
+        // sessionStorage profile cache BEFORE setSession() fires SIGNED_IN.
+        // This lets the page render instantly instead of waiting for DB queries
+        // (which can take 10-15s on a cold Supabase free-tier project).
+        //
+        // Security: the hash is never sent to any server and is cleared from
+        // browser history immediately by window.history.replaceState().
+        // The data is limited to non-secret profile fields the user already owns.
+        let pr: string | undefined;
+        if (profile && role) {
+          try {
+            const relay = JSON.stringify({ profile, role, company: company ?? null });
+            // Convert to base64url (URL-safe, no padding issues in URLSearchParams)
+            pr = btoa(relay).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          } catch {
+            // If serialisation fails, proceed without relay (graceful degradation)
+          }
+        }
+
         const params = new URLSearchParams({
           _at: accessToken,
           _rt: refreshToken,
           _it: impToken,
           _ic: companyId,
+          ...(pr ? { _pr: pr } : {}),
         });
         const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
         safeRedirect(url);

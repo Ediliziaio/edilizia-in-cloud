@@ -510,6 +510,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setState({ user: session.user, ...userData, isLoading: false });
           }
         } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
+          // When navigating via cross-subdomain handoff (hash contains _at=), INITIAL_SESSION
+          // fires with session=null BEFORE setSession() completes.  If we set user:null here
+          // ProtectedRoute would redirect to /login instantly (blank page flash).
+          // Guard: keep isLoading:true and wait for the SIGNED_IN that setSession() will fire.
+          if (event === "INITIAL_SESSION" && isCrossSubdomainHandoff) {
+            logger.info("INITIAL_SESSION null during cross-subdomain handoff — keeping isLoading:true, waiting for SIGNED_IN");
+            return;
+          }
           // INITIAL_SESSION with no user means no valid session in storage —
           // stop the spinner immediately instead of waiting for refreshAuth().
           // SIGNED_OUT invalidates any in-flight SIGNED_IN fetch.
@@ -534,25 +542,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check for cross-subdomain impersonation handoff BEFORE refreshAuth.
-    // When navigating admin.→app., session + imp tokens are passed as #_at=&_rt=&_it=&_ic=
-    // We must detect these BEFORE refreshAuth() runs, because refreshAuth() reads localStorage
-    // synchronously (empty on the new subdomain) and would set isLoading:false / user:null,
-    // causing ProtectedRoute to redirect to /login before setSession() completes.
+    // ── Cross-subdomain impersonation handoff ──────────────────────────────────
+    // When the super-admin clicks "Accedi" on admin.*, the page navigates to
+    // app.* with tokens in the URL hash: #_at=&_rt=&_it=&_ic=[&_pr=]
+    //
+    // CRITICAL: on app.*, localStorage is empty (different origin). Supabase fires
+    // INITIAL_SESSION with session=null BEFORE setSession() completes.  Without the
+    // isCrossSubdomainHandoff guard below, the INITIAL_SESSION handler sets
+    // user:null / isLoading:false → ProtectedRoute redirects to /login (blank page).
+    //
+    // Optional _pr field: base64url-encoded JSON of the SA profile/role/company.
+    // Pre-populating the sessionStorage cache from it lets SIGNED_IN resolve
+    // instantly (cache hit) instead of waiting for DB queries (up to 15s cold start).
     const hash = window.location.hash;
-    if (hash && hash.includes('_at=')) {
+    const isCrossSubdomainHandoff = !!(hash && hash.includes('_at='));
+
+    if (isCrossSubdomainHandoff) {
       const params = new URLSearchParams(hash.slice(1));
       const at = params.get('_at');
       const rt = params.get('_rt');
       const it = params.get('_it');
       const ic = params.get('_ic');
+      const pr = params.get('_pr'); // optional profile relay
 
       if (at && rt) {
-        // Clear hash immediately to avoid token exposure in browser history
+        // Clear hash immediately — tokens must not linger in browser history
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
 
+        // Pre-populate profile cache from the relay so SIGNED_IN fires with cached data.
+        // We decode the JWT payload (no signature check needed — setSession validates it)
+        // to extract the user ID for the cache key.
+        if (pr) {
+          try {
+            const relayData = JSON.parse(atob(pr.replace(/-/g, '+').replace(/_/g, '/')));
+            // Decode user ID from JWT payload (base64url)
+            const jwtPayload = JSON.parse(atob(at.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            const userId = jwtPayload?.sub as string | undefined;
+            if (userId && relayData?.role && relayData?.profile) {
+              writeProfileCache(userId, relayData.profile, relayData.role as AppRole, relayData.company ?? null);
+              logger.info("Cross-subdomain profile relay: cache pre-populated for instant render");
+            }
+          } catch {
+            logger.warn("Cross-subdomain profile relay: could not decode _pr, will fall back to DB fetch");
+          }
+        }
+
         // setSession() will trigger onAuthStateChange(SIGNED_IN) which sets user state.
-        // Skip refreshAuth() — the SIGNED_IN event handles it.
+        // refreshAuth() is the fallback only on error — normal flow goes through SIGNED_IN.
         supabase.auth.setSession({ access_token: at, refresh_token: rt })
           .then(({ error }) => {
             if (error) {
