@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { to, testMode, stream, subject, html, campaignId } = body;
+    const { to, testMode, stream, subject, html, campaignId, previewContactId } = body;
 
     if (!to) {
       return new Response(
@@ -99,8 +99,41 @@ Deno.serve(async (req) => {
         : campaign.sender_email
       : settings.fromDefault;
 
-    const htmlBody = campaign.html_content ||
+    let htmlBody = campaign.html_content ||
       `<html><body><p>Nessun contenuto HTML disponibile.</p></body></html>`;
+
+    // GAP-20: substitute variables using previewContactId data or placeholder values
+    let previewContact: Record<string, string> = {
+      first_name: "Mario",
+      last_name: "Rossi",
+      email: to,
+      phone: "+39 333 1234567",
+      city: "Milano",
+      province: "MI",
+      company_name: "Azienda Esempio",
+    };
+
+    if (previewContactId) {
+      const { data: ct } = await adminClient
+        .from("marketing_contacts")
+        .select("first_name, last_name, email, phone, city, province, company_name")
+        .eq("id", previewContactId)
+        .maybeSingle();
+      if (ct) previewContact = { ...previewContact, ...ct };
+    }
+
+    htmlBody = htmlBody
+      .replace(/\{\{first_name\}\}/g, previewContact.first_name || "")
+      .replace(/\{\{last_name\}\}/g, previewContact.last_name || "")
+      .replace(/\{\{email\}\}/g, previewContact.email || "")
+      .replace(/\{\{contact\.first_name\}\}/g, previewContact.first_name || "")
+      .replace(/\{\{contact\.last_name\}\}/g, previewContact.last_name || "")
+      .replace(/\{\{contact\.email\}\}/g, previewContact.email || "")
+      .replace(/\{\{phone\}\}/g, previewContact.phone || "")
+      .replace(/\{\{city\}\}/g, previewContact.city || "")
+      .replace(/\{\{province\}\}/g, previewContact.province || "")
+      .replace(/\{\{contact_company\}\}/g, previewContact.company_name || "")
+      .replace(/\{\{unsubscribe_url\}\}/g, "#"); // placeholder for test
 
     const result = await sendViaProvider(settings.provider, settings.apiKey, {
       from: fromAddress,
