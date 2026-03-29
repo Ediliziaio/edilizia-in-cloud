@@ -23,7 +23,9 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
   }
 
   const hasContributiActive = (state.ritenuta_acconto ?? false)
-    || (state.cassa_previdenziale ?? false);
+    || (state.cassa_previdenziale ?? false)
+    || (state.rivalsa_inps ?? false)
+    || (state.altra_ritenuta ?? false);
 
   return (
     <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
@@ -102,8 +104,51 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
               )}
             </div>
 
-            {/* ─── Rivalsa (alias for cassa_previdenziale context) ─── */}
-            {/* For now, this is just a note that Rivalsa uses cassa_previdenziale under the hood */}
+            {/* ─── Rivalsa INPS ─── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={state.rivalsa_inps ?? false}
+                  onCheckedChange={(v) => setField("rivalsa_inps", v)}
+                  disabled={disabled}
+                  className="scale-75"
+                />
+                <Label className="text-xs text-muted-foreground">Rivalsa INPS (Gestione Separata)</Label>
+              </div>
+              {state.rivalsa_inps && (
+                <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                      <Select value={state.rivalsa_tipo ?? "TC22"} onValueChange={(v) => setField("rivalsa_tipo", v)} disabled={disabled}>
+                        <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(TIPI_CASSA_PREVIDENZIALE).map(([k, v]) => (
+                            <SelectItem key={k} value={k} className="text-xs">{k} – {v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Input
+                        type="number"
+                        value={state.rivalsa_aliquota ?? 4}
+                        onChange={(e) => setField("rivalsa_aliquota", parseFloat(e.target.value) || 0)}
+                        className="h-7 text-xs text-right"
+                        disabled={disabled}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Rivalsa</Label>
+                      <div className="h-7 flex items-center text-xs font-medium px-2 bg-muted/50 rounded border">
+                        +{formatCurrency(state.rivalsa_importo ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* ─── Ritenuta d'acconto ─── */}
             <div className="space-y-2">
@@ -153,6 +198,64 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Causale pagamento</Label>
                     <Select value={state.ritenuta_causale ?? "A"} onValueChange={(v) => setField("ritenuta_causale", v)} disabled={disabled}>
+                      <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(CAUSALI_RITENUTA).map(([k, v]) => (
+                          <SelectItem key={k} value={k} className="text-xs">{k} – {v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ─── Altra ritenuta ─── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={state.altra_ritenuta ?? false}
+                  onCheckedChange={(v) => setField("altra_ritenuta", v)}
+                  disabled={disabled}
+                  className="scale-75"
+                />
+                <Label className="text-xs text-muted-foreground">Altra ritenuta</Label>
+              </div>
+              {state.altra_ritenuta && (
+                <div className="space-y-2 pl-5 border-l-2 border-muted ml-1">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                      <Select value={state.altra_ritenuta_tipo ?? "RT03"} onValueChange={(v) => setField("altra_ritenuta_tipo", v)} disabled={disabled}>
+                        <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RT03" className="text-xs">RT03 – Contributo INPS</SelectItem>
+                          <SelectItem value="RT04" className="text-xs">RT04 – Contributo ENASARCO</SelectItem>
+                          <SelectItem value="RT05" className="text-xs">RT05 – Contributo ENPAM</SelectItem>
+                          <SelectItem value="RT06" className="text-xs">RT06 – Altro contributo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Aliquota %</Label>
+                      <Input
+                        type="number"
+                        value={state.altra_ritenuta_aliquota ?? 0}
+                        onChange={(e) => setField("altra_ritenuta_aliquota", parseFloat(e.target.value) || 0)}
+                        className="h-7 text-xs text-right"
+                        disabled={disabled}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Importo</Label>
+                      <div className="h-7 flex items-center text-xs text-destructive font-medium px-2 bg-muted/50 rounded border">
+                        -{formatCurrency(state.altra_ritenuta_importo ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Causale pagamento</Label>
+                    <Select value={state.altra_ritenuta_causale ?? "A"} onValueChange={(v) => setField("altra_ritenuta_causale", v)} disabled={disabled}>
                       <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(CAUSALI_RITENUTA).map(([k, v]) => (

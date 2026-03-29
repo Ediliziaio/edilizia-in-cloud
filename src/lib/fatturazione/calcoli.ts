@@ -112,6 +112,10 @@ export interface TotaliOptions {
   cassaPrevidenziale?: boolean;
   cassaAliquota?: number;
   cassaImponibile?: number;
+  rivalsaInps?: boolean;
+  rivalsaAliquota?: number;
+  altraRitenuta?: boolean;
+  altraRitenutaAliquota?: number;
   arrotondamento?: number;
   /** Split payment per PA: IVA pagata direttamente dall'ente, sottratta dal totale_da_pagare */
   splitPayment?: boolean;
@@ -128,6 +132,8 @@ export interface TotaliDocumento {
   totale_documento: number;
   ritenuta_importo: number;
   cassa_importo: number;
+  rivalsa_importo: number;
+  altra_ritenuta_importo: number;
   totale_da_pagare: number;
 }
 
@@ -173,12 +179,22 @@ export function calcolaTotaliDocumento(
         )
       : 0;
 
+  const rivalsa_importo =
+    options.rivalsaInps && options.rivalsaAliquota
+      ? round2(imponibile_totale * (options.rivalsaAliquota / 100))
+      : 0;
+
+  const altra_ritenuta_importo =
+    options.altraRitenuta && options.altraRitenutaAliquota
+      ? round2(imponibile_totale * (options.altraRitenutaAliquota / 100))
+      : 0;
+
   // Split payment PA: l'IVA è versata direttamente dall'ente PA allo Stato,
   // quindi il fornitore incassa solo imponibile (senza IVA)
   const splitPaymentIva = options.splitPayment ? iva_totale : 0;
 
   const totale_da_pagare = round2(
-    totale_documento + bollo + cassa_importo - ritenuta_importo - splitPaymentIva
+    totale_documento + bollo + cassa_importo + rivalsa_importo - ritenuta_importo - altra_ritenuta_importo - splitPaymentIva
   );
 
   return {
@@ -190,6 +206,8 @@ export function calcolaTotaliDocumento(
     totale_documento,
     ritenuta_importo,
     cassa_importo,
+    rivalsa_importo,
+    altra_ritenuta_importo,
     totale_da_pagare,
   };
 }

@@ -14,6 +14,7 @@ function escXml(s: string | null | undefined): string {
 
 function fmtNum(n: number, d = 2): string { return n.toFixed(d); }
 function fmtDate(d: string | null | undefined): string { return d ? d.slice(0, 10) : ""; }
+function naturaToXml(n: string): string { return n.replace(/_/g, "."); }
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -123,7 +124,11 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
         <Data>${fmtDate(doc.data_emissione)}</Data>
         <Numero>${escXml(doc.numero)}</Numero>
         ${doc.ritenuta_acconto && doc.ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.ritenuta_tipo || "RT01")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.ritenuta_aliquota || 20)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
+        ${doc.altra_ritenuta && doc.altra_ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.altra_ritenuta_tipo || "RT03")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.altra_ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.altra_ritenuta_aliquota || 0)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.altra_ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.bollo_virtuale ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${fmtNum(doc.bollo_importo || 2)}</ImportoBollo></DatiBollo>` : ""}
+        ${doc.cassa_previdenziale && doc.cassa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.cassa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.cassa_aliquota || 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.cassa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.cassa_imponibile || doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(parseFloat(doc.cassa_aliquota_iva || "22"))}</AliquotaIVA>${doc.cassa_ritenuta ? "<Ritenuta>SI</Ritenuta>" : ""}</DatiCassaPrevidenziale>` : ""}
+        ${doc.rivalsa_inps && doc.rivalsa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.rivalsa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.rivalsa_aliquota || 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.rivalsa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(22)}</AliquotaIVA></DatiCassaPrevidenziale>` : ""}
+        ${(doc.sconto_globale_valore || 0) > 0 ? `<ScontoMaggiorazione><Tipo>SC</Tipo>${doc.sconto_globale_percentuale ? `<Percentuale>${fmtNum(doc.sconto_globale_percentuale)}</Percentuale>` : ""}<Importo>${fmtNum(doc.sconto_globale_valore || 0)}</Importo></ScontoMaggiorazione>` : ""}
         <ImportoTotaleDocumento>${fmtNum(doc.totale_documento)}</ImportoTotaleDocumento>${azienda.regime_fiscale === "RF19" ? `
         <Causale>${escXml("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 — Regime forfettario")}</Causale>` : ""}
       </DatiGeneraliDocumento>
@@ -140,11 +145,11 @@ ${righe.map((r: any, i: number) => `      <DettaglioLinee>
         ${(r.sconto_percentuale || 0) > 0 ? `<ScontoMaggiorazione><Tipo>SC</Tipo><Percentuale>${fmtNum(r.sconto_percentuale)}</Percentuale></ScontoMaggiorazione>` : ""}
         <PrezzoTotale>${fmtNum(r.imponibile)}</PrezzoTotale>
         <AliquotaIVA>${fmtNum(parseFloat(r.aliquota_iva) || 0)}</AliquotaIVA>
-        ${r.natura_iva ? `<Natura>${escXml(r.natura_iva)}</Natura>` : ""}
+        ${r.natura_iva ? `<Natura>${escXml(naturaToXml(r.natura_iva))}</Natura>` : ""}
       </DettaglioLinee>`).join("\n")}
 ${riepilogo.map((r: any) => `      <DatiRiepilogo>
         <AliquotaIVA>${fmtNum(parseFloat(r.aliquota) || 0)}</AliquotaIVA>
-        ${r.natura ? `<Natura>${escXml(r.natura)}</Natura>` : ""}
+        ${r.natura ? `<Natura>${escXml(naturaToXml(r.natura))}</Natura>` : ""}
         <ImponibileImporto>${fmtNum(r.imponibile)}</ImponibileImporto>
         <Imposta>${fmtNum(r.imposta)}</Imposta>
         <EsigibilitaIVA>${r.esigibilita || "I"}</EsigibilitaIVA>

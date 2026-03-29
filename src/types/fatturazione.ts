@@ -250,6 +250,19 @@ export interface DocumentoFiscale {
   cassa_aliquota_iva?: string;
   cassa_ritenuta?: boolean;
 
+  // Rivalsa INPS
+  rivalsa_inps?: boolean;
+  rivalsa_aliquota?: number;
+  rivalsa_importo?: number;
+  rivalsa_tipo?: string;
+
+  // Altra ritenuta
+  altra_ritenuta?: boolean;
+  altra_ritenuta_tipo?: string;
+  altra_ritenuta_aliquota?: number;
+  altra_ritenuta_importo?: number;
+  altra_ritenuta_causale?: string;
+
   totale_da_pagare: number;
 
   // Pagamento

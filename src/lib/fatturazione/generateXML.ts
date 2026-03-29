@@ -241,6 +241,17 @@ export function generateFatturaPAXML(
         </DatiRitenuta>`;
   }
 
+  // Altra ritenuta (ENASARCO, ENPAM, etc.)
+  if (doc.altra_ritenuta && doc.altra_ritenuta_importo) {
+    xml += `
+        <DatiRitenuta>
+          <TipoRitenuta>${esc(doc.altra_ritenuta_tipo || "RT03")}</TipoRitenuta>
+          <ImportoRitenuta>${fmtNum(doc.altra_ritenuta_importo)}</ImportoRitenuta>
+          <AliquotaRitenuta>${fmtNum(doc.altra_ritenuta_aliquota || 0)}</AliquotaRitenuta>
+          <CausalePagamento>${esc(doc.altra_ritenuta_causale || "A")}</CausalePagamento>
+        </DatiRitenuta>`;
+  }
+
   // Bollo
   if (doc.bollo_virtuale) {
     xml += `
@@ -260,6 +271,18 @@ export function generateFatturaPAXML(
           <ImponibileCassa>${fmtNum(doc.cassa_imponibile || doc.imponibile_totale)}</ImponibileCassa>
           <AliquotaIVA>${fmtNum(parseFloat(doc.cassa_aliquota_iva || "22"))}</AliquotaIVA>
           ${doc.cassa_ritenuta ? "<Ritenuta>SI</Ritenuta>" : ""}
+        </DatiCassaPrevidenziale>`;
+  }
+
+  // Rivalsa INPS (Gestione Separata)
+  if (doc.rivalsa_inps && doc.rivalsa_importo) {
+    xml += `
+        <DatiCassaPrevidenziale>
+          <TipoCassa>${esc(doc.rivalsa_tipo || "TC22")}</TipoCassa>
+          <AlCassa>${fmtNum(doc.rivalsa_aliquota || 4)}</AlCassa>
+          <ImportoContributoCassa>${fmtNum(doc.rivalsa_importo)}</ImportoContributoCassa>
+          <ImponibileCassa>${fmtNum(doc.imponibile_totale)}</ImponibileCassa>
+          <AliquotaIVA>${fmtNum(22)}</AliquotaIVA>
         </DatiCassaPrevidenziale>`;
   }
 
