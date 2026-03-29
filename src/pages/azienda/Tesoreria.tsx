@@ -155,7 +155,7 @@ export default function Tesoreria() {
         </TabsList>
 
         <TabsContent value="overview">
-          <TreasuryOverview companyId={effectiveCompany?.id || ""} />
+          <TreasuryOverview companyId={effectiveCompany?.id || ""} onNavigateToTransactions={() => setActiveTab("transazioni")} />
         </TabsContent>
         <TabsContent value="conti">
           <BankAccountsList companyId={effectiveCompany?.id || ""} />

@@ -16,9 +16,10 @@ const monthLabels: Record<string, string> = {
 
 interface Props {
   companyId: string;
+  onNavigateToTransactions?: () => void;
 }
 
-export default function TreasuryOverview({ companyId }: Props) {
+export default function TreasuryOverview({ companyId, onNavigateToTransactions }: Props) {
   const [summary, setSummary] = useState<any>(null);
   const [cashFlow, setCashFlow] = useState<any[]>([]);
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
@@ -140,7 +141,10 @@ export default function TreasuryOverview({ companyId }: Props) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Ultime Transazioni</CardTitle>
-          <button className="text-sm text-primary hover:underline inline-flex items-center gap-1">
+          <button
+            className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+            onClick={onNavigateToTransactions}
+          >
             Vedi tutte <ArrowRight className="h-3 w-3" />
           </button>
         </CardHeader>

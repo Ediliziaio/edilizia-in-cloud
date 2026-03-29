@@ -185,6 +185,8 @@ verify_jwt = false
 
 [functions.bank-sync-all-companies]
 verify_jwt = false
+# Cron: sync bancario 3x al giorno (06:00, 12:00, 18:00 UTC)
+schedule = "0 6,12,18 * * *"
 
 [functions.generate-quote-pdf]
 verify_jwt = false

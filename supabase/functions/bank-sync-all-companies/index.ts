@@ -2,6 +2,29 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep } from "../_shared/goCardless.ts";
 
+/** Build a deterministic external_transaction_id fallback when provider doesn't supply one */
+function buildDeterministicTxId(
+  accountId: string,
+  tx: any,
+): string {
+  const parts = [
+    accountId,
+    tx.bookingDate || tx.valueDate || "nodate",
+    tx.transactionAmount?.amount || "0",
+    tx.transactionAmount?.currency || "EUR",
+    tx.creditorName || tx.debtorName || "",
+    (tx.remittanceInformationUnstructured || "").slice(0, 60),
+  ];
+  const str = parts.join("|");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const chr = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0;
+  }
+  return `${accountId}_${tx.bookingDate || "nodate"}_${Math.abs(hash).toString(36)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -123,10 +146,16 @@ Deno.serve(async (req) => {
                   const desc = tx.remittanceInformationUnstructured || tx.remittanceInformationUnstructuredArray?.join(" ") || "";
                   const { category, icon } = categorizeTransaction(desc, tx.creditorName || "", amount);
 
+                  // Fix BUG 1: deterministic ID fallback (no crypto.randomUUID)
+                  const externalTxId = tx.transactionId
+                    || tx.internalTransactionId
+                    || buildDeterministicTxId(account.external_account_id, tx);
+
+                  // Fix BUG 2: remove ignoreDuplicates to allow pending→booked updates
                   await supabase.from("bank_transactions").upsert({
                     company_id: companyId,
                     account_id: account.id,
-                    external_transaction_id: tx.transactionId || tx.internalTransactionId || crypto.randomUUID(),
+                    external_transaction_id: externalTxId,
                     booking_date: tx.bookingDate || null,
                     value_date: tx.valueDate || null,
                     amount,
@@ -142,7 +171,7 @@ Deno.serve(async (req) => {
                     category_icon: icon,
                     reference: tx.endToEndId || null,
                     metadata: tx,
-                  }, { onConflict: "company_id,external_transaction_id", ignoreDuplicates: true });
+                  }, { onConflict: "company_id,external_transaction_id" });
 
                   companyTxs++;
                 }
