@@ -109,7 +109,7 @@ const NO_PERMISSIONS: Permissions = {
 };
 
 export function usePermissions(): Permissions {
-  const { role, user } = useAuth();
+  const { role, user, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -132,6 +132,13 @@ export function usePermissions(): Permissions {
 
   // Super admin and company admin have all permissions
   if (role === "super_admin" || role === "company_admin") {
+    return ALL_PERMISSIONS;
+  }
+
+  // Active impersonation session: grant full permissions even if role has not been
+  // resolved yet (e.g. fetchUserData raced with setSession on page load).
+  // The actual data access is governed by server-side RLS + the impersonation token.
+  if (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken)) {
     return ALL_PERMISSIONS;
   }
 

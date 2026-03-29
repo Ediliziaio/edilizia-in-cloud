@@ -33,7 +33,7 @@ interface ResolvedFlag {
 }
 
 export function useFeatureFlags(companyIdOverride?: string) {
-  const { effectiveCompany, role, isImpersonating } = useAuth();
+  const { effectiveCompany, role, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
   const planName = (effectiveCompany as any)?.subscription_plan?.name?.toLowerCase?.() ?? "";
 
@@ -66,9 +66,10 @@ export function useFeatureFlags(companyIdOverride?: string) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Super admin bypass
+  // Super admin bypass: also active when impersonation session exists but role
+  // has not yet been resolved (e.g. fetchUserData racing setSession on page load).
   const isSuperAdmin = role === "super_admin";
-  const bypass = isSuperAdmin && isImpersonating;
+  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
 
   // Resolve flags
   const resolvedFlags: Record<string, ResolvedFlag> = {};

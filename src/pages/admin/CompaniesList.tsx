@@ -618,7 +618,18 @@ export default function CompaniesList() {
     e.stopPropagation();
     const impToken = await impersonateCompany(companyId, permissions);
     if (impToken) {
-      const { data: { session } } = await supabase.auth.getSession();
+      // Race getSession against a 5s timeout — the storage lock can block briefly
+      // if autoRefreshToken is running concurrently.
+      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] | null = null;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("getSession timeout")), 5_000)),
+        ]);
+        session = result.data.session;
+      } catch {
+        // Timeout or error — fall back to the non-hash redirect below
+      }
       if (session) {
         const params = new URLSearchParams({
           _at: session.access_token,

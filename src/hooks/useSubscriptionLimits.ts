@@ -9,7 +9,7 @@ const ALL_MODULES = ["orders", "warehouse", "calendar", "customers", "employees"
 export type ModuleKey = (typeof ALL_MODULES)[number];
 
 export function useSubscriptionLimits() {
-  const { effectiveCompany, isImpersonating, role } = useAuth();
+  const { effectiveCompany, isImpersonating, role, impersonatedCompanyId, impersonationToken } = useAuth();
 
   const companyId = effectiveCompany?.id;
   const planId = effectiveCompany?.subscription_plan_id;
@@ -75,9 +75,10 @@ export function useSubscriptionLimits() {
     ? (Array.isArray(rawModules) ? (rawModules as string[]) : [...ALL_MODULES])
     : [...ALL_MODULES];
 
-  // Super admin bypass
+  // Super admin bypass: also active when impersonation session exists but role
+  // has not yet been resolved (e.g. fetchUserData racing setSession on page load).
   const isSuperAdmin = role === "super_admin";
-  const bypass = isSuperAdmin && isImpersonating;
+  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
 
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;

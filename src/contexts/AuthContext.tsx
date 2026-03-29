@@ -13,6 +13,7 @@ interface AuthContextType extends AuthState {
   refreshAuth: () => Promise<void>;
   // Impersonation
   impersonatedCompanyId: string | null;
+  impersonationToken: string | null;
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
   impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<string | null>;
@@ -131,7 +132,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function validateImpersonation() {
       const savedToken = sessionStorage.getItem(IMP_TOKEN_KEY);
       const savedCompanyId = sessionStorage.getItem(IMP_COMPANY_KEY);
-      if (!savedToken || !savedCompanyId || state.role !== "super_admin") return;
+
+      if (!savedToken || !savedCompanyId) return;
+
+      // Safety: if the resolved role is a non-admin role (role is set but not super_admin),
+      // immediately clear the impersonation to prevent a leftover session from a previous
+      // super_admin login persisting for a different user.
+      if (state.role !== null && state.role !== "super_admin") {
+        logger.info("Non-admin role detected with active impersonation session — clearing");
+        setImpersonatedCompanyId(null);
+        setImpersonationToken(null);
+        setImpersonatedCompany(null);
+        return;
+      }
+
+      // Only validate against the edge function once we know the user is a super_admin.
+      if (state.role !== "super_admin") return;
 
       try {
         const { data, error } = await supabase.functions.invoke("secure-impersonation", {
@@ -317,7 +333,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     fetchImpersonatedCompany();
-  }, [impersonatedCompanyId, state.user]);
+  // impersonationToken is included so that clicking "Accedi" for the SAME company
+  // a second time (when impersonatedCompanyId hasn't changed) still re-triggers
+  // this effect and re-fetches the company data.
+  }, [impersonatedCompanyId, impersonationToken, state.user]);
 
   useEffect(() => {
     // Set up auth state listener BEFORE checking initial session
@@ -601,9 +620,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // isImpersonating is true as soon as impersonatedCompanyId is set (not waiting for impersonatedCompany
   // to be fetched). This prevents the route guard from redirecting the superadmin to /admin
   // before fetchImpersonatedCompany has had a chance to load the company data.
-  // effectiveCompany will be null briefly while the DB query is in-flight — that's fine.
-  const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId;
-  
+  // We require the role to be confirmed as super_admin OR that both token+companyId are present
+  // in session (the latter handles the transient window after setSession() where fetchUserData
+  // may have failed and role is temporarily null).
+  const hasActiveImpersonationSession = !!impersonatedCompanyId && !!impersonationToken;
+  const isImpersonating = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImpersonationSession;
+
   // Effective company: impersonation > multi-company (including platform_* roles) > real company
   const isPlatformRole = state.role?.startsWith("platform_") ?? false;
   const effectiveCompany = isImpersonating
@@ -619,6 +641,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshAuth,
       impersonatedCompanyId,
+      impersonationToken,
       impersonatedCompany,
       isImpersonating,
       impersonateCompany,
@@ -628,7 +651,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       selectedMultiCompanyId,
       switchMultiCompany,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
   );
 
   return (
