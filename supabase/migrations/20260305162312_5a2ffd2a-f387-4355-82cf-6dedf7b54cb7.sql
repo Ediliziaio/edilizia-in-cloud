@@ -5,6 +5,3 @@ CREATE TABLE public.ticket_read_status (
   last_read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(ticket_id, user_id)
 );
-ALTER TABLE public.ticket_read_status ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users manage own read status" ON public.ticket_read_status
-  FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());

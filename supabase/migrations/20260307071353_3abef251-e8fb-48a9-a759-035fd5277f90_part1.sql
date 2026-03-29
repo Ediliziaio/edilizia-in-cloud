@@ -1,0 +1,1 @@
+ALTER TABLE public.email_credits ENABLE ROW LEVEL SECURITY;

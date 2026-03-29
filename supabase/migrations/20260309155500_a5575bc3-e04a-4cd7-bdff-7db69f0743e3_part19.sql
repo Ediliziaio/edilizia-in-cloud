@@ -1,0 +1,1 @@
+ALTER TABLE billing_sync_log      ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+CREATE POLICY "Staff view internal automation connections" ON public.internal_automation_connections FOR SELECT USING (has_permission(auth.uid(), 'can_view_settings') AND company_id = get_user_company_id(auth.uid()));

@@ -116,6 +116,7 @@ export default function CompanyCustomerDetail() {
         .from("documenti_fiscali" as never)
         .select("id, tipo, numero, data_emissione, stato, totale_documento")
         .eq("anagrafica_id", anagraficaCollegata?.id ?? "")
+        .is("deleted_at", null)
         .order("data_emissione", { ascending: false })
         .limit(20);
       return (data ?? []) as unknown as Array<{

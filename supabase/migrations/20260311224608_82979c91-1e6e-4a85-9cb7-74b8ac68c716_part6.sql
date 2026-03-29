@@ -1,0 +1,1 @@
+ALTER TABLE webhooks          ENABLE ROW LEVEL SECURITY;

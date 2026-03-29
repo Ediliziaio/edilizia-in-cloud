@@ -32,6 +32,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
           .from("documenti_fiscali")
           .select("tipo, stato, data_emissione, totale_da_pagare, imponibile_totale")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .neq("stato", "annullata"),
 
         // 2. Incassi mese (movimenti_cassa_native entrata linked to documento)
@@ -141,6 +142,7 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5, en
         .eq("company_id", companyId!)
         .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
         .neq("stato", "annullata")
+        .is("deleted_at", null)
         .gte("data_emissione", yearStart);
 
       if (error) throw error;

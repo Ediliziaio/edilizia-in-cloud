@@ -1,0 +1,1 @@
+ALTER TABLE public.bank_connections ENABLE ROW LEVEL SECURITY;

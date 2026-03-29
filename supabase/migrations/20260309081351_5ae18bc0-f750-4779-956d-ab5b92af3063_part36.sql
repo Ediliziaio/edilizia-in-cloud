@@ -1,0 +1,1 @@
+CREATE POLICY "Company users can view own bank transactions" ON public.bank_transactions FOR SELECT TO authenticated USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));

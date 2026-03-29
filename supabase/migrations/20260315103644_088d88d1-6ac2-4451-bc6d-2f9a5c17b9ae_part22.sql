@@ -1,0 +1,1 @@
+ALTER TABLE ai_conversations_v2 ENABLE ROW LEVEL SECURITY;

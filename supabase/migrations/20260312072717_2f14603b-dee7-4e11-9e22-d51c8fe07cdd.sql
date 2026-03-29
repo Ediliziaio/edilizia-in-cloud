@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS public.subscription_invoices (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id          UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -16,27 +15,3 @@ CREATE TABLE IF NOT EXISTS public.subscription_invoices (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-ALTER TABLE public.subscription_invoices ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_see_own_invoices"
-  ON public.subscription_invoices
-  FOR SELECT
-  USING (
-    company_id IN (
-      SELECT p.company_id FROM public.profiles p
-      WHERE p.id = auth.uid()
-    )
-  );
-
-CREATE POLICY "service_role_manage_invoices"
-  ON public.subscription_invoices
-  FOR ALL
-  USING (auth.role() = 'service_role');
-
-CREATE INDEX idx_subscription_invoices_company ON public.subscription_invoices(company_id, created_at DESC);
-CREATE INDEX idx_subscription_invoices_stripe ON public.subscription_invoices(stripe_invoice_id);
-
-CREATE TRIGGER subscription_invoices_updated_at
-  BEFORE UPDATE ON public.subscription_invoices
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

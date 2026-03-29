@@ -63,7 +63,3 @@ LEFT JOIN (
   FROM public.order_errors
   GROUP BY order_id
 ) err ON err.order_id = o.id;
-
--- Commento descrittivo
-COMMENT ON VIEW public.v_ordine_marginalita IS
-  'Vista di marginalità real-time per cantiere: preventivo contratto + variazioni approvate (OdV) vs acquisti + errori cantiere.';

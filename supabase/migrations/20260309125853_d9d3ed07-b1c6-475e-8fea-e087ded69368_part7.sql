@@ -1,0 +1,1 @@
+ALTER TABLE public.referral_clicks ENABLE ROW LEVEL SECURITY;

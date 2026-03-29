@@ -1,0 +1,2 @@
+-- RLS
+ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;

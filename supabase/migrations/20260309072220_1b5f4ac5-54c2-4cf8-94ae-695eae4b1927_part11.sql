@@ -1,0 +1,1 @@
+ALTER TABLE public.gdpr_audit_log ENABLE ROW LEVEL SECURITY;

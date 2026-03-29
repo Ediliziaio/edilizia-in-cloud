@@ -1,0 +1,1 @@
+CREATE INDEX idx_marketing_opportunity_lists_pipeline ON public.marketing_opportunity_lists(pipeline_id);

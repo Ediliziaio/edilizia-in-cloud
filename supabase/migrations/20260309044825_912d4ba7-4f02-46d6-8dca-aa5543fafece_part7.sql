@@ -1,0 +1,1 @@
+ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;

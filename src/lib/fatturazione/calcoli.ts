@@ -34,10 +34,25 @@ export function calcolaRiga(r: RigaDocumento): RigaDocumento {
 
 // ─── IVA riepilogo ───────────────────────────────────────────
 
+export interface RiepilogoIVAOptions {
+  proportionalDiscount?: number;
+  /** Split payment (scissione pagamenti) per PA: imposta EsigibilitaIVA = "S" */
+  splitPayment?: boolean;
+}
+
 export function calcolaRiepilogoIVA(
   righe: RigaDocumento[],
-  proportionalDiscount: number = 0
+  proportionalDiscountOrOptions: number | RiepilogoIVAOptions = 0
 ): RiepilogoIVA[] {
+  // Backwards-compatible: accept number or options object
+  const options: RiepilogoIVAOptions =
+    typeof proportionalDiscountOrOptions === "number"
+      ? { proportionalDiscount: proportionalDiscountOrOptions }
+      : proportionalDiscountOrOptions;
+
+  const proportionalDiscount = options.proportionalDiscount ?? 0;
+  const splitPayment = options.splitPayment ?? false;
+
   const ivaMap = new Map<string, RiepilogoIVA>();
 
   for (const r of righe) {
@@ -67,10 +82,17 @@ export function calcolaRiepilogoIVA(
       ? 0
       : round2(discountedImponibile * (aliquota / 100));
 
+    // Split payment: EsigibilitaIVA = "S" per righe con IVA effettiva (non esente/natura)
+    const esigibilita: "I" | "D" | "S" =
+      splitPayment && !r.natura && aliquota > 0
+        ? "S"
+        : r.esigibilita;
+
     return {
       ...r,
       imponibile: discountedImponibile,
       imposta: discountedImposta,
+      esigibilita,
     };
   });
 }
@@ -88,6 +110,8 @@ export interface TotaliOptions {
   cassaAliquota?: number;
   cassaImponibile?: number;
   arrotondamento?: number;
+  /** Split payment per PA: IVA pagata direttamente dall'ente, sottratta dal totale_da_pagare */
+  splitPayment?: boolean;
 }
 
 export interface TotaliDocumento {
@@ -118,7 +142,10 @@ export function calcolaTotaliDocumento(
 
   // Proportional discount ratio for IVA riepilogo
   const discountRatio = subtotale > 0 ? scontoGlobaleValore / subtotale : 0;
-  const riepilogo_iva = calcolaRiepilogoIVA(computed, discountRatio);
+  const riepilogo_iva = calcolaRiepilogoIVA(computed, {
+    proportionalDiscount: discountRatio,
+    splitPayment: options.splitPayment,
+  });
 
   const iva_totale = riepilogo_iva.reduce((s, r) => s + r.imposta, 0);
   const totale_documento = round2(
@@ -140,8 +167,12 @@ export function calcolaTotaliDocumento(
         )
       : 0;
 
+  // Split payment PA: l'IVA è versata direttamente dall'ente PA allo Stato,
+  // quindi il fornitore incassa solo imponibile (senza IVA)
+  const splitPaymentIva = options.splitPayment ? iva_totale : 0;
+
   const totale_da_pagare = round2(
-    totale_documento + bollo + cassa_importo - ritenuta_importo
+    totale_documento + bollo + cassa_importo - ritenuta_importo - splitPaymentIva
   );
 
   return {
@@ -243,6 +274,20 @@ export function validateDocumento(
       field: "cig",
       message: "CIG obbligatorio per la Pubblica Amministrazione",
       severity: "warning",
+    });
+  }
+
+  // RF19 forfettario: all righe must have natura_iva and aliquota 0
+  // (This is a soft warning — the XML generator enforces it via Causale)
+  if (doc.regime_fiscale === "RF19" || (doc as any)._regimeFiscale === "RF19") {
+    righe.forEach((r, i) => {
+      if (Number(r.aliquota_iva) > 0) {
+        errors.push({
+          field: `righe[${i}].aliquota_iva`,
+          message: `Riga ${i + 1}: regime forfettario RF19 — IVA deve essere 0% con natura N2.2`,
+          severity: "warning",
+        });
+      }
     });
   }
 

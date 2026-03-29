@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_whatsapp_broadcast_recipients_broadcast ON whatsapp_broadcast_recipients(broadcast_id);

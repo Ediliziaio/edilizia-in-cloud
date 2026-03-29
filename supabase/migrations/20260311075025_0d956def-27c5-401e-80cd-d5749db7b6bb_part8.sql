@@ -1,0 +1,1 @@
+ALTER TABLE public.inventory_audits ENABLE ROW LEVEL SECURITY;

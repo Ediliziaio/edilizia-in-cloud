@@ -1,0 +1,1 @@
+ALTER TABLE public.duvri_documents ENABLE ROW LEVEL SECURITY;

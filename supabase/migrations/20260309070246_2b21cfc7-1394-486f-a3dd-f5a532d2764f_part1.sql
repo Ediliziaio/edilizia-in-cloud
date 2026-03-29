@@ -1,0 +1,1 @@
+ALTER TABLE public.totp_secrets ENABLE ROW LEVEL SECURITY;

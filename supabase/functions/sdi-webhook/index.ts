@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Missing signature header",
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("Unauthorized: missing signature", { status: 401 });
     }
 
@@ -49,15 +49,22 @@ Deno.serve(async (req) => {
         company_id: null as unknown as string,
         evento: "webhook_rejected",
         messaggio: "Invalid signature",
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("Unauthorized: invalid signature", { status: 401 });
     }
 
-    // Parse notification from XML body
-    // Extract key fields using simple regex (avoid full XML parser in edge)
-    const tipoNotifica = extractTag(body, "TipoNotifica") || extractTag(body, "tipo_notifica") || "";
-    const idTrasmissione = extractTag(body, "IdentificativoSdI") || extractTag(body, "sdi_id") || "";
-    const erroriRaw = extractTag(body, "Errore") || extractTag(body, "ListaErrori");
+    // Parse notification from XML body using DOMParser (robust, handles CDATA/namespaces)
+    const xmlDoc = new DOMParser().parseFromString(body, "text/xml");
+    const getTag = (tag: string): string | null => {
+      // Try with and without namespace
+      const el = xmlDoc.getElementsByTagName(tag)[0]
+        ?? xmlDoc.querySelector(`[localName="${tag}"]`);
+      return el?.textContent?.trim() || null;
+    };
+
+    const tipoNotifica = getTag("TipoNotifica") || getTag("tipo_notifica") || "";
+    const idTrasmissione = getTag("IdentificativoSdI") || getTag("sdi_id") || "";
+    const erroriRaw = getTag("Errore") || getTag("ListaErrori");
 
     if (!idTrasmissione) {
       return new Response("Missing IdentificativoSdI", { status: 400 });
@@ -78,7 +85,7 @@ Deno.serve(async (req) => {
         sdi_id: idTrasmissione,
         messaggio: `Documento non trovato per SDI ID: ${idTrasmissione}`,
         xml_content: body.slice(0, 5000),
-      }).catch(() => {});
+      }).then(() => {}, () => {});
       return new Response("OK", { status: 200 });
     }
 
@@ -144,8 +151,4 @@ Deno.serve(async (req) => {
   }
 });
 
-function extractTag(xml: string, tag: string): string | null {
-  const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i");
-  const match = xml.match(regex);
-  return match ? match[1].trim() : null;
-}
+// extractTag rimossa — sostituita con DOMParser inline (supporta CDATA, namespace, whitespace)

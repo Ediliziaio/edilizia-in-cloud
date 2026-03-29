@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_validate_win_probability ON marketing_pipeline_stages;

@@ -1,0 +1,1 @@
+ALTER TABLE public.fattura_ordine ENABLE ROW LEVEL SECURITY;

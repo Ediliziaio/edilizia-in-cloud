@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_lead_forms ENABLE ROW LEVEL SECURITY;

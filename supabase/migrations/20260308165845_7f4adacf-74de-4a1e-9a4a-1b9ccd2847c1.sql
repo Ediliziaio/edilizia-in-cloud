@@ -1,4 +1,3 @@
-
 -- A/B Testing: branches table
 CREATE TABLE public.ai_agent_branches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -17,34 +16,3 @@ CREATE TABLE public.ai_agent_branches (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
--- Index for tenant isolation
-CREATE INDEX idx_ai_agent_branches_company ON public.ai_agent_branches(company_id);
-CREATE INDEX idx_ai_agent_branches_agent ON public.ai_agent_branches(agent_id);
-
--- Add branch_id to conversations
-ALTER TABLE public.ai_agent_conversations
-  ADD COLUMN branch_id uuid REFERENCES public.ai_agent_branches(id) ON DELETE SET NULL;
-
--- RLS
-ALTER TABLE public.ai_agent_branches ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Company members can view own branches"
-  ON public.ai_agent_branches FOR SELECT
-  TO authenticated
-  USING (company_id = public.get_my_company_id() OR public.has_role(auth.uid(), 'super_admin'::app_role));
-
-CREATE POLICY "Company members can insert own branches"
-  ON public.ai_agent_branches FOR INSERT
-  TO authenticated
-  WITH CHECK (company_id = public.get_my_company_id() OR public.has_role(auth.uid(), 'super_admin'::app_role));
-
-CREATE POLICY "Company members can update own branches"
-  ON public.ai_agent_branches FOR UPDATE
-  TO authenticated
-  USING (company_id = public.get_my_company_id() OR public.has_role(auth.uid(), 'super_admin'::app_role));
-
-CREATE POLICY "Company members can delete own branches"
-  ON public.ai_agent_branches FOR DELETE
-  TO authenticated
-  USING (company_id = public.get_my_company_id() OR public.has_role(auth.uid(), 'super_admin'::app_role));

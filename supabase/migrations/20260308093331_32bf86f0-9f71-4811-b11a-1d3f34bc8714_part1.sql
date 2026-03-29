@@ -1,0 +1,1 @@
+ALTER TABLE public.cost_categories ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.api_usage_daily ENABLE ROW LEVEL SECURITY;

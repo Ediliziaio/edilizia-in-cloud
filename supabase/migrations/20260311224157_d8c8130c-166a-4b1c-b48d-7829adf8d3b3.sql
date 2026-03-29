@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS public.user_notification_preferences (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -83,15 +82,3 @@ CREATE TABLE IF NOT EXISTS public.user_notification_preferences (
   updated_at  timestamptz DEFAULT now(),
   UNIQUE(user_id)
 );
-
-CREATE INDEX idx_user_notif_prefs_user_id ON public.user_notification_preferences(user_id);
-
-ALTER TABLE public.user_notification_preferences ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_access_notif_prefs" ON public.user_notification_preferences
-  FOR ALL USING (
-    company_id IN (
-      SELECT p.company_id FROM public.profiles p WHERE p.id = auth.uid()
-    )
-    OR public.has_role(auth.uid(), 'super_admin')
-  );

@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_update_fattura_stato_on_movimento ON public.movimenti_cassa_native;

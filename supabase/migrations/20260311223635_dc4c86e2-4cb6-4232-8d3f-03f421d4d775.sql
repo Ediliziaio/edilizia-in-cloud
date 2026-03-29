@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS user_calendar_preferences (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id               uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -14,14 +13,3 @@ CREATE TABLE IF NOT EXISTS user_calendar_preferences (
   updated_at            timestamptz DEFAULT now(),
   UNIQUE(user_id)
 );
-
-CREATE INDEX idx_user_cal_prefs_user_id ON user_calendar_preferences(user_id);
-
-ALTER TABLE user_calendar_preferences ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_access_cal_prefs" ON user_calendar_preferences
-  FOR ALL USING (
-    company_id IN (
-      SELECT company_id FROM profiles WHERE id = auth.uid()
-    )
-  );

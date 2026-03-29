@@ -21,8 +21,3 @@ CREATE TABLE public.ordini_variazione (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (order_id, numero_odv)
 );
-
-ALTER TABLE public.ordini_variazione ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_access_odv" ON public.ordini_variazione FOR ALL
-  USING (company_id = public.get_my_company_id());

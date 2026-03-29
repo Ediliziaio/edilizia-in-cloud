@@ -1,0 +1,1 @@
+ALTER TABLE public.pos_documents ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+ALTER TABLE public.user_audit_log ENABLE ROW LEVEL SECURITY;

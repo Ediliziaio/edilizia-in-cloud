@@ -1,0 +1,1 @@
+ALTER TABLE public.email_pricing ENABLE ROW LEVEL SECURITY;

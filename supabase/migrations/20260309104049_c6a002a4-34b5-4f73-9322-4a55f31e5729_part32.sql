@@ -1,0 +1,2 @@
+CREATE POLICY "qi_sel" ON public.quote_items FOR SELECT TO authenticated
+  USING (company_id = public.get_my_company_id());

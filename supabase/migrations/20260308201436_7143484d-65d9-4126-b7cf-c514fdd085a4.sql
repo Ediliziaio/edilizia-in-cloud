@@ -1,4 +1,3 @@
-
 -- Trigger to validate order total_amount matches the sum of installments
 -- This prevents client-side manipulation of order totals via API
 CREATE OR REPLACE FUNCTION public.validate_order_total()
@@ -38,10 +37,3 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
--- Attach trigger to orders table (only on UPDATE to avoid blocking creation)
-DROP TRIGGER IF EXISTS trg_validate_order_total ON public.orders;
-CREATE TRIGGER trg_validate_order_total
-  BEFORE UPDATE ON public.orders
-  FOR EACH ROW
-  EXECUTE FUNCTION public.validate_order_total();

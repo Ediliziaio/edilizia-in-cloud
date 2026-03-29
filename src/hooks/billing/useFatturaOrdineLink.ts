@@ -80,7 +80,8 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       const { data: directData, error: dErr } = await supabase
         .from("documenti_fiscali" as never)
         .select("id, numero, data_emissione, stato, tipo, totale_da_pagare")
-        .eq("ordine_id", ordineId!);
+        .eq("ordine_id", ordineId!)
+        .is("deleted_at", null);
       if (dErr) throw dErr;
 
       // Fetch fatture from junction
@@ -90,7 +91,8 @@ export function useFattureByOrdine(ordineId: string | undefined) {
         const { data: fData } = await supabase
           .from("documenti_fiscali" as never)
           .select("id, numero, data_emissione, stato, tipo, totale_da_pagare")
-          .in("id", junctionFatturaIds);
+          .in("id", junctionFatturaIds)
+          .is("deleted_at", null);
         junctionFatture = (fData as any[]) ?? [];
       }
 

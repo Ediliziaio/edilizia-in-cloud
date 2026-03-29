@@ -1,0 +1,1 @@
+ALTER TABLE public.admin_invites ENABLE ROW LEVEL SECURITY;

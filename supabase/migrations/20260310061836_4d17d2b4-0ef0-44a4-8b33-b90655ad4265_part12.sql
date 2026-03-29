@@ -1,0 +1,1 @@
+ALTER TABLE public.leave_balances ENABLE ROW LEVEL SECURITY;

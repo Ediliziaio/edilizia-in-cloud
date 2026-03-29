@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_agents ENABLE ROW LEVEL SECURITY;

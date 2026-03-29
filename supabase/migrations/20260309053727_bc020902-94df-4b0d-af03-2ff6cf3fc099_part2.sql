@@ -1,0 +1,1 @@
+ALTER TABLE public.password_history ENABLE ROW LEVEL SECURITY;

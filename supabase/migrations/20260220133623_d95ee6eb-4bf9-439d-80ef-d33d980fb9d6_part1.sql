@@ -1,0 +1,1 @@
+ALTER TABLE public.order_errors ENABLE ROW LEVEL SECURITY;

@@ -16,8 +16,3 @@ CREATE TABLE public.duvri_documents (
   created_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-ALTER TABLE public.duvri_documents ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_access_duvri" ON public.duvri_documents FOR ALL
-  USING (company_id = public.get_my_company_id());

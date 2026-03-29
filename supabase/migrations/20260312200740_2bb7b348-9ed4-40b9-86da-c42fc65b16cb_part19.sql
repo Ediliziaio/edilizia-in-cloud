@@ -1,0 +1,1 @@
+ALTER TABLE public.hr_timbrature ENABLE ROW LEVEL SECURITY;

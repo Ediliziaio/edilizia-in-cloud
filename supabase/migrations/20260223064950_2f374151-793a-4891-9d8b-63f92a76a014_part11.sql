@@ -1,0 +1,1 @@
+ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;

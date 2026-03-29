@@ -23,8 +23,3 @@ CREATE TABLE public.pos_documents (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-ALTER TABLE public.pos_documents ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "company_access_pos" ON public.pos_documents FOR ALL
-  USING (company_id = public.get_my_company_id());

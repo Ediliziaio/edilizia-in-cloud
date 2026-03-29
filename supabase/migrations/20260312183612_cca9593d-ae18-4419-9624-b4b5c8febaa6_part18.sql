@@ -1,0 +1,1 @@
+ALTER TABLE public.articoli_native ENABLE ROW LEVEL SECURITY;

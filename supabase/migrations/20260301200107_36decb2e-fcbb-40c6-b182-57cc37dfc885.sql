@@ -1,4 +1,3 @@
-
 -- Create platform_announcements table
 CREATE TABLE public.platform_announcements (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -11,20 +10,3 @@ CREATE TABLE public.platform_announcements (
   expires_at TIMESTAMP WITH TIME ZONE,
   created_by UUID REFERENCES auth.users(id)
 );
-
--- Enable RLS
-ALTER TABLE public.platform_announcements ENABLE ROW LEVEL SECURITY;
-
--- Super admins can do everything
-CREATE POLICY "Super admins can manage announcements"
-ON public.platform_announcements
-FOR ALL
-USING (public.has_role(auth.uid(), 'super_admin'))
-WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
-
--- Authenticated users can read active announcements
-CREATE POLICY "Authenticated users can read active announcements"
-ON public.platform_announcements
-FOR SELECT
-TO authenticated
-USING (is_active = true AND (expires_at IS NULL OR expires_at > now()));

@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, AlertTriangle } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -24,77 +24,29 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
 
   const dataScadenzaParsed = state.data_scadenza ? parseISO(state.data_scadenza) : undefined;
   const isScaduta = dataScadenzaParsed && isBefore(dataScadenzaParsed, startOfDay(new Date()));
-  const isFatturaDifferita = state.tipo === "fattura" && (state.serie === "TD24" || state.serie === "TD25");
 
   return (
-    <div className="space-y-4 rounded-lg border p-4 bg-card">
-      <Label className="text-sm font-semibold">Dati documento</Label>
+    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-amber-400/60 shadow-sm">
+      <Label className="text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">Dati documento</Label>
 
-      <div className="grid grid-cols-3 gap-3">
-        {/* Tipo Documento FatturaPA */}
+      {/* Data + Numero inline */}
+      <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">Tipo documento SDI</Label>
-          <Select
-            value={state.sdi_id_trasmissione ?? "TD01"}
-            onValueChange={(v) => setField("sdi_id_trasmissione", v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(TIPI_DOCUMENTO_FATTURAPA).map(([k, v]) => (
-                <SelectItem key={k} value={k} className="text-xs">
-                  {k} – {v}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Numero */}
-        <div>
-          <Label className="text-xs text-muted-foreground">Numero</Label>
-          <Input
-            value={state.numero ?? ""}
-            readOnly
-            className="h-8 text-xs font-mono bg-muted/50"
-            placeholder="Auto-generato"
-          />
-        </div>
-
-        {/* Serie */}
-        <div>
-          <Label className="text-xs text-muted-foreground">Serie</Label>
-          <Input
-            value={state.serie ?? ""}
-            onChange={(e) => setField("serie", e.target.value.toUpperCase().slice(0, 3))}
-            className="h-8 text-xs uppercase"
-            placeholder="A"
-            maxLength={3}
-            disabled={disabled}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        {/* Data Emissione */}
-        <div>
-          <Label className="text-xs text-muted-foreground">Data emissione</Label>
+          <Label className="text-[10px] text-muted-foreground">Data</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "h-8 w-full justify-start text-left text-xs font-normal",
+                  "h-7 w-full justify-start text-left text-xs font-normal",
                   !state.data_emissione && "text-muted-foreground"
                 )}
                 disabled={disabled}
               >
-                <CalendarIcon className="mr-1.5 h-3 w-3" />
+                <CalendarIcon className="mr-1 h-3 w-3" />
                 {state.data_emissione
-                  ? format(parseISO(state.data_emissione), "d MMM yyyy", { locale: it })
-                  : "Seleziona data"}
+                  ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
+                  : "Seleziona"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -108,27 +60,71 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
             </PopoverContent>
           </Popover>
         </div>
-
-        {/* Data Scadenza */}
         <div>
-          <Label className={cn("text-xs", isScaduta ? "text-destructive" : "text-muted-foreground")}>
-            Data scadenza {isScaduta && "⚠️"}
+          <Label className="text-[10px] text-muted-foreground">Numero</Label>
+          <Input
+            value={state.numero ?? ""}
+            readOnly
+            className="h-7 text-xs font-mono bg-muted/50"
+          />
+        </div>
+      </div>
+
+      {/* Numerazione / Serie */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Numerazione</Label>
+          <Select
+            value={state.sdi_id_trasmissione ?? "TD01"}
+            onValueChange={(v) => setField("sdi_id_trasmissione", v)}
+            disabled={disabled}
+          >
+            <SelectTrigger className="h-7 text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TIPI_DOCUMENTO_FATTURAPA).map(([k, v]) => (
+                <SelectItem key={k} value={k} className="text-xs">
+                  {k} – {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Serie</Label>
+          <Input
+            value={state.serie ?? ""}
+            onChange={(e) => setField("serie", e.target.value.toUpperCase().slice(0, 3))}
+            className="h-7 text-xs uppercase"
+            placeholder="A"
+            maxLength={3}
+            disabled={disabled}
+          />
+        </div>
+      </div>
+
+      {/* Scadenza + Valuta */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className={cn("text-[10px]", isScaduta ? "text-destructive" : "text-muted-foreground")}>
+            Scadenza {isScaduta && "!"}
           </Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "h-8 w-full justify-start text-left text-xs font-normal",
+                  "h-7 w-full justify-start text-left text-xs font-normal",
                   isScaduta && "border-destructive text-destructive",
                   !state.data_scadenza && "text-muted-foreground"
                 )}
                 disabled={disabled}
               >
-                <CalendarIcon className="mr-1.5 h-3 w-3" />
+                <CalendarIcon className="mr-1 h-3 w-3" />
                 {state.data_scadenza
-                  ? format(parseISO(state.data_scadenza), "d MMM yyyy", { locale: it })
-                  : "Seleziona data"}
+                  ? format(parseISO(state.data_scadenza), "dd/MM/yyyy", { locale: it })
+                  : "Seleziona"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -142,33 +138,18 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
             </PopoverContent>
           </Popover>
         </div>
-
-        {/* Valuta */}
         <div>
-          <Label className="text-xs text-muted-foreground">Valuta</Label>
+          <Label className="text-[10px] text-muted-foreground">Valuta</Label>
           <Select value="EUR" disabled>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="EUR">EUR – Euro</SelectItem>
-              <SelectItem value="USD">USD – Dollaro</SelectItem>
-              <SelectItem value="GBP">GBP – Sterlina</SelectItem>
-              <SelectItem value="CHF">CHF – Franco svizzero</SelectItem>
+              <SelectItem value="EUR">EUR</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      {/* Fattura differita info */}
-      {isFatturaDifferita && (
-        <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
-          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-medium">Fattura differita</span> — Collega i DDT di riferimento nella sezione note.
-          </div>
-        </div>
-      )}
     </div>
   );
 }

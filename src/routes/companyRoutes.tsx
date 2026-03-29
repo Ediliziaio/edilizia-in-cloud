@@ -70,6 +70,7 @@ const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/Doc
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 const CassettoSDI = lazy(() => import("@/pages/azienda/fatturazione/CassettoSDI"));
+const FattureRicevutePage = lazy(() => import("@/pages/azienda/fatturazione/FattureRicevutePage"));
 const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/RegistroIncassi"));
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
@@ -184,6 +185,7 @@ export function companyRoutes() {
         <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
         <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         <Route path="documenti/cassetto-sdi" element={<BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard>} />
+        <Route path="documenti/fatture-ricevute" element={<BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard>} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
         <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />

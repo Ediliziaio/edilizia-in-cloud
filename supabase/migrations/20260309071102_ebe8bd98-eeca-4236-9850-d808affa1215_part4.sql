@@ -1,0 +1,1 @@
+ALTER TABLE public.onboarding_steps ENABLE ROW LEVEL SECURITY;

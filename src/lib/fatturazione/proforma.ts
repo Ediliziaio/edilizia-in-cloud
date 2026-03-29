@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { DocumentoFiscale } from "@/types/fatturazione";
+import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
+import { calcolaRiepilogoIVA, calcolaTotaliDocumento } from "./calcoli";
 
 /**
  * Converts a proforma or preventivo into a fattura.
@@ -12,6 +13,7 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     .from("documenti_fiscali" as never)
     .select("*")
     .eq("id", proformaId)
+    .is("deleted_at", null)
     .single();
 
   if (fetchErr) throw fetchErr;
@@ -32,6 +34,17 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
 
   const progressivo = parseInt((numero as string).split("-").pop() ?? "1", 10);
 
+  // Ricalcola totali e riepilogo_iva dalle righe per garantire consistenza
+  const righe = (doc.righe as RigaDocumento[]) || [];
+  const totali = calcolaTotaliDocumento(righe, {
+    bolloVirtuale: doc.bollo_virtuale as boolean | undefined,
+    ritenutaAcconto: doc.ritenuta_acconto as boolean | undefined,
+    ritenutaAliquota: doc.ritenuta_aliquota as number | undefined,
+    cassaPrevidenziale: doc.cassa_previdenziale as boolean | undefined,
+    cassaAliquota: doc.cassa_aliquota as number | undefined,
+    cassaImponibile: doc.cassa_importo as number | undefined,
+  });
+
   // Create fattura
   const { data: newDoc, error: createErr } = await supabase
     .from("documenti_fiscali" as never)
@@ -46,12 +59,12 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
       cliente_snapshot: doc.cliente_snapshot,
       stato: "bozza",
       righe: doc.righe,
-      riepilogo_iva: doc.riepilogo_iva,
-      subtotale: doc.subtotale,
-      imponibile_totale: doc.imponibile_totale,
-      iva_totale: doc.iva_totale,
-      totale_documento: doc.totale_documento,
-      totale_da_pagare: doc.totale_da_pagare,
+      riepilogo_iva: totali.riepilogo_iva,
+      subtotale: totali.subtotale,
+      imponibile_totale: totali.imponibile_totale,
+      iva_totale: totali.iva_totale,
+      totale_documento: totali.totale_documento,
+      totale_da_pagare: totali.totale_da_pagare,
       scadenze_pagamento: doc.scadenze_pagamento,
       metodo_pagamento_codice: doc.metodo_pagamento_codice,
       iban_pagamento: doc.iban_pagamento,

@@ -1,4 +1,3 @@
-
 -- HR1a: Add organigramma and extended fields to hr_profili
 ALTER TABLE public.hr_profili
   ADD COLUMN IF NOT EXISTS responsabile_id UUID REFERENCES public.hr_profili(id) ON DELETE SET NULL,
@@ -29,10 +28,3 @@ ALTER TABLE public.hr_profili
   ADD COLUMN IF NOT EXISTS contatto_emergenza_telefono TEXT,
   ADD COLUMN IF NOT EXISTS ccnl TEXT DEFAULT 'Edilizia',
   ADD COLUMN IF NOT EXISTS note_interne TEXT;
-
--- Add unique constraint on badge_id per company
-CREATE UNIQUE INDEX IF NOT EXISTS idx_hr_profili_badge_id ON public.hr_profili(company_id, badge_id) WHERE badge_id IS NOT NULL;
-
--- Index for organigramma tree queries
-CREATE INDEX IF NOT EXISTS idx_hr_profili_responsabile ON public.hr_profili(responsabile_id);
-CREATE INDEX IF NOT EXISTS idx_hr_profili_reparto ON public.hr_profili(company_id, reparto);

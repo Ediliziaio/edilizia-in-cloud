@@ -1,0 +1,1 @@
+ALTER TABLE invoices              ENABLE ROW LEVEL SECURITY;

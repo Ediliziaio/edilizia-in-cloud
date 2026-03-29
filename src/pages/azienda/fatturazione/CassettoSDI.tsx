@@ -30,7 +30,7 @@ function SdiStatoBadge({ stato }: { stato: string | null }) {
 export default function CassettoSDI() {
   const companyId = useEffectiveCompanyId();
   const currentYear = new Date().getFullYear();
-  const [anno, setAnno] = useState(String(currentYear));
+  const [anno, setAnno] = useState(currentYear);
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
 
@@ -42,7 +42,8 @@ export default function CassettoSDI() {
         .from("documenti_fiscali" as never)
         .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
         .eq("company_id", companyId!)
-        .eq("anno", parseInt(anno))
+        .is("deleted_at", null)
+        .eq("anno", anno)
         .in("stato", ["inviata_sdi", "consegnata", "accettata", "rifiutata"])
         .order("data_emissione", { ascending: false });
 
@@ -116,7 +117,7 @@ export default function CassettoSDI() {
           <p className="text-sm text-muted-foreground">Monitoraggio trasmissioni al Sistema di Interscambio</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={anno} onValueChange={setAnno}>
+          <Select value={String(anno)} onValueChange={(v) => setAnno(parseInt(v))}>
             <SelectTrigger className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
