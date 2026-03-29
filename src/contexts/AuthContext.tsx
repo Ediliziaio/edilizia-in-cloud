@@ -138,18 +138,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: { action: "validate", token: savedToken },
         });
 
-        if (error || !data?.valid) {
-          logger.info("Impersonation token invalid or expired, clearing");
+        if (!error && data?.valid === false) {
+          // Only clear when the edge function explicitly says the token is invalid.
+          // Network errors or edge-function failures are treated as "unknown" — keep
+          // impersonation alive so a transient error doesn't log the superadmin out.
+          logger.info("Impersonation token explicitly invalid, clearing");
           setImpersonatedCompanyId(null);
           setImpersonationToken(null);
           setImpersonatedCompany(null);
         }
-        // If valid, impersonatedCompanyId is already set from useState initializer,
-        // and the existing useEffect (fetchImpersonatedCompany) will load the company data
+        // If valid (or any error/exception): keep impersonation active.
+        // fetchImpersonatedCompany will load the company data via its own effect.
       } catch {
-        setImpersonatedCompanyId(null);
-        setImpersonationToken(null);
-        setImpersonatedCompany(null);
+        // Network/edge-function error — keep impersonation alive.
+        logger.warn("validateImpersonation: edge function unreachable, keeping impersonation active");
       }
     }
 
@@ -443,8 +445,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Normal flow: check initial session from localStorage
-    refreshAuth();
+    // Normal flow: the INITIAL_SESSION event from onAuthStateChange above fires
+    // immediately with the current session (or null) without acquiring Supabase's
+    // internal storage lock. We rely on it instead of calling getSession() directly,
+    // which can hang for 10+ seconds when the lock is held by autoRefreshToken.
+    // refreshAuth() is intentionally NOT called here — it is still available for
+    // programmatic use (e.g. after a setSession fallback failure).
 
     return () => {
       // Invalidate any in-flight fetch so setState is never called after unmount.
@@ -592,7 +598,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId && !!impersonatedCompany;
+  // isImpersonating is true as soon as impersonatedCompanyId is set (not waiting for impersonatedCompany
+  // to be fetched). This prevents the route guard from redirecting the superadmin to /admin
+  // before fetchImpersonatedCompany has had a chance to load the company data.
+  // effectiveCompany will be null briefly while the DB query is in-flight — that's fine.
+  const isImpersonating = state.role === "super_admin" && !!impersonatedCompanyId;
   
   // Effective company: impersonation > multi-company (including platform_* roles) > real company
   const isPlatformRole = state.role?.startsWith("platform_") ?? false;
