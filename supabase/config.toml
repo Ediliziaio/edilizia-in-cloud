@@ -279,3 +279,6 @@ verify_jwt = false
 
 [functions.bank-auto-reconcile]
 verify_jwt = false
+
+[functions.bank-categorize-ai]
+verify_jwt = false

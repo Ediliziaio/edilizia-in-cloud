@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import BankReconciliation from "@/components/tesoreria/BankReconciliation";
 import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
 import CategorizationRules from "@/components/tesoreria/CategorizationRules";
+import ExpenseReports from "@/components/tesoreria/ExpenseReports";
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
@@ -158,6 +159,9 @@ export default function Tesoreria() {
           <TabsTrigger value="previsioni" className="gap-2">
             <TrendingUp className="h-4 w-4" /> Previsioni
           </TabsTrigger>
+          <TabsTrigger value="note-spese" className="gap-2">
+            <Receipt className="h-4 w-4" /> Note Spese
+          </TabsTrigger>
           <TabsTrigger value="impostazioni" className="gap-2">
             <Settings className="h-4 w-4" /> Impostazioni
           </TabsTrigger>
@@ -183,6 +187,9 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="previsioni">
           <CashFlowForecast companyId={effectiveCompany?.id || ""} />
+        </TabsContent>
+        <TabsContent value="note-spese">
+          <ExpenseReports companyId={effectiveCompany?.id || ""} />
         </TabsContent>
         <TabsContent value="impostazioni">
           <div className="space-y-8">
