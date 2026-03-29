@@ -1276,7 +1276,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Get contact info
     const { data: contact } = await supabase
       .from("marketing_contacts")
-      .select("id, email, first_name, last_name, unsubscribed, optout_email")
+      .select("id, email, first_name, last_name, phone, city, province, company_name, unsubscribed, optout_email")
       .eq("id", entityId)
       .single();
 
@@ -1299,11 +1299,18 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     let html = cfg.email_body || cfg.html || "<p>No content</p>";
     const subject = cfg.email_subject || cfg.subject || "Messaggio";
 
-    // Personalization
+    // Personalization — support both {{var}} and {{contact.var}} formats (GAP-14)
     html = html
       .replace(/\{\{first_name\}\}/g, contact.first_name || "")
       .replace(/\{\{last_name\}\}/g, contact.last_name || "")
-      .replace(/\{\{email\}\}/g, contact.email || "");
+      .replace(/\{\{email\}\}/g, contact.email || "")
+      .replace(/\{\{contact\.first_name\}\}/g, contact.first_name || "")
+      .replace(/\{\{contact\.last_name\}\}/g, contact.last_name || "")
+      .replace(/\{\{contact\.email\}\}/g, contact.email || "")
+      .replace(/\{\{phone\}\}/g, contact.phone || "")
+      .replace(/\{\{city\}\}/g, contact.city || "")
+      .replace(/\{\{province\}\}/g, contact.province || "")
+      .replace(/\{\{contact_company\}\}/g, contact.company_name || "");
 
     // Inject tracking pixel and unsubscribe link for marketing emails
     if (stream === "marketing") {

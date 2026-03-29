@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     // Build recipient list
     let query = adminClient
       .from("marketing_contacts")
-      .select("id, email, first_name, last_name")
+      .select("id, email, first_name, last_name, phone, city, province, company_name")
       .eq("company_id", companyId)
       .eq("email_unsubscribed", false)
       .not("email", "is", null);
@@ -241,11 +241,18 @@ Deno.serve(async (req) => {
           ? campaign.ab_html_content_b
           : campaign.html_content || "<p>Nessun contenuto</p>";
 
-        // Personalize HTML
+        // Personalize HTML — support both {{var}} and {{contact.var}} formats (GAP-14)
         html = html
           .replace(/\{\{first_name\}\}/g, contact.first_name || "")
           .replace(/\{\{last_name\}\}/g, contact.last_name || "")
-          .replace(/\{\{email\}\}/g, contact.email || "");
+          .replace(/\{\{email\}\}/g, contact.email || "")
+          .replace(/\{\{contact\.first_name\}\}/g, contact.first_name || "")
+          .replace(/\{\{contact\.last_name\}\}/g, contact.last_name || "")
+          .replace(/\{\{contact\.email\}\}/g, contact.email || "")
+          .replace(/\{\{phone\}\}/g, contact.phone || "")
+          .replace(/\{\{city\}\}/g, contact.city || "")
+          .replace(/\{\{province\}\}/g, contact.province || "")
+          .replace(/\{\{contact_company\}\}/g, contact.company_name || "");
 
         // Inject UTM parameters before click-tracking wraps links (BUG-07)
         if (campaign.utm_tracking) {

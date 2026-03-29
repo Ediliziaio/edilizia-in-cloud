@@ -61,7 +61,10 @@ const VARIABLES = [
   { label: "Nome contatto", value: "{{contact.first_name}}" },
   { label: "Cognome contatto", value: "{{contact.last_name}}" },
   { label: "Email contatto", value: "{{contact.email}}" },
-  { label: "Nome azienda", value: "{{company.name}}" },
+  { label: "Telefono", value: "{{phone}}" },
+  { label: "Città", value: "{{city}}" },
+  { label: "Provincia", value: "{{province}}" },
+  { label: "Azienda contatto", value: "{{contact_company}}" },
   { label: "Link disiscrizione", value: "{{unsubscribe_url}}" },
 ];
 const sanitizeUrl = (url: string): string => {
