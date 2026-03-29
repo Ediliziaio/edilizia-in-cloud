@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,14 @@ export default function ResetPassword() {
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup redirect timer on unmount to avoid navigating after unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     // Check if we have a recovery session
@@ -68,7 +76,7 @@ export default function ResetPassword() {
         });
       } else {
         setIsSuccess(true);
-        setTimeout(() => navigate("/login", { replace: true }), 3000);
+        redirectTimerRef.current = setTimeout(() => navigate("/login", { replace: true }), 3000);
       }
     } catch {
       toast({

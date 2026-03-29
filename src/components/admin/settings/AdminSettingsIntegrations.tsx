@@ -1,4 +1,4 @@
-import { useState, forwardRef } from "react";
+import { useState, forwardRef, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -32,6 +32,11 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
   function ConnectionTestButton({ integrationKey }, ref) {
     const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [message, setMessage] = useState("");
+    const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+      return () => { if (resetTimerRef.current) clearTimeout(resetTimerRef.current); };
+    }, []);
 
     const handleTest = async () => {
       setStatus("testing");
@@ -50,7 +55,7 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
         setStatus("error");
         setMessage(e.message);
       }
-      setTimeout(() => { setStatus("idle"); setMessage(""); }, 5000);
+      resetTimerRef.current = setTimeout(() => { setStatus("idle"); setMessage(""); }, 5000);
     };
 
     return (
