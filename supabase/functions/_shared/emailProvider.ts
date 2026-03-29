@@ -70,7 +70,7 @@ export async function sendViaProvider(
   let url: string;
   let headers: Record<string, string>;
   let body: string;
-  let extractId: (json: Record<string, unknown>) => string | undefined;
+  let extractId: (json: Record<string, unknown>) => string | undefined = () => undefined;
 
   const fromEmail = extractEmail(req.from);
   const fromName = extractName(req.from);
@@ -108,9 +108,11 @@ export async function sendViaProvider(
         }));
       }
       body = JSON.stringify(payload);
-      // SendGrid returns message ID in x-message-id header, not body
-      extractId = () => undefined;
-      break;
+      // SendGrid returns message ID in x-message-id response header — do early return
+      const sgRes = await fetch(url, { method: "POST", headers, body });
+      const sgMsgId = sgRes.headers.get("x-message-id") || undefined;
+      const sgJson = await sgRes.json().catch(() => ({}));
+      return { ok: sgRes.ok, status: sgRes.status, body: sgJson, providerMessageId: sgMsgId };
     }
 
     case "sendinblue":
@@ -166,7 +168,7 @@ export async function sendViaProvider(
     }
 
     case "mailgun": {
-      const mailgunDomain = opts?.domain || (await getPlatformSetting("email_marketing_domain"));
+      const mailgunDomain = opts?.domain || "";
       url = `https://api.mailgun.net/v3/${mailgunDomain}/messages`;
       headers = {
         Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
