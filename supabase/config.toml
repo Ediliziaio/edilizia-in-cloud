@@ -268,3 +268,14 @@ verify_jwt = false
 
 [functions.manage-platform-users]
 verify_jwt = false
+
+[functions.bank-check-expiry]
+verify_jwt = false
+# Cron: controlla connessioni in scadenza ogni giorno alle 08:00 UTC
+schedule = "0 8 * * *"
+
+[functions.bank-webhook]
+verify_jwt = false
+
+[functions.bank-auto-reconcile]
+verify_jwt = false
