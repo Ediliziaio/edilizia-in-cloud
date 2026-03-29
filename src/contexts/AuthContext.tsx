@@ -285,13 +285,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchUserData]);
 
-  // Fetch impersonated company data when impersonatedCompanyId changes
+  // Fetch impersonated company data when impersonatedCompanyId or the authenticated user changes.
+  // We wait for state.user to be non-null so that the Supabase client has a valid session
+  // (e.g. after setSession() completes from the cross-subdomain hash handoff) before querying.
+  // On error we do NOT clear impersonatedCompanyId — that would permanently lose the
+  // impersonation context if the query races with session setup. We just retry on next render.
   useEffect(() => {
     async function fetchImpersonatedCompany() {
       if (!impersonatedCompanyId) {
         setImpersonatedCompany(null);
         return;
       }
+      // Wait for a valid authenticated session before querying
+      if (!state.user) return;
 
       const { data, error } = await supabase
         .from("companies")
@@ -301,15 +307,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         logger.error("Error fetching impersonated company:", error);
+        // Do NOT clear impersonatedCompanyId — keep it so we can retry on next auth change.
         setImpersonatedCompany(null);
-        setImpersonatedCompanyId(null);
       } else {
         setImpersonatedCompany(data as Company);
       }
     }
 
     fetchImpersonatedCompany();
-  }, [impersonatedCompanyId]);
+  }, [impersonatedCompanyId, state.user]);
 
   useEffect(() => {
     // Set up auth state listener BEFORE checking initial session
