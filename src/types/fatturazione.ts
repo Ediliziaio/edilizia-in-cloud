@@ -291,6 +291,7 @@ export interface DocumentoFiscale {
   testo_intro?: string;
   testo_conclusivo?: string;
 
+  deleted_at?: string;
   created_at: string;
   updated_at: string;
 }

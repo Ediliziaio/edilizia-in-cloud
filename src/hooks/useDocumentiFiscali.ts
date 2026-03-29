@@ -16,6 +16,8 @@ export interface DocumentiFiscaliFilters {
   search?: string;
   page?: number;
   perPage?: number;
+  /** When true, show soft-deleted docs (cestino) instead of active docs */
+  showDeleted?: boolean;
 }
 
 // ─── Row mapper ───────────────────────────────────────────────
@@ -101,6 +103,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     // Note & meta
     note_interne: row.note_interne as string | undefined,
     salesperson_id: row.salesperson_id as string | undefined,
+    deleted_at: row.deleted_at as string | undefined,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   } as DocumentoFiscale;
@@ -121,15 +124,21 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         .from("documenti_fiscali" as never)
         .select("*", { count: "exact" })
         .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .order("data_emissione", { ascending: false })
+        .order(filters.showDeleted ? "updated_at" : "data_emissione", { ascending: false })
         .range(page * perPage, (page + 1) * perPage - 1);
+
+      // Cestino: show only soft-deleted docs; otherwise exclude them
+      if (filters.showDeleted) {
+        query = query.not("deleted_at", "is", null);
+      } else {
+        query = query.is("deleted_at", null);
+      }
 
       if (filters.tipo) {
         const tipi = Array.isArray(filters.tipo) ? filters.tipo : [filters.tipo];
         query = query.in("tipo", tipi);
       }
-      if (filters.stato) {
+      if (filters.stato && !filters.showDeleted) {
         const stati = Array.isArray(filters.stato) ? filters.stato : [filters.stato];
         query = query.in("stato", stati);
       }

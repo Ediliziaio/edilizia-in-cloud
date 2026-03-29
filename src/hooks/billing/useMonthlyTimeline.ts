@@ -17,11 +17,17 @@ const MONTH_NAMES_IT = [
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 
-export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null) {
+const MONTH_ABBR_IT = [
+  "GEN", "FEB", "MAR", "APR", "MAG", "GIU",
+  "LUG", "AGO", "SET", "OTT", "NOV", "DIC",
+];
+
+export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null, year?: number) {
   const companyId = useEffectiveCompanyId();
+  const targetYear = year ?? new Date().getFullYear();
 
   return useQuery({
-    queryKey: ["billing-monthly-timeline", companyId, tipoFilter],
+    queryKey: ["billing-monthly-timeline", companyId, tipoFilter, targetYear],
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
@@ -34,24 +40,22 @@ export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null) {
 
       if (error) throw error;
 
-      // Build month map for the full range (-12 to +3)
-      const now = new Date();
+      // Build 12 months for the target year
       const monthMap = new Map<string, MonthSummary>();
 
-      for (let i = -12; i <= 3; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      for (let m = 0; m < 12; m++) {
+        const key = `${targetYear}-${String(m + 1).padStart(2, "0")}`;
         monthMap.set(key, {
-          year: d.getFullYear(),
-          month: d.getMonth() + 1,
-          label: MONTH_NAMES_IT[d.getMonth()],
+          year: targetYear,
+          month: m + 1,
+          label: MONTH_NAMES_IT[m],
           docCount: 0,
           totalAmount: 0,
           key,
         });
       }
 
-      // Merge server-side aggregation into the map
+      // Merge server-side aggregation
       const rows = (typeof data === "string" ? JSON.parse(data) : data) as
         { year: number; month: number; doc_count: number; total_amount: number }[] | null;
 
@@ -69,3 +73,5 @@ export function useMonthlyTimeline(tipoFilter?: TipoDocumento[] | null) {
     staleTime: 60_000,
   });
 }
+
+export { MONTH_ABBR_IT };

@@ -58,7 +58,7 @@ const TIPO_TABS: {
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
   { id: "preventivo", label: "Preventivi", tipos: ["preventivo"], icon: FileSearch, countKey: "preventivo", emptyTitle: "Nessun preventivo trovato", emptyDescription: "Crea preventivi da inviare ai clienti. Potrai convertirli in fattura una volta accettati." },
-  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui." },
+  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui. Dopo 14 giorni vengono cancellati definitivamente." },
 ];
 
 const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
@@ -82,6 +82,7 @@ function DocumentiFiscaliListInner() {
   const activeTab = searchParams.get("tipo") ?? "fattura";
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
   const [statoFilter, setStatoFilter] = useState<string>("all");
   const [searchRaw, setSearchRaw] = useState("");
   const search = useDebounce(searchRaw, 300);
@@ -124,7 +125,7 @@ function DocumentiFiscaliListInner() {
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
   const statoFilterArr = isTrash
-    ? (["annullata"] as StatoDocumento[])
+    ? undefined // Cestino uses showDeleted flag instead
     : statoFilter !== "all"
       ? ([statoFilter] as StatoDocumento[])
       : undefined;
@@ -148,13 +149,14 @@ function DocumentiFiscaliListInner() {
       data_a: dataA,
       page,
       perPage: PER_PAGE,
+      showDeleted: isTrash,
     }),
-    [tipoFilter, statoFilterArr, search, dataDa, dataA, page]
+    [tipoFilter, statoFilterArr, search, dataDa, dataA, page, isTrash]
   );
 
   const { data, isLoading } = useDocumentiFiscali(filters);
   const { data: counts } = useDocumentCounts();
-  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos);
+  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
 
   const docs = data?.documenti ?? [];
   const total = data?.total ?? 0;
@@ -228,14 +230,14 @@ function DocumentiFiscaliListInner() {
           await deleteMutation.mutateAsync(doc.id);
           ok++;
         } else {
-          await updateMutation.mutateAsync({ id: doc.id, stato: "annullata" as StatoDocumento });
+          await updateMutation.mutateAsync({ id: doc.id, stato: "annullata" as StatoDocumento, deleted_at: new Date().toISOString() });
           ok++;
         }
       } catch (err) {
         console.error("Errore durante eliminazione/annullamento documento:", err);
       }
     }
-    if (ok > 0) toast.success(`${ok} documenti eliminati/annullati`);
+    if (ok > 0) toast.success(`${ok} documenti spostati nel cestino`);
     clearSelection();
     setBulkDeleteOpen(false);
   };
@@ -329,7 +331,7 @@ function DocumentiFiscaliListInner() {
         updateMutation.mutate({ id: doc.id, stato: "accettata" as StatoDocumento });
         break;
       case "restore":
-        updateMutation.mutate({ id: doc.id, stato: "bozza" as StatoDocumento });
+        updateMutation.mutate({ id: doc.id, stato: "bozza" as StatoDocumento, deleted_at: null });
         break;
       case "fattura_ddt":
         navigate(`/azienda/documenti/nuovo?tipo=fattura&from_ddt=${doc.id}`);
@@ -342,6 +344,7 @@ function DocumentiFiscaliListInner() {
   const showColFatturaCollegata = activeTab === "ddt";
   const showColValidita = activeTab === "preventivo";
   const showColTipo = isTrash;
+  const showColEliminazione = isTrash;
   const showColScadenza = !showColStorno && !showColFatturaCollegata && !showColValidita && !isTrash;
 
   return (
@@ -370,12 +373,18 @@ function DocumentiFiscaliListInner() {
       </div>
 
       {/* ── Monthly Timeline ───────────────────────────── */}
-      {timelineMonths && timelineMonths.length > 0 && (
+      {!isTrash && timelineMonths && timelineMonths.length > 0 && (
         <MonthlyTimeline
           months={timelineMonths}
           selectedMonth={selectedMonth}
           onSelectMonth={(m) => {
             setSelectedMonth(m);
+            setPage(0);
+          }}
+          year={timelineYear}
+          onYearChange={(y) => {
+            setTimelineYear(y);
+            setSelectedMonth(null);
             setPage(0);
           }}
         />
@@ -413,6 +422,16 @@ function DocumentiFiscaliListInner() {
           );
         })}
       </div>
+
+      {/* ── Cestino info banner ─────────────────────── */}
+      {isTrash && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm">
+          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <div className="text-amber-800 dark:text-amber-300">
+            I documenti nel cestino vengono eliminati definitivamente dopo <strong>14 giorni</strong>. Puoi ripristinarli prima della scadenza.
+          </div>
+        </div>
+      )}
 
       {/* ── Filters ────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -510,6 +529,7 @@ function DocumentiFiscaliListInner() {
                     />
                   </TableHead>
                   {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
+                  {showColEliminazione && <TableHead className="w-36">Eliminazione</TableHead>}
                   <TableHead className="w-28">Stato</TableHead>
                   <TableHead>Cliente</TableHead>
                   {showColStorno && <TableHead className="w-36">Storna Fattura</TableHead>}
@@ -548,6 +568,27 @@ function DocumentiFiscaliListInner() {
                           <Badge variant="outline" className="text-[10px] font-normal">
                             {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa" }[doc.tipo] ?? doc.tipo}
                           </Badge>
+                        </TableCell>
+                      )}
+
+                      {/* Giorni rimasti prima dell'eliminazione definitiva (solo cestino) */}
+                      {showColEliminazione && (
+                        <TableCell>
+                          {(() => {
+                            if (!doc.deleted_at) return <span className="text-xs text-muted-foreground">—</span>;
+                            const deletedDate = new Date(doc.deleted_at);
+                            const expiryDate = new Date(deletedDate.getTime() + 14 * 86400000);
+                            const daysLeft = Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / 86400000));
+                            return (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 text-xs",
+                                daysLeft <= 3 ? "text-destructive font-medium" : daysLeft <= 7 ? "text-amber-600" : "text-muted-foreground"
+                              )}>
+                                <Clock className="h-3 w-3" />
+                                {daysLeft === 0 ? "Scade oggi" : `${daysLeft} giorni rimasti`}
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                       )}
 
@@ -830,7 +871,7 @@ function DocumentiFiscaliListInner() {
                     deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
                   } else {
                     updateMutation.mutate(
-                      { id: deleteTarget.id, stato: "annullata" as StatoDocumento },
+                      { id: deleteTarget.id, stato: "annullata" as StatoDocumento, deleted_at: new Date().toISOString() },
                       { onSettled: () => setDeleteTarget(null) }
                     );
                   }
