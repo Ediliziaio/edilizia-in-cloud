@@ -54,13 +54,13 @@ export default function SettingsIntegrations() {
   // Check if global Meta credentials are configured
   const checkMetaCredentials = async (): Promise<boolean> => {
     try {
+      // Leggi solo meta_app_id (il secret non deve mai arrivare al client)
       const { data } = await supabase
         .from("platform_settings")
         .select("key, value")
-        .in("key", ["meta_app_id", "meta_app_secret"]);
-      const map: Record<string, string> = {};
-      (data || []).forEach((r: any) => { map[r.key] = r.value; });
-      if (!map.meta_app_id || !map.meta_app_secret) {
+        .eq("key", "meta_app_id")
+        .maybeSingle();
+      if (!data?.value) {
         setMetaConfigMissing(true);
         toast.error("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma.");
         return false;
