@@ -464,8 +464,7 @@ export const queryKeys = {
       stream ? ["platform-settings-email", stream] as const : ["platform-settings-email"] as const,
     superAdmins: ["super-admins"] as const,
     superAdminPermissions: (userId: string | undefined) => ["super-admin-permissions", userId] as const,
-    superAdminCount: ["super-admin-count"] as const,
-    allCompaniesList: ["all-companies-list"] as const,
+allCompaniesList: ["all-companies-list"] as const,
   },
 
   // ── AI Subscription ────────────────────────────────────
