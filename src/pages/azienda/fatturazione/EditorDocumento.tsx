@@ -1,6 +1,16 @@
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   useDocumentoFiscale,
   useCreateDocumento,
@@ -36,6 +46,10 @@ export default function EditorDocumento() {
   const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
   const ordineParam = searchParams.get("ordine");
+
+  // Leave dialog state
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   // Fetch order data for pre-fill when creating from an order
   const { data: ordineData } = useQuery({
@@ -85,8 +99,18 @@ export default function EditorDocumento() {
     }
   }, [isCreate, tipoParam, createMutation, navigate, ordineParam, ordineData]);
 
-  const { state, dispatch, isSaving, lastSaved } = useEditorState(loadedDoc);
+  const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
+
+  // Handle navigation when leaving with unsaved changes
+  const handleBack = useCallback(() => {
+    if (isDirty && isBozza) {
+      setPendingNavigation("/azienda/documenti");
+      setShowLeaveDialog(true);
+    } else {
+      navigate("/azienda/documenti");
+    }
+  }, [isDirty, isBozza, navigate]);
 
   const validationErrors = useMemo(
     () => validateDocumento(state),
@@ -119,6 +143,7 @@ export default function EditorDocumento() {
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
         validationErrorCount={criticalErrorCount}
         onPreview={() => setPreviewOpen(true)}
+        onBack={handleBack}
       />
 
       {/* Single-page scrollable form — full width, like Fatture in Cloud */}
@@ -188,6 +213,47 @@ export default function EditorDocumento() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
       />
+
+      {/* Leave dialog */}
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hai modifiche non salvate. Desideri salvarle prima di uscire?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowLeaveDialog(false);
+              setPendingNavigation(null);
+            }}>
+              Annulla
+            </AlertDialogCancel>
+            <button
+              onClick={() => {
+                setShowLeaveDialog(false);
+                setPendingNavigation(null);
+                navigate("/azienda/documenti");
+              }}
+              className="text-destructive hover:text-destructive/80 text-sm font-medium"
+            >
+              Esci senza salvare
+            </button>
+            <AlertDialogAction onClick={() => {
+              saveNow();
+              setShowLeaveDialog(false);
+              // Navigate after save completes
+              setTimeout(() => {
+                navigate(pendingNavigation || "/azienda/documenti");
+                setPendingNavigation(null);
+              }, 500);
+            }}>
+              Salva bozza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

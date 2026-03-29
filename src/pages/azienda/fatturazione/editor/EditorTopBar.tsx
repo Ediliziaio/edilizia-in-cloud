@@ -1,5 +1,6 @@
 import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -61,13 +62,16 @@ interface Props {
   onFieldChange: (field: string, value: unknown) => void;
   validationErrorCount?: number;
   onPreview?: () => void;
+  onBack?: () => void;
 }
 
-export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, onPreview }: Props) {
+export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, onPreview, onBack }: Props) {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
   const tipo = state.tipo as TipoDocumento;
   const isBozza = state.stato === "bozza";
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
+  const companyLogo = (effectiveCompany as any)?.logo_url;
 
   return (
     <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
@@ -76,10 +80,19 @@ export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, v
         variant="ghost"
         size="icon"
         className="h-9 w-9 rounded-full"
-        onClick={() => navigate("/azienda/documenti")}
+        onClick={() => onBack ? onBack() : navigate("/azienda/documenti")}
       >
         <ArrowLeft className="h-4 w-4" />
       </Button>
+
+      {/* Company logo */}
+      {companyLogo && (
+        <img
+          src={companyLogo}
+          alt="Logo"
+          className="h-6 object-contain shrink-0"
+        />
+      )}
 
       {/* Doc type + number */}
       <div className="flex items-center gap-2.5 min-w-0">

@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
-import { Search, X, ChevronDown } from "lucide-react";
+import { Search, X, ChevronDown, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAnagraficheNative } from "@/hooks/useAnagraficheNative";
+import { validaPartitaIva, validaCodiceFiscale } from "@/lib/fatturazione/validazioniAnagrafiche";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 
@@ -39,19 +41,37 @@ const TIPO_BADGE: Record<string, { label: string; className: string }> = {
   Estero: { label: "Estero", className: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
 };
 
+// New client form state
+interface NewClientForm {
+  tipo: "B2C" | "B2B";
+  nome?: string;
+  cognome?: string;
+  ragioneSociale?: string;
+  partitaIva?: string;
+  codiceFiscale?: string;
+  codiceSdi?: string;
+  pec?: string;
+}
+
 export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newClientTab, setNewClientTab] = useState<"B2C" | "B2B">("B2C");
+  const [newForm, setNewForm] = useState<NewClientForm>({ tipo: "B2C" });
+
+  // Get all clients (empty search returns up to 100)
   const { data: anagrafiche } = useAnagraficheNative(search);
 
   const snapshot = state.cliente_snapshot;
   const hasCliente = !!snapshot?.ragione_sociale;
 
+  // Show all results when search is active, or empty results when focused but no search
   const filtered = useMemo(() => {
-    if (!search || !anagrafiche) return [];
-    return (anagrafiche as Record<string, unknown>[]).slice(0, 8);
-  }, [anagrafiche, search]);
+    if (!anagrafiche) return [];
+    return (anagrafiche as Record<string, unknown>[]).slice(0, 100);
+  }, [anagrafiche]);
 
   function selectCliente(a: Record<string, unknown>) {
     const snap: ClienteSnapshot = {
@@ -70,7 +90,53 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     dispatch({ type: "SET_CLIENTE", anagrafica_id: a.id as string, snapshot: snap });
     setSearch("");
     setIsOpen(false);
+    setShowNewForm(false);
   }
+
+  // Create quick B2C client (occasionale)
+  function createQuickB2C(name: string) {
+    if (!name.trim()) return;
+    const snap: ClienteSnapshot = {
+      ragione_sociale: name.trim(),
+      tipo_cliente: "B2C",
+    };
+    dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot: snap });
+    setSearch("");
+    setIsOpen(false);
+    setShowNewForm(false);
+  }
+
+  // Create new client from form
+  function createNewClient() {
+    const ragioneSociale = newForm.tipo === "B2B"
+      ? newForm.ragioneSociale?.trim()
+      : `${newForm.nome?.trim() ?? ""} ${newForm.cognome?.trim() ?? ""}`.trim();
+
+    if (!ragioneSociale) return;
+
+    const snap: ClienteSnapshot = {
+      ragione_sociale: ragioneSociale,
+      partita_iva: newForm.partitaIva,
+      codice_fiscale: newForm.codiceFiscale,
+      codice_sdi: newForm.codiceSdi,
+      pec: newForm.pec,
+      tipo_cliente: newForm.tipo,
+    };
+
+    dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot: snap });
+    setNewForm({ tipo: "B2C" });
+    setShowNewForm(false);
+    setSearch("");
+    setIsOpen(false);
+  }
+
+  // Validation
+  const pivaError = newForm.partitaIva && !validaPartitaIva(newForm.partitaIva).valida
+    ? validaPartitaIva(newForm.partitaIva).errore
+    : undefined;
+  const cfError = newForm.codiceFiscale && !validaCodiceFiscale(newForm.codiceFiscale).valida
+    ? validaCodiceFiscale(newForm.codiceFiscale).errore
+    : undefined;
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-primary/60 shadow-sm">
@@ -173,51 +239,191 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
         </div>
       ) : (
         !disabled && (
-          <div className="relative">
+          <div className="relative space-y-2">
+            {/* Search input */}
             <div className="relative">
               <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Cerca nome o P.IVA..."
+                placeholder="Cerca cliente..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
-                onFocus={() => search && setIsOpen(true)}
+                onFocus={() => setIsOpen(true)}
                 className="pl-7 h-8 text-xs"
               />
             </div>
 
-            {isOpen && filtered.length > 0 && (
+            {/* Dropdown list */}
+            {isOpen && (
               <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg max-h-48 overflow-auto">
-                {filtered.map((a) => {
-                  const name = (a.ragione_sociale as string) || `${a.nome ?? ""} ${a.cognome ?? ""}`.trim();
-                  return (
-                    <button
-                      key={a.id as string}
-                      className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-xs flex items-center gap-2"
-                      onClick={() => selectCliente(a)}
-                    >
-                      <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${avatarColor(name)}`}>
-                        {getInitials(name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium truncate">{name}</div>
-                        {a.partita_iva && (
-                          <div className="text-[10px] text-muted-foreground font-mono">{a.partita_iva as string}</div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                {filtered.length > 0 ? (
+                  filtered.map((a) => {
+                    const name = (a.ragione_sociale as string) || `${a.nome ?? ""} ${a.cognome ?? ""}`.trim();
+                    return (
+                      <button
+                        key={a.id as string}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-xs flex items-center gap-2 border-b last:border-b-0"
+                        onClick={() => selectCliente(a)}
+                      >
+                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${avatarColor(name)}`}>
+                          {getInitials(name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{name}</div>
+                          {a.partita_iva && (
+                            <div className="text-[10px] text-muted-foreground font-mono">{a.partita_iva as string}</div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground">Nessun cliente trovato</div>
+                )}
               </div>
             )}
 
-            <div className="flex gap-1.5 mt-2">
-              <Button variant="outline" size="sm" className="text-[10px] h-6 px-2">
-                + Nuovo cliente
-              </Button>
-              <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2">
-                Occasionale
-              </Button>
-            </div>
+            {/* New client form or quick buttons */}
+            {showNewForm ? (
+              <div className="border rounded-md p-3 space-y-3 bg-muted/30 animate-in fade-in-50 slide-in-from-top-2">
+                <Tabs value={newClientTab} onValueChange={(v) => {
+                  setNewClientTab(v as "B2C" | "B2B");
+                  setNewForm({ tipo: v as "B2C" | "B2B" });
+                }}>
+                  <TabsList className="grid w-full grid-cols-2 h-7">
+                    <TabsTrigger value="B2C" className="text-xs">Privato</TabsTrigger>
+                    <TabsTrigger value="B2B" className="text-xs">Azienda</TabsTrigger>
+                  </TabsList>
+
+                  {/* B2C form */}
+                  <TabsContent value="B2C" className="space-y-2 mt-2">
+                    <div>
+                      <Label className="text-[10px]">Nome</Label>
+                      <Input
+                        placeholder="Nome"
+                        value={newForm.nome ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, nome: e.target.value })}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Cognome</Label>
+                      <Input
+                        placeholder="Cognome"
+                        value={newForm.cognome ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, cognome: e.target.value })}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Codice Fiscale</Label>
+                      <Input
+                        placeholder="16 caratteri"
+                        value={newForm.codiceFiscale ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value })}
+                        className="h-7 text-xs font-mono"
+                      />
+                      {cfError && <p className="text-[10px] text-destructive mt-0.5">{cfError}</p>}
+                    </div>
+                  </TabsContent>
+
+                  {/* B2B form */}
+                  <TabsContent value="B2B" className="space-y-2 mt-2">
+                    <div>
+                      <Label className="text-[10px]">Ragione Sociale</Label>
+                      <Input
+                        placeholder="Nome azienda"
+                        value={newForm.ragioneSociale ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, ragioneSociale: e.target.value })}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">P.IVA</Label>
+                      <Input
+                        placeholder="11 cifre"
+                        value={newForm.partitaIva ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, partitaIva: e.target.value })}
+                        className="h-7 text-xs font-mono"
+                      />
+                      {pivaError && <p className="text-[10px] text-destructive mt-0.5">{pivaError}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Codice Fiscale Azienda</Label>
+                      <Input
+                        placeholder="11 cifre"
+                        value={newForm.codiceFiscale ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value })}
+                        className="h-7 text-xs font-mono"
+                      />
+                      {cfError && <p className="text-[10px] text-destructive mt-0.5">{cfError}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Codice SDI</Label>
+                      <Input
+                        placeholder="Codice SDI"
+                        value={newForm.codiceSdi ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, codiceSdi: e.target.value })}
+                        className="h-7 text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">PEC</Label>
+                      <Input
+                        placeholder="email@pec.it"
+                        value={newForm.pec ?? ""}
+                        onChange={(e) => setNewForm({ ...newForm, pec: e.target.value })}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="h-6 text-xs flex-1"
+                    onClick={createNewClient}
+                    disabled={!newForm.tipo || (newClientTab === "B2B" ? !newForm.ragioneSociale : !(newForm.nome || newForm.cognome)) || !!pivaError || !!cfError}
+                  >
+                    Crea
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs flex-1"
+                    onClick={() => {
+                      setShowNewForm(false);
+                      setNewForm({ tipo: "B2C" });
+                    }}
+                  >
+                    Annulla
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[10px] h-6 px-2 flex-1"
+                  onClick={() => setShowNewForm(true)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Nuovo cliente
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] h-6 px-2 flex-1"
+                  onClick={() => {
+                    const name = prompt("Nome cliente occasionale:");
+                    if (name) createQuickB2C(name);
+                  }}
+                >
+                  Occasionale
+                </Button>
+              </div>
+            )}
           </div>
         )
       )}

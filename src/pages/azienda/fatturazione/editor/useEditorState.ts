@@ -262,7 +262,98 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
 
   const isSaving = updateMutation.isPending;
 
-  return { state, dispatch, isSaving, lastSaved };
+  // Check if there are unsaved changes
+  const isDirty = prevStateRef.current !== "" && JSON.stringify({
+    righe: state.righe,
+    cliente_snapshot: state.cliente_snapshot,
+    anagrafica_id: state.anagrafica_id,
+    note_documento: state.note_documento,
+    note_interne: state.note_interne,
+    data_emissione: state.data_emissione,
+    data_scadenza: state.data_scadenza,
+    metodo_pagamento_codice: state.metodo_pagamento_codice,
+    iban_pagamento: state.iban_pagamento,
+    bic_pagamento: state.bic_pagamento,
+    nome_banca: state.nome_banca,
+    intestatario_conto: state.intestatario_conto,
+    sconto_globale_percentuale: state.sconto_globale_percentuale,
+    bollo_virtuale: state.bollo_virtuale,
+    ritenuta_acconto: state.ritenuta_acconto,
+    ritenuta_aliquota: state.ritenuta_aliquota,
+    ritenuta_tipo: state.ritenuta_tipo,
+    ritenuta_causale: state.ritenuta_causale,
+    cassa_previdenziale: state.cassa_previdenziale,
+    cassa_tipo: state.cassa_tipo,
+    cassa_aliquota: state.cassa_aliquota,
+    scadenze_pagamento: state.scadenze_pagamento,
+    serie: state.serie,
+    causale: state.causale,
+    cig: state.cig,
+    cup: state.cup,
+    arrotondamento: state.arrotondamento,
+    data_validita: state.data_validita,
+    probabilita_chiusura: state.probabilita_chiusura,
+    testo_intro: state.testo_intro,
+    testo_conclusivo: state.testo_conclusivo,
+  }) !== prevStateRef.current;
+
+  // Flush autosave and save immediately
+  const saveNow = () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    if (state._initialized && state.id && state.stato === "bozza") {
+      updateMutation.mutate(
+        {
+          id: state.id!,
+          righe: state.righe,
+          riepilogo_iva: state.riepilogo_iva,
+          cliente_snapshot: state.cliente_snapshot,
+          anagrafica_id: state.anagrafica_id,
+          subtotale: state.subtotale,
+          imponibile_totale: state.imponibile_totale,
+          iva_totale: state.iva_totale,
+          totale_documento: state.totale_documento,
+          totale_da_pagare: state.totale_da_pagare,
+          ritenuta_importo: state.ritenuta_importo,
+          cassa_importo: state.cassa_importo,
+          note_documento: state.note_documento,
+          note_interne: state.note_interne,
+          data_emissione: state.data_emissione,
+          data_scadenza: state.data_scadenza,
+          metodo_pagamento_codice: state.metodo_pagamento_codice,
+          iban_pagamento: state.iban_pagamento,
+          bic_pagamento: state.bic_pagamento,
+          nome_banca: state.nome_banca,
+          intestatario_conto: state.intestatario_conto,
+          sconto_globale_percentuale: state.sconto_globale_percentuale,
+          bollo_virtuale: state.bollo_virtuale,
+          bollo_importo: state.bollo_importo,
+          ritenuta_acconto: state.ritenuta_acconto,
+          ritenuta_aliquota: state.ritenuta_aliquota,
+          ritenuta_tipo: state.ritenuta_tipo,
+          ritenuta_causale: state.ritenuta_causale,
+          cassa_previdenziale: state.cassa_previdenziale,
+          cassa_tipo: state.cassa_tipo,
+          cassa_aliquota: state.cassa_aliquota,
+          scadenze_pagamento: state.scadenze_pagamento,
+          serie: state.serie,
+          causale: state.causale,
+          cig: state.cig,
+          cup: state.cup,
+          arrotondamento: state.arrotondamento,
+          data_validita: state.data_validita,
+          probabilita_chiusura: state.probabilita_chiusura,
+          testo_intro: state.testo_intro,
+          testo_conclusivo: state.testo_conclusivo,
+        },
+        { onSuccess: () => setLastSaved(new Date()) }
+      );
+    }
+  };
+
+  return { state, dispatch, isSaving, lastSaved, isDirty, saveNow };
 }
 
 export function createEmptyRiga(numero_linea: number): RigaDocumento {
