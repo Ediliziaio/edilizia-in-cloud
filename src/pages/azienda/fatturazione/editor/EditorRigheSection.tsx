@@ -43,40 +43,48 @@ const UNITA_MISURA = ["pz", "h", "gg", "mese", "km", "kg", "l", "m", "m²", "m³
 const IVA_RATES = ["22", "10", "5", "4", "0"];
 
 // IVA options combining aliquote + nature codes for the combined dropdown
+// Elenco completo codici IVA come da normativa italiana vigente (DPR 633/72 e successive modifiche)
 const IVA_COMBINED_OPTIONS: { value: string; label: string; group: string; aliquota: string; natura?: string }[] = [
-  // Standard rates
-  { value: "22", label: "22%", group: "Aliquote IVA", aliquota: "22" },
-  { value: "10", label: "10%", group: "Aliquote IVA", aliquota: "10" },
-  { value: "5", label: "5%", group: "Aliquote IVA", aliquota: "5" },
-  { value: "4", label: "4%", group: "Aliquote IVA", aliquota: "4" },
-  // N1 – Escluse
-  { value: "0_N1", label: "N1 – Escluse ex art. 15", group: "Escluse / Esenti", aliquota: "0", natura: "N1" },
-  // N2 – Non soggette
-  { value: "0_N2_1", label: "N2.1 – Non soggette art. 7-7septies", group: "Non soggette (N2)", aliquota: "0", natura: "N2_1" },
-  { value: "0_N2_2", label: "N2.2 – Non soggette altri casi", group: "Non soggette (N2)", aliquota: "0", natura: "N2_2" },
-  // N3 – Non imponibili
-  { value: "0_N3_1", label: "N3.1 – Esportazioni", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_1" },
-  { value: "0_N3_2", label: "N3.2 – Cessioni intracomunitarie", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_2" },
-  { value: "0_N3_3", label: "N3.3 – Cessioni verso San Marino", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_3" },
-  { value: "0_N3_4", label: "N3.4 – Op. assimilate alle esportazioni", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_4" },
-  { value: "0_N3_5", label: "N3.5 – Dichiarazioni d'intento", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_5" },
+  // ═══ Aliquote IVA ordinarie e ridotte ═══
+  { value: "22", label: "22% – Aliquota ordinaria", group: "Aliquote IVA", aliquota: "22" },
+  { value: "10", label: "10% – Aliquota ridotta", group: "Aliquote IVA", aliquota: "10" },
+  { value: "5", label: "5% – Aliquota ridotta (Tab. A, Parte II-bis)", group: "Aliquote IVA", aliquota: "5" },
+  { value: "4", label: "4% – Aliquota minima (Tab. A, Parte II)", group: "Aliquote IVA", aliquota: "4" },
+
+  // ═══ N1 – Escluse ex art. 15 DPR 633/72 ═══
+  { value: "0_N1", label: "N1 – Escluse ex art. 15 DPR 633/72", group: "Escluse (N1)", aliquota: "0", natura: "N1" },
+
+  // ═══ N2 – Non soggette ad IVA ═══
+  { value: "0_N2_1", label: "N2.1 – Non sogg. artt. da 7 a 7-septies DPR 633/72", group: "Non soggette (N2)", aliquota: "0", natura: "N2_1" },
+  { value: "0_N2_2", label: "N2.2 – Non soggette – altri casi", group: "Non soggette (N2)", aliquota: "0", natura: "N2_2" },
+
+  // ═══ N3 – Non imponibili ═══
+  { value: "0_N3_1", label: "N3.1 – Esportazioni (art. 8 co.1 lett. a/b)", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_1" },
+  { value: "0_N3_2", label: "N3.2 – Cessioni intracomunitarie (art. 41 DL 331/93)", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_2" },
+  { value: "0_N3_3", label: "N3.3 – Cessioni verso San Marino (art. 71)", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_3" },
+  { value: "0_N3_4", label: "N3.4 – Op. assimilate alle esportazioni (art. 8-bis, 9, 72)", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_4" },
+  { value: "0_N3_5", label: "N3.5 – Dichiarazioni d'intento (art. 8 co.1 lett. c)", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_5" },
   { value: "0_N3_6", label: "N3.6 – Altre operazioni non imponibili", group: "Non imponibili (N3)", aliquota: "0", natura: "N3_6" },
-  // N4 – Esenti
-  { value: "0_N4", label: "N4 – Esenti", group: "Escluse / Esenti", aliquota: "0", natura: "N4" },
-  // N5 – Regime del margine
-  { value: "0_N5", label: "N5 – Regime del margine / IVA non esposta", group: "Escluse / Esenti", aliquota: "0", natura: "N5" },
-  // N6 – Reverse charge
-  { value: "0_N6_1", label: "N6.1 – Rottami e materiali", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_1" },
-  { value: "0_N6_2", label: "N6.2 – Oro e argento puro", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_2" },
-  { value: "0_N6_3", label: "N6.3 – Subappalto edile", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_3" },
-  { value: "0_N6_4", label: "N6.4 – Cessione fabbricati", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_4" },
-  { value: "0_N6_5", label: "N6.5 – Telefoni cellulari", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_5" },
-  { value: "0_N6_6", label: "N6.6 – Prodotti elettronici", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_6" },
-  { value: "0_N6_7", label: "N6.7 – Comparto edile e connessi", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_7" },
-  { value: "0_N6_8", label: "N6.8 – Settore energetico", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_8" },
-  { value: "0_N6_9", label: "N6.9 – Reverse charge altri casi", group: "Reverse Charge (N6)", aliquota: "0", natura: "N6_9" },
-  // N7
-  { value: "0_N7", label: "N7 – IVA assolta in altro stato UE", group: "Escluse / Esenti", aliquota: "0", natura: "N7" },
+
+  // ═══ N4 – Esenti art. 10 DPR 633/72 ═══
+  { value: "0_N4", label: "N4 – Esenti art. 10 DPR 633/72", group: "Esenti (N4)", aliquota: "0", natura: "N4" },
+
+  // ═══ N5 – Regime del margine ═══
+  { value: "0_N5", label: "N5 – Regime del margine (artt. 36-40 DL 41/95)", group: "Regime del margine (N5)", aliquota: "0", natura: "N5" },
+
+  // ═══ N6 – Inversione contabile (Reverse Charge) ═══
+  { value: "0_N6_1", label: "N6.1 – Rottami e materiali di recupero (art. 74 co.7-8)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_1" },
+  { value: "0_N6_2", label: "N6.2 – Oro e argento puro (art. 17 co.5)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_2" },
+  { value: "0_N6_3", label: "N6.3 – Subappalto edile (art. 17 co.6 lett. a)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_3" },
+  { value: "0_N6_4", label: "N6.4 – Cessione fabbricati (art. 17 co.6 lett. a-bis)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_4" },
+  { value: "0_N6_5", label: "N6.5 – Telefoni cellulari (art. 17 co.6 lett. b)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_5" },
+  { value: "0_N6_6", label: "N6.6 – Prodotti elettronici (art. 17 co.6 lett. c)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_6" },
+  { value: "0_N6_7", label: "N6.7 – Edile e settori connessi (art. 17 co.6 lett. a-ter)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_7" },
+  { value: "0_N6_8", label: "N6.8 – Settore energetico (art. 17 co.6 lett. d-bis/ter/quater)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_8" },
+  { value: "0_N6_9", label: "N6.9 – Inversione contabile altri casi (art. 17)", group: "Inversione contabile (N6)", aliquota: "0", natura: "N6_9" },
+
+  // ═══ N7 – IVA assolta in altro Stato UE ═══
+  { value: "0_N7", label: "N7 – IVA assolta in altro Stato membro UE", group: "IVA in altro Stato UE (N7)", aliquota: "0", natura: "N7" },
 ];
 
 /** Build the "value" key from a riga's aliquota + natura */
@@ -210,9 +218,18 @@ function SortableRow({
               <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-1 min-w-[3.5rem]">
                 <span className="truncate">{ivaDisplayLabel(riga)}</span>
               </SelectTrigger>
-              <SelectContent className="max-h-80 w-72">
-                {/* Group by category */}
-                {["Aliquote IVA", "Escluse / Esenti", "Non soggette (N2)", "Non imponibili (N3)", "Reverse Charge (N6)"].map((group) => {
+              <SelectContent className="max-h-96 w-[22rem]">
+                {/* Group by category — ordine ufficiale SDI */}
+                {[
+                  "Aliquote IVA",
+                  "Escluse (N1)",
+                  "Non soggette (N2)",
+                  "Non imponibili (N3)",
+                  "Esenti (N4)",
+                  "Regime del margine (N5)",
+                  "Inversione contabile (N6)",
+                  "IVA in altro Stato UE (N7)",
+                ].map((group) => {
                   const items = IVA_COMBINED_OPTIONS.filter((o) => o.group === group);
                   if (items.length === 0) return null;
                   return (
