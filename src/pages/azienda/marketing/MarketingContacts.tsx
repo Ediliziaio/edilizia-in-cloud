@@ -118,8 +118,8 @@ export default function MarketingContacts() {
     sortDirection: { key: "dir", defaultValue: "desc" },
   });
 
-  const activeTab = urlFilters.activeTab as "all" | "lists";
-  const setActiveTab = useCallback((v: "all" | "lists") => setURLParam("activeTab", v), [setURLParam]);
+  const activeTab = urlFilters.activeTab as "all" | "lists" | "meta";
+  const setActiveTab = useCallback((v: "all" | "lists" | "meta") => setURLParam("activeTab", v), [setURLParam]);
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
   const page = urlFilters.page;
@@ -413,7 +413,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -452,6 +452,10 @@ export default function MarketingContacts() {
         .range(from, to);
 
       if (finalIds) query = query.in("id", finalIds);
+
+      if (activeTab === "meta") {
+        query = query.eq("source", "Meta Lead Ads");
+      }
 
       if (search.trim()) {
         const s = `%${search.trim()}%`;
@@ -927,9 +931,12 @@ export default function MarketingContacts() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists" | "meta")}>
         <TabsList>
           <TabsTrigger value="all">Tutti</TabsTrigger>
+          <TabsTrigger value="meta" className="gap-1.5">
+            🎯 Lead Facebook
+          </TabsTrigger>
           <TabsTrigger value="lists" className="gap-1.5">
             Liste
             {listCount > 0 && <Badge variant="secondary" className="text-xs h-5 px-1.5">{listCount}</Badge>}
@@ -939,7 +946,7 @@ export default function MarketingContacts() {
 
       {activeTab === "lists" ? (
         <ContactListsView />
-      ) : (
+      ) : activeTab === "meta" || activeTab === "all" ? (
         <>
           {/* Filter bar */}
           <div className="flex flex-col gap-2">

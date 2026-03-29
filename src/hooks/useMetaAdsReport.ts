@@ -14,7 +14,7 @@ import {
 } from "@/lib/metaInsightsNormalizer";
 import { format, subDays } from "date-fns";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co";
 
 export type ReportLevel = "campaign" | "adset" | "ad";
 export type SortDirection = "asc" | "desc";
