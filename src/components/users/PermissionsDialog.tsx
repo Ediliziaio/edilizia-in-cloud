@@ -38,6 +38,8 @@ export interface StaffPermissions {
   can_edit_tickets: boolean;
   // ── Finanza ────────────────────────────────────────────
   can_view_billing: boolean;
+  can_view_scadenzario: boolean;
+  can_view_tesoreria: boolean;
   can_view_prima_nota: boolean;
   can_view_costs: boolean;
   can_view_forecast: boolean;

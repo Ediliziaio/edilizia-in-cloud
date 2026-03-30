@@ -11,7 +11,8 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_customers: false, can_edit_customers: false, can_export_clients: false,
   can_view_tickets: false, can_edit_tickets: false,
   // Finanza
-  can_view_billing: false, can_view_prima_nota: false,
+  can_view_billing: false, can_view_scadenzario: false, can_view_tesoreria: false,
+  can_view_prima_nota: false,
   can_view_costs: false, can_view_forecast: false,
   can_view_financial_reports: false, can_view_margins: false,
   can_manage_payments: false, can_manage_suppliers: false,
@@ -67,7 +68,9 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const FINANZA_SECTIONS: PermissionSectionDef[] = [
-  { label: "Fatturazione e Scadenzario", viewKey: "can_view_billing",           editKey: null },
+  { label: "Fatturazione",               viewKey: "can_view_billing",           editKey: null },
+  { label: "Scadenzario",                viewKey: "can_view_scadenzario",       editKey: null },
+  { label: "Tesoreria",                  viewKey: "can_view_tesoreria",         editKey: null },
   { label: "Prima Nota e Contabilità",   viewKey: "can_view_prima_nota",        editKey: null },
   { label: "Costi",                      viewKey: "can_view_costs",             editKey: null },
   { label: "Previsionale",               viewKey: "can_view_forecast",          editKey: null },

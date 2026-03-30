@@ -17,7 +17,7 @@ import { UserSessionsTab } from "@/components/users/UserSessionsTab";
 import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
@@ -125,34 +125,16 @@ export default function SettingsUserDetail() {
     mutationFn: async (permissions: StaffPermissions) => {
       // Filter to only known permission keys to avoid sending id, user_id, created_at etc.
       const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
-      const filtered: Record<string, boolean> = {};
+      const base: Record<string, boolean> = {};
       for (const key of allowedKeys) {
-        filtered[key] = (permissions[key] as boolean) ?? false;
+        base[key] = (permissions[key] as boolean) ?? false;
       }
 
-      // Sync legacy marketing flags with granular permissions
-      const hasAnyMarketingView = [
-        'can_view_marketing_dashboard', 'can_view_marketing_contacts', 'can_view_marketing_opportunities',
-        'can_view_marketing_activities', 'can_view_marketing_appointments', 'can_view_marketing_automations',
-        'can_view_marketing_ai_agent', 'can_view_marketing_email', 'can_view_marketing_whatsapp', 'can_view_marketing_reports'
-      ].some(k => filtered[k]);
-      const hasAnyMarketingEdit = [
-        'can_edit_marketing_contacts', 'can_edit_marketing_opportunities'
-      ].some(k => filtered[k]);
-      filtered.can_view_marketing = hasAnyMarketingView;
-      filtered.can_edit_marketing = hasAnyMarketingEdit;
-
-      // Sync legacy settings flags from granular permissions
-      filtered.can_view_settings =
-        ['can_view_settings_profile', 'can_view_settings_orders',
-         'can_view_settings_customization', 'can_view_settings_people',
-         'can_view_settings_security'].some(k => filtered[k]);
-      filtered.can_edit_settings =
-        ['can_edit_settings_profile', 'can_edit_settings_orders',
-         'can_edit_settings_customization', 'can_edit_settings_people'].some(k => filtered[k]);
+      // Sync legacy aggregate flags using the shared helpers (single source of truth)
+      const synced = syncLegacySettingsFlags(syncLegacyMarketingFlags(base as unknown as StaffPermissions));
 
       const companyId = userData?.company_id;
-      const { error } = await supabase.from("staff_permissions").update(filtered).eq("user_id", userId!).eq("company_id", companyId!);
+      const { error } = await supabase.from("staff_permissions").update(synced).eq("user_id", userId!).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
