@@ -203,9 +203,14 @@ export function CostsTable({
     if (cost.is_paid) {
       const paidLabel = cost.paid_date ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
       return (
-        <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
-          <Check className="h-3 w-3" /> {paidLabel}
-        </Badge>
+        <div className="flex items-center gap-1 flex-wrap">
+          <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
+            <Check className="h-3 w-3" /> {paidLabel}
+          </Badge>
+          {(cost as any).payment_method && (
+            <span className="text-xs text-muted-foreground">({(cost as any).payment_method})</span>
+          )}
+        </div>
       );
     }
 

@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 
 interface CostsDialogsProps {
@@ -34,6 +35,8 @@ interface CostsDialogsProps {
   payingCostId: string | null;
   paymentDate: string;
   onPaymentDateChange: (date: string) => void;
+  paymentMethod: string;
+  onPaymentMethodChange: (method: string) => void;
   onPaymentConfirm: () => void;
   isPaymentPending: boolean;
 
@@ -59,6 +62,8 @@ export function CostsDialogs({
   payingCostId,
   paymentDate,
   onPaymentDateChange,
+  paymentMethod,
+  onPaymentMethodChange,
   onPaymentConfirm,
   isPaymentPending,
   taskCostId,
@@ -117,11 +122,31 @@ export function CostsDialogs({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Registra Pagamento</DialogTitle>
-            <DialogDescription>Seleziona la data del pagamento.</DialogDescription>
+            <DialogDescription>Seleziona data e metodo di pagamento.</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label>Data pagamento</Label>
-            <Input type="date" value={paymentDate} onChange={(e) => onPaymentDateChange(e.target.value)} className="mt-2" />
+          <div className="py-4 space-y-4">
+            <div>
+              <Label>Data pagamento</Label>
+              <Input type="date" value={paymentDate} onChange={(e) => onPaymentDateChange(e.target.value)} className="mt-2" />
+            </div>
+            <div>
+              <Label className="mb-2 block">Metodo di pagamento</Label>
+              <RadioGroup value={paymentMethod} onValueChange={onPaymentMethodChange} className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "bonifico", label: "Bonifico" },
+                  { value: "contanti", label: "Contanti" },
+                  { value: "carta", label: "Carta" },
+                  { value: "rid", label: "RID" },
+                  { value: "assegno", label: "Assegno" },
+                  { value: "altro", label: "Altro" },
+                ].map((opt) => (
+                  <div key={opt.value} className="flex items-center space-x-2">
+                    <RadioGroupItem value={opt.value} id={`pm-${opt.value}`} />
+                    <Label htmlFor={`pm-${opt.value}`} className="text-sm cursor-pointer">{opt.label}</Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onPayDialogChange(false)}>Annulla</Button>

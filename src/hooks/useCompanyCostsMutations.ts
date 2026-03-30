@@ -307,8 +307,8 @@ export function useCompanyCostsMutations({
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async ({ id, date }: { id: string; date: string }) => {
-      const { error } = await supabase.from("company_costs").update({ is_paid: true, paid_date: date }).eq("id", id);
+    mutationFn: async ({ id, date, paymentMethod }: { id: string; date: string; paymentMethod?: string }) => {
+      const { error } = await supabase.from("company_costs").update({ is_paid: true, paid_date: date, ...(paymentMethod ? { payment_method: paymentMethod } : {}) }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

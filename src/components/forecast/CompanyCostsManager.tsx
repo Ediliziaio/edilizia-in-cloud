@@ -57,6 +57,7 @@ export default function CompanyCostsManager() {
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payingCostId, setPayingCostId] = useState<string | null>(null);
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [paymentMethod, setPaymentMethod] = useState<string>("bonifico");
   const [importOpen, setImportOpen] = useState(false);
   const [taskCostId, setTaskCostId] = useState<string | null>(null);
 
@@ -104,6 +105,7 @@ export default function CompanyCostsManager() {
       setPayDialogOpen(false);
       setPayingCostId(null);
       setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+      setPaymentMethod("bonifico");
     },
   });
 
@@ -195,7 +197,7 @@ export default function CompanyCostsManager() {
         mutations.markCommissionPaidMutation.mutate({ id: origin.realId, date: paymentDate });
         break;
       default:
-        mutations.markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
+        mutations.markPaidMutation.mutate({ id: payingCostId, date: paymentDate, paymentMethod });
     }
   };
 
@@ -528,10 +530,12 @@ export default function CompanyCostsManager() {
         onBulkDeleteConfirm={() => { mutations.bulkDeleteMutation.mutate(Array.from(selectedIds)); setSelectedIds(new Set()); setBulkDeleteConfirm(false); }}
         selectedCount={selectedIds.size}
         payDialogOpen={payDialogOpen}
-        onPayDialogChange={(open) => { setPayDialogOpen(open); if (!open) { setPayingCostId(null); setPaymentDate(format(new Date(), "yyyy-MM-dd")); } }}
+        onPayDialogChange={(open) => { setPayDialogOpen(open); if (!open) { setPayingCostId(null); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPaymentMethod("bonifico"); } }}
         payingCostId={payingCostId}
         paymentDate={paymentDate}
         onPaymentDateChange={setPaymentDate}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
         onPaymentConfirm={handlePaymentConfirm}
         isPaymentPending={mutations.markPaidMutation.isPending || mutations.markOrderItemPaidMutation.isPending || mutations.markExtTeamPaidMutation.isPending || mutations.markCommissionPaidMutation.isPending}
         taskCostId={taskCostId}
