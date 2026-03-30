@@ -53,7 +53,7 @@ const TIPO_TABS: {
   emptyTitle: string;
   emptyDescription: string;
 }[] = [
-  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
+  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
   { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
@@ -568,7 +568,7 @@ function DocumentiFiscaliListInner() {
                       {showColTipo && (
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] font-normal">
-                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa" }[doc.tipo] ?? doc.tipo}
+                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp." }[doc.tipo] ?? doc.tipo}
                           </Badge>
                         </TableCell>
                       )}
@@ -781,7 +781,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* Fatture: NC */}
-                                {NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa"].includes(doc.tipo) && (
+                                {NC_ALLOWED.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo) && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => handleAction("nc", doc)}>
