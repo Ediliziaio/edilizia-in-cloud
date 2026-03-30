@@ -109,7 +109,7 @@ const NO_PERMISSIONS: Permissions = {
 };
 
 export function usePermissions(): Permissions {
-  const { role, user, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
+  const { role, user, isImpersonating, isImpersonationReady, impersonatedCompanyId, impersonationToken } = useAuth();
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -135,10 +135,12 @@ export function usePermissions(): Permissions {
     return ALL_PERMISSIONS;
   }
 
-  // Active impersonation session: grant full permissions even if role has not been
-  // resolved yet (e.g. fetchUserData raced with setSession on page load).
+  // Active impersonation session: grant full permissions ONLY after fetchUserData
+  // has confirmed the super_admin role (isImpersonationReady).
+  // This prevents the startup race where sessionStorage tokens are present but the
+  // role has not been verified yet.
   // The actual data access is governed by server-side RLS + the impersonation token.
-  if (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken)) {
+  if (isImpersonationReady && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken))) {
     return ALL_PERMISSIONS;
   }
 

@@ -16,6 +16,10 @@ interface AuthContextType extends AuthState {
   impersonationToken: string | null;
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
+  /** True only after fetchUserData has confirmed the caller is super_admin.
+   *  Prevents granting ALL_PERMISSIONS during the startup race where sessionStorage
+   *  holds impersonation tokens but the role has not yet been fetched from DB. */
+  isImpersonationReady: boolean;
   impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<string | null>;
   exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
@@ -147,6 +151,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [impersonationToken, setImpersonationToken] = useState<string | null>(
     () => sessionStorage.getItem(IMP_TOKEN_KEY)
   );
+  // BUG 4: only true after fetchUserData confirms super_admin role
+  const [isImpersonationReady, setIsImpersonationReady] = useState(false);
 
   // Generation counter: each SIGNED_IN/SIGNED_OUT increments this ref.
   // After fetchUserData resolves, we compare against the current value —
@@ -455,6 +461,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           resolvedRoleRef.current = userData.role;
 
+          // BUG 4: mark impersonation as ready once we've confirmed super_admin role
+          if (userData.role === "super_admin") {
+            setIsImpersonationReady(true);
+          } else {
+            setIsImpersonationReady(false);
+          }
+
           // Persist to cache so the NEXT page refresh is also instant.
           if (userData.role !== null) {
             writeProfileCache(session.user.id, userData.profile, userData.role, userData.company);
@@ -535,6 +548,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setImpersonatedCompanyId(null);
             setImpersonationToken(null);
             setImpersonatedCompany(null);
+            setIsImpersonationReady(false);
             sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
             clearProfileCache();
           }
@@ -824,6 +838,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       impersonationToken,
       impersonatedCompany,
       isImpersonating,
+      isImpersonationReady,
       impersonateCompany,
       exitImpersonation,
       effectiveCompany,
@@ -831,7 +846,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       selectedMultiCompanyId,
       switchMultiCompany,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
   );
 
   return (
