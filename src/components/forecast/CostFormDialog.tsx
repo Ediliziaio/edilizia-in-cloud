@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import {
-  Plus, Check, Clock, Calculator, Filter, Info, Repeat,
+  Plus, Check, Clock, Calculator, Filter, Info, Repeat, Trash2,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -66,6 +66,37 @@ export function CostFormDialog({
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
+  const [allocations, setAllocations] = useState<Array<{ order_id: string; pct: number }>>(
+    formData.allocations || []
+  );
+
+  // Sync allocations to formData
+  useEffect(() => {
+    setFormData({ ...formData, allocations });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allocations]);
+
+  // Load allocations from editingCost
+  useEffect(() => {
+    if (editingCost) {
+      const raw = (editingCost as any).allocations;
+      if (raw) {
+        try {
+          setAllocations(typeof raw === "string" ? JSON.parse(raw) : raw);
+        } catch {
+          setAllocations([]);
+        }
+      }
+    } else {
+      setAllocations([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingCost?.id]);
+
+  const addAlloc = () => setAllocations(prev => [...prev, { order_id: "", pct: 0 }]);
+  const removeAlloc = (i: number) => setAllocations(prev => prev.filter((_, idx) => idx !== i));
+  const updateAlloc = (i: number, field: "order_id" | "pct", value: string | number) =>
+    setAllocations(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: value } : a));
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
 
@@ -388,6 +419,51 @@ export function CostFormDialog({
               <p className="text-[10px] text-muted-foreground text-right">{formData.notes.length}/200</p>
             )}
           </div>
+
+          {/* Centro di Costo — Allocazioni per commessa (solo costi fissi) */}
+          {formData.cost_type === "fixed" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Alloca a commesse (opzionale)</Label>
+                <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addAlloc}>
+                  <Plus className="h-3 w-3" /> Aggiungi
+                </Button>
+              </div>
+              {allocations.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">Nessuna allocazione — il costo è considerato generale.</p>
+              ) : (
+                <div className="space-y-2">
+                  {allocations.map((alloc, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select value={alloc.order_id || "none"} onValueChange={(v) => updateAlloc(i, "order_id", v === "none" ? "" : v)}>
+                        <SelectTrigger className="flex-1 h-8 text-xs"><SelectValue placeholder="Ordine..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nessuno</SelectItem>
+                          {orders.slice(0, 50).map((o: any) => (
+                            <SelectItem key={o.id} value={o.id}>{o.order_code || o.id.substring(0, 8)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number" min={0} max={100} step={1}
+                        value={alloc.pct}
+                        onChange={(e) => updateAlloc(i, "pct", Number(e.target.value))}
+                        className="w-20 h-8 text-sm"
+                        placeholder="%"
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeAlloc(i)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground">
+                    Totale allocato: {allocations.reduce((s, a) => s + a.pct, 0)}%
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>

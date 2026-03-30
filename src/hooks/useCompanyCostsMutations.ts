@@ -21,6 +21,7 @@ export interface CostFormData {
   is_gross: boolean;
   end_date: string;
   recurrence_auto: boolean;
+  allocations?: Array<{ order_id: string; pct: number }>;
 }
 
 export const defaultFormData: CostFormData = {
@@ -125,6 +126,7 @@ export function useCompanyCostsMutations({
         vat_rate: vatRate,
         recurrence_auto: data.recurrence !== "once" ? (data.recurrence_auto || false) : false,
         recurrence_end_date: data.recurrence !== "once" && data.end_date ? data.end_date : null,
+        allocations: JSON.stringify(data.allocations || []),
       };
 
       if (editingCostId) {
