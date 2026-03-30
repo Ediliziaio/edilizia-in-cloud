@@ -55,12 +55,15 @@ interface AdjustDialog {
   direction: "add" | "deduct";
 }
 
+const PAGE_SIZE = 50;
+
 export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [adjustDialog, setAdjustDialog] = useState<AdjustDialog>({ open: false, service: "", direction: "add" });
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
+  const [adjustmentsPage, setAdjustmentsPage] = useState(0);
 
   // Fetch overrides
   const { data: overrides, isLoading: overridesLoading } = useQuery({
@@ -100,16 +103,16 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     },
   });
 
-  // Fetch adjustments history
+  // Fetch adjustments history with pagination
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: queryKeys.admin.creditAdjustments(companyId),
+    queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_credit_adjustments" as never)
         .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .range(adjustmentsPage * PAGE_SIZE, (adjustmentsPage + 1) * PAGE_SIZE - 1);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{
         id: string; service: string; amount_eur: number; reason: string; created_by: string; created_at: string;
@@ -362,6 +365,13 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {adjustments?.length === PAGE_SIZE && (
+            <div className="flex justify-center pt-3">
+              <Button variant="outline" size="sm" onClick={() => setAdjustmentsPage((p) => p + 1)}>
+                Carica altri
+              </Button>
             </div>
           )}
         </CardContent>

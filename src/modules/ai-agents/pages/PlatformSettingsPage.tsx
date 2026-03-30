@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle, Phone } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
+import { AiAgentPricingConfig } from "../components/AiAgentPricingConfig";
 import { toast } from "sonner";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { supabase } from "@/integrations/supabase/client";
@@ -507,6 +508,9 @@ export default function PlatformSettingsPage() {
           {isSaving ? "Salvataggio..." : "Salva configurazione"}
         </Button>
       </div>
+
+      {/* AI Agent Pricing (new ai_agent_pricing table) */}
+      <AiAgentPricingConfig />
     </div>
   );
 }
