@@ -135,9 +135,30 @@ Deno.serve(async (req) => {
               .update({ campaign_id: campaign_id })
               .eq("elevenlabs_conversation_id", callData.conversation_id);
           }
+          // Record attempt in retry log
+          if (campaign.retry_enabled) {
+            await adminClient.from("campaign_retry_log").insert({
+              campaign_id,
+              contact_id: contactIds[i],
+              attempt_number: 1,
+              result: "answered",
+            });
+          }
         } else {
           failed++;
           console.warn(`[CAMPAIGN] Call failed for contact ${contactIds[i]}:`, callData.error);
+          // Schedule retry if enabled
+          if (campaign.retry_enabled && (campaign.retry_max_attempts ?? 2) >= 1) {
+            const delayMs = (campaign.retry_delay_minutes ?? 60) * 60 * 1000;
+            const nextRetry = new Date(Date.now() + delayMs).toISOString();
+            await adminClient.from("campaign_retry_log").insert({
+              campaign_id,
+              contact_id: contactIds[i],
+              attempt_number: 1,
+              result: "failed",
+              next_retry_at: nextRetry,
+            });
+          }
         }
       } catch (err) {
         failed++;

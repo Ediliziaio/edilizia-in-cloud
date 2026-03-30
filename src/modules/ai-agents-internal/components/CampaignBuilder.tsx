@@ -43,6 +43,9 @@ export function CampaignBuilder({ open, onClose }: Props) {
   const [scheduleMode, setScheduleMode] = useState<"immediate" | "scheduled">("immediate");
   const [scheduledAt, setScheduledAt] = useState("");
   const [callsPerMinute, setCallsPerMinute] = useState(2);
+  const [retryEnabled, setRetryEnabled] = useState(false);
+  const [retryMaxAttempts, setRetryMaxAttempts] = useState(2);
+  const [retryDelayMinutes, setRetryDelayMinutes] = useState(60);
 
   // Load contacts for manual selection
   const contactsQuery = useQuery({
@@ -89,7 +92,10 @@ export function CampaignBuilder({ open, onClose }: Props) {
       target_type: targetType,
       calls_per_minute: callsPerMinute,
       scheduled_at: scheduleMode === "scheduled" ? scheduledAt : null,
-    };
+      retry_enabled: retryEnabled,
+      retry_max_attempts: retryMaxAttempts,
+      retry_delay_minutes: retryDelayMinutes,
+    } as InternalCampaignInsert;
 
     if (targetType === "manual") {
       input.contact_ids = selectedContacts;
@@ -239,6 +245,33 @@ export function CampaignBuilder({ open, onClose }: Props) {
               <Label>Chiamate al minuto (rate limit)</Label>
               <Input type="number" min={1} max={10} value={callsPerMinute} onChange={(e) => setCallsPerMinute(Number(e.target.value))} />
               <p className="text-xs text-muted-foreground">Massimo 10 chiamate al minuto per evitare sovraccarico</p>
+            </div>
+
+            <div className="border rounded-lg p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Riprova chiamate non risposte</Label>
+                  <p className="text-xs text-muted-foreground">Richiama i contatti che non hanno risposto</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={retryEnabled}
+                  onChange={(e) => setRetryEnabled(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+              </div>
+              {retryEnabled && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tentativi massimi</Label>
+                    <Input type="number" min={1} max={5} value={retryMaxAttempts} onChange={(e) => setRetryMaxAttempts(Number(e.target.value))} className="h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Attesa tra tentativi (minuti)</Label>
+                    <Input type="number" min={15} max={1440} value={retryDelayMinutes} onChange={(e) => setRetryDelayMinutes(Number(e.target.value))} className="h-8" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
