@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarDays, Trash2, RefreshCw } from "lucide-react";
+import { TaskTemplatePicker } from "./TaskTemplatePicker";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -317,10 +318,29 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Modifica Attività" : "Nuova Attività"}</DialogTitle>
-          <DialogDescription>
-            {isEditing ? "Modifica i dettagli dell'attività" : "Compila i campi per creare una nuova attività"}
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <DialogTitle>{isEditing ? "Modifica Attività" : "Nuova Attività"}</DialogTitle>
+              <DialogDescription>
+                {isEditing ? "Modifica i dettagli dell'attività" : "Compila i campi per creare una nuova attività"}
+              </DialogDescription>
+            </div>
+            {!isEditing && (
+              <TaskTemplatePicker
+                currentTitle={title}
+                currentNotes={notes}
+                currentPriority={priority}
+                currentCategory={category}
+                currentEstimatedHours={null}
+                onApply={(tpl) => {
+                  if (tpl.title) setTitle(tpl.title);
+                  if (tpl.notes) setNotes(tpl.notes);
+                  setPriority(tpl.priority);
+                  setCategory(tpl.category);
+                }}
+              />
+            )}
+          </div>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
