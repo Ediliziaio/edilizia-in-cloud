@@ -1261,8 +1261,7 @@ export default function QuoteBuilder() {
             is_optional: (it as any).is_optional ?? false,
             misura_x: (it as any).misura_x ?? null,
             misura_y: (it as any).misura_y ?? null,
-            line_total:
-              it.quantity * it.unit_price * (1 - it.discount_percent / 100),
+            // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
           }))
         );
         if (itemsErr) throw itemsErr;
