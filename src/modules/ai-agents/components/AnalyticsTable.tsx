@@ -8,11 +8,15 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Search, Play, Pause, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Play, Pause, Loader2, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { toast } from "sonner";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Conversation {
   id: string;
@@ -95,6 +99,95 @@ function AudioPlayer({ conversationId }: { conversationId: string }) {
           : <Play className="h-3.5 w-3.5" />}
       {isLoading ? "Caricamento..." : isPlaying ? "Pausa" : "Ascolta registrazione"}
     </Button>
+  );
+}
+
+interface TranscriptMessage {
+  role: string;
+  message?: string;
+  content?: string;
+  time_in_call_secs?: number;
+}
+
+function TranscriptViewer({ conversationId }: { conversationId: string }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<TranscriptMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const openTranscript = async () => {
+    setOpen(true);
+    if (messages.length > 0) return;
+    setIsLoading(true);
+    try {
+      const data = await callElevenLabsProxy<{ transcript?: TranscriptMessage[]; messages?: TranscriptMessage[] }>({
+        action: "get_conversation",
+        payload: { conversation_id: conversationId },
+      });
+      setMessages(data?.transcript || data?.messages || []);
+    } catch {
+      toast.error("Impossibile caricare la trascrizione");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatTime = (secs?: number) => {
+    if (!secs) return "";
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="gap-2 h-8" onClick={openTranscript}>
+        <FileText className="h-3.5 w-3.5" /> Trascrizione
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Trascrizione conversazione</DialogTitle>
+          </DialogHeader>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Trascrizione non disponibile
+            </p>
+          ) : (
+            <ScrollArea className="h-[400px] pr-2">
+              <div className="space-y-3">
+                {messages.map((msg, idx) => {
+                  const isAgent = msg.role === "agent" || msg.role === "assistant";
+                  const text = msg.message || msg.content || "";
+                  return (
+                    <div key={idx} className={`flex ${isAgent ? "justify-start" : "justify-end"}`}>
+                      <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                        isAgent
+                          ? "bg-muted text-foreground"
+                          : "bg-primary text-primary-foreground"
+                      }`}>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-medium opacity-70 capitalize">
+                            {isAgent ? "Agente" : "Utente"}
+                          </span>
+                          {msg.time_in_call_secs !== undefined && (
+                            <span className="text-[10px] opacity-50">{formatTime(msg.time_in_call_secs)}</span>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap">{text}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -201,7 +294,10 @@ export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
                             )}
                           </div>
                           {conv.elevenlabs_conversation_id && conv.status === "completed" && (
-                            <AudioPlayer conversationId={conv.elevenlabs_conversation_id} />
+                            <div className="flex gap-2 flex-wrap">
+                              <AudioPlayer conversationId={conv.elevenlabs_conversation_id} />
+                              <TranscriptViewer conversationId={conv.elevenlabs_conversation_id} />
+                            </div>
                           )}
                         </div>
                       </TableCell>

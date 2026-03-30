@@ -128,5 +128,6 @@ export type ProxyAction =
   | "sync_kb"
   | "link_phone_number"
   | "get_conversations"
+  | "get_conversation"
   | "get_conversation_audio"
   | "get_phone_numbers";

@@ -218,6 +218,17 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "get_conversation": {
+        if (!payload?.conversation_id) throw new Error("conversation_id richiesto");
+        const convDetail = await elFetch(
+          `/convai/conversations/${payload.conversation_id}`,
+          "GET",
+          apiKey
+        );
+        result = convDetail;
+        break;
+      }
+
       case "get_conversation_audio": {
         if (!payload?.conversation_id) throw new Error("conversation_id richiesto");
         const audioRes = await fetch(
