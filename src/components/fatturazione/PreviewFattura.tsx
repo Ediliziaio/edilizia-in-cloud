@@ -14,6 +14,11 @@ const TIPO_LABELS: Record<TipoDocumento, string> = {
   proforma: "PROFORMA",
   preventivo: "PREVENTIVO",
   ddt: "DOCUMENTO DI TRASPORTO",
+  parcella: "PARCELLA",
+  fattura_accompagnatoria: "FATTURA ACCOMPAGNATORIA",
+  integrazione_servizi_estero: "AUTOFATTURA TD17",
+  integrazione_beni_ue: "INTEGRAZIONE TD18",
+  integrazione_beni_extra_ue: "INTEGRAZIONE TD19",
 };
 
 function fmtDate(d: string | undefined): string {
