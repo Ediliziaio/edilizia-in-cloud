@@ -8,7 +8,7 @@ import { MyDayTimeline } from "./MyDayTimeline";
 import { MyDayEmptyState } from "./MyDayEmptyState";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { startOfDay, endOfDay } from "date-fns";
+import { startOfDay, endOfDay, addDays } from "date-fns";
 
 interface MyDayViewProps {
   onNewTask: () => void;
@@ -47,13 +47,17 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
     enabled: !!companyId && !!userId,
   });
 
-  const { overdue, today, noDate } = useMemo(() => {
+  const { overdue, today, tomorrow, thisWeek, noDate } = useMemo(() => {
     const now = new Date();
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
+    const tomorrowEnd = endOfDay(addDays(now, 1));
+    const weekEnd = endOfDay(addDays(now, 7));
 
     const overdue: any[] = [];
     const today: any[] = [];
+    const tomorrow: any[] = [];
+    const thisWeek: any[] = [];
     const noDate: any[] = [];
 
     for (const t of tasks) {
@@ -63,10 +67,11 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
         const d = new Date(t.due_date);
         if (d < todayStart) overdue.push(t);
         else if (d <= todayEnd) today.push(t);
-        // future tasks not shown in My Day
+        else if (d <= tomorrowEnd) tomorrow.push(t);
+        else if (d <= weekEnd) thisWeek.push(t);
       }
     }
-    return { overdue, today, noDate };
+    return { overdue, today, tomorrow, thisWeek, noDate };
   }, [tasks]);
 
   const handleTaskSelect = (task: any) => {
@@ -84,7 +89,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
     );
   }
 
-  const hasAnyTasks = overdue.length > 0 || today.length > 0 || noDate.length > 0;
+  const hasAnyTasks = overdue.length > 0 || today.length > 0 || tomorrow.length > 0 || thisWeek.length > 0 || noDate.length > 0;
 
   return (
     <div className="space-y-6">
@@ -99,6 +104,12 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
           )}
           {today.length > 0 && (
             <MyDayTimeline title="Oggi" tasks={today} variant="today" onTaskSelect={handleTaskSelect} />
+          )}
+          {tomorrow.length > 0 && (
+            <MyDayTimeline title="Domani" tasks={tomorrow} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
+          )}
+          {thisWeek.length > 0 && (
+            <MyDayTimeline title="Questa settimana" tasks={thisWeek} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />
           )}
           {noDate.length > 0 && (
             <MyDayTimeline title="Senza scadenza" tasks={noDate} variant="nodate" onTaskSelect={handleTaskSelect} collapsible />

@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban } from "lucide-react";
+import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban, CalendarDays, User } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
+import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
@@ -59,7 +61,7 @@ const FONTE_OPTIONS = [
 const MARKETING_CATEGORIES = ["marketing", "contatti", "opportunita"];
 
 export default function UnifiedTasks() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth() as any;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -74,7 +76,7 @@ export default function UnifiedTasks() {
   const [filterAssignee, setFilterAssignee] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("myday");
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">("list");
   const [searchText, setSearchText] = useState("");
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const debouncedSearch = useDebounce(searchText, 300);
@@ -293,6 +295,20 @@ export default function UnifiedTasks() {
                   ))}
                 </SelectContent>
               </Select>
+              {/* Filtro rapido "Le mie" */}
+              <button
+                onClick={() => setFilterAssignee(filterAssignee === user?.id ? "all" : (user?.id || "all"))}
+                className={cn(
+                  "h-9 px-3 rounded-md border text-sm transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                  filterAssignee === user?.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <User className="h-3.5 w-3.5" />
+                Le mie
+              </button>
+              {/* Toggle view */}
               <div className="flex rounded-md border overflow-hidden sm:ml-auto">
                 <button
                   onClick={() => setViewMode("list")}
@@ -300,6 +316,7 @@ export default function UnifiedTasks() {
                     "p-2 transition-colors",
                     viewMode === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                   )}
+                  title="Vista lista"
                 >
                   <LayoutList className="h-4 w-4" />
                 </button>
@@ -309,14 +326,39 @@ export default function UnifiedTasks() {
                     "p-2 transition-colors",
                     viewMode === "kanban" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                   )}
+                  title="Vista kanban"
                 >
                   <Kanban className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  className={cn(
+                    "p-2 transition-colors",
+                    viewMode === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                  title="Vista calendario"
+                >
+                  <CalendarDays className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
             {isLoading ? (
-              <Card><CardContent className="p-8 text-center text-muted-foreground">Caricamento...</CardContent></Card>
+              <Card>
+                <div className="divide-y">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4">
+                      <Skeleton className="h-4 w-4 rounded" />
+                      <Skeleton className="h-4 flex-1 max-w-xs" />
+                      <Skeleton className="h-4 w-24 hidden md:block" />
+                      <Skeleton className="h-4 w-20 hidden lg:block" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-6 w-20 rounded-md" />
+                    </div>
+                  ))}
+                </div>
+              </Card>
             ) : filteredTasks.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
@@ -328,10 +370,23 @@ export default function UnifiedTasks() {
                   </Button>
                 </CardContent>
               </Card>
+            ) : viewMode === "calendar" ? (
+              <TaskCalendarView
+                tasks={filteredTasks}
+                onTaskSelect={(task) => setSelectedTask(task)}
+                onNewTaskForDate={(date) => {
+                  setEditingTask({ due_date: date.toISOString().slice(0, 10) });
+                  setDialogOpen(true);
+                }}
+              />
             ) : viewMode === "kanban" ? (
               <TaskKanbanBoard
                 tasks={filteredTasks}
                 onTaskSelect={(task) => setSelectedTask(task)}
+                onAddTaskToColumn={(status) => {
+                  setEditingTask({ status });
+                  setDialogOpen(true);
+                }}
               />
             ) : (
               <>

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 const COLUMNS = [
   { status: "da_fare", label: "Da fare", accent: "border-t-muted-foreground/40" },
@@ -17,9 +18,10 @@ const COLUMNS = [
 interface TaskKanbanBoardProps {
   tasks: any[];
   onTaskSelect: (task: any) => void;
+  onAddTaskToColumn?: (status: string) => void;
 }
 
-export function TaskKanbanBoard({ tasks, onTaskSelect }: TaskKanbanBoardProps) {
+export function TaskKanbanBoard({ tasks, onTaskSelect, onAddTaskToColumn }: TaskKanbanBoardProps) {
   const queryClient = useQueryClient();
 
   const moveMutation = useMutation({
@@ -100,6 +102,17 @@ export function TaskKanbanBoard({ tasks, onTaskSelect }: TaskKanbanBoardProps) {
                 )}
               </div>
             </ScrollArea>
+            {onAddTaskToColumn && (
+              <div className="p-2 border-t bg-background/30">
+                <button
+                  onClick={() => onAddTaskToColumn(col.status)}
+                  className="w-full text-left text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded hover:bg-muted transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Aggiungi attività
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
