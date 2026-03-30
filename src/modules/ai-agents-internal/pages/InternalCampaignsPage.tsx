@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Play, Pause, Trash2, Phone, CheckCircle2, BarChart3, Megaphone } from "lucide-react";
+import { Plus, Play, Pause, Trash2, Phone, CheckCircle2, BarChart3, Megaphone, FileDown } from "lucide-react";
 import { useInternalCampaigns } from "../hooks/useInternalCampaigns";
 import { CampaignBuilder } from "../components/CampaignBuilder";
 import type { CampaignStatus, InternalCampaign } from "../types/internalAgent.types";
@@ -121,6 +121,50 @@ export default function InternalCampaignsPage() {
   );
 }
 
+function exportCampaignPdf(c: InternalCampaign) {
+  const responseRate = c.total_calls > 0
+    ? Math.round((c.calls_answered / c.total_calls) * 100)
+    : 0;
+
+  const html = `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+    <title>Report Campagna: ${c.name}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 40px; color: #111; }
+      h1 { color: #1a56db; border-bottom: 2px solid #1a56db; padding-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+      th { background: #f3f4f6; text-align: left; padding: 8px 12px; border: 1px solid #e5e7eb; }
+      td { padding: 8px 12px; border: 1px solid #e5e7eb; }
+      .stat { display: inline-block; background: #eff6ff; padding: 8px 16px; border-radius: 8px; margin: 4px; text-align: center; }
+      .stat-value { font-size: 24px; font-weight: bold; color: #1a56db; }
+      .stat-label { font-size: 12px; color: #6b7280; }
+    </style>
+    </head><body>
+    <h1>Report Campagna: ${c.name}</h1>
+    <p>Generato il ${format(new Date(), "d MMMM yyyy 'alle' HH:mm", { locale: it })}</p>
+    <table>
+      <tr><th>Campo</th><th>Valore</th></tr>
+      <tr><td>Tipo</td><td>${c.campaign_type.replace(/_/g, " ")}</td></tr>
+      <tr><td>Stato</td><td>${STATUS_BADGE[c.status]?.label || c.status}</td></tr>
+      <tr><td>Data creazione</td><td>${format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: it })}</td></tr>
+      ${c.scheduled_at ? `<tr><td>Programmata per</td><td>${format(new Date(c.scheduled_at), "dd/MM/yyyy HH:mm", { locale: it })}</td></tr>` : ""}
+    </table>
+    <h2>Risultati</h2>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin: 16px 0;">
+      <div class="stat"><div class="stat-value">${c.total_calls}</div><div class="stat-label">Chiamate totali</div></div>
+      <div class="stat"><div class="stat-value">${c.calls_answered}</div><div class="stat-label">Risposte</div></div>
+      <div class="stat"><div class="stat-value">${c.calls_failed ?? 0}</div><div class="stat-label">Fallite</div></div>
+      <div class="stat"><div class="stat-value">${responseRate}%</div><div class="stat-label">Tasso risposta</div></div>
+    </div>
+    </body></html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
 function CampaignRow({ campaign: c, onStart, onPause, onDelete }: {
   campaign: InternalCampaign;
   onStart: () => void;
@@ -148,6 +192,11 @@ function CampaignRow({ campaign: c, onStart, onPause, onDelete }: {
           {c.status === "running" && (
             <Button size="icon" variant="ghost" onClick={onPause} title="Pausa">
               <Pause className="h-4 w-4" />
+            </Button>
+          )}
+          {(c.status === "completed" || c.total_calls > 0) && (
+            <Button size="icon" variant="ghost" onClick={() => exportCampaignPdf(c)} title="Esporta PDF">
+              <FileDown className="h-4 w-4" />
             </Button>
           )}
           <AlertDialog>
