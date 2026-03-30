@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +26,7 @@ export function useWarehouseData() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [orderFilter, setOrderFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
   const [page, setPage] = useState(0);
@@ -35,6 +36,7 @@ export function useWarehouseData() {
   const setStatusFilterWithReset = useCallback((v: string) => { setStatusFilter(v); setPage(0); }, []);
   const setOrderFilterWithReset = useCallback((v: string) => { setOrderFilter(v); setPage(0); }, []);
   const setSupplierFilterWithReset = useCallback((v: string) => { setSupplierFilter(v); setPage(0); }, []);
+  const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setPage(0); }, []);
   const setQuickFilterWithReset = useCallback((v: QuickFilter) => { setQuickFilter(v); setPage(0); }, []);
 
   // Fetch suppliers
@@ -122,7 +124,7 @@ export function useWarehouseData() {
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page),
+    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, sectionFilter, quickFilter, page),
     queryFn: async () => {
       if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
 
@@ -163,6 +165,14 @@ export function useWarehouseData() {
 
       if (supplierFilter !== "all") {
         query = query.eq("supplier_id", supplierFilter);
+      }
+
+      if (sectionFilter !== "all") {
+        if (sectionFilter === "__none__") {
+          query = query.is("section_id", null);
+        } else {
+          query = query.eq("section_id", sectionFilter);
+        }
       }
 
       // Quick filters that exclude statuses
@@ -445,12 +455,13 @@ export function useWarehouseData() {
     setStatusFilter("all");
     setOrderFilter("all");
     setSupplierFilter("all");
+    setSectionFilter("all");
     setQuickFilter("all");
     setPage(0);
   };
 
   const hasActiveFilters =
-    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || quickFilter !== "all";
+    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || sectionFilter !== "all" || quickFilter !== "all";
 
   const exportToCSV = () => {
     const columns = [
@@ -474,6 +485,18 @@ export function useWarehouseData() {
     exportCsvUtil(rows, columns, `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`);
     toast.success("Esportazione completata", { description: `${filteredItems.length} articoli esportati.` });
   };
+
+  // M6/B9 — Real-time subscription: invalidate warehouse items on any change
+  useEffect(() => {
+    if (!companyId) return;
+    const channel = supabase
+      .channel(`warehouse-items-rt-${companyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [companyId, queryClient]);
 
   const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending || batchUpdateSectionMutation.isPending;
 
@@ -509,6 +532,8 @@ export function useWarehouseData() {
     setOrderFilter: setOrderFilterWithReset,
     supplierFilter,
     setSupplierFilter: setSupplierFilterWithReset,
+    sectionFilter,
+    setSectionFilter: setSectionFilterWithReset,
     groupBy,
     setGroupBy,
     quickFilter,

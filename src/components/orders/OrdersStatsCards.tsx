@@ -1,6 +1,7 @@
 import { ShoppingBag, Euro, TrendingUp, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 
 interface OrdersStats {
   totalOrders: number;
@@ -11,9 +12,11 @@ interface OrdersStats {
 
 interface OrdersStatsCardsProps {
   stats: OrdersStats;
+  onPendingClick?: () => void;
+  activePendingFilter?: boolean;
 }
 
-export function OrdersStatsCards({ stats }: OrdersStatsCardsProps) {
+export function OrdersStatsCards({ stats, onPendingClick, activePendingFilter }: OrdersStatsCardsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
       <Card>
@@ -49,14 +52,28 @@ export function OrdersStatsCards({ stats }: OrdersStatsCardsProps) {
           </div>
         </CardContent>
       </Card>
-      <Card>
+      <Card
+        className={cn(
+          onPendingClick && "cursor-pointer transition-colors hover:border-orange-400",
+          activePendingFilter && "border-orange-500 bg-orange-50 dark:bg-orange-950/30"
+        )}
+        onClick={onPendingClick}
+      >
         <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-          <div className="p-1.5 sm:p-2 rounded-lg bg-orange-100 dark:bg-orange-950 shrink-0">
+          <div className={cn(
+            "p-1.5 sm:p-2 rounded-lg shrink-0",
+            activePendingFilter ? "bg-orange-200 dark:bg-orange-900" : "bg-orange-100 dark:bg-orange-950"
+          )}>
             <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 dark:text-orange-400" />
           </div>
           <div className="min-w-0">
             <p className="text-sm sm:text-2xl font-bold truncate">{formatCurrency(stats.pending)}</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">Da Incassare</p>
+            <p className={cn(
+              "text-[10px] sm:text-xs",
+              activePendingFilter ? "text-orange-600 dark:text-orange-400 font-medium" : "text-muted-foreground"
+            )}>
+              Da Incassare{activePendingFilter && " ✓"}
+            </p>
           </div>
         </CardContent>
       </Card>

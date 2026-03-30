@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
+import { CalendarDayView } from "@/components/calendar/CalendarDayView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
@@ -23,11 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download } from "lucide-react";
+import { exportAppointmentsIcal } from "@/lib/icalExport";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 function CalendarInner() {
   const { effectiveCompany } = useAuth();
@@ -165,7 +169,7 @@ function CalendarInner() {
           order:orders!appointments_order_id_fkey(order_code, description)
         `)
         .eq("company_id", effectiveCompany.id)
-        .is("calendar_id", null)
+        // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
         .gte("appointment_date", calendarRangeStart)
         .lte("appointment_date", calendarRangeEnd)
         .order("appointment_date", { ascending: true })
@@ -256,19 +260,17 @@ function CalendarInner() {
   });
 
   // Approved leaves for calendar
-  const calendarYear = currentDate.getFullYear();
+  // B11 — usa calendarRangeStart/End invece dell'anno solare fisso
   const { data: approvedLeaves = [] } = useQuery({
-    queryKey: ["approved-leaves", effectiveCompany?.id, calendarYear],
+    queryKey: ["approved-leaves", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
     queryFn: async () => {
-      const yearStart = `${calendarYear}-01-01`;
-      const yearEnd = `${calendarYear}-12-31`;
       const { data, error } = await supabase
         .from("leave_requests")
         .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
         .eq("company_id", effectiveCompany!.id)
         .eq("status", "approved")
-        .gte("start_date", yearStart)
-        .lte("end_date", yearEnd)
+        .gte("start_date", calendarRangeStart)
+        .lte("end_date", calendarRangeEnd)
         .order("start_date");
       if (error) throw error;
       return data ?? [];
@@ -388,10 +390,14 @@ function CalendarInner() {
   const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
   const effectiveVisibleTeams = useMemo(() => visibleTeamIds ?? new Set(externalTeams.map(t => t.id)), [visibleTeamIds, externalTeams]);
 
-  // Count orders without important dates
-  const unplannedOrdersCount = useMemo(() => {
-    return orders.filter(order => !order.expected_date && !order.work_start_date).length;
+  // M13 — ordini non pianificati con drawer
+  const [unplannedOpen, setUnplannedOpen] = useState(false);
+  const [conflictsOpen, setConflictsOpen] = useState(false);
+  const [notifyingConflict, setNotifyingConflict] = useState<string | null>(null);
+  const unplannedOrders = useMemo(() => {
+    return orders.filter(order => !order.expected_date && !order.work_start_date);
   }, [orders]);
+  const unplannedOrdersCount = unplannedOrders.length;
 
   // Build employee user_id → employee mapping for conflict detection bridge
   const employeeByUserId = useMemo(() => {
@@ -414,7 +420,11 @@ function CalendarInner() {
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
           {conflictCount > 0 && (
-            <Badge variant="destructive" className="gap-1">
+            <Badge
+              variant="destructive"
+              className="gap-1 cursor-pointer"
+              onClick={() => setConflictsOpen(true)}
+            >
               <AlertTriangle className="h-3 w-3" />
               {conflictCount} conflitti
             </Badge>
@@ -434,6 +444,10 @@ function CalendarInner() {
           <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
             <CalendarDays className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Settimana</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="day" aria-label="Vista Giorno" className="gap-1.5 px-2.5">
+            <CalendarRange className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Giorno</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
             <BarChart3 className="h-4 w-4" />
@@ -479,6 +493,15 @@ function CalendarInner() {
               Sync
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden sm:flex gap-1.5"
+            onClick={() => exportAppointmentsIcal(filteredAppointments, scheduledOrders)}
+          >
+            <Download className="h-4 w-4" />
+            iCal
+          </Button>
           <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
             <Plus className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Appuntamento</span>
@@ -590,7 +613,11 @@ function CalendarInner() {
                 {scheduledOrders.length} {scheduledOrders.length === 1 ? "ordine" : "ordini"}
               </Badge>
               {unplannedOrdersCount > 0 && (
-                <Badge variant="destructive" className="gap-1">
+                <Badge
+                  variant="destructive"
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setUnplannedOpen(true)}
+                >
                   <AlertTriangle className="h-3 w-3" />
                   {unplannedOrdersCount} non pianificati
                 </Badge>
@@ -627,6 +654,17 @@ function CalendarInner() {
             />
           ) : view === "week" ? (
             <CalendarWeekView
+              orders={scheduledOrders}
+              appointments={filteredAppointments}
+              busySlots={showGoogleBusy ? busySlots : []}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              syncedAppointmentIds={syncedAppointmentIds}
+              hiddenEventTypes={hiddenEventTypes}
+              approvedLeaves={showLeaves ? approvedLeaves : []}
+            />
+          ) : view === "day" ? (
+            <CalendarDayView
               orders={scheduledOrders}
               appointments={filteredAppointments}
               busySlots={showGoogleBusy ? busySlots : []}
@@ -700,6 +738,113 @@ function CalendarInner() {
         }}
         showOrderSelect={true}
       />
+
+      {/* M13 — Drawer ordini non pianificati */}
+      <Sheet open={unplannedOpen} onOpenChange={setUnplannedOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Da pianificare ({unplannedOrders.length})
+            </SheetTitle>
+            <SheetDescription>
+              Questi ordini non hanno ancora una data di posa o inizio lavori.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-2 overflow-y-auto flex-1">
+            {unplannedOrders.map(order => (
+              <div key={order.id} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">
+                    {order.order_code ? `${order.order_code} · ` : ""}
+                    {order.customer.first_name} {order.customer.last_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{order.description}</p>
+                </div>
+                <Link
+                  to={`/azienda/ordini/${order.id}`}
+                  onClick={() => setUnplannedOpen(false)}
+                  className="shrink-0"
+                >
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    Pianifica
+                  </Button>
+                </Link>
+              </div>
+            ))}
+            {unplannedOrders.length === 0 && (
+              <p className="text-center text-muted-foreground text-sm py-8">
+                Tutti gli ordini hanno una data pianificata.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+      {/* Conflicts Sheet */}
+      <Sheet open={conflictsOpen} onOpenChange={setConflictsOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Conflitti risorse ({conflictCount})
+            </SheetTitle>
+            <SheetDescription>
+              Tecnici assegnati a più eventi nello stesso giorno.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto space-y-3 mt-4">
+            {conflicts.map((conflict, idx) => (
+              <div key={idx} className="border border-destructive/30 rounded-lg p-3 space-y-2 bg-destructive/5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-sm">{conflict.employeeName}</p>
+                    <p className="text-xs text-muted-foreground">{conflict.date}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs shrink-0"
+                    disabled={notifyingConflict === `${conflict.employeeId}-${conflict.date}`}
+                    onClick={async () => {
+                      setNotifyingConflict(`${conflict.employeeId}-${conflict.date}`);
+                      try {
+                        const eventList = conflict.events.map(e => `• ${e.label}`).join("\n");
+                        await supabase.functions.invoke("send-test-email", {
+                          body: {
+                            to: `${conflict.employeeName.toLowerCase().replace(/\s+/g, ".")}@placeholder.local`,
+                            subject: `⚠️ Conflitto calendario: ${conflict.date}`,
+                            html: `<p>Ciao ${conflict.employeeName},</p><p>Sei assegnato a più eventi il <strong>${conflict.date}</strong>:</p><pre>${eventList}</pre><p>Verifica il calendario.</p>`,
+                          },
+                        });
+                        toast({ title: "Notifica inviata", description: `Email inviata per ${conflict.employeeName}` });
+                      } catch {
+                        toast({ title: "Errore invio notifica", variant: "destructive" });
+                      } finally {
+                        setNotifyingConflict(null);
+                      }
+                    }}
+                  >
+                    Notifica
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  {conflict.events.map((evt, ei) => (
+                    <div key={ei} className={`text-xs px-2 py-0.5 rounded flex items-center gap-1.5 ${evt.type === "order" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"}`}>
+                      <span>{evt.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {conflicts.length === 0 && (
+              <p className="text-center text-muted-foreground text-sm py-8">
+                Nessun conflitto rilevato.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

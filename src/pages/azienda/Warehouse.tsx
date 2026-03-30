@@ -24,7 +24,9 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  ScanLine,
 } from "lucide-react";
+import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -83,6 +85,8 @@ export default function Warehouse() {
     setOrderFilter,
     supplierFilter,
     setSupplierFilter,
+    sectionFilter,
+    setSectionFilter,
     groupBy,
     setGroupBy,
     quickFilter,
@@ -104,6 +108,8 @@ export default function Warehouse() {
   } = useWarehouseData();
 
   const { sections } = useWarehouseSections();
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   const [showMap, setShowMap] = useState(() => {
     const stored = localStorage.getItem("warehouse-show-map");
     return stored !== null ? stored === "true" : true;
@@ -179,6 +185,11 @@ export default function Warehouse() {
       }
     }
   }, [selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
+
+  // M9 — wrapper single-item per il dropdown sezione mobile
+  const handleSingleSectionChange = useCallback((itemId: string, sectionId: string | null) => {
+    handleBatchSectionChange([itemId], sectionId);
+  }, [handleBatchSectionChange]);
 
   if (!effectiveCompany) {
     return (
@@ -419,8 +430,8 @@ export default function Warehouse() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-4">
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
+              <div className="flex-1 min-w-[200px] flex gap-2">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Cerca articolo..."
@@ -429,6 +440,15 @@ export default function Warehouse() {
                     className="pl-9"
                   />
                 </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="sm:hidden shrink-0"
+                  onClick={() => setScannerOpen(true)}
+                  title="Scansiona barcode"
+                >
+                  <ScanLine className="h-4 w-4" />
+                </Button>
               </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -472,6 +492,23 @@ export default function Warehouse() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {sections.length > 0 && (
+                <Select value={sectionFilter} onValueChange={setSectionFilter}>
+                  <SelectTrigger className="w-full sm:w-[160px]">
+                    <SelectValue placeholder="Zona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte le zone</SelectItem>
+                    <SelectItem value="__none__">Nessuna zona</SelectItem>
+                    {sections.map((section) => (
+                      <SelectItem key={section.id} value={section.id}>
+                        {section.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -539,6 +576,8 @@ export default function Warehouse() {
               stockItems={stockItems}
               onUpdateNotes={handleUpdateNotes}
               groupBy={groupBy}
+              sections={sections}
+              onSectionChange={handleSingleSectionChange}
             />
           )}
 
@@ -574,6 +613,13 @@ export default function Warehouse() {
           </DragOverlay>
         </DndContext>
       )}
+
+      {/* M7 — Barcode/QR scanner (mobile) */}
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={(result) => setSearchQuery(result)}
+      />
     </div>
   );
 }

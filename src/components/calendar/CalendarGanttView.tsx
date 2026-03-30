@@ -136,13 +136,17 @@ export function CalendarGanttView({
     return differenceInDays(today, startDate) * dayWidth;
   }, [startDate, endDate, dayWidth]);
 
-  // Scroll to today on mount
+  // Scroll to today when todayOffset changes (mount, zoom change, period change)
   useEffect(() => {
     if (scrollContainerRef.current && todayOffset !== null) {
       const containerWidth = scrollContainerRef.current.clientWidth;
       scrollContainerRef.current.scrollLeft = todayOffset - containerWidth / 2;
     }
   }, [todayOffset]);
+
+  const handleGoToToday = () => {
+    onDateChange(new Date());
+  };
 
   // Capacity: count active orders per day
   const capacityPerDay = useMemo(() => {
@@ -297,6 +301,14 @@ export function CalendarGanttView({
           </h2>
           <Button variant="ghost" size="icon" onClick={handleNext}>
             <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={todayOffset !== null ? "outline" : "default"}
+            size="sm"
+            onClick={handleGoToToday}
+            className="text-xs"
+          >
+            Oggi
           </Button>
         </div>
 

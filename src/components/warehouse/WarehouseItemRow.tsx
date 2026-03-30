@@ -20,10 +20,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { StickyNote, PackageCheck } from "lucide-react";
+import { MapPin, StickyNote, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+
+interface WarehouseSection {
+  id: string;
+  name: string;
+}
 
 interface WarehouseItemRowProps {
   item: WarehouseItem;
@@ -36,6 +41,9 @@ interface WarehouseItemRowProps {
   stockMatch: { id: string; name: string; quantity: number } | null;
   isUpdating: boolean;
   isSupplierGroup: boolean;
+  // M9 — dropdown sezione mobile
+  sections?: WarehouseSection[];
+  onSectionChange?: (itemId: string, sectionId: string | null) => void;
 }
 
 function ItemNotePopover({ item, onUpdateNotes }: { item: WarehouseItem; onUpdateNotes?: (itemId: string, notes: string | null) => void }) {
@@ -85,6 +93,8 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
   stockMatch,
   isUpdating,
   isSupplierGroup,
+  sections = [],
+  onSectionChange,
 }: WarehouseItemRowProps) {
   return (
     <div
@@ -129,6 +139,26 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 ? `${item.order.order_code || "Ordine"} - ${item.order.customer.first_name} ${item.order.customer.last_name}`
                 : supplierName}
             </p>
+          )}
+          {/* M9/B7 — dropdown sezione visibile solo su mobile (la mappa è hidden su mobile) */}
+          {onSectionChange && sections.length > 0 && (
+            <div className="flex sm:hidden items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
+              <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+              <Select
+                value={item.section_id || "__none__"}
+                onValueChange={(val) => onSectionChange(item.id, val === "__none__" ? null : val)}
+              >
+                <SelectTrigger className="h-6 text-xs flex-1 border-dashed">
+                  <SelectValue placeholder="Zona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nessuna zona</SelectItem>
+                  {sections.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       </div>

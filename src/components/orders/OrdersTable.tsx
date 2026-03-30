@@ -287,7 +287,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />
               <SortableTableHead column="due" label="Da Ricevere" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />
               <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />
-              <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />
+              {visibleColumns.has("margin") && <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
               {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label="Venditore" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
               {visibleColumns.has("labor") && <SortableTableHead column="labor" label="Manodopera" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
               <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell" />
@@ -365,17 +365,19 @@ export const OrdersTable = React.memo(function OrdersTable({
                       {formatCurrency(variableCosts)}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-right">
-                    <span className={`font-medium ${
-                      marginPercent >= 30
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : marginPercent >= 20
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-destructive"
-                    }`}>
-                      {formatCurrency(grossMargin)} - {marginPercent.toFixed(1)}%
-                    </span>
-                  </TableCell>
+                  {visibleColumns.has("margin") && (
+                    <TableCell className="hidden lg:table-cell text-right">
+                      <span className={`font-medium ${
+                        marginPercent >= 30
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : marginPercent >= 15
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-destructive"
+                      }`}>
+                        {formatCurrency(grossMargin)} ({marginPercent.toFixed(1)}%)
+                      </span>
+                    </TableCell>
+                  )}
                   {visibleColumns.has("salesperson") && (
                     <TableCell className="hidden xl:table-cell text-sm">
                       {(salespeopleMap.get(order.id) || []).join(", ") || "—"}

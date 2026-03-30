@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarDays, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -47,13 +47,35 @@ interface AppointmentDialogProps {
   hideMarketingFields?: boolean;
 }
 
+// M16 — Tipi appuntamento con gruppi (acquisizione, esecuzione, post-vendita, altro)
 const APPOINTMENT_TYPES = [
-  { value: "sopralluogo", label: "Sopralluogo" },
-  { value: "consegna", label: "Consegna" },
-  { value: "riunione", label: "Riunione" },
-  { value: "cliente", label: "Appuntamento Cliente" },
-  { value: "generico", label: "Generico" },
+  // Acquisizione
+  { value: "sopralluogo_preventivo", label: "Sopralluogo Preventivo",  group: "Acquisizione" },
+  { value: "rilievo_tecnico",        label: "Rilievo Tecnico",          group: "Acquisizione" },
+  { value: "misurazione",            label: "Misurazione",              group: "Acquisizione" },
+  { value: "conferma_ordine",        label: "Conferma Ordine",          group: "Acquisizione" },
+  // Esecuzione
+  { value: "verifica_cantiere",      label: "Verifica Cantiere",        group: "Esecuzione" },
+  { value: "posa_prova",             label: "Posa di Prova",            group: "Esecuzione" },
+  { value: "consegna",               label: "Consegna",                 group: "Esecuzione" },
+  { value: "collaudo",               label: "Collaudo",                 group: "Esecuzione" },
+  // Post-vendita
+  { value: "assistenza",             label: "Assistenza Post-Vendita",  group: "Post-Vendita" },
+  { value: "ispezione",              label: "Ispezione Tecnica",        group: "Post-Vendita" },
+  // Altro
+  { value: "sopralluogo",            label: "Sopralluogo",              group: "Altro" },
+  { value: "riunione",               label: "Riunione",                 group: "Altro" },
+  { value: "cliente",                label: "Appuntamento Cliente",     group: "Altro" },
+  { value: "generico",               label: "Generico",                 group: "Altro" },
 ];
+
+// Tipi che richiedono un tecnico assegnato
+const REQUIRES_TECHNICIAN = new Set([
+  "rilievo_tecnico", "misurazione", "verifica_cantiere",
+  "conferma_ordine", "posa_prova", "collaudo", "assistenza", "ispezione",
+]);
+
+const APPOINTMENT_TYPE_GROUPS = ["Acquisizione", "Esecuzione", "Post-Vendita", "Altro"] as const;
 
 export function AppointmentDialog({
   open,
@@ -285,11 +307,25 @@ export function AppointmentDialog({
               <Select value={appointmentType} onValueChange={setAppointmentType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {APPOINTMENT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
+                  {APPOINTMENT_TYPE_GROUPS.map(group => {
+                    const groupTypes = APPOINTMENT_TYPES.filter(t => t.group === group);
+                    return (
+                      <SelectGroup key={group}>
+                        <SelectLabel className="text-xs text-muted-foreground">{group.toUpperCase()}</SelectLabel>
+                        {groupTypes.map(t => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {REQUIRES_TECHNICIAN.has(appointmentType) && !assignedTo && (
+                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Questo tipo richiede un tecnico assegnato
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -54,7 +54,7 @@ function OrdersListInner() {
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
-    viewMode: { key: "view", defaultValue: "table" },
+    viewMode: { key: "view", defaultValue: (localStorage.getItem("orders-view-mode") || "table") },
     customerFilter: { key: "cliente", defaultValue: "all" },
     monthFilter: { key: "mese", defaultValue: "all" },
     salespersonFilter: { key: "venditore", defaultValue: "all" },
@@ -71,7 +71,10 @@ function OrdersListInner() {
   const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid";
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid") => setURLParam("paymentFilter", v), [setURLParam]);
   const viewMode = urlFilters.viewMode as "table" | "pipeline";
-  const setViewMode = useCallback((v: "table" | "pipeline") => setURLParam("viewMode", v), [setURLParam]);
+  const setViewMode = useCallback((v: "table" | "pipeline") => {
+    localStorage.setItem("orders-view-mode", v);
+    setURLParam("viewMode", v);
+  }, [setURLParam]);
   const customerFilter = urlFilters.customerFilter;
   const setCustomerFilter = useCallback((v: string) => setURLParam("customerFilter", v), [setURLParam]);
   const monthFilter = urlFilters.monthFilter;
@@ -119,6 +122,50 @@ function OrdersListInner() {
     queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, contractDateRange, warehouseDateRange, expectedDateRange],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+
+      // B1 — subquery per filtri che richiedono join
+      let allowedOrderIds: string[] | null = null;
+
+      if (salespersonFilter !== "all") {
+        const { data: spOrders } = await supabase
+          .from("order_salespeople")
+          .select("order_id")
+          .eq("salesperson_id", salespersonFilter);
+        const ids = (spOrders || []).map(r => r.order_id);
+        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+        allowedOrderIds = ids;
+      }
+
+      if (laborFilter !== "all") {
+        const isTeam = laborFilter.startsWith("team-");
+        const realId = laborFilter.replace(/^(emp-|team-)/, "");
+        const { data: laborOrders } = await supabase
+          .from(isTeam ? "order_external_teams" : "order_employees")
+          .select("order_id")
+          .eq(isTeam ? "external_team_id" : "employee_id", realId);
+        const ids = (laborOrders || []).map(r => r.order_id);
+        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+        allowedOrderIds = allowedOrderIds
+          ? allowedOrderIds.filter(id => ids.includes(id))
+          : ids;
+      }
+
+      if (supplierFilter !== "all") {
+        const { data: suppOrders } = await supabase
+          .from("order_items")
+          .select("order_id")
+          .eq("supplier_id", supplierFilter);
+        const ids = [...new Set((suppOrders || []).map(r => r.order_id))];
+        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+        allowedOrderIds = allowedOrderIds
+          ? allowedOrderIds.filter(id => ids.includes(id))
+          : ids;
+      }
+
+      if (allowedOrderIds !== null && allowedOrderIds.length === 0) {
+        return { orders: [] as OrderWithDetails[], totalCount: 0 };
+      }
+
       let query = supabase
         .from("orders")
         .select(`
@@ -126,11 +173,20 @@ function OrdersListInner() {
           vat_rate, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
           financing_amount, deposit_2_amount, has_building_bonus,
+          deposit_paid, deposit_2_paid, balance_paid, financing_paid,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `, { count: "exact" })
         .eq("company_id", effectiveCompany.id);
 
+      if (allowedOrderIds !== null) query = query.in("id", allowedOrderIds);
+      // B1 — customerFilter e paymentFilter applicati server-side
+      if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
+      if (paymentFilter === "pending") {
+        query = query.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
+      } else if (paymentFilter === "paid") {
+        query = query.eq("deposit_paid", true).eq("balance_paid", true);
+      }
       if (debouncedSearch) {
         query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       }
@@ -164,6 +220,101 @@ function OrdersListInner() {
 
   const orders = ordersResult?.orders ?? [];
   const totalCount = ordersResult?.totalCount ?? 0;
+
+  // B2 — query aggregati separata: calcola totali su TUTTI gli ordini filtrati, non solo la pagina
+  const { data: aggregates } = useQuery({
+    queryKey: ["orders-aggregates", effectiveCompany?.id, debouncedSearch, statusFilter, paymentFilter,
+      customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter,
+      hideCompleted, lastStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return { totalGross: 0, collected: 0, pending: 0 };
+
+      let allowedIds: string[] | null = null;
+      if (salespersonFilter !== "all") {
+        const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
+        const ids = (r || []).map(x => x.order_id);
+        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        allowedIds = ids;
+      }
+      if (laborFilter !== "all") {
+        const isTeam = laborFilter.startsWith("team-");
+        const realId = laborFilter.replace(/^(emp-|team-)/, "");
+        const { data: r } = await supabase
+          .from(isTeam ? "order_external_teams" : "order_employees")
+          .select("order_id")
+          .eq(isTeam ? "external_team_id" : "employee_id", realId);
+        const ids = (r || []).map(x => x.order_id);
+        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
+      }
+      if (supplierFilter !== "all") {
+        const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
+        const ids = [...new Set((r || []).map(x => x.order_id))];
+        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
+      }
+      if (allowedIds !== null && allowedIds.length === 0) return { totalGross: 0, collected: 0, pending: 0 };
+
+      let q = supabase
+        .from("orders")
+        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type")
+        .eq("company_id", effectiveCompany.id);
+      if (allowedIds !== null) q = q.in("id", allowedIds);
+      if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
+      if (paymentFilter === "pending") q = q.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
+      else if (paymentFilter === "paid") q = q.eq("deposit_paid", true).eq("balance_paid", true);
+      if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
+      if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
+      if (hideCompleted && lastStatusId) q = q.neq("current_status_id", lastStatusId);
+      if (amountMin) q = q.gte("total_amount", parseFloat(amountMin));
+      if (amountMax) q = q.lte("total_amount", parseFloat(amountMax));
+      if (contractDateRange.from) q = q.gte("created_at", contractDateRange.from.toISOString());
+      if (contractDateRange.to) q = q.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
+      if (warehouseDateRange.from) q = q.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
+      if (warehouseDateRange.to) q = q.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+      if (expectedDateRange.from) q = q.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
+      if (expectedDateRange.to) q = q.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+
+      const { data, error } = await q;
+      if (error) throw error;
+      const totalGross = (data || []).reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
+      const collected = (data || []).reduce((sum, o) => sum + getAmountCollected(o as any), 0);
+      const pending = (data || []).reduce((sum, o) => sum + getAmountDue(o as any), 0);
+      return { totalGross, collected, pending };
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // B3 — query indipendente per la vista Pipeline (tutti gli ordini, nessuna paginazione)
+  const { data: allOrdersForPipeline = [] } = useQuery({
+    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, hideCompleted, lastStatusId, debouncedSearch, customerFilter],
+    queryFn: async () => {
+      if (!effectiveCompany?.id || viewMode !== "pipeline") return [] as OrderWithDetails[];
+      let q = supabase
+        .from("orders")
+        .select(`
+          id, order_code, description, total_amount, deposit_amount, balance_amount,
+          vat_rate, created_at, expected_date, work_start_date, work_end_date,
+          warehouse_arrival_date, customer_id, current_status_id, payment_type,
+          financing_amount, deposit_2_amount, has_building_bonus,
+          deposit_paid, deposit_2_paid, balance_paid, financing_paid,
+          customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
+          status:order_statuses!orders_current_status_id_fkey(name, color)
+        `)
+        .eq("company_id", effectiveCompany.id)
+        .order("created_at", { ascending: false });
+      if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
+      if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
+      if (hideCompleted && lastStatusId) q = q.neq("current_status_id", lastStatusId);
+      if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []) as OrderWithDetails[];
+    },
+    enabled: !!effectiveCompany?.id && viewMode === "pipeline",
+    staleTime: 3 * 60 * 1000,
+  });
 
   // Batch queries for cost calculations — use IDs from current page only
   const orderIds = useMemo(() => orders.map(o => o.id), [orders]);
@@ -357,6 +508,7 @@ function OrdersListInner() {
   // Column visibility state
   const OPTIONAL_COLUMNS = [
     { key: "date", label: "Data Ordine" },
+    { key: "margin", label: "Margine" },
     { key: "salesperson", label: "Venditore" },
     { key: "labor", label: "Manodopera" },
   ] as const;
@@ -517,12 +669,15 @@ function OrdersListInner() {
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
     !hideCompleted);
 
+  // B4 — usa customer_id (UUID reale) invece della chiave composita nome+cognome+email
   const uniqueCustomers = useMemo(() => {
     const customerMap = new Map<string, { id: string; name: string }>();
     orders.forEach(order => {
-      if (order.customer) {
-        const customerId = `${order.customer.first_name}-${order.customer.last_name}-${order.customer.email}`;
-        customerMap.set(customerId, { id: customerId, name: `${order.customer.first_name} ${order.customer.last_name}` });
+      if (order.customer && order.customer_id) {
+        customerMap.set(order.customer_id, {
+          id: order.customer_id,
+          name: `${order.customer.first_name} ${order.customer.last_name}`,
+        });
       }
     });
     return Array.from(customerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -569,16 +724,77 @@ function OrdersListInner() {
   const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const showingTo = Math.min(page * pageSize, totalCount);
 
-  const stats = useMemo(() => {
-    const totalOrders = totalCount;
-    const totalGross = orders.reduce((sum, o) => sum + o.total_amount * (1 + (o.vat_rate ?? 22) / 100), 0);
-    const collected = orders.reduce((sum, o) => sum + getAmountCollected(o), 0);
-    const pending = orders.reduce((sum, o) => sum + getAmountDue(o), 0);
-    return { totalOrders, totalGross, collected, pending };
-  }, [orders, totalCount]);
+  // B2 — stats usa la query aggregati (tutti gli ordini filtrati, non solo la pagina)
+  const stats = useMemo(() => ({
+    totalOrders: totalCount,
+    totalGross: aggregates?.totalGross ?? 0,
+    collected: aggregates?.collected ?? 0,
+    pending: aggregates?.pending ?? 0,
+  }), [totalCount, aggregates]);
 
   // Export CSV
-  const exportOrdersCSV = useCallback(() => {
+  // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
+  const exportOrdersCSV = useCallback(async () => {
+    if (!effectiveCompany?.id) return;
+    toast({ title: "Esportazione in corso..." });
+
+    // Subquery join filters (stesso pattern di B1)
+    let allowedExportIds: string[] | null = null;
+    if (salespersonFilter !== "all") {
+      const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
+      const ids = (r || []).map(x => x.order_id);
+      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      allowedExportIds = ids;
+    }
+    if (laborFilter !== "all") {
+      const isTeam = laborFilter.startsWith("team-");
+      const realId = laborFilter.replace(/^(emp-|team-)/, "");
+      const { data: r } = await supabase
+        .from(isTeam ? "order_external_teams" : "order_employees")
+        .select("order_id")
+        .eq(isTeam ? "external_team_id" : "employee_id", realId);
+      const ids = (r || []).map(x => x.order_id);
+      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
+    }
+    if (supplierFilter !== "all") {
+      const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
+      const ids = [...new Set((r || []).map(x => x.order_id))];
+      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
+    }
+
+    let query = supabase
+      .from("orders")
+      .select(`
+        id, order_code, description, total_amount, deposit_amount, balance_amount,
+        deposit_2_amount, vat_rate, created_at, expected_date, warehouse_arrival_date,
+        payment_type, deposit_paid, deposit_2_paid, balance_paid,
+        customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
+        status:order_statuses!orders_current_status_id_fkey(name)
+      `)
+      .eq("company_id", effectiveCompany.id)
+      .order("created_at", { ascending: false });
+
+    if (allowedExportIds !== null) query = query.in("id", allowedExportIds);
+    if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
+    if (paymentFilter === "pending") query = query.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
+    else if (paymentFilter === "paid") query = query.eq("deposit_paid", true).eq("balance_paid", true);
+    if (debouncedSearch) query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
+    if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
+    if (hideCompleted && lastStatusId) query = query.neq("current_status_id", lastStatusId);
+    if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
+    if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
+    if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
+    if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
+    if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
+    if (warehouseDateRange.to) query = query.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+    if (expectedDateRange.from) query = query.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
+    if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
+
+    const { data: allOrders, error } = await query;
+    if (error) { toast({ title: "Errore export", variant: "destructive" }); return; }
+
     const columns: { key: string; label: string }[] = [
       { key: "order_code", label: "Codice Ordine" },
       { key: "customer", label: "Cliente" },
@@ -593,17 +809,17 @@ function OrdersListInner() {
       { key: "expected_date", label: "Data Posa" },
       { key: "payment_status", label: "Stato Pagamenti" },
     ];
-    const rows = orders.map((o) => {
-      const pending = getPendingPayments(o);
+    const rows = (allOrders || []).map((o) => {
+      const pending = getPendingPayments(o as any);
       return {
         order_code: o.order_code || "",
-        customer: o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
+        customer: (o.customer as any) ? `${(o.customer as any).first_name} ${(o.customer as any).last_name}` : "",
         description: o.description,
         total_amount: String(o.total_amount),
         deposit_amount: String(o.deposit_amount || 0),
         deposit_2_amount: String(o.deposit_2_amount || 0),
         balance_amount: String(o.balance_amount || 0),
-        status: o.status?.name || "",
+        status: (o.status as any)?.name || "",
         created_at: o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
         warehouse_arrival_date: o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
         expected_date: o.expected_date ? format(new Date(o.expected_date), "dd/MM/yyyy") : "",
@@ -611,8 +827,10 @@ function OrdersListInner() {
       };
     });
     exportToCSV(rows, columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
-    toast({ title: "CSV esportato" });
-  }, [orders, toast]);
+    toast({ title: `CSV esportato — ${allOrders?.length ?? 0} ordini` });
+  }, [effectiveCompany?.id, salespersonFilter, laborFilter, supplierFilter, customerFilter,
+      paymentFilter, debouncedSearch, statusFilter, hideCompleted, lastStatusId,
+      amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -634,6 +852,14 @@ function OrdersListInner() {
       .limit(1);
     const defaultStatusId = defaultStatus?.[0]?.id || null;
 
+    // B5 — fetch codici ordine esistenti per evitare duplicati
+    const { data: existingCodes } = await supabase
+      .from("orders")
+      .select("order_code")
+      .eq("company_id", effectiveCompany.id)
+      .not("order_code", "is", null);
+    const existingCodeSet = new Set((existingCodes || []).map(r => r.order_code?.trim().toLowerCase()));
+
     let success = 0;
     const errors: string[] = [];
 
@@ -645,6 +871,15 @@ function OrdersListInner() {
         const customerId = emailToId.get(email);
         if (!customerId) { errors.push(`Riga ${i + 1}: Cliente con email "${email}" non trovato`); continue; }
         if (!row.description?.trim()) { errors.push(`Riga ${i + 1}: Descrizione mancante`); continue; }
+
+        // B5 — verifica duplicato order_code
+        if (row.order_code?.trim()) {
+          const normalizedCode = row.order_code.trim().toLowerCase();
+          if (existingCodeSet.has(normalizedCode)) {
+            errors.push(`Riga ${i + 1}: Codice ordine "${row.order_code}" già esistente`);
+            continue;
+          }
+        }
 
         const totalAmount = parseFloat(row.total_amount) || 0;
         if (totalAmount <= 0) { errors.push(`Riga ${i + 1}: Importo totale non valido`); continue; }
@@ -736,7 +971,11 @@ function OrdersListInner() {
         </div>
       </div>
 
-      <OrdersStatsCards stats={stats} />
+      <OrdersStatsCards
+        stats={stats}
+        onPendingClick={() => setPaymentFilter(paymentFilter === "pending" ? "all" : "pending")}
+        activePendingFilter={paymentFilter === "pending"}
+      />
 
       <OrdersFilters
         searchQuery={searchQuery}
@@ -813,7 +1052,7 @@ function OrdersListInner() {
         </Card>
       ) : viewMode === "pipeline" ? (
         <OrdersPipelineView
-          orders={orders}
+          orders={allOrdersForPipeline}
           statuses={statuses}
           onStatusChange={handleStatusChange}
         />

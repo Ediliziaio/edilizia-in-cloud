@@ -1,4 +1,4 @@
-import { CalendarClock, Search, Truck, Users, UserCheck } from "lucide-react";
+import { CalendarClock, Search, Truck, Users, UserCheck, Ruler, HardHat, ClipboardCheck, Wrench, ShieldCheck, MapPin } from "lucide-react";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
 import type { AppointmentData } from "@/components/appointments/AppointmentDialog";
 
@@ -18,11 +18,44 @@ export function getEmployeeInitials(order: CalendarOrder): string {
 export const WEEK_DAYS_IT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"] as const;
 
 export const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
+  // Tipi esistenti
   sopralluogo: Search,
   consegna: Truck,
   riunione: Users,
   cliente: UserCheck,
   generico: CalendarClock,
+  // M16 — Nuovi tipi appuntamento tecnico
+  sopralluogo_preventivo: MapPin,
+  rilievo_tecnico: Ruler,
+  misurazione: Ruler,
+  verifica_cantiere: HardHat,
+  conferma_ordine: ClipboardCheck,
+  posa_prova: Wrench,
+  collaudo: ClipboardCheck,
+  assistenza: Wrench,
+  ispezione: ShieldCheck,
+};
+
+// M16 — Colori badge per tipo appuntamento
+export const APPOINTMENT_COLORS: Record<string, string> = {
+  // Acquisizione — blu
+  sopralluogo_preventivo: "bg-blue-100 text-blue-800 border-blue-200",
+  rilievo_tecnico:        "bg-blue-100 text-blue-800 border-blue-200",
+  misurazione:            "bg-blue-100 text-blue-800 border-blue-200",
+  conferma_ordine:        "bg-indigo-100 text-indigo-800 border-indigo-200",
+  // Esecuzione — arancione
+  verifica_cantiere:      "bg-orange-100 text-orange-800 border-orange-200",
+  posa_prova:             "bg-orange-100 text-orange-800 border-orange-200",
+  consegna:               "bg-amber-100 text-amber-800 border-amber-200",
+  collaudo:               "bg-green-100 text-green-800 border-green-200",
+  // Post-vendita — viola/grigio
+  assistenza:             "bg-purple-100 text-purple-800 border-purple-200",
+  ispezione:              "bg-slate-100 text-slate-800 border-slate-200",
+  // Generici
+  sopralluogo:            "bg-teal-100 text-teal-800 border-teal-200",
+  riunione:               "bg-gray-100 text-gray-800 border-gray-200",
+  cliente:                "bg-pink-100 text-pink-800 border-pink-200",
+  generico:               "bg-gray-100 text-gray-700 border-gray-200",
 };
 
 export function mapAppointmentToEditData(apt: CalendarAppointment): AppointmentData {

@@ -27,6 +27,9 @@ interface WarehouseListViewProps {
   stockItems?: { id: string; name: string; quantity: number }[];
   onUpdateNotes?: (itemId: string, notes: string | null) => void;
   groupBy?: string;
+  // M9 — dropdown sezione mobile
+  sections?: { id: string; name: string }[];
+  onSectionChange?: (itemId: string, sectionId: string | null) => void;
 }
 
 function getStatusIndicators(items: WarehouseItem[]) {
@@ -47,6 +50,8 @@ function WarehouseListView({
   stockItems = [],
   onUpdateNotes,
   groupBy,
+  sections = [],
+  onSectionChange,
 }: WarehouseListViewProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -260,6 +265,8 @@ function WarehouseListView({
                           stockMatch={item.status === "da_ordinare" ? findStockMatch(item.name) : null}
                           isUpdating={isUpdating}
                           isSupplierGroup={isSupplierGroup}
+                          sections={sections}
+                          onSectionChange={onSectionChange}
                         />
                       ))}
 

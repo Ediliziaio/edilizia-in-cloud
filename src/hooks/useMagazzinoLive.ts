@@ -281,10 +281,12 @@ export function useWarehouseStats(companyId: string | null) {
           .eq("company_id", companyId!),
         supabase.rpc("get_low_stock_alerts", { p_company_id: companyId! }),
         supabase.rpc("get_blocked_orders", { p_company_id: companyId! }),
+        // B6 — filtro company_id via join con orders (order_items non ha company_id diretto)
         supabase
           .from("order_items")
-          .select("id, status", { count: "exact", head: true })
-          .in("status", ["ordinato", "in_arrivo"]),
+          .select("id, order:orders!inner(company_id)", { count: "exact", head: true })
+          .in("status", ["ordinato", "in_arrivo"])
+          .eq("order.company_id", companyId!),
       ]);
 
       const stock = stockRes.data ?? [];

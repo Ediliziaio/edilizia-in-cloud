@@ -128,6 +128,11 @@ export default {
           from: { opacity: "1", height: "var(--radix-collapsible-content-height)", transform: "translateY(0)" },
           to: { opacity: "0", height: "0", transform: "translateY(-4px)" },
         },
+        "scan": {
+          "0%": { top: "0%" },
+          "50%": { top: "100%" },
+          "100%": { top: "0%" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -144,6 +149,7 @@ export default {
         "marquee": "marquee 25s linear infinite",
         "sidebar-slide-down": "sidebar-slide-down 200ms ease-out forwards",
         "sidebar-slide-up": "sidebar-slide-up 200ms ease-out forwards",
+        "scan": "scan 2s ease-in-out infinite",
       },
     },
   },

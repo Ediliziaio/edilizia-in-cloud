@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   format,
+  parseISO,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
@@ -71,13 +72,22 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
       }
     });
 
-    // Then group by date
-    orderMap.forEach((order) => {
-      const dateKey = order.expectedDate;
-      if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, []);
-      }
-      grouped.get(dateKey)!.push(order);
+    // B8 — group by date range (work_start_date → work_end_date, multi-day span)
+    orderMap.forEach((order, orderId) => {
+      const rawItem = items.find(i => i.order.id === orderId);
+      const startDate = rawItem?.order.work_start_date || rawItem?.order.expected_date || order.expectedDate;
+      const endDate = rawItem?.order.work_end_date || startDate;
+      if (!startDate) return;
+
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
+      eachDayOfInterval({ start, end }).forEach(day => {
+        const dateKey = format(day, "yyyy-MM-dd");
+        if (!grouped.has(dateKey)) grouped.set(dateKey, []);
+        if (!grouped.get(dateKey)!.find(o => o.orderId === orderId)) {
+          grouped.get(dateKey)!.push({ ...order, expectedDate: dateKey });
+        }
+      });
     });
 
     return grouped;
