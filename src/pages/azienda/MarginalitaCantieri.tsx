@@ -18,6 +18,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   TrendingUp,
   TrendingDown,
   Search,
@@ -26,6 +31,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ArrowUpRight,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +131,7 @@ export default function MarginalitaCantieri() {
   const companyId = useEffectiveCompanyId();
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
+  const [overheadPct, setOverheadPct] = useState(20);
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["marginalita-cantieri", companyId],
@@ -174,8 +181,9 @@ export default function MarginalitaCantieri() {
     const totMargine = filtered.reduce((s, r) => s + r.margine, 0);
     const avgMarginePerc = totPreventivo > 0 ? (totMargine / totPreventivo) * 100 : 0;
     const cantierInRosso = filtered.filter((r) => r.margine_perc < 0).length;
-    return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso };
-  }, [filtered]);
+    const avgMargineNettoPerc = avgMarginePerc - overheadPct;
+    return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso, avgMargineNettoPerc };
+  }, [filtered, overheadPct]);
 
   return (
     <div className="space-y-6">
@@ -188,7 +196,7 @@ export default function MarginalitaCantieri() {
       </div>
 
       {/* ── KPI Strip ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard
           label="Preventivo Totale"
           value={formatCurrency(kpi.totPreventivo)}
@@ -218,11 +226,19 @@ export default function MarginalitaCantieri() {
           colorClass={kpi.avgMarginePerc >= 15 ? "text-green-600" : kpi.avgMarginePerc >= 0 ? "text-amber-600" : "text-red-600"}
           isLoading={isLoading}
         />
+        <KPICard
+          label={`Margine Netto Medio (−${overheadPct}%)`}
+          value={`${kpi.avgMargineNettoPerc.toFixed(1)}%`}
+          sub="dopo overhead fissi"
+          icon={kpi.avgMargineNettoPerc >= 10 ? TrendingUp : TrendingDown}
+          colorClass={kpi.avgMargineNettoPerc >= 10 ? "text-green-600" : kpi.avgMargineNettoPerc >= 0 ? "text-amber-600" : "text-red-600"}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* ── Filtri ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca ordine, cliente..."
@@ -230,6 +246,26 @@ export default function MarginalitaCantieri() {
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Overhead fissi %</label>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={overheadPct}
+            onChange={(e) => setOverheadPct(Number(e.target.value))}
+            className="w-20 h-8 text-sm"
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs max-w-[200px]">Percentuale di costi fissi aziendali da allocare su ogni commessa per calcolare il margine netto reale.</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div className="flex gap-2 flex-wrap">
           {anniDisponibili.map((anno) => (
@@ -279,51 +315,65 @@ export default function MarginalitaCantieri() {
                   <TableHead className="text-right">Consuntivo</TableHead>
                   <TableHead className="text-right">Margine €</TableHead>
                   <TableHead className="text-center w-32">Margine %</TableHead>
+                  <TableHead className="text-right">Overhead alloc.</TableHead>
+                  <TableHead className="text-right">Margine netto</TableHead>
                   <TableHead className="text-right">Acquisti</TableHead>
                   <TableHead className="text-right">Errori</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row) => (
-                  <TableRow key={row.id} className="group">
-                    <TableCell>
-                      <Link
-                        to={`/azienda/ordini/${row.id}`}
-                        className="flex items-center gap-1 hover:text-primary font-medium"
-                      >
-                        {row.order_code ? `#${row.order_code}` : "–"}
-                        <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </Link>
-                      <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(row.preventivo_totale)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.consuntivo)}</TableCell>
-                    <TableCell className={cn("text-right font-semibold", MargineColorClass(row.margine_perc))}>
-                      {formatCurrency(row.margine)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <MargineBadge perc={row.margine_perc} />
-                        <Progress
-                          value={Math.min(Math.max(row.margine_perc, 0), 100)}
-                          className="h-1 w-20"
-                          indicatorClassName={MargineProgressClass(row.margine_perc)}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">
-                      {row.costo_acquisti > 0 ? formatCurrency(row.costo_acquisti) : "–"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {row.costo_errori > 0 ? (
-                        <span className="text-red-600">{formatCurrency(row.costo_errori)}</span>
-                      ) : (
-                        <span className="text-muted-foreground">–</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map((row) => {
+                  const margineNetto = row.margine_perc - overheadPct;
+                  const margineNettoAbs = row.preventivo_totale * (margineNetto / 100);
+                  const overheadAllocato = row.preventivo_totale * (overheadPct / 100);
+                  return (
+                    <TableRow key={row.id} className="group">
+                      <TableCell>
+                        <Link
+                          to={`/azienda/ordini/${row.id}`}
+                          className="flex items-center gap-1 hover:text-primary font-medium"
+                        >
+                          {row.order_code ? `#${row.order_code}` : "–"}
+                          <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
+                        <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(row.preventivo_totale)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.consuntivo)}</TableCell>
+                      <TableCell className={cn("text-right font-semibold", MargineColorClass(row.margine_perc))}>
+                        {formatCurrency(row.margine)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <MargineBadge perc={row.margine_perc} />
+                          <Progress
+                            value={Math.min(Math.max(row.margine_perc, 0), 100)}
+                            className="h-1 w-20"
+                            indicatorClassName={MargineProgressClass(row.margine_perc)}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {formatCurrency(overheadAllocato)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-semibold text-sm", MargineColorClass(margineNetto))}>
+                        {formatCurrency(margineNettoAbs)}
+                        <span className="text-xs ml-1">({margineNetto.toFixed(1)}%)</span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {row.costo_acquisti > 0 ? formatCurrency(row.costo_acquisti) : "–"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {row.costo_errori > 0 ? (
+                          <span className="text-red-600">{formatCurrency(row.costo_errori)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">–</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
