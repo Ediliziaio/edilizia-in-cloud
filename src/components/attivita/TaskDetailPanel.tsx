@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,6 +142,12 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const companyId = effectiveCompany?.id ?? "";
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
+
+  // Sync title when a different task is selected
+  useEffect(() => {
+    setTitle(task?.title ?? "");
+    setEditingTitle(false);
+  }, [task?.id]);
 
   const { data: assignedTags = [], refetch: refetchTags } = useQuery({
     queryKey: ["task-tags-assigned", task?.id],

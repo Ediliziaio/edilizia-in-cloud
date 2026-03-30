@@ -36,12 +36,13 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
   const qk = ["task-dependencies", taskId];
 
   // Tasks this task depends on (blockers)
+  // Use explicit table hint `tasks!fk_column` because task_dependencies has two FKs to tasks
   const { data: blockers = [] } = useQuery({
     queryKey: [...qk, "blockers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("task_dependencies")
-        .select("depends_on:depends_on_id(id, title, status, priority)")
+        .select("depends_on:tasks!depends_on_id(id, title, status, priority)")
         .eq("task_id", taskId);
       if (error) return [];
       return (data ?? []).map((r: any) => r.depends_on).filter(Boolean) as DepTask[];
@@ -55,7 +56,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
     queryFn: async () => {
       const { data, error } = await supabase
         .from("task_dependencies")
-        .select("task:task_id(id, title, status, priority)")
+        .select("task:tasks!task_id(id, title, status, priority)")
         .eq("depends_on_id", taskId);
       if (error) return [];
       return (data ?? []).map((r: any) => r.task).filter(Boolean) as DepTask[];

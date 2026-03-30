@@ -218,18 +218,25 @@ export default function UnifiedTasks() {
     });
   }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch]);
 
+  // DnD is only meaningful when showing all tasks unfiltered — otherwise sort_order
+  // would be calculated only over the visible subset, corrupting the order of hidden tasks.
+  const isDragDisabled =
+    filterStatus !== "active" || filterPriority !== "all" || filterCategory !== "all" ||
+    filterFonte !== "all" || filterAssignee !== "all" || !!debouncedSearch;
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
-    const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
+    // Reorder within the full task list so sort_order stays consistent across all tasks
+    const oldIndex = tasks.findIndex((t) => t.id === active.id);
+    const newIndex = tasks.findIndex((t) => t.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(filteredTasks, oldIndex, newIndex);
+    const reordered = arrayMove(tasks, oldIndex, newIndex);
     const updates = reordered.map((t, i) => ({ id: t.id, sort_order: i + 1 }));
     reorderMutation.mutate(updates, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all }),
     });
-  }, [filteredTasks, reorderMutation, queryClient]);
+  }, [tasks, reorderMutation, queryClient]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
@@ -549,6 +556,7 @@ export default function UnifiedTasks() {
                               onToggleSelect={() => toggleSelect(task.id)}
                               onSelect={() => setSelectedTask(task)}
                               onToggleComplete={() => handleToggleComplete(task)}
+                              dragDisabled={isDragDisabled}
                             />
                           ))}
                         </SortableContext>

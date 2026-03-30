@@ -39,14 +39,15 @@ interface SortableTaskRowProps {
   onToggleSelect: () => void;
   onSelect: () => void;
   onToggleComplete: () => void;
+  dragDisabled?: boolean;
 }
 
 export function SortableTaskRow({
-  task, isSelected, onToggleSelect, onSelect, onToggleComplete,
+  task, isSelected, onToggleSelect, onSelect, onToggleComplete, dragDisabled = false,
 }: SortableTaskRowProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: dragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -109,8 +110,13 @@ export function SortableTaskRow({
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground p-1"
-          title="Trascina per riordinare"
+          className={cn(
+            "p-1 transition-colors",
+            dragDisabled
+              ? "cursor-not-allowed text-muted-foreground/20"
+              : "cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground",
+          )}
+          title={dragDisabled ? "Rimuovi i filtri per riordinare" : "Trascina per riordinare"}
         >
           <GripVertical className="h-4 w-4" />
         </button>

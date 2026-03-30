@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { format, isToday, isTomorrow, isThisWeek, isBefore, startOfDay } from "date-fns";
+import { format, isToday, isTomorrow, isThisWeek, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { CalendarRange, AlertTriangle, Clock, CalendarDays, Inbox } from "lucide-react";
@@ -74,7 +74,9 @@ function TaskRow({ task, overdue, onSelect }: { task: AgendaTask; overdue?: bool
 }
 
 export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
-  const today = startOfDay(new Date());
+  // Use YYYY-MM-DD string comparison to avoid UTC vs local timezone issues
+  // (due_date is stored as a date-only string like "2026-03-30")
+  const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
 
   const { overdue, byDate, noDate } = useMemo(() => {
     const overdue: AgendaTask[] = [];
@@ -86,20 +88,19 @@ export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
         noDate.push(t);
         continue;
       }
-      const d = startOfDay(new Date(t.due_date));
-      if (isBefore(d, today) && t.status !== "completata") {
+      const dateStr = t.due_date.slice(0, 10);
+      if (dateStr < todayStr && t.status !== "completata") {
         overdue.push(t);
       } else {
-        const key = t.due_date.slice(0, 10);
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(t);
+        if (!map.has(dateStr)) map.set(dateStr, []);
+        map.get(dateStr)!.push(t);
       }
     }
 
     // Sort keys chronologically
     const byDate = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
     return { overdue, byDate, noDate };
-  }, [tasks, today]);
+  }, [tasks, todayStr]);
 
   if (tasks.length === 0) return null;
 
