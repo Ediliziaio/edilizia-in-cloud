@@ -122,7 +122,7 @@ export default function CampaignEditor() {
     if (campaign) {
       setName(campaign.name);
       if (editorRef.current && campaign.html_content) {
-        editorRef.current.innerHTML = campaign.html_content;
+        editorRef.current.innerHTML = DOMPurify.sanitize(campaign.html_content);
       }
     }
   }, [campaign]);

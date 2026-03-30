@@ -47,11 +47,12 @@ export default function InvoiceDetail() {
         .from("invoices")
         .select("*, invoice_lines(*)")
         .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!effectiveCompany?.id,
   });
 
   const { data: linkedTransactions } = useQuery({

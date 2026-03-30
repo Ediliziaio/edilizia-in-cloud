@@ -59,9 +59,9 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
             setScanning(false);
           }
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (active) {
-          setError(e.message || "Impossibile accedere alla fotocamera.");
+          setError((e instanceof Error ? e.message : null) || "Impossibile accedere alla fotocamera.");
           setScanning(false);
         }
       }
