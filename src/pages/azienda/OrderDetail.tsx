@@ -222,6 +222,7 @@ function OrderDetailInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
