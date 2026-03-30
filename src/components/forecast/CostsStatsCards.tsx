@@ -49,7 +49,7 @@ interface CostsStatsCardsProps {
     previstiCount: number;
     scostamento: number;
   };
-  vatStats: { vatDebit: number; supplierUnpaid: number };
+  vatStats: { vatDebit: number; vatUnpaid: number; supplierUnpaid: number };
   monthlyDistribution: MonthlyDistItem[];
   periodLabel?: string;
   yearlyStats: YearlyStats;
@@ -210,10 +210,10 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
         <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800">
           <div className="flex items-center gap-2 mb-1">
             <Calculator className="h-4 w-4 text-violet-600" />
-            <span className="text-xs font-medium">IVA a debito</span>
+            <span className="text-xs font-medium">IVA totale detraibile</span>
           </div>
           <p className="text-xl font-bold text-violet-600 tabular-nums">{formatCurrency(vatStats.vatDebit)}</p>
-          <p className="text-[10px] text-muted-foreground">Su costi non pagati</p>
+          <p className="text-[10px] text-muted-foreground">di cui da pagare: {formatCurrency(vatStats.vatUnpaid)}</p>
         </div>
 
         <div className={`p-4 rounded-lg border ${stats.scostamento >= 0 ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800" : "bg-rose-50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800"}`}>

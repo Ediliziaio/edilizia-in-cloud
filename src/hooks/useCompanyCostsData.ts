@@ -280,20 +280,22 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // VAT calculations for stats
   const vatStats = useMemo(() => {
-    let vatDebit = 0;
+    let vatTotale = 0;
+    let vatUnpaid = 0;
     let supplierUnpaid = 0;
     const allUnified = [...filteredCosts, ...filteredOrderItemCosts];
     allUnified.forEach((c: any) => {
+      const rate = Number(c.vat_rate) || 0;
+      const vatAmount = Number(c.amount) * (rate / 100);
+      vatTotale += vatAmount;
       if (!c.is_paid) {
-        const rate = Number(c.vat_rate) || 0;
-        const vatAmount = Number(c.amount) * (rate / 100);
-        vatDebit += vatAmount;
+        vatUnpaid += vatAmount;
         if (c.supplier_id || c.supplierName || c.category === "Fornitori") {
           supplierUnpaid += Number(c.amount);
         }
       }
     });
-    return { vatDebit, supplierUnpaid };
+    return { vatDebit: vatTotale, vatUnpaid, supplierUnpaid };
   }, [filteredCosts, filteredOrderItemCosts]);
 
   // Computed sorted/filtered lists
