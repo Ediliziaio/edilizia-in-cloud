@@ -198,7 +198,7 @@ export function CostsTable({
   const someSelected = selectedIds.size > 0;
 
   const getStatusBadge = (cost: UnifiedCost) => {
-    const dueDate = cost.due_date ? new Date(cost.due_date) : null;
+    const dueDate = cost.due_date && cost.due_date !== "9999-12-31" ? new Date(cost.due_date) : null;
 
     if (cost.is_paid) {
       const paidLabel = cost.paid_date ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
@@ -243,13 +243,13 @@ export function CostsTable({
   };
 
   const getDelayCell = (cost: UnifiedCost) => {
-    if (cost.is_paid && cost.paid_date && cost.due_date) {
+    if (cost.is_paid && cost.paid_date && cost.due_date && cost.due_date !== "9999-12-31") {
       const delta = differenceInCalendarDays(new Date(cost.paid_date), new Date(cost.due_date));
       if (delta > 0) return <span className="text-red-600 font-medium text-xs">+{delta}gg</span>;
       if (delta < 0) return <span className="text-green-600 font-medium text-xs">{delta}gg</span>;
       return <span className="text-muted-foreground text-xs">0gg</span>;
     }
-    if (!cost.is_paid && cost.due_date) {
+    if (!cost.is_paid && cost.due_date && cost.due_date !== "9999-12-31") {
       const d = new Date(cost.due_date);
       if (d < nowRef) {
         const days = differenceInCalendarDays(nowRef, d);
@@ -380,7 +380,7 @@ export function CostsTable({
                 const vatRate = Number(cost.vat_rate) || Number((cost as any).supplier?.vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
-                const dueDate = cost.due_date ? new Date(cost.due_date) : null;
+                const dueDate = cost.due_date && cost.due_date !== "9999-12-31" ? new Date(cost.due_date) : null;
                 const isOverdue = !cost.is_paid && dueDate && dueDate < nowRef;
                 const isExpiring = !cost.is_paid && dueDate && dueDate >= nowRef && dueDate <= soonRef;
                 return (
@@ -476,7 +476,7 @@ export function CostsTable({
                     )}
                     {isColVisible("dueDate") && (
                     <TableCell>
-                      {cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
+                      {cost.due_date && cost.due_date !== "9999-12-31" ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
                     )}
                     {isColVisible("status") && <TableCell>{getStatusBadge(cost)}</TableCell>}
