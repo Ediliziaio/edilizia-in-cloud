@@ -307,6 +307,12 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   const allCostsSorted = useMemo(() => sortCostsByPriority([...filteredCosts, ...filteredOrderItemCosts]), [filteredCosts, filteredOrderItemCosts]);
 
+  // All costs unfiltered (for budget manager — not affected by active filters)
+  const allCostsUnfiltered = useMemo(() =>
+    sortCostsByPriority([...(costs as any[]), ...allOrderDerivedCosts]),
+    [costs, allOrderDerivedCosts]
+  );
+
   // Status tab pre-filtered lists
   const statusTabLists = useMemo(() => {
     const now = new Date();
@@ -466,5 +472,6 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     fixedCostsTrend,
     isLoading,
     exportCostsCSV,
+    allCostsUnfiltered,
   };
 }

@@ -486,7 +486,7 @@ export default function CompanyCostsManager() {
       />
 
       {/* Budget Section */}
-      <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsSorted} />
+      <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
 
       <CostsDialogs
         deleteConfirmId={deleteConfirmId}
