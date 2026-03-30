@@ -1,7 +1,6 @@
 -- 1. Creare bucket storage per allegati ordini
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('order-attachments', 'order-attachments', true)
-ON CONFLICT (id) DO NOTHING;
+VALUES ('order-attachments', 'order-attachments', true) ON CONFLICT (id) DO NOTHING;
 
 -- 2. Creare tabella order_item_attachments
 CREATE TABLE IF NOT EXISTS public.order_item_attachments (

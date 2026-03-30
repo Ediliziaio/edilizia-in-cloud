@@ -1,1 +1,1 @@
-INSERT INTO storage.buckets (id, name, public) VALUES ('campaign-attachments', 'campaign-attachments', false);
+INSERT INTO storage.buckets (id, name, public) VALUES ('campaign-attachments', 'campaign-attachments', false) ON CONFLICT (id) DO NOTHING;

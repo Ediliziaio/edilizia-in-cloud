@@ -70,7 +70,7 @@ USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Create storage bucket for personnel attachments
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('personnel-attachments', 'personnel-attachments', true);
+VALUES ('personnel-attachments', 'personnel-attachments', true) ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
 DROP POLICY IF EXISTS "Company admins can upload personnel attachments" ON public.storage;

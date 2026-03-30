@@ -3,4 +3,4 @@
 -- =============================================
 
 -- 1. Storage buckets
-INSERT INTO storage.buckets (id, name, public) VALUES ('quote-materials', 'quote-materials', false) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('quote-materials', 'quote-materials', false) ON CONFLICT (id) DO NOTHING;
