@@ -55,7 +55,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   }, [periodFilter, customDateRange]);
 
   // Query costs with supplier join
-  const { data: costs = [], isLoading } = useQuery({
+  const { data: costs = [], isLoading: isLoadingCosts } = useQuery({
     queryKey: [...queryKeys.costs.list(companyId), dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
@@ -76,7 +76,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query suppliers for the form
-  const { data: suppliers = [] } = useQuery({
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
     queryKey: queryKeys.costs.suppliers(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -93,7 +93,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query ALL order items with supplier (for split payments)
-  const { data: orderItemCosts = [] } = useQuery({
+  const { data: orderItemCosts = [], isLoading: isLoadingOrderItems } = useQuery({
     queryKey: queryKeys.costs.orderItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -111,7 +111,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query external teams from orders
-  const { data: externalTeamCosts = [] } = useQuery({
+  const { data: externalTeamCosts = [], isLoading: isLoadingExternalTeams } = useQuery({
     queryKey: queryKeys.costs.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -127,7 +127,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query all active employees for monthly salary costs
-  const { data: activeEmployees = [] } = useQuery({
+  const { data: activeEmployees = [], isLoading: isLoadingEmployees } = useQuery({
     queryKey: queryKeys.costs.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -145,7 +145,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query commissions from orders
-  const { data: commissionCosts = [] } = useQuery({
+  const { data: commissionCosts = [], isLoading: isLoadingCommissions } = useQuery({
     queryKey: queryKeys.costs.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,7 +161,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
 
   // Query orders for linking
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
     queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -474,7 +474,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     categoryDistribution,
     availableYears,
     fixedCostsTrend,
-    isLoading,
+    isLoading: isLoadingCosts || isLoadingSuppliers || isLoadingOrders || isLoadingOrderItems ||
+               isLoadingExternalTeams || isLoadingEmployees || isLoadingCommissions,
     exportCostsCSV,
     allCostsUnfiltered,
     breakEvenData: calculateBreakEven(fixedCosts, 0),
