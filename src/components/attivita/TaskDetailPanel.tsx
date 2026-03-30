@@ -23,6 +23,7 @@ import { TaskChecklist } from "./TaskChecklist";
 import { TaskComments } from "./TaskComments";
 import { TaskTagPicker } from "./TaskTagPicker";
 import { TaskTagBadge } from "./TaskTagBadge";
+import { TaskCorrelationPicker } from "./TaskCorrelationPicker";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
@@ -395,52 +396,53 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           />
 
           {/* Correlations */}
-          {correlations.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                    Correlazioni
-                  </span>
-                </div>
-                {correlations.map((c: any, i: number) => {
-                  const Icon = c.icon;
-                  return (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 rounded-md border px-3 py-2"
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide flex-1">
+                Correlazioni
+              </span>
+              <TaskCorrelationPicker
+                task={task}
+                onUpdate={(updates) => updateMutation.mutate(updates)}
+              />
+            </div>
+            {correlations.length === 0 && (
+              <p className="text-xs text-muted-foreground/60 italic pl-7">Nessuna correlazione</p>
+            )}
+            {correlations.map((c: any, i: number) => {
+              const Icon = c.icon;
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 rounded-md border px-3 py-2"
+                >
+                  <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-muted-foreground">{c.tipo}</div>
+                    <div className="text-sm font-medium truncate">{c.label}</div>
+                  </div>
+                  {c.to && (
+                    <Link
+                      to={c.to}
+                      className="text-primary hover:text-primary/80"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] text-muted-foreground">{c.tipo}</div>
-                        <div className="text-sm font-medium truncate">{c.label}</div>
-                      </div>
-                      {c.to && (
-                        <Link
-                          to={c.to}
-                          className="text-primary hover:text-primary/80"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </Link>
-                      )}
-                      <button
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() =>
-                          updateMutation.mutate({ [c.fkField]: null })
-                        }
-                        title="Rimuovi correlazione"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                      <ExternalLink className="w-4 h-4" />
+                    </Link>
+                  )}
+                  <button
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => updateMutation.mutate({ [c.fkField]: null })}
+                    title="Rimuovi correlazione"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Etichette */}
           <Separator />
