@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -400,36 +399,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return { total, totalPaid, totalUnpaid, totalOverdue, pctPaid, count: yearCosts.length };
   }, [costs, allOrderDerivedCosts, yearForStats]);
 
-  // CSV export
-  const exportCostsCSV = () => {
-    const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
-    const rows = [["Nome", "Tipo", "Categoria", "Imponibile", "IVA%", "Totale Lordo", "Fornitore", "Ricorrenza", "Scadenza", "Stato", "Origine"]];
-    allForExport.forEach((c: any) => {
-      const vatRate = Number(c.vat_rate) || 0;
-      const gross = calculateGrossFromNet(Number(c.amount), vatRate);
-      rows.push([
-        c.name,
-        c.cost_type === "fixed" ? "Fisso" : "Variabile",
-        c.category || "",
-        String(c.amount),
-        String(vatRate),
-        String(gross.grossAmount),
-        c.supplier?.name || c.supplierName || "",
-        RECURRENCE_LABELS[c.recurrence] || c.recurrence,
-        c.due_date ? format(new Date(c.due_date), "dd/MM/yyyy") : "",
-        c.is_paid ? "Pagato" : c.due_date && new Date(c.due_date) < new Date() ? "Scaduto" : "Da pagare",
-        c.isFromOrder ? "Da Ordine" : "Manuale",
-      ]);
-    });
-    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `costi-aziendali-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // CSV export — delegate to shared utility to avoid duplication
+  const exportCostsCSV = () => exportCostsToCSV(filteredCosts, filteredOrderItemCosts);
 
   // Category distribution for PieChart
   const categoryDistribution = useMemo(() => buildCategoryDistribution(allCostsSorted), [allCostsSorted]);
