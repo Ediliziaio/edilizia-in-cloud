@@ -1,5 +1,4 @@
 -- 3) get_email_stats_by_date: daily aggregation by campaign type for performance chart
-DROP FUNCTION IF EXISTS public.get_email_stats_by_date(uuid, uuid, timestamptz, timestamptz) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_email_stats_by_date(
   p_company_id uuid,
   p_campaign_id uuid DEFAULT NULL,

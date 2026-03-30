@@ -1,5 +1,4 @@
 -- Step 3: Update attach_attribution_to_contact function
-DROP FUNCTION IF EXISTS public.attach_attribution_to_contact(UUID, UUID, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.attach_attribution_to_contact(
   p_session_id UUID,
   p_contact_id UUID,

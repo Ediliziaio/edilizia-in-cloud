@@ -1,5 +1,4 @@
 -- Trigger: log opportunity created
-DROP FUNCTION IF EXISTS public.log_opportunity_created() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_opportunity_created() RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.marketing_contact_activities (contact_id, company_id, activity_type, description, metadata, created_by)

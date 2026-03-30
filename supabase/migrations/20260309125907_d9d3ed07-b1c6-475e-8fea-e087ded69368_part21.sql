@@ -1,5 +1,4 @@
 -- Update referrer tier
-DROP FUNCTION IF EXISTS public.update_referrer_tier(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.update_referrer_tier(p_referrer_id UUID)
 RETURNS VOID AS $$
 DECLARE

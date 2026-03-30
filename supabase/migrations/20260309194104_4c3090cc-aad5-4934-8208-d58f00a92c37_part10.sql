@@ -1,5 +1,4 @@
 -- 4. Updated check_overdue_scadenze to also return alert-worthy scadenze
-DROP FUNCTION IF EXISTS public.check_overdue_and_upcoming_scadenze(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.check_overdue_and_upcoming_scadenze(p_company_id UUID)
 RETURNS JSON
 LANGUAGE plpgsql

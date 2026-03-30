@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.trg_auto_deduct_stock() CASCADE;
 CREATE OR REPLACE FUNCTION public.trg_auto_deduct_stock()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$

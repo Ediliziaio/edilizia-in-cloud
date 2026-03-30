@@ -1,5 +1,4 @@
 -- Bug #8: Update incasso trigger to handle DELETE (storno)
-DROP FUNCTION IF EXISTS public.fn_prima_nota_on_incasso() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_prima_nota_on_incasso()
 RETURNS trigger
 LANGUAGE plpgsql

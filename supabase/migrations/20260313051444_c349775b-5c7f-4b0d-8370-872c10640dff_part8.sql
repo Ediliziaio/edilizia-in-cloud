@@ -1,7 +1,6 @@
 -- ============================================================
 -- 6. RPC for monthly timeline (server-side aggregation)
 -- ============================================================
-DROP FUNCTION IF EXISTS public.get_documenti_monthly_timeline(UUID, TEXT[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_documenti_monthly_timeline(
   p_company_id UUID,
   p_tipos TEXT[] DEFAULT NULL

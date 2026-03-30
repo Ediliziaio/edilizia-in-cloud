@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.superadmin_can_access_company(uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.superadmin_can_access_company(_user_id uuid, _company_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql

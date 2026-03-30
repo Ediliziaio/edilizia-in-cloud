@@ -5,7 +5,6 @@
 -- ═══════════════════════════════════════════════════════════════════
 
 -- 1. Funzione che elimina i documenti scaduti dal cestino
-DROP FUNCTION IF EXISTS public.cleanup_cestino_documenti() CASCADE;
 CREATE OR REPLACE FUNCTION public.cleanup_cestino_documenti()
 RETURNS void
 LANGUAGE plpgsql

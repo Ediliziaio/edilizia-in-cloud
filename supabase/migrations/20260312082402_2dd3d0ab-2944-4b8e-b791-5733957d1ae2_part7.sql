@@ -1,5 +1,4 @@
 -- 3. RPC for MRR movements
-DROP FUNCTION IF EXISTS public.get_mrr_movements_monthly(INT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_mrr_movements_monthly(
   p_months INT DEFAULT 6
 )

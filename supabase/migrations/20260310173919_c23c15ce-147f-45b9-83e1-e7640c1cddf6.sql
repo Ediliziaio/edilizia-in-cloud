@@ -1,5 +1,4 @@
 -- Fix #3: Trigger to keep invoices.paid_amount and status consistent with invoice_payments
-DROP FUNCTION IF EXISTS public.fn_update_invoice_on_payment() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_update_invoice_on_payment()
 RETURNS TRIGGER
 LANGUAGE plpgsql

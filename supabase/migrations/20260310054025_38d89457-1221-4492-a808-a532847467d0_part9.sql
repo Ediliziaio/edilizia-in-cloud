@@ -1,5 +1,4 @@
 -- RPC per segnare tutte le notifiche come lette
-DROP FUNCTION IF EXISTS public.mark_all_notifications_read(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(
   p_company_id uuid
 )

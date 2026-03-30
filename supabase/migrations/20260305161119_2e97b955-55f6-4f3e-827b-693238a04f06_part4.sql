@@ -1,5 +1,4 @@
 -- 4. Trigger function to notify on ticket updates
-DROP FUNCTION IF EXISTS public.notify_ticket_update() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_ticket_update()
 RETURNS trigger
 LANGUAGE plpgsql

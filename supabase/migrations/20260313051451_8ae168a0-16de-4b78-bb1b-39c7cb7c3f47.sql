@@ -1,5 +1,4 @@
 
-DROP FUNCTION IF EXISTS public.trg_set_updated_at() CASCADE;
 CREATE OR REPLACE FUNCTION public.trg_set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

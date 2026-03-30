@@ -7,7 +7,6 @@
 -- of direct subqueries on orders.
 
 -- ─── 1. Helper: get company_id of an order WITHOUT triggering orders RLS ───
-DROP FUNCTION IF EXISTS public.get_order_company_id(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_order_company_id(_order_id uuid)
 RETURNS uuid
 LANGUAGE sql

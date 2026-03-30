@@ -1,5 +1,4 @@
 -- Auto-cleanup: delete entries older than 1 hour
-DROP FUNCTION IF EXISTS public.cleanup_rate_limits() CASCADE;
 CREATE OR REPLACE FUNCTION public.cleanup_rate_limits()
 RETURNS void
 LANGUAGE sql

@@ -1,7 +1,6 @@
 -- =============================================
 -- Function + Trigger: auto-calculate hr_giornate
 -- =============================================
-DROP FUNCTION IF EXISTS public.calcola_giornata_hr() CASCADE;
 CREATE OR REPLACE FUNCTION public.calcola_giornata_hr()
 RETURNS trigger
 LANGUAGE plpgsql

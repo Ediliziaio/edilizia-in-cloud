@@ -1,5 +1,4 @@
 -- 4. Ordine cambia stato → notifica assigned_to
-DROP FUNCTION IF EXISTS public.notify_order_status_change() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_order_status_change()
 RETURNS trigger
 LANGUAGE plpgsql

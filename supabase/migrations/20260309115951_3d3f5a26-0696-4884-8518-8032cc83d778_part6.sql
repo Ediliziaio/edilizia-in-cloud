@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.enforce_single_default_template() CASCADE;
 CREATE OR REPLACE FUNCTION public.enforce_single_default_template()
 RETURNS TRIGGER AS $$
 BEGIN

@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.get_mrr_movements_monthly(INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_mrr_movements_monthly(p_months INTEGER DEFAULT 6)
 RETURNS TABLE(
   month TEXT,

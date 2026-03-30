@@ -1,5 +1,4 @@
 -- 5. Trigger: update form stats on view insert
-DROP FUNCTION IF EXISTS public.fn_update_form_views() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_update_form_views()
 RETURNS trigger
 LANGUAGE plpgsql

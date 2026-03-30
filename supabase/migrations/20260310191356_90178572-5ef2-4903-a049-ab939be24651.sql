@@ -1,5 +1,4 @@
 
-DROP FUNCTION IF EXISTS public.save_internal_automation_nodes(uuid, uuid, jsonb, jsonb) CASCADE;
 CREATE OR REPLACE FUNCTION public.save_internal_automation_nodes(
   p_flow_id uuid,
   p_company_id uuid,

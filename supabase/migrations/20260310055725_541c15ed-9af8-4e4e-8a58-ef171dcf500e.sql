@@ -3,7 +3,6 @@
 -- ============================================================
 
 -- 1. Nuovo ticket → notifica staff
-DROP FUNCTION IF EXISTS public.notify_new_ticket() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_new_ticket()
 RETURNS trigger
 LANGUAGE plpgsql

@@ -1,7 +1,6 @@
 -- ============================================================
 -- FUNCTION 1: get_vendor_kpi_per_agent
 -- ============================================================
-DROP FUNCTION IF EXISTS public.get_vendor_kpi_per_agent(UUID, DATE, DATE, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_vendor_kpi_per_agent(
   p_company_id UUID,
   p_data_inizio DATE,

@@ -2,7 +2,6 @@
 -- Fix: update task_events function for task_updated + task_completed
 -- ═══════════════════════════════════════════════════════
 
-DROP FUNCTION IF EXISTS public.trigger_internal_auto_task_events() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_task_events()
 RETURNS trigger
 LANGUAGE plpgsql

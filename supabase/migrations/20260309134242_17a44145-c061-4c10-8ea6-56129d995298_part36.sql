@@ -1,5 +1,4 @@
 -- Trigger helper function
-DROP FUNCTION IF EXISTS public.trigger_internal_automations() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_automations()
 RETURNS TRIGGER
 LANGUAGE plpgsql

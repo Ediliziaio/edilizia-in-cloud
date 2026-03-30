@@ -1,5 +1,4 @@
 -- Aggregate function: user counts grouped by company (for companies list)
-DROP FUNCTION IF EXISTS public.get_company_user_counts() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_user_counts()
 RETURNS TABLE(company_id uuid, user_count bigint)
 LANGUAGE sql

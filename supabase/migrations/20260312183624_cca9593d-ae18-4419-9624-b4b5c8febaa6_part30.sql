@@ -1,7 +1,6 @@
 -- ============================================================
 -- FUNCTION: genera numero documento progressivo (ATOMIC)
 -- ============================================================
-DROP FUNCTION IF EXISTS public.genera_numero_documento_native(UUID, TEXT, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION public.genera_numero_documento_native(
   p_company_id UUID,
   p_tipo TEXT,

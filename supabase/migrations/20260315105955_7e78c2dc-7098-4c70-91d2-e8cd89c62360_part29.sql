@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.get_agent_chat_stats(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_agent_chat_stats(p_agent_id uuid)
 RETURNS TABLE(
   sessioni_totali bigint,

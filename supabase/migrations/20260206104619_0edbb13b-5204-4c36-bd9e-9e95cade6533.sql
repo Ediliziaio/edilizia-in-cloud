@@ -127,7 +127,6 @@ ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ticket_messages ENABLE ROW LEVEL SECURITY;
 
 -- Security definer function to check user role
-DROP FUNCTION IF EXISTS public.has_role(UUID, public.app_role) CASCADE;
 CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role public.app_role)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -144,7 +143,6 @@ AS $$
 $$;
 
 -- Function to get user's company_id
-DROP FUNCTION IF EXISTS public.get_user_company_id(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_user_company_id(_user_id UUID)
 RETURNS UUID
 LANGUAGE sql
@@ -158,7 +156,6 @@ AS $$
 $$;
 
 -- Trigger function for updated_at
-DROP FUNCTION IF EXISTS public.update_updated_at_column() CASCADE;
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN

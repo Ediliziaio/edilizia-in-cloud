@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.get_low_stock_alerts(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_low_stock_alerts(p_company_id uuid)
 RETURNS TABLE(stock_item_id uuid, item_name text, current_quantity integer, reserved integer, available integer, min_level integer, reorder_qty integer, supplier_id uuid)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public

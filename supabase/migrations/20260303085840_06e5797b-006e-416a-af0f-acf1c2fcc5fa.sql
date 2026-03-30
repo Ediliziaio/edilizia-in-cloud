@@ -1,5 +1,4 @@
 
-DROP FUNCTION IF EXISTS public.get_marketing_dashboard_stats(uuid, timestamp, timestamp, uuid[], text[], uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_marketing_dashboard_stats(p_company_id uuid, p_date_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_date_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_assigned_user_ids uuid[] DEFAULT NULL::uuid[], p_sources text[] DEFAULT NULL::text[], p_pipeline_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql

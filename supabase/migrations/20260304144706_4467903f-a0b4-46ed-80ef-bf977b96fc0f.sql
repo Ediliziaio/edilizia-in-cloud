@@ -1,5 +1,4 @@
 -- Function to fire automation trigger via pg_net
-DROP FUNCTION IF EXISTS public.fire_marketing_automation() CASCADE;
 CREATE OR REPLACE FUNCTION public.fire_marketing_automation()
 RETURNS trigger
 LANGUAGE plpgsql

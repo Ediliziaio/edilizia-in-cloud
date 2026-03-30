@@ -1,7 +1,6 @@
 -- =============================================
 -- 2E. FUNZIONE: Generazione numero OdA automatico
 -- =============================================
-DROP FUNCTION IF EXISTS public.generate_oda_number(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.generate_oda_number(p_company_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql

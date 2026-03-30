@@ -1,5 +1,4 @@
 -- Validation trigger for channel
-DROP FUNCTION IF EXISTS public.validate_contact_message_channel() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_contact_message_channel()
 RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public' AS $$
 BEGIN

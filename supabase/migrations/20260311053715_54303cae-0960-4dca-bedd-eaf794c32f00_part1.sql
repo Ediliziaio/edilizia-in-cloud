@@ -1,5 +1,4 @@
 -- Validation trigger for lost_reason_category
-DROP FUNCTION IF EXISTS public.validate_lost_reason_category() CASCADE;
 CREATE OR REPLACE FUNCTION validate_lost_reason_category()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

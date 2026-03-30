@@ -1,5 +1,4 @@
 -- Trigger per inizializzare email_credits quando si crea una company
-DROP FUNCTION IF EXISTS public.init_company_email_credits() CASCADE;
 CREATE OR REPLACE FUNCTION public.init_company_email_credits()
 RETURNS TRIGGER
 LANGUAGE plpgsql

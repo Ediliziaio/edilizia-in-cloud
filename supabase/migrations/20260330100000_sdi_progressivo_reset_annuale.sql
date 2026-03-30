@@ -8,7 +8,6 @@ ALTER TABLE anagrafica_azienda
 ADD COLUMN IF NOT EXISTS sdi_progressivo_anno integer NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE);
 
 -- 2. Ricrea la funzione con logica di reset annuale
-DROP FUNCTION IF EXISTS public.incrementa_progressivo_sdi(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION incrementa_progressivo_sdi(
   p_company_id uuid
 )

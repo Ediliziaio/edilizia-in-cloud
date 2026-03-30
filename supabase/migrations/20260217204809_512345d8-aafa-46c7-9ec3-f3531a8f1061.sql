@@ -46,7 +46,6 @@ USING (
 );
 
 -- 3. Create logging function (SECURITY DEFINER to bypass RLS for inserts)
-DROP FUNCTION IF EXISTS public.log_company_activity() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_company_activity()
 RETURNS trigger
 LANGUAGE plpgsql

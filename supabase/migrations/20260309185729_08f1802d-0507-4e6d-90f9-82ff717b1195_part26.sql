@@ -3,7 +3,6 @@
 -- =============================================
 
 -- Segna scadenza come pagata (totale o parziale)
-DROP FUNCTION IF EXISTS public.mark_scadenza_paid(UUID, NUMERIC, TEXT, DATE, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.mark_scadenza_paid(
   p_scadenza_id UUID,
   p_amount NUMERIC,

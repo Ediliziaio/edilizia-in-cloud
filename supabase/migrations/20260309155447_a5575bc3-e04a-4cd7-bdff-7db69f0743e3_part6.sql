@@ -1,7 +1,6 @@
 -- ════════════════════════════════════════════════════════════════
 -- FUNZIONE: Genera numero fattura senza race conditions
 -- ════════════════════════════════════════════════════════════════
-DROP FUNCTION IF EXISTS public.generate_invoice_number(UUID, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION generate_invoice_number(
   p_company_id UUID,
   p_year INTEGER DEFAULT EXTRACT(YEAR FROM NOW())::INTEGER

@@ -1,5 +1,4 @@
 -- 7. recalculate_quote_totals() trigger function
-DROP FUNCTION IF EXISTS public.recalculate_quote_totals() CASCADE;
 CREATE OR REPLACE FUNCTION public.recalculate_quote_totals()
 RETURNS TRIGGER
 LANGUAGE plpgsql

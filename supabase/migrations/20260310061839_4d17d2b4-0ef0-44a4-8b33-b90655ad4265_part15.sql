@@ -1,5 +1,4 @@
 -- 3. Funzione approve_leave_request
-DROP FUNCTION IF EXISTS public.approve_leave_request(uuid, boolean, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.approve_leave_request(
   p_request_id    uuid,
   p_approved      boolean,

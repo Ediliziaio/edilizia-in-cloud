@@ -1,5 +1,4 @@
 -- 1) get_email_stats_summary: global stats + funnel
-DROP FUNCTION IF EXISTS public.get_email_stats_summary(uuid, uuid, timestamptz, timestamptz) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_email_stats_summary(
   p_company_id uuid,
   p_campaign_id uuid DEFAULT NULL,

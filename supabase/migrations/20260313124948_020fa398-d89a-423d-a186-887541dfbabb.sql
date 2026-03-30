@@ -1,5 +1,4 @@
 -- 1. Fix notify_task_assigned: handle UPDATE OF assigned_to, fix action_url, respect prefs
-DROP FUNCTION IF EXISTS public.notify_task_assigned() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_task_assigned()
 RETURNS trigger
 LANGUAGE plpgsql

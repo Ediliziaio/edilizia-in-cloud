@@ -1,5 +1,4 @@
 -- 6. RPC get_ai_analytics
-DROP FUNCTION IF EXISTS public.get_ai_analytics(uuid, int) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_ai_analytics(
   p_company_id uuid,
   p_giorni int DEFAULT 30

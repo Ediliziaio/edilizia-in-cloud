@@ -78,7 +78,6 @@ CREATE INDEX IF NOT EXISTS idx_expense_report_items_tx ON public.expense_report_
   WHERE bank_transaction_id IS NOT NULL;
 
 -- Trigger per aggiornare total_amount
-DROP FUNCTION IF EXISTS public.update_expense_report_total() CASCADE;
 CREATE OR REPLACE FUNCTION public.update_expense_report_total()
 RETURNS trigger
 LANGUAGE plpgsql

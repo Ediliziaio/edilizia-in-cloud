@@ -1,5 +1,4 @@
 -- RPC: get_top_companies_by_email
-DROP FUNCTION IF EXISTS public.get_top_companies_by_email(integer) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_top_companies_by_email(
   p_limit integer DEFAULT 10
 )

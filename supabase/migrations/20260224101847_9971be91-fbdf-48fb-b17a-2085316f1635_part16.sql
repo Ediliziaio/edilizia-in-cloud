@@ -1,5 +1,4 @@
 -- Create RPC function for plan count aggregation
-DROP FUNCTION IF EXISTS public.get_plan_company_counts() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_plan_company_counts()
 RETURNS TABLE(subscription_plan_id uuid, company_count bigint)
 LANGUAGE sql

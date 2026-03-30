@@ -1,5 +1,4 @@
 
-DROP FUNCTION IF EXISTS public.get_marketing_dashboard_stats(uuid, timestamptz, timestamptz, uuid[], text[], uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_marketing_dashboard_stats(
   p_company_id uuid,
   p_date_from timestamptz DEFAULT NULL,

@@ -1,5 +1,4 @@
 -- 8. get_prima_nota_saldo - Fix con entry_count
-DROP FUNCTION IF EXISTS public.get_prima_nota_saldo(UUID, DATE, DATE) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_prima_nota_saldo(
   p_company_id UUID,
   p_from_date DATE DEFAULT NULL,

@@ -1,5 +1,4 @@
 -- Trigger: auto-sync anagrafica when linked profile is updated
-DROP FUNCTION IF EXISTS public.sync_anagrafica_from_profile() CASCADE;
 CREATE OR REPLACE FUNCTION sync_anagrafica_from_profile()
 RETURNS TRIGGER
 LANGUAGE plpgsql

@@ -1,5 +1,4 @@
 -- ─── 4. Trigger: aggiorna stato fattura su movimenti_cassa_native ──
-DROP FUNCTION IF EXISTS public.update_fattura_stato_on_movimento() CASCADE;
 CREATE OR REPLACE FUNCTION public.update_fattura_stato_on_movimento()
 RETURNS TRIGGER AS $$
 DECLARE

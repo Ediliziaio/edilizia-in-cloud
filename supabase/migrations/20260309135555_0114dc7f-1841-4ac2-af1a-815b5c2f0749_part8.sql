@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.trigger_internal_auto_task_events() CASCADE;
 CREATE OR REPLACE FUNCTION trigger_internal_auto_task_events()
 RETURNS TRIGGER AS $$
 DECLARE

@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS public.warehouse_movements (
 );
 
 -- Validazione movement_type con trigger
-DROP FUNCTION IF EXISTS public.validate_movement_type() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_movement_type()
 RETURNS TRIGGER AS $$
 BEGIN

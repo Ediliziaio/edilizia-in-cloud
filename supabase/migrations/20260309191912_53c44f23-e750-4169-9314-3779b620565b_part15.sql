@@ -1,5 +1,4 @@
 -- 11. create_oda_from_order - Riscrittura con p_item_ids
-DROP FUNCTION IF EXISTS public.create_oda_from_order(UUID, UUID, UUID, UUID[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.create_oda_from_order(
   p_company_id UUID,
   p_order_id UUID,

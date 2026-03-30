@@ -1,5 +1,4 @@
 -- Trigger to auto-calculate expires_at from validity_days
-DROP FUNCTION IF EXISTS public.calculate_quote_expires_at() CASCADE;
 CREATE OR REPLACE FUNCTION public.calculate_quote_expires_at()
 RETURNS TRIGGER AS $$
 BEGIN

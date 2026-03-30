@@ -1,5 +1,4 @@
 -- 2. Risposta ticket → notifica controparte
-DROP FUNCTION IF EXISTS public.notify_ticket_reply() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_ticket_reply()
 RETURNS trigger
 LANGUAGE plpgsql

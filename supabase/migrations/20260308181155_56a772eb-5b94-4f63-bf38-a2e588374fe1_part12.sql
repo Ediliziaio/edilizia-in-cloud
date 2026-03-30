@@ -1,5 +1,4 @@
 -- 4. RPC: adjust_credits_atomic
-DROP FUNCTION IF EXISTS public.adjust_credits_atomic(uuid, text, numeric, text, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.adjust_credits_atomic(
   p_company_id uuid,
   p_service text,

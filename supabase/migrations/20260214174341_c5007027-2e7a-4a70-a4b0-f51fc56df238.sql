@@ -24,7 +24,6 @@ FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Trigger to auto-upsert conversation on new support message
-DROP FUNCTION IF EXISTS public.handle_support_message_conversation() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_support_message_conversation()
 RETURNS TRIGGER
 LANGUAGE plpgsql

@@ -43,7 +43,6 @@ CREATE INDEX IF NOT EXISTS idx_bank_alert_rules_company
 -- ============================================================
 -- 3.2 — Cash flow forecast RPC
 -- ============================================================
-DROP FUNCTION IF EXISTS public.get_cash_flow_forecast(uuid, int) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_cash_flow_forecast(
   p_company_id uuid,
   p_days int DEFAULT 90

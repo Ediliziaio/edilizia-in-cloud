@@ -1,5 +1,4 @@
 -- Trigger: log opportunity updates (stage, status, assigned_to)
-DROP FUNCTION IF EXISTS public.log_opportunity_updates() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_opportunity_updates() RETURNS trigger AS $$
 DECLARE
   old_stage_name text;

@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.trigger_internal_auto_ticket_events() CASCADE;
 CREATE OR REPLACE FUNCTION trigger_internal_auto_ticket_events()
 RETURNS TRIGGER AS $$
 DECLARE

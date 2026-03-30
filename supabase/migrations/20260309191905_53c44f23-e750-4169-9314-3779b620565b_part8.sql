@@ -1,5 +1,4 @@
 -- 6. Trigger auto-assign oda_number
-DROP FUNCTION IF EXISTS public.auto_assign_oda_number() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_assign_oda_number()
 RETURNS TRIGGER
 LANGUAGE plpgsql

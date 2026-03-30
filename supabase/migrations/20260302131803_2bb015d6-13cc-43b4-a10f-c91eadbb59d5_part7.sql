@@ -1,5 +1,4 @@
 -- RPC to get monthly order counts for sparklines (last 6 months per company)
-DROP FUNCTION IF EXISTS public.get_company_order_sparklines() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_order_sparklines()
 RETURNS TABLE(company_id uuid, month_key text, order_count bigint)
 LANGUAGE sql

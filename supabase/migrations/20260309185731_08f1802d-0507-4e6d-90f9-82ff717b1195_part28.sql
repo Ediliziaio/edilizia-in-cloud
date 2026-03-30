@@ -1,5 +1,4 @@
 -- Summary scadenzario per KPI cards
-DROP FUNCTION IF EXISTS public.get_scadenzario_summary(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_scadenzario_summary(
   p_company_id UUID
 )

@@ -1,5 +1,4 @@
 -- Create security definer function to safely get auth email
-DROP FUNCTION IF EXISTS public.get_auth_email() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_auth_email()
 RETURNS text
 LANGUAGE sql

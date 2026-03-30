@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.get_dashboard_kpis(uuid, timestamp, timestamp, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_dashboard_kpis(p_company_id uuid, p_date_from timestamp with time zone, p_date_to timestamp with time zone, p_status_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql

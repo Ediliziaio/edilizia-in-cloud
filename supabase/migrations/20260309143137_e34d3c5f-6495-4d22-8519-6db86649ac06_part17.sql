@@ -2,7 +2,6 @@
 -- Fix: update order_status function to also emit order_completed
 -- ═══════════════════════════════════════════════════════
 
-DROP FUNCTION IF EXISTS public.trigger_internal_auto_order_status() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_order_status()
 RETURNS trigger
 LANGUAGE plpgsql

@@ -1,7 +1,6 @@
 -- ============================================================
 -- FUNZIONE: get_callcenter_trend_giornaliero
 -- ============================================================
-DROP FUNCTION IF EXISTS public.get_callcenter_trend_giornaliero(UUID, DATE, DATE, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_callcenter_trend_giornaliero(
   p_company_id UUID,
   p_data_inizio DATE,

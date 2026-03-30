@@ -1,5 +1,4 @@
 -- Function that checks RLS on newly created tables
-DROP FUNCTION IF EXISTS public.check_new_table_rls() CASCADE;
 CREATE OR REPLACE FUNCTION public.check_new_table_rls()
 RETURNS event_trigger
 LANGUAGE plpgsql

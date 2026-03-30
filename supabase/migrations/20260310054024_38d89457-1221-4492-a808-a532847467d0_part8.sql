@@ -1,5 +1,4 @@
 -- Funzione helper per creare notifiche (SECURITY DEFINER)
-DROP FUNCTION IF EXISTS public.create_notification(uuid, uuid, text, text, text, text, uuid, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.create_notification(
   p_company_id  uuid,
   p_user_id     uuid,

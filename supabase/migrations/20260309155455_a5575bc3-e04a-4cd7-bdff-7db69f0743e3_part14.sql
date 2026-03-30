@@ -1,7 +1,6 @@
 -- ════════════════════════════════════════════════════════════════
 -- FUNZIONE RPC: Scadenzario
 -- ════════════════════════════════════════════════════════════════
-DROP FUNCTION IF EXISTS public.get_scadenzario(UUID, DATE, DATE) CASCADE;
 CREATE OR REPLACE FUNCTION get_scadenzario(
   p_company_id UUID,
   p_from_date DATE DEFAULT CURRENT_DATE - INTERVAL '30 days',

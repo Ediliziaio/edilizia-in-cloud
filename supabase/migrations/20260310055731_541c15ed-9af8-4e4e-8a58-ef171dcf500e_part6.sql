@@ -1,5 +1,4 @@
 -- 3. Task assegnato → notifica assegnatario
-DROP FUNCTION IF EXISTS public.notify_task_assigned() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_task_assigned()
 RETURNS trigger
 LANGUAGE plpgsql

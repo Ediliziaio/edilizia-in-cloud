@@ -1,5 +1,4 @@
 -- Step 2: Fix get_attribution_report - contacts_created should count contacts actually created in the period
-DROP FUNCTION IF EXISTS public.get_attribution_report(UUID, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_attribution_report(
   p_company_id UUID,
   p_date_from TIMESTAMPTZ,

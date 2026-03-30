@@ -1,4 +1,3 @@
-DROP FUNCTION IF EXISTS public.try_acquire_token_refresh_lock(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.try_acquire_token_refresh_lock(p_integration_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$

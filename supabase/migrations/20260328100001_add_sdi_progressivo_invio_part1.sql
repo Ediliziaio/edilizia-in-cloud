@@ -1,5 +1,4 @@
 -- 2. Atomic function to get next progressivo (per company, per year)
-DROP FUNCTION IF EXISTS public.incrementa_progressivo_sdi(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION incrementa_progressivo_sdi(
   p_company_id uuid
 )

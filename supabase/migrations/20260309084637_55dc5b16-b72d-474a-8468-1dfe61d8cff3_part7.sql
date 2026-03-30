@@ -1,5 +1,4 @@
 -- 5. Fix get_treasury_summary: add AND t.status = 'booked' to monthly subqueries
-DROP FUNCTION IF EXISTS public.get_treasury_summary(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_treasury_summary(p_company_id uuid)
 RETURNS TABLE (
   total_balance        numeric,

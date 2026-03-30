@@ -1,5 +1,4 @@
 
-DROP FUNCTION IF EXISTS public.deduct_ai_credits(uuid, numeric) CASCADE;
 CREATE OR REPLACE FUNCTION public.deduct_ai_credits(p_company_id uuid, p_cost numeric)
 RETURNS jsonb
 LANGUAGE plpgsql

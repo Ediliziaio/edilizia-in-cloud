@@ -1,5 +1,4 @@
 -- Fix stock events function: warehouse_stock uses min_stock_level, not min_quantity
-DROP FUNCTION IF EXISTS public.trigger_internal_auto_stock_events() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_stock_events()
  RETURNS trigger
  LANGUAGE plpgsql
