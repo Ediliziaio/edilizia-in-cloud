@@ -165,8 +165,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         .from("orders")
         .select("id, order_code, description")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },

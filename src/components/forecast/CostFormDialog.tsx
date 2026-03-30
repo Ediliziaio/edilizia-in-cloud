@@ -65,6 +65,7 @@ export function CostFormDialog({
 }: CostFormDialogProps) {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
 
@@ -352,12 +353,28 @@ export function CostFormDialog({
                 <Select value={formData.order_id || "none"} onValueChange={(v) => setFormData({ ...formData, order_id: v === "none" ? "" : v })}>
                   <SelectTrigger><SelectValue placeholder="Nessun ordine" /></SelectTrigger>
                   <SelectContent>
+                    <div className="p-2">
+                      <Input
+                        placeholder="Cerca ordine..."
+                        value={orderSearch}
+                        onChange={e => setOrderSearch(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
                     <SelectItem value="none">Nessuno</SelectItem>
-                    {orders.map((order: any) => (
-                      <SelectItem key={order.id} value={order.id}>
-                        {order.order_code || order.description?.substring(0, 30) || order.id.substring(0, 8)}
-                      </SelectItem>
-                    ))}
+                    {orders
+                      .filter(o =>
+                        orderSearch === "" ||
+                        (o.order_code || "").toLowerCase().includes(orderSearch.toLowerCase()) ||
+                        (o.description || "").toLowerCase().includes(orderSearch.toLowerCase())
+                      )
+                      .slice(0, 100)
+                      .map((o: any) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.order_code}{o.description ? ` — ${o.description.slice(0, 40)}` : ""}
+                        </SelectItem>
+                      ))
+                    }
                   </SelectContent>
                 </Select>
               </div>
