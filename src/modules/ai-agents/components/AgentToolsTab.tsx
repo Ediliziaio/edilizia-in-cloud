@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -339,6 +340,33 @@ export function AgentToolsTab({ agentId }: AgentToolsTabProps) {
                   >
                     Salva
                   </Button>
+                </div>
+              )}
+              {/* Voicemail message config */}
+              {tool.id === "voicemail_detection" && tool.enabled && (
+                <div className="ml-6 space-y-2">
+                  <Label className="text-xs text-muted-foreground">Messaggio segreteria</Label>
+                  <div className="flex gap-2">
+                    <Textarea
+                      className="text-xs min-h-[60px] resize-none"
+                      placeholder="Salve, sono l'assistente di EdiliziaInCloud. La richiamo al più presto. Grazie."
+                      value={(ediToolConfigs["__voicemail_message"] as unknown as EdiToolConfig | undefined)?.webhook_url ?? ""}
+                      onChange={(e) => {
+                        const updated = { ...ediToolConfigs, __voicemail_message: { enabled: true, webhook_url: e.target.value } };
+                        setEdiToolConfigs(updated);
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8 shrink-0 self-end"
+                      onClick={() => {
+                        saveConfig(systemTools, customTools, ediToolConfigs);
+                        toast.success("Messaggio segreteria salvato");
+                      }}
+                    >
+                      Salva
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
