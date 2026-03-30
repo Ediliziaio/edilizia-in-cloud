@@ -27,7 +27,8 @@ BEGIN
       UPDATE public.email_credits SET balance_eur = v_balance_after, updated_at = now() WHERE company_id = p_company_id;
     END IF;
     INSERT INTO public.email_credits_log (company_id, type, amount_eur, balance_before, balance_after, description)
-    VALUES (p_company_id, CASE WHEN p_amount >= 0 THEN 'topup' ELSE 'deduction' END, p_amount, v_balance_before, v_balance_after, 'Admin: ' || p_reason);
+    VALUES (p_company_id, CASE WHEN p_amount >= 0 THEN 'topup' ELSE 'deduction' END, p_amount, v_balance_before, v_balance_after, 'Admin: ' || p_reason)
+ON CONFLICT DO NOTHING;
 
   ELSIF p_service = 'ai_agents' THEN
     SELECT balance_eur INTO v_balance_before FROM public.ai_credits WHERE company_id = p_company_id FOR UPDATE;
@@ -53,14 +54,16 @@ BEGIN
       UPDATE public.whatsapp_credits SET balance_eur = v_balance_after, updated_at = now(), sends_blocked = CASE WHEN v_balance_after > 0 THEN false ELSE sends_blocked END WHERE company_id = p_company_id;
     END IF;
     INSERT INTO public.whatsapp_credits_log (company_id, type, amount_eur, balance_before, balance_after, description)
-    VALUES (p_company_id, CASE WHEN p_amount >= 0 THEN 'topup' ELSE 'deduction' END, p_amount, v_balance_before, v_balance_after, 'Admin: ' || p_reason);
+    VALUES (p_company_id, CASE WHEN p_amount >= 0 THEN 'topup' ELSE 'deduction' END, p_amount, v_balance_before, v_balance_after, 'Admin: ' || p_reason)
+ON CONFLICT DO NOTHING;
 
   ELSE
     RETURN jsonb_build_object('error', 'Servizio non supportato: ' || p_service);
   END IF;
 
   INSERT INTO public.admin_credit_adjustments (company_id, service, amount_eur, reason, created_by)
-  VALUES (p_company_id, p_service, p_amount, p_reason, p_adjusted_by);
+  VALUES (p_company_id, p_service, p_amount, p_reason, p_adjusted_by)
+ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object('balance_before', v_balance_before, 'balance_after', v_balance_after, 'success', true);
 END;

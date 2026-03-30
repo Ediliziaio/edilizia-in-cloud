@@ -37,7 +37,8 @@ BEGIN
   END IF;
 
   INSERT INTO public.email_credits_log (company_id, type, amount_eur, balance_before, balance_after, description, metadata)
-  VALUES (p_company_id, p_type, p_amount, v_balance_before, v_balance_after, p_description, p_metadata);
+  VALUES (p_company_id, p_type, p_amount, v_balance_before, v_balance_after, p_description, p_metadata)
+ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object('balance_before', v_balance_before, 'balance_after', v_balance_after);
 END;

@@ -6,4 +6,5 @@ INSERT INTO public.platform_feature_flags (key, name, description, category, is_
   ('messaging_beta', 'Messaggistica', 'Modulo di messaggistica con AI per conversazioni', 'beta', true, false, '{}', 'MessageSquare', 4),
   ('ai_agents_internal', 'Agenti AI Gestione Interna', 'AI per gestione ordini e magazzino', 'beta', true, false, '{}', 'Cpu', 5),
   ('email_marketing', 'Email Marketing', 'Campagne email automatizzate', 'addon', false, true, '{pro,enterprise}', 'Mail', 6),
-  ('automations', 'Automazioni Marketing', 'Workflow automatizzati per il CRM', 'core', false, true, '{base,pro,enterprise}', 'Zap', 7);
+  ('automations', 'Automazioni Marketing', 'Workflow automatizzati per il CRM', 'core', false, true, '{base,pro,enterprise}', 'Zap', 7)
+ON CONFLICT DO NOTHING;

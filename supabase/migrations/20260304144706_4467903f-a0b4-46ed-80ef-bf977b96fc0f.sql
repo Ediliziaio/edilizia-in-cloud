@@ -107,7 +107,8 @@ BEGIN
   -- We use direct insert into automation_queue via a matching function instead of net.http_post
   -- to avoid pg_net dependency. The cron job will pick these up.
   INSERT INTO public.automation_trigger_events (company_id, trigger_event, entity_id, entity_type, payload)
-  VALUES (_company_id, _trigger_event, _entity_id, _entity_type, _payload);
+  VALUES (_company_id, _trigger_event, _entity_id, _entity_type, _payload)
+ON CONFLICT DO NOTHING;
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;

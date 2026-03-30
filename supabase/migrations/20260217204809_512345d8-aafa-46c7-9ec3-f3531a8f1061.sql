@@ -156,7 +156,8 @@ BEGIN
   -- Insert the log entry
   IF _company_id IS NOT NULL THEN
     INSERT INTO public.company_activity_log (company_id, user_id, action, target_type, target_id, details)
-    VALUES (_company_id, _user_id, _action, _target_type, _target_id, _details);
+    VALUES (_company_id, _user_id, _action, _target_type, _target_id, _details)
+ON CONFLICT DO NOTHING;
   END IF;
 
   IF TG_OP = 'DELETE' THEN

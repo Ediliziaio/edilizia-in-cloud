@@ -57,7 +57,8 @@ BEGIN
 
   -- Log transaction
   INSERT INTO ai_credit_transactions (company_id, tipo, crediti, saldo_prima, saldo_dopo, descrizione, agent_id, conversation_id)
-  VALUES (p_company_id, 'consumo', -p_amount, v_saldo_prima, v_saldo_dopo, p_descrizione, p_agent_id, p_conversation_id);
+  VALUES (p_company_id, 'consumo', -p_amount, v_saldo_prima, v_saldo_dopo, p_descrizione, p_agent_id, p_conversation_id)
+ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object('success', true, 'saldo_dopo', v_saldo_dopo, 'scalato_bonus', v_from_bonus, 'scalato_crediti', v_from_crediti);
 END;

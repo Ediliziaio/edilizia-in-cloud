@@ -94,4 +94,5 @@ CREATE POLICY "Company admins can view their logs"
 INSERT INTO public.subscription_plans (name, slug, description, price_monthly, price_yearly, max_orders, max_users, max_storage_mb, features, position) VALUES
   ('Free', 'free', 'Piano gratuito con funzionalità base', 0, 0, 10, 3, 100, '["Ordini base", "1 utente staff", "100MB storage"]'::jsonb, 0),
   ('Pro', 'pro', 'Piano professionale per aziende in crescita', 49, 470, 100, 10, 2000, '["Ordini illimitati*", "10 utenti", "2GB storage", "Calendario", "Magazzino", "Report"]'::jsonb, 1),
-  ('Enterprise', 'enterprise', 'Piano enterprise con funzionalità complete', 99, 950, -1, -1, 10000, '["Tutto illimitato", "Utenti illimitati", "10GB storage", "Supporto prioritario", "API access"]'::jsonb, 2);
+  ('Enterprise', 'enterprise', 'Piano enterprise con funzionalità complete', 99, 950, -1, -1, 10000, '["Tutto illimitato", "Utenti illimitati", "10GB storage", "Supporto prioritario", "API access"]'::jsonb, 2)
+ON CONFLICT DO NOTHING;

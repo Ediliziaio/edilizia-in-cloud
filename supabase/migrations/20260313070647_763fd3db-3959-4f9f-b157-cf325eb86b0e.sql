@@ -21,7 +21,8 @@ BEGIN
       true,
       'fattura_emessa',
       'crediti_clienti'
-    );
+    )
+ON CONFLICT DO NOTHING;
   END IF;
 
   -- Trigger 3 inline: Nota di credito emessa → storno
@@ -43,7 +44,8 @@ BEGIN
       true,
       'nota_credito',
       'crediti_clienti'
-    );
+    )
+ON CONFLICT DO NOTHING;
   END IF;
 
   RETURN NEW;

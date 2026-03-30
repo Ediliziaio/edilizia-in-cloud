@@ -25,7 +25,8 @@ BEGIN
     WHEN 'email' THEN
       SELECT balance_eur INTO v_before FROM public.email_credits WHERE company_id = p_company_id FOR UPDATE;
       IF v_before IS NULL THEN
-        INSERT INTO public.email_credits (company_id, balance_eur) VALUES (p_company_id, p_amount);
+        INSERT INTO public.email_credits (company_id, balance_eur) VALUES (p_company_id, p_amount)
+ON CONFLICT DO NOTHING;
         v_before := 0;
         v_after := p_amount;
       ELSE
@@ -35,7 +36,8 @@ BEGIN
     WHEN 'ai_agents' THEN
       SELECT balance_eur INTO v_before FROM public.ai_credits WHERE company_id = p_company_id FOR UPDATE;
       IF v_before IS NULL THEN
-        INSERT INTO public.ai_credits (company_id, balance_eur) VALUES (p_company_id, p_amount);
+        INSERT INTO public.ai_credits (company_id, balance_eur) VALUES (p_company_id, p_amount)
+ON CONFLICT DO NOTHING;
         v_before := 0;
         v_after := p_amount;
       ELSE
@@ -45,7 +47,8 @@ BEGIN
     WHEN 'whatsapp' THEN
       SELECT balance_eur INTO v_before FROM public.whatsapp_credits WHERE company_id = p_company_id FOR UPDATE;
       IF v_before IS NULL THEN
-        INSERT INTO public.whatsapp_credits (company_id, balance_eur) VALUES (p_company_id, p_amount);
+        INSERT INTO public.whatsapp_credits (company_id, balance_eur) VALUES (p_company_id, p_amount)
+ON CONFLICT DO NOTHING;
         v_before := 0;
         v_after := p_amount;
       ELSE
@@ -55,7 +58,8 @@ BEGIN
 
   -- Log the adjustment
   INSERT INTO public.admin_credit_adjustments (company_id, service, amount_eur, reason, created_by)
-  VALUES (p_company_id, p_service, p_amount, p_reason, p_adjusted_by);
+  VALUES (p_company_id, p_service, p_amount, p_reason, p_adjusted_by)
+ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object('success', true, 'balance_before', v_before, 'balance_after', v_after);
 END;

@@ -61,7 +61,8 @@ BEGIN
         ) VALUES (
           v_enrollment_id, v_flow.flow_id, v_company_id, v_first_action_node_id,
           v_entity_id, v_entity_type, v_context
-        );
+        )
+ON CONFLICT DO NOTHING;
       END IF;
     END IF;
 
