@@ -87,7 +87,7 @@ const STATUSES = [
 ];
 
 export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId }: TaskDialogProps) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
   const { onlyAssigned } = usePermissions();
@@ -163,9 +163,13 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         .from("user_roles")
         .select("user_id, role")
         .in("user_id", userIds);
+      // Exclude super_admin and platform roles — they don't belong to the company
+      const PLATFORM_ROLES = ["super_admin", "platform_admin", "platform_support", "platform_viewer"];
+      const platformUserIds = new Set(roles?.filter((r) => PLATFORM_ROLES.includes(r.role)).map((r) => r.user_id) ?? []);
       const validUserIds = roles
         ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
-        .map((r) => r.user_id) || [];
+        .map((r) => r.user_id)
+        .filter((id) => !platformUserIds.has(id)) || [];
       return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: open && !!companyId,

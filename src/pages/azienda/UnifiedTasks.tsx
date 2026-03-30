@@ -71,7 +71,7 @@ const FONTE_OPTIONS = [
 const MARKETING_CATEGORIES = ["marketing", "contatti", "opportunita"];
 
 export default function UnifiedTasks() {
-  const { effectiveCompany, user } = useAuth() as any;
+  const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -146,10 +146,14 @@ export default function UnifiedTasks() {
   });
 
   // Extract unique assignees for filter
+  // Exclude the current user if they are impersonating (superadmin doesn't belong to this company)
+  const PLATFORM_ROLES = ["super_admin", "platform_admin", "platform_support", "platform_viewer"];
   const assignees = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
     tasks.forEach((t) => {
       if (t.assigned_profile && t.assigned_to) {
+        // Skip the impersonating superadmin — they don't belong to this company
+        if (isImpersonating && PLATFORM_ROLES.includes(role) && t.assigned_to === user?.id) return;
         map.set(t.assigned_to, {
           id: t.assigned_to,
           name: `${t.assigned_profile.first_name} ${t.assigned_profile.last_name}`,
@@ -157,7 +161,7 @@ export default function UnifiedTasks() {
       }
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasks]);
+  }, [tasks, isImpersonating, role, user?.id]);
 
   const now = new Date();
   const in48h = addHours(now, 48);
