@@ -597,6 +597,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ============ WHATSAPP AFTER-CALL (P2-04) ============
+    // If appointment was created, send WhatsApp template confirmation
+    if (appointmentCreated && contactId) {
+      try {
+        const { data: waContact } = await adminClient
+          .from("marketing_contacts")
+          .select("phone, first_name")
+          .eq("id", contactId)
+          .single();
+
+        if (waContact?.phone) {
+          const waMsg = `Ciao ${waContact.first_name || ""}! Il tuo appuntamento è stato confermato. Ti aspettiamo!`;
+          // Fire-and-forget WhatsApp
+          fetch(`${supabaseUrl}/functions/v1/send-contact-message`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              company_id: companyId,
+              contact_id: contactId,
+              channel: "whatsapp",
+              content: waMsg,
+            }),
+          }).catch((e) => console.error("[WEBHOOK] WhatsApp after-call error:", e));
+        }
+      } catch (waErr) {
+        console.error("[WEBHOOK] WhatsApp after-call setup error:", waErr);
+      }
+    }
+
     // ============ SMS POST-CALL (P1-06) ============
     const smsAgent = agent as typeof agent & { sms_postcall_enabled?: boolean; sms_postcall_trigger?: string; sms_postcall_template?: string };
     if (smsAgent?.sms_postcall_enabled && contactId) {
