@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center";
 
@@ -163,6 +164,72 @@ Deno.serve(async (req) => {
         await cleanup();
         return errorResponse("Errore durante la creazione del profilo venditore", 500);
       }
+    }
+
+    // Item 9: Send branded welcome email with credentials
+    try {
+      const { data: branding } = await supabaseAdmin
+        .from("company_branding")
+        .select("platform_name, login_logo_url, logo_url, primary_color")
+        .eq("company_id", targetCompanyId)
+        .maybeSingle();
+
+      const platformName = (branding as any)?.platform_name || "Edilizia in Cloud";
+      const logoUrl = (branding as any)?.login_logo_url || (branding as any)?.logo_url || null;
+      const primaryColor = (branding as any)?.primary_color || "#F97415";
+
+      const loginUrl = `${Deno.env.get("SITE_URL") || "https://app.ediliziacloud.it"}/login`;
+
+      const emailHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Helvetica Neue',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+<tr><td style="background:#0f172a;padding:24px 32px;text-align:center;">
+  ${logoUrl ? `<img src="${logoUrl}" alt="${platformName}" style="height:40px;max-width:200px;object-fit:contain;" />` : `<span style="color:#ffffff;font-size:20px;font-weight:700;">${platformName}</span>`}
+</td></tr>
+<tr><td style="padding:32px;">
+  <h2 style="color:#0f172a;font-size:22px;margin:0 0 16px;">Benvenuto in ${platformName}!</h2>
+  <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+    Il tuo account è stato creato. Di seguito trovi le credenziali per accedere alla piattaforma.
+  </p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;padding:20px;margin-bottom:24px;">
+    <tr><td style="padding:8px 0;">
+      <span style="color:#64748b;font-size:13px;">Email</span><br>
+      <strong style="color:#0f172a;font-size:15px;">${email}</strong>
+    </td></tr>
+    <tr><td style="padding:8px 0;border-top:1px solid #e2e8f0;">
+      <span style="color:#64748b;font-size:13px;">Password temporanea</span><br>
+      <strong style="color:#0f172a;font-size:15px;font-family:monospace;">${temporaryPassword}</strong>
+    </td></tr>
+  </table>
+  <p style="color:#ef4444;font-size:13px;margin:0 0 24px;">⚠️ Ti verrà chiesto di cambiare la password al primo accesso.</p>
+  <table width="100%"><tr><td style="text-align:center;">
+    <a href="${loginUrl}" style="display:inline-block;background:${primaryColor};color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+      Accedi alla piattaforma
+    </a>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;border-top:1px solid #f1f5f9;text-align:center;">
+  <p style="color:#94a3b8;font-size:12px;margin:0;">Questo è un messaggio automatico di ${platformName}.</p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`;
+
+      const settings = await loadProviderSettings("transactional");
+      if (settings.apiKey) {
+        const from = settings.fromDefault || settings.fromEmail;
+        await sendViaProvider(settings.provider, settings.apiKey, {
+          from,
+          to: [email],
+          subject: `Benvenuto in ${platformName} — Le tue credenziali di accesso`,
+          html: emailHtml,
+        }, { domain: settings.domain || undefined });
+      }
+    } catch (emailErr) {
+      // Email failure is non-blocking — user was already created successfully
+      console.error("Failed to send welcome email:", emailErr);
     }
 
     return jsonResponse({

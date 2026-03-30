@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
@@ -110,6 +111,9 @@ const NO_PERMISSIONS: Permissions = {
 
 export function usePermissions(): Permissions {
   const { role, user, isImpersonating, isImpersonationReady, impersonatedCompanyId, impersonationToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  const isStaffRole = ["company_staff", "salesperson", "call_center"].includes(role || "");
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -126,9 +130,36 @@ export function usePermissions(): Permissions {
       }
       return data;
     },
-    enabled: ["company_staff", "salesperson", "call_center"].includes(role || "") && !!user?.id,
+    enabled: isStaffRole && !!user?.id,
     staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
+
+  // Item 10: Realtime invalidation — if an admin updates this user's permissions,
+  // invalidate the cache so the new permissions take effect without a page reload.
+  useEffect(() => {
+    if (!isStaffRole || !user?.id) return;
+
+    const channel = supabase
+      .channel(`staff-permissions-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "staff_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, isStaffRole, queryClient]);
 
   // Super admin and company admin have all permissions
   if (role === "super_admin" || role === "company_admin") {
