@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { format, subDays } from "https://esm.sh/date-fns@3";
 
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
@@ -111,6 +112,16 @@ Deno.serve(async (req) => {
       if (insertError) throw insertError;
       createdCount = inserted?.length ?? 0;
     }
+
+    // Alert: check for overdue recurring costs (>7 days late, unpaid)
+    const { data: overdueWarnings } = await supabase
+      .from("company_costs")
+      .select("id, name, amount, due_date, company_id")
+      .eq("is_paid", false)
+      .lt("due_date", format(subDays(new Date(), 7), "yyyy-MM-dd"))
+      .eq("recurrence", "monthly");
+    const companiesWithOverdue = [...new Set((overdueWarnings || []).map((c: any) => c.company_id))];
+    console.log(`[ALERT] ${companiesWithOverdue.length} aziende con costi ricorrenti in ritardo`);
 
     return new Response(JSON.stringify({ success: true, created: createdCount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

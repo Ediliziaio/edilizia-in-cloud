@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat } from "lucide-react";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat, Info } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -17,6 +17,10 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip as UITooltip, TooltipContent as UITooltipContent,
+  TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
@@ -248,24 +252,33 @@ export default function CompanyCostsManager() {
               <CardDescription>Gestione costi con IVA, fornitori e analisi fiscale</CardDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
-                      body: { company_id: companyId },
-                    });
-                    if (error) throw error;
-                    toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
-                  } catch {
-                    toast({ title: "Errore nella generazione", variant: "destructive" });
-                  }
-                }}
-                className="gap-1"
-              >
-                <Repeat className="h-4 w-4" /> Genera ricorrenti
-              </Button>
+              <UITooltipProvider>
+                <UITooltip>
+                  <UITooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
+                            body: { company_id: companyId },
+                          });
+                          if (error) throw error;
+                          toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
+                        } catch {
+                          toast({ title: "Errore nella generazione", variant: "destructive" });
+                        }
+                      }}
+                      className="gap-1"
+                    >
+                      <Repeat className="h-4 w-4" /> Genera ora (auto: 1° del mese)
+                    </Button>
+                  </UITooltipTrigger>
+                  <UITooltipContent side="bottom" className="max-w-[240px] text-xs">
+                    I costi ricorrenti vengono generati automaticamente il 1° del mese. Clicca solo se hai bisogno di generarli manualmente ora.
+                  </UITooltipContent>
+                </UITooltip>
+              </UITooltipProvider>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
                 <Upload className="h-4 w-4" /> Importa
               </Button>
