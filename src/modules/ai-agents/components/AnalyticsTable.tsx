@@ -27,6 +27,8 @@ interface Conversation {
   started_at: string;
   elevenlabs_conversation_id: string | null;
   contact_id: string | null;
+  sentiment?: string | null;
+  sentiment_score?: number | null;
 }
 
 interface AnalyticsTableProps {
@@ -291,6 +293,24 @@ export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
                             )}
                             {conv.contact_id && (
                               <p><span className="text-muted-foreground">Contatto:</span> {conv.contact_id}</p>
+                            )}
+                            {conv.sentiment && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Sentiment:</span>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${
+                                    conv.sentiment === "positive"
+                                      ? "text-green-600 border-green-600"
+                                      : conv.sentiment === "negative"
+                                        ? "text-red-600 border-red-600"
+                                        : "text-yellow-600 border-yellow-600"
+                                  }`}
+                                >
+                                  {conv.sentiment === "positive" ? "😊 Positivo" : conv.sentiment === "negative" ? "😞 Negativo" : "😐 Neutro"}
+                                  {conv.sentiment_score != null && ` (${conv.sentiment_score > 0 ? "+" : ""}${conv.sentiment_score})`}
+                                </Badge>
+                              </div>
                             )}
                           </div>
                           {conv.elevenlabs_conversation_id && conv.status === "completed" && (

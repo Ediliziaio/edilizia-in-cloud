@@ -238,6 +238,11 @@ Deno.serve(async (req) => {
     // Resolve branch_id from metadata
     const branchId: string | null = metadata?.branch_id || null;
 
+    // P2-01: Sentiment analysis
+    const { sentiment, score: sentimentScore } = transcript.length > 0
+      ? analyzeSentiment(transcript as { role?: string; message?: string }[])
+      : { sentiment: "neutral", score: 0 };
+
     // Save conversation
     const convInsert: Record<string, unknown> = {
       agent_id: agent.id,
@@ -251,6 +256,8 @@ Deno.serve(async (req) => {
       summary: summaryText,
       transcript: transcript.length > 0 ? transcript : null,
       metadata: Object.keys(metadata).length > 0 ? metadata : {},
+      sentiment,
+      sentiment_score: sentimentScore,
     };
     if (branchId) {
       convInsert.branch_id = branchId;
@@ -634,4 +641,36 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...secureHeaders, ...corsHeaders },
   });
+}
+
+// P2-01: Keyword-based sentiment analysis on transcript
+function analyzeSentiment(transcript: { role?: string; message?: string }[]): { sentiment: string; score: number } {
+  const userMessages = transcript
+    .filter((m) => m.role === "user" && m.message)
+    .map((m) => m.message!.toLowerCase())
+    .join(" ");
+
+  if (!userMessages) return { sentiment: "neutral", score: 0 };
+
+  const positiveWords = ["grazie", "ottimo", "perfetto", "benissimo", "sì", "certo", "confermo", "disponibile",
+    "interessato", "bene", "buono", "eccellente", "fantastico", "volentieri", "ovviamente", "assolutamente"];
+  const negativeWords = ["no", "non voglio", "non mi interessa", "stop", "basta", "problema", "errore",
+    "deluso", "arrabbiato", "sbagliato", "impossibile", "mai", "cancella", "annulla", "fastidio"];
+
+  let positiveCount = 0;
+  let negativeCount = 0;
+
+  for (const word of positiveWords) {
+    if (userMessages.includes(word)) positiveCount++;
+  }
+  for (const word of negativeWords) {
+    if (userMessages.includes(word)) negativeCount++;
+  }
+
+  const total = positiveCount + negativeCount;
+  if (total === 0) return { sentiment: "neutral", score: 0 };
+
+  const score = Number(((positiveCount - negativeCount) / total).toFixed(2));
+  const sentiment = score > 0.2 ? "positive" : score < -0.2 ? "negative" : "neutral";
+  return { sentiment, score };
 }

@@ -15,6 +15,8 @@ interface Conversation {
   started_at: string;
   elevenlabs_conversation_id: string | null;
   contact_id: string | null;
+  sentiment?: string | null;
+  sentiment_score?: number | null;
 }
 
 interface AgentAnalyticsTabProps {
@@ -27,7 +29,7 @@ export function AgentAnalyticsTab({ agentId }: AgentAnalyticsTabProps) {
     queryFn: async (): Promise<Conversation[]> => {
       const { data, error } = await supabase
         .from("ai_agent_conversations" as never)
-        .select("id, status, duration_seconds, messages_count, appointment_created, started_at, elevenlabs_conversation_id, contact_id")
+        .select("id, status, duration_seconds, messages_count, appointment_created, started_at, elevenlabs_conversation_id, contact_id, sentiment, sentiment_score")
         .eq("agent_id", agentId)
         .order("started_at", { ascending: false });
       if (error) throw error;
