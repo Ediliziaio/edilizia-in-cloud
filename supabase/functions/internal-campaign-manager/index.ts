@@ -118,6 +118,9 @@ Deno.serve(async (req) => {
             company_id: companyId,
             user_id: user.id,
             skip_subscription_check: false,
+            dynamic_vars: campaign.dynamic_vars && Object.keys(campaign.dynamic_vars).length > 0
+              ? campaign.dynamic_vars
+              : undefined,
           }),
         });
 

@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
         companyId: companyId!,
         userId: userId!,
         skipSubscriptionCheck: body.skip_subscription_check || false,
+        dynamicVars: body.dynamic_vars,
       });
     }
 
@@ -66,6 +67,7 @@ Deno.serve(async (req) => {
       companyId,
       userId,
       skipSubscriptionCheck: false,
+      dynamicVars: body.dynamic_vars,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -81,13 +83,14 @@ interface OutboundCallParams {
   companyId: string;
   userId: string;
   skipSubscriptionCheck: boolean;
+  dynamicVars?: Record<string, string>;
 }
 
 async function handleOutboundCall(
   adminClient: ReturnType<typeof createClient>,
   params: OutboundCallParams
 ) {
-  const { agentId, contactId, phoneNumber, companyId, userId, skipSubscriptionCheck } = params;
+  const { agentId, contactId, phoneNumber, companyId, userId, skipSubscriptionCheck, dynamicVars } = params;
 
   if (!agentId) return json({ error: "agent_id obbligatorio" }, 400);
   if (!contactId && !phoneNumber) return json({ error: "contact_id o phone_number obbligatorio" }, 400);
@@ -194,6 +197,21 @@ async function handleOutboundCall(
     return json({ error: "Nessun numero di telefono configurato per questo agente." }, 400);
   }
 
+  // Build ElevenLabs call payload with optional dynamic variables
+  const elPayload: Record<string, unknown> = {
+    agent_id: agent.elevenlabs_agent_id,
+    agent_phone_number_id: elPhoneId,
+    to_number: targetPhone,
+  };
+
+  if (dynamicVars && Object.keys(dynamicVars).length > 0) {
+    elPayload.conversation_config = {
+      agent: {
+        dynamic_variables: dynamicVars,
+      },
+    };
+  }
+
   // Initiate outbound call via ElevenLabs Telnyx endpoint
   const callRes = await fetch("https://api.elevenlabs.io/v1/convai/telnyx/outbound-call", {
     method: "POST",
@@ -201,11 +219,7 @@ async function handleOutboundCall(
       "xi-api-key": elevenLabsApiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      agent_id: agent.elevenlabs_agent_id,
-      agent_phone_number_id: elPhoneId,
-      to_number: targetPhone,
-    }),
+    body: JSON.stringify(elPayload),
   });
 
   const callData = await callRes.json();
