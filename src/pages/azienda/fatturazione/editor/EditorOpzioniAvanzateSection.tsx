@@ -114,7 +114,7 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
             </div>
 
             {/* ─── DDT / Fattura accompagnatoria ─── */}
-            {(state.tipo === "fattura" || state.tipo === "fattura_pa") && (
+            {["fattura", "fattura_pa", "fattura_accompagnatoria"].includes(state.tipo) && (
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-2">
                   <Truck className="h-3.5 w-3.5 text-muted-foreground" />

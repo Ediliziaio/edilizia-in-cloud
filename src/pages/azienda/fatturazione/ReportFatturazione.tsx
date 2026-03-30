@@ -66,7 +66,7 @@ export default function ReportFatturazione() {
     }
 
     docs.forEach((doc) => {
-      if (!["fattura", "fattura_pa"].includes(doc.tipo)) return;
+      if (!["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) return;
       if (["bozza", "annullata"].includes(doc.stato)) return;
       const key = doc.data_emissione?.slice(0, 7);
       if (key && months[key] !== undefined) {
@@ -85,7 +85,7 @@ export default function ReportFatturazione() {
   const topClients = useMemo(() => {
     const map: Record<string, number> = {};
     docs.forEach((doc) => {
-      if (!["fattura", "fattura_pa"].includes(doc.tipo)) return;
+      if (!["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) return;
       if (["bozza", "annullata"].includes(doc.stato)) return;
       const name = doc.cliente_snapshot?.ragione_sociale || "Sconosciuto";
       map[name] = (map[name] ?? 0) + doc.totale_documento;
@@ -102,7 +102,7 @@ export default function ReportFatturazione() {
     let credito = 0;
     docs.forEach((doc) => {
       if (["bozza", "annullata"].includes(doc.stato)) return;
-      if (["fattura", "fattura_pa"].includes(doc.tipo)) debito += doc.iva_totale;
+      if (["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) debito += doc.iva_totale;
       if (doc.tipo === "nota_credito") credito += Math.abs(doc.iva_totale);
     });
     return { debito, credito, saldo: debito - credito };
@@ -111,7 +111,7 @@ export default function ReportFatturazione() {
   const handleExportCSV = () => {
     const header = "Numero;Data;Tipo;Cliente;P.IVA;Imponibile;IVA;Totale\n";
     const rows = docs
-      .filter((d) => ["fattura", "fattura_pa", "nota_credito"].includes(d.tipo) && d.stato !== "bozza")
+      .filter((d) => ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_credito"].includes(d.tipo) && d.stato !== "bozza")
       .map((d) => `${d.numero};${d.data_emissione};${d.tipo};${d.cliente_snapshot?.ragione_sociale ?? ""};${d.cliente_snapshot?.partita_iva ?? ""};${d.imponibile_totale.toFixed(2)};${d.iva_totale.toFixed(2)};${d.totale_documento.toFixed(2)}`)
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });

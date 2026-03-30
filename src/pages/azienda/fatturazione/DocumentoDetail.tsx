@@ -39,6 +39,9 @@ const STATO_LABELS: Record<string, { label: string; variant: "default" | "second
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura", fattura_pa: "Fattura PA", nota_credito: "Nota di Credito",
   nota_debito: "Nota di Debito", ddt: "DDT", proforma: "Proforma", preventivo: "Preventivo",
+  parcella: "Parcella", fattura_accompagnatoria: "Fattura Accompagnatoria",
+  autofattura: "Autofattura", fattura_riepilogativa: "Fatt. Riepilogativa",
+  integrazione_servizi_estero: "TD17 — Servizi Estero", integrazione_beni_ue: "TD18 — Beni UE", integrazione_beni_extra_ue: "TD19 — Beni Extra-UE",
 };
 
 export default function DocumentoDetail() {
@@ -55,7 +58,7 @@ export default function DocumentoDetail() {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa"].includes(doc.tipo);
+  const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo);
   const stato = STATO_LABELS[doc.stato] ?? { label: doc.stato, variant: "secondary" as const };
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
   const residuo = doc.totale_da_pagare - doc.importo_pagato;
@@ -89,7 +92,8 @@ export default function DocumentoDetail() {
   };
 
   const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-    "fattura_riepilogativa", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+    "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
+    "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
   const canInviaSDI = doc.stato === "emessa" && TIPI_SDI.includes(doc.tipo);
 
   const handleInviaSDI = async () => {

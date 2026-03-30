@@ -21,7 +21,8 @@ const MESI = [
 
 // Tipi documento vendite (attive)
 const TIPI_VENDITE = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-  "fattura_riepilogativa", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+  "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
+  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
 
 function exportCSV(rows: any[], filename: string) {
   const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura"];
