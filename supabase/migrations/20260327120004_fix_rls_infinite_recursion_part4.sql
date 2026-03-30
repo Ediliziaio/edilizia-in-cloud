@@ -1,4 +1,5 @@
 -- Company admins: use SECURITY DEFINER function to get order company_id
+DROP POLICY IF EXISTS "Company admins can manage their order employees" ON public.order_employees;
 CREATE POLICY "Company admins can manage their order employees"
 ON public.order_employees FOR ALL
 TO authenticated

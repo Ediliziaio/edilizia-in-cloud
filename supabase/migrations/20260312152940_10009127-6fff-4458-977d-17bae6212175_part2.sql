@@ -1,4 +1,5 @@
 -- Recreate using the security definer function
+DROP POLICY IF EXISTS "customer_view_own_appointments" ON public.appointments;
 CREATE POLICY "customer_view_own_appointments"
 ON public.appointments
 FOR SELECT TO authenticated

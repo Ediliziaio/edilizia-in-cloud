@@ -1,4 +1,5 @@
 -- Company admins: use SECURITY DEFINER function
+DROP POLICY IF EXISTS "Company admins can manage their order salespeople" ON public.order_salespeople;
 CREATE POLICY "Company admins can manage their order salespeople"
 ON public.order_salespeople FOR ALL
 TO authenticated

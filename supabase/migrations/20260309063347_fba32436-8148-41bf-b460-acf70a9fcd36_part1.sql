@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage staff permissions" ON public.staff_permissions;
 CREATE POLICY "Company admins can manage staff permissions"
   ON public.staff_permissions
   FOR ALL

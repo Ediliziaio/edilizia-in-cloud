@@ -1,4 +1,5 @@
 -- Employees see items of orders they are assigned to
+DROP POLICY IF EXISTS "Employees can view items of their assigned orders" ON public.order_items;
 CREATE POLICY "Employees can view items of their assigned orders"
 ON public.order_items FOR SELECT
 TO authenticated

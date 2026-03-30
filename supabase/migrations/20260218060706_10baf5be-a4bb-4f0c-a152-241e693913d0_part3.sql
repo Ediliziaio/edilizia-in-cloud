@@ -1,4 +1,5 @@
 -- Staff can view if permitted
+DROP POLICY IF EXISTS "Staff can view whatsapp config if permitted" ON public.messaging_whatsapp_config;
 CREATE POLICY "Staff can view whatsapp config if permitted"
 ON public.messaging_whatsapp_config
 FOR SELECT

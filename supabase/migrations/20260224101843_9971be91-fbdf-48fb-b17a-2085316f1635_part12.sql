@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage their order salespeople" ON public.order_salespeople;
 CREATE POLICY "Company admins can manage their order salespeople"
 ON public.order_salespeople FOR ALL TO authenticated
 USING (has_role(auth.uid(), 'company_admin'::app_role) AND EXISTS (

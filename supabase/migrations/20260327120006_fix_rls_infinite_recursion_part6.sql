@@ -1,4 +1,5 @@
 -- Employees can see their own assignments
+DROP POLICY IF EXISTS "Employees can view their own order assignments" ON public.order_employees;
 CREATE POLICY "Employees can view their own order assignments"
 ON public.order_employees FOR SELECT
 TO authenticated

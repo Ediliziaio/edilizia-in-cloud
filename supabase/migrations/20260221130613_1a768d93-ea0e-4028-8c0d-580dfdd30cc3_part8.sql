@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can manage tasks if permitted" ON public.tasks;
 CREATE POLICY "Staff can manage tasks if permitted"
 ON public.tasks
 FOR ALL

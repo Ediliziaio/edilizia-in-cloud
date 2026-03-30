@@ -1,4 +1,5 @@
 -- Staff with permission
+DROP POLICY IF EXISTS "Staff can view order items if permitted" ON public.order_items;
 CREATE POLICY "Staff can view order items if permitted"
 ON public.order_items FOR SELECT
 TO authenticated

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can manage appointments if permitted" ON public.appointments;
 CREATE POLICY "Staff can manage appointments if permitted"
 ON public.appointments
 FOR ALL

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can view order salespeople if permitted" ON public.order_salespeople;
 CREATE POLICY "Staff can view order salespeople if permitted"
 ON public.order_salespeople FOR SELECT TO authenticated
 USING (has_permission(auth.uid(), 'can_view_orders'::text) AND EXISTS (

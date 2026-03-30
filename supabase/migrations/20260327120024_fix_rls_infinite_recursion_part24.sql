@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage their order history" ON public.order_status_history;
 CREATE POLICY "Company admins can manage their order history"
 ON public.order_status_history FOR ALL
 TO authenticated

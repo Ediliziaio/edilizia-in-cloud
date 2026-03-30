@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can view tasks if permitted" ON public.tasks;
 CREATE POLICY "Staff can view tasks if permitted"
 ON public.tasks
 FOR SELECT

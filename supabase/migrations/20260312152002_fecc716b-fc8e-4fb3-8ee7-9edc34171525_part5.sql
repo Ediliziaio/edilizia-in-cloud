@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "qi_anon_sel" ON public.quote_items;
 CREATE POLICY "qi_anon_sel"
 ON public.quote_items
 FOR SELECT
