@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Play, Pause, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
+import { toast } from "sonner";
 
 interface Conversation {
   id: string;
@@ -33,6 +35,68 @@ const formatDuration = (sec: number) => {
   const s = sec % 60;
   return `${min}m ${s}s`;
 };
+
+function AudioPlayer({ conversationId }: { conversationId: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const loadAndPlay = async () => {
+    if (audioRef.current && blobUrl) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        await audioRef.current.play().catch(() => setIsPlaying(false));
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await callElevenLabsProxy<{ audio_base64?: string; content_type?: string }>({
+        action: "get_conversation_audio",
+        payload: { conversation_id: conversationId },
+      });
+      if (!data?.audio_base64) throw new Error("Audio non disponibile");
+      const contentType = data.content_type || "audio/mpeg";
+      const binary = atob(data.audio_base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+      setBlobUrl(url);
+      const audio = new Audio(url);
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => { setIsPlaying(false); toast.error("Errore riproduzione audio"); };
+      await audio.play();
+      audioRef.current = audio;
+      setIsPlaying(true);
+    } catch {
+      toast.error("Impossibile caricare l'audio della conversazione");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-2 h-8"
+      onClick={loadAndPlay}
+      disabled={isLoading}
+    >
+      {isLoading
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        : isPlaying
+          ? <Pause className="h-3.5 w-3.5" />
+          : <Play className="h-3.5 w-3.5" />}
+      {isLoading ? "Caricamento..." : isPlaying ? "Pausa" : "Ascolta registrazione"}
+    </Button>
+  );
+}
 
 export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
   const [search, setSearch] = useState("");
@@ -126,17 +190,19 @@ export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
                   {expandedId === conv.id && (
                     <TableRow key={`${conv.id}-details`}>
                       <TableCell colSpan={6} className="bg-muted/30 p-4">
-                        <div className="space-y-2 text-sm">
-                          <p><span className="text-muted-foreground">ID:</span> {conv.id}</p>
-                          {conv.elevenlabs_conversation_id && (
-                            <p><span className="text-muted-foreground">ElevenLabs ID:</span> {conv.elevenlabs_conversation_id}</p>
+                        <div className="space-y-3 text-sm">
+                          <div className="grid grid-cols-1 gap-1">
+                            <p><span className="text-muted-foreground">ID:</span> {conv.id}</p>
+                            {conv.elevenlabs_conversation_id && (
+                              <p><span className="text-muted-foreground">ElevenLabs ID:</span> {conv.elevenlabs_conversation_id}</p>
+                            )}
+                            {conv.contact_id && (
+                              <p><span className="text-muted-foreground">Contatto:</span> {conv.contact_id}</p>
+                            )}
+                          </div>
+                          {conv.elevenlabs_conversation_id && conv.status === "completed" && (
+                            <AudioPlayer conversationId={conv.elevenlabs_conversation_id} />
                           )}
-                          {conv.contact_id && (
-                            <p><span className="text-muted-foreground">Contatto:</span> {conv.contact_id}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground italic">
-                            La trascrizione completa sarà disponibile con l'integrazione webhook.
-                          </p>
                         </div>
                       </TableCell>
                     </TableRow>
