@@ -59,4 +59,12 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Enable realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.support_conversations;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'support_conversations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.support_conversations;
+  END IF;
+END $$;

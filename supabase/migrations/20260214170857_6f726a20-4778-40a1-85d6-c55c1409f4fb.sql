@@ -30,4 +30,12 @@ CREATE POLICY "Staff can view support messages if permitted"
     AND company_id = get_user_company_id(auth.uid())
   );
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.support_messages;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'support_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.support_messages;
+  END IF;
+END $$;
