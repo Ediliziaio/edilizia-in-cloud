@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -24,6 +25,7 @@ import { TaskComments } from "./TaskComments";
 import { TaskTagPicker } from "./TaskTagPicker";
 import { TaskTagBadge } from "./TaskTagBadge";
 import { TaskCorrelationPicker } from "./TaskCorrelationPicker";
+import { TaskDependencySection } from "./TaskDependencySection";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
@@ -136,6 +138,8 @@ function EditableField({
 
 export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? "";
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
 
@@ -469,6 +473,10 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               />
             </div>
           </div>
+
+          {/* Dipendenze */}
+          <Separator />
+          <TaskDependencySection taskId={task.id} companyId={companyId} />
 
           {/* Checklist */}
           <Separator />
