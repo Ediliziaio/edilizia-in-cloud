@@ -3,6 +3,7 @@
 -- Incorpora le variazioni approvate (OdV) nel preventivo totale
 -- security_invoker = true: RLS delle tabelle sottostanti viene applicato correttamente
 
+DROP VIEW IF EXISTS public.v_ordine_marginalita CASCADE;
 CREATE OR REPLACE VIEW public.v_ordine_marginalita
   WITH (security_invoker = true) AS
 SELECT

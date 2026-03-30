@@ -2,6 +2,7 @@
 -- VIEW: callcenter_lead_journey
 -- Per ogni lead: prima chiamata, ultimo stato, nr tentativi
 -- ============================================================
+DROP VIEW IF EXISTS public.callcenter_lead_journey CASCADE;
 CREATE OR REPLACE VIEW public.callcenter_lead_journey AS
 SELECT
   mc.id AS contact_id,

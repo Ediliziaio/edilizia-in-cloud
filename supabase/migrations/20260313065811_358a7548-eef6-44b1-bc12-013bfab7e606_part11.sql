@@ -1,4 +1,5 @@
 -- ─── 3. View stato pagamento fattura ─────────────────────────
+DROP VIEW IF EXISTS public.fattura_pagamento_stato CASCADE;
 CREATE OR REPLACE VIEW public.fattura_pagamento_stato AS
 SELECT
   df.id                                                       AS fattura_id,

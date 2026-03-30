@@ -1,4 +1,5 @@
 -- Create a restricted view exposing ONLY slot-availability fields
+DROP VIEW IF EXISTS public.public_appointment_slots CASCADE;
 CREATE OR REPLACE VIEW public.public_appointment_slots
 WITH (security_invoker = true)
 AS

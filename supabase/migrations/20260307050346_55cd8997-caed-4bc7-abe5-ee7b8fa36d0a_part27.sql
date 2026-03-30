@@ -1,4 +1,5 @@
 -- 10. View: monthly billing summary
+DROP VIEW IF EXISTS public.monthly_billing_summary CASCADE;
 CREATE OR REPLACE VIEW public.monthly_billing_summary AS
 SELECT
   u.company_id,

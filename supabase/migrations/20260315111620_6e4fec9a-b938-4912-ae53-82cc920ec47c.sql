@@ -1,4 +1,5 @@
 -- 1. Create safe view for ai_elevenlabs_config (masks api_key_encrypted)
+DROP VIEW IF EXISTS public.ai_elevenlabs_config_safe CASCADE;
 CREATE OR REPLACE VIEW public.ai_elevenlabs_config_safe AS
 SELECT
   id,

@@ -1,3 +1,4 @@
+DROP VIEW IF EXISTS public.order_payment_summary CASCADE;
 CREATE OR REPLACE VIEW public.order_payment_summary AS
 SELECT 
   order_id,

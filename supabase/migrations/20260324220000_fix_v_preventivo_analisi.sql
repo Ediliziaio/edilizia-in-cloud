@@ -7,6 +7,7 @@
 --    (edge function o RLS sul client anonimo).
 -- ═══════════════════════════════════════════════════════════════
 
+DROP VIEW IF EXISTS public.v_preventivo_analisi CASCADE;
 CREATE OR REPLACE VIEW public.v_preventivo_analisi
   WITH (security_invoker = true) AS
 SELECT

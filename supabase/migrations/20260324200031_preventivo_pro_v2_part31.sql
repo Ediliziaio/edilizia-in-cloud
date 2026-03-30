@@ -2,6 +2,7 @@
 -- Usata dal modulo AI analisi preventivi (Prompt 04).
 -- security_invoker = true: la RLS delle tabelle sottostanti si applica
 -- al chiamante, non al proprietario della vista.
+DROP VIEW IF EXISTS public.v_preventivo_analisi CASCADE;
 CREATE OR REPLACE VIEW public.v_preventivo_analisi
   WITH (security_invoker = true) AS
 SELECT

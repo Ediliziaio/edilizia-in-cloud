@@ -1,5 +1,6 @@
 
 -- Fix: make the view use SECURITY INVOKER explicitly
+DROP VIEW IF EXISTS public.fattura_pagamento_stato CASCADE;
 CREATE OR REPLACE VIEW public.fattura_pagamento_stato
 WITH (security_invoker = true)
 AS
