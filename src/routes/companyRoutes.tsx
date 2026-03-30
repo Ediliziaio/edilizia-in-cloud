@@ -232,8 +232,8 @@ export function companyRoutes() {
         <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
         <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
         <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
-        <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
-        <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/marketing/lead-forms" replace />} />
+        <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
+        <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
         <Route path="marketing/analisi-preventivi" element={<AnalisiPreventivi />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
@@ -266,6 +266,7 @@ export function companyRoutes() {
           <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
           <Route path="attivita" element={<SettingsActivityLog />} />
           <Route path="integrazioni" element={<SettingsIntegrations />} />
+          <Route path="lead-forms" element={<FacebookFormsPage />} />
           <Route path="crediti" element={<SettingsCredits />} />
           <Route path="api" element={<SettingsApiKeys />} />
           <Route path="webhook" element={<SettingsWebhooks />} />

@@ -46,6 +46,7 @@ import {
   Search,
   Globe,
   Phone,
+  FormInput,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -808,6 +809,13 @@ const CompanySidebar = memo(function CompanySidebar() {
                       <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/integrazioni" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Plug className="h-4 w-4" /><span>Integrazioni</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/lead-forms" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
+                          <FormInput className="h-4 w-4" /><span>Lead Facebook</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
