@@ -1,5 +1,5 @@
 -- 5. DELETE policy — tenant-scoped
-DROP POLICY IF EXISTS "Company users can delete own order attachments" ON public.storage;
+DROP POLICY IF EXISTS "Company users can delete own order attachments" ON storage.objects;
 CREATE POLICY "Company users can delete own order attachments"
 ON storage.objects FOR DELETE TO authenticated
 USING (

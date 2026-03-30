@@ -1,5 +1,5 @@
 -- 5. Storage policy: authenticated users can upload their own avatar
-DROP POLICY IF EXISTS "Users upload own avatar" ON public.storage;
+DROP POLICY IF EXISTS "Users upload own avatar" ON storage.objects;
 CREATE POLICY "Users upload own avatar"
   ON storage.objects FOR INSERT
   WITH CHECK (

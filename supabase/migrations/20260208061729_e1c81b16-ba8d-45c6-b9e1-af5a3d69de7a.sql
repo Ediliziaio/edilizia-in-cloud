@@ -73,7 +73,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('personnel-attachments', 'personnel-attachments', true) ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
-DROP POLICY IF EXISTS "Company admins can upload personnel attachments" ON public.storage;
+DROP POLICY IF EXISTS "Company admins can upload personnel attachments" ON storage.objects;
 CREATE POLICY "Company admins can upload personnel attachments"
 ON storage.objects FOR INSERT
 WITH CHECK (
@@ -81,12 +81,12 @@ WITH CHECK (
   has_role(auth.uid(), 'company_admin'::app_role)
 );
 
-DROP POLICY IF EXISTS "Anyone can read personnel attachments" ON public.storage;
+DROP POLICY IF EXISTS "Anyone can read personnel attachments" ON storage.objects;
 CREATE POLICY "Anyone can read personnel attachments"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'personnel-attachments');
 
-DROP POLICY IF EXISTS "Company admins can delete personnel attachments" ON public.storage;
+DROP POLICY IF EXISTS "Company admins can delete personnel attachments" ON storage.objects;
 CREATE POLICY "Company admins can delete personnel attachments"
 ON storage.objects FOR DELETE
 USING (

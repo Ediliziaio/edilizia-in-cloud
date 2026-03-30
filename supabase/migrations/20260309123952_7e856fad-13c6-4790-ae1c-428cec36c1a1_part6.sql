@@ -1,4 +1,4 @@
-DROP POLICY IF EXISTS "super_admin_manage_wl_assets" ON public.storage;
+DROP POLICY IF EXISTS "super_admin_manage_wl_assets" ON storage.objects;
 CREATE POLICY "super_admin_manage_wl_assets"
 ON storage.objects FOR ALL TO authenticated
 USING (

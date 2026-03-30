@@ -1,5 +1,5 @@
 -- RLS policies for invoices-pdf bucket
-DROP POLICY IF EXISTS "Company members can read invoice PDFs" ON public.storage;
+DROP POLICY IF EXISTS "Company members can read invoice PDFs" ON storage.objects;
 CREATE POLICY "Company members can read invoice PDFs"
 ON storage.objects FOR SELECT
 TO authenticated

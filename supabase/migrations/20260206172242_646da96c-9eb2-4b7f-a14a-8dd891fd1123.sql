@@ -3,7 +3,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('company-logos', 'company-logos', true) ON CONFLICT (id) DO NOTHING;
 
 -- RLS: Company admin can upload their logo
-DROP POLICY IF EXISTS "Company admins can upload their logo" ON public.storage;
+DROP POLICY IF EXISTS "Company admins can upload their logo" ON storage.objects;
 CREATE POLICY "Company admins can upload their logo"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -13,7 +13,7 @@ WITH CHECK (
 );
 
 -- RLS: Company admin can update their logo
-DROP POLICY IF EXISTS "Company admins can update their logo" ON public.storage;
+DROP POLICY IF EXISTS "Company admins can update their logo" ON storage.objects;
 CREATE POLICY "Company admins can update their logo"
 ON storage.objects FOR UPDATE
 TO authenticated
@@ -23,7 +23,7 @@ USING (
 );
 
 -- RLS: Company admin can delete their logo
-DROP POLICY IF EXISTS "Company admins can delete their logo" ON public.storage;
+DROP POLICY IF EXISTS "Company admins can delete their logo" ON storage.objects;
 CREATE POLICY "Company admins can delete their logo"
 ON storage.objects FOR DELETE
 TO authenticated
@@ -33,7 +33,7 @@ USING (
 );
 
 -- RLS: Super admin can manage all logos
-DROP POLICY IF EXISTS "Super admins can manage all logos" ON public.storage;
+DROP POLICY IF EXISTS "Super admins can manage all logos" ON storage.objects;
 CREATE POLICY "Super admins can manage all logos"
 ON storage.objects FOR ALL
 TO authenticated
@@ -43,7 +43,7 @@ USING (
 );
 
 -- RLS: Anyone can view logos (public bucket)
-DROP POLICY IF EXISTS "Anyone can view logos" ON public.storage;
+DROP POLICY IF EXISTS "Anyone can view logos" ON storage.objects;
 CREATE POLICY "Anyone can view logos"
 ON storage.objects FOR SELECT
 TO public

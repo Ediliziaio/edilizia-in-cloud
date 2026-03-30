@@ -1,5 +1,5 @@
 -- Storage policies
-DROP POLICY IF EXISTS "Authenticated users can upload marketing attachments" ON public.storage;
+DROP POLICY IF EXISTS "Authenticated users can upload marketing attachments" ON storage.objects;
 CREATE POLICY "Authenticated users can upload marketing attachments"
   ON storage.objects FOR INSERT
   TO authenticated

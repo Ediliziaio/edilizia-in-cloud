@@ -1,5 +1,5 @@
 -- 3. INSERT policy — authenticated users of the same company can upload
-DROP POLICY IF EXISTS "Company users can upload order attachments" ON public.storage;
+DROP POLICY IF EXISTS "Company users can upload order attachments" ON storage.objects;
 CREATE POLICY "Company users can upload order attachments"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (

@@ -51,17 +51,17 @@ CREATE POLICY "Super admins can manage all order item attachments"
   USING (has_role(auth.uid(), 'super_admin'));
 
 -- 7. Storage policies per il bucket
-DROP POLICY IF EXISTS "Anyone can view order attachments" ON public.storage;
+DROP POLICY IF EXISTS "Anyone can view order attachments" ON storage.objects;
 CREATE POLICY "Anyone can view order attachments"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'order-attachments');
 
-DROP POLICY IF EXISTS "Authenticated users can upload order attachments" ON public.storage;
+DROP POLICY IF EXISTS "Authenticated users can upload order attachments" ON storage.objects;
 CREATE POLICY "Authenticated users can upload order attachments"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'order-attachments' AND auth.role() = 'authenticated');
 
-DROP POLICY IF EXISTS "Users can delete their uploaded attachments" ON public.storage;
+DROP POLICY IF EXISTS "Users can delete their uploaded attachments" ON storage.objects;
 CREATE POLICY "Users can delete their uploaded attachments"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'order-attachments' AND auth.role() = 'authenticated');

@@ -1,5 +1,5 @@
 -- 7. Storage policy: users can delete their own avatar
-DROP POLICY IF EXISTS "Users delete own avatar" ON public.storage;
+DROP POLICY IF EXISTS "Users delete own avatar" ON storage.objects;
 CREATE POLICY "Users delete own avatar"
   ON storage.objects FOR DELETE
   USING (

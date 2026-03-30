@@ -1,4 +1,4 @@
-DROP POLICY IF EXISTS "company_members_upload_wl_assets" ON public.storage;
+DROP POLICY IF EXISTS "company_members_upload_wl_assets" ON storage.objects;
 CREATE POLICY "company_members_upload_wl_assets"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (

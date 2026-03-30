@@ -1,4 +1,4 @@
-DROP POLICY IF EXISTS "Authenticated users can view marketing attachments" ON public.storage;
+DROP POLICY IF EXISTS "Authenticated users can view marketing attachments" ON storage.objects;
 CREATE POLICY "Authenticated users can view marketing attachments"
   ON storage.objects FOR SELECT
   TO authenticated

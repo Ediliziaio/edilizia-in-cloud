@@ -1,6 +1,6 @@
 -- 2. RLS policies for ticket-attachments bucket
 -- Allow authenticated users to upload files
-DROP POLICY IF EXISTS "ticket_attach_upload" ON public.storage;
+DROP POLICY IF EXISTS "ticket_attach_upload" ON storage.objects;
 CREATE POLICY "ticket_attach_upload"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
