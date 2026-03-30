@@ -303,18 +303,44 @@ export function AgentToolsTab({ agentId }: AgentToolsTabProps) {
         <h3 className="text-sm font-medium">Strumenti di sistema</h3>
         <div className="space-y-3">
           {systemTools.map((tool) => (
-            <div key={tool.id} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <tool.icon className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm">{tool.label}</p>
-                  <p className="text-[10px] text-muted-foreground">{tool.description}</p>
+            <div key={tool.id} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <tool.icon className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm">{tool.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{tool.description}</p>
+                  </div>
                 </div>
+                <Switch
+                  checked={tool.enabled}
+                  onCheckedChange={() => toggleTool(tool.id)}
+                />
               </div>
-              <Switch
-                checked={tool.enabled}
-                onCheckedChange={() => toggleTool(tool.id)}
-              />
+              {/* Transfer number config */}
+              {tool.id === "transfer_number" && tool.enabled && (
+                <div className="ml-6 flex gap-2">
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="+39 02 1234567"
+                    value={(ediToolConfigs["__transfer_number"] as unknown as EdiToolConfig | undefined)?.webhook_url ?? ""}
+                    onChange={(e) => {
+                      const updated = { ...ediToolConfigs, __transfer_number: { enabled: true, webhook_url: e.target.value } };
+                      setEdiToolConfigs(updated);
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={() => {
+                      saveConfig(systemTools, customTools, ediToolConfigs);
+                      toast.success("Numero di trasferimento salvato");
+                    }}
+                  >
+                    Salva
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
