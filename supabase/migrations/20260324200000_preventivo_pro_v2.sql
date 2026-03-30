@@ -27,7 +27,7 @@ ALTER TABLE public.article_templates
   ADD COLUMN IF NOT EXISTS ha_montaggio BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS montaggio_tipo TEXT DEFAULT 'non_applicabile'
     CHECK (montaggio_tipo IN ('incluso','separato','escluso','non_applicabile')),
-  -- FK a tariffe_aziendali: colonna aggiunta ora, vincolo aggiunto dopo CREATE TABLE
+  -- FK a tariffe_aziendali: colonna aggiunta ora, vincolo aggiunto dopo CREATE TABLE IF NOT EXISTS
   ADD COLUMN IF NOT EXISTS montaggio_tariffa_id UUID,
   -- Per modalita=griglia: etichette degli assi della matrice
   ADD COLUMN IF NOT EXISTS griglia_descrizione TEXT,

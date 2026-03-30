@@ -1,5 +1,5 @@
 -- GDPR Audit Trail (immutable log)
-CREATE TABLE public.gdpr_audit_log (
+CREATE TABLE IF NOT EXISTS public.gdpr_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

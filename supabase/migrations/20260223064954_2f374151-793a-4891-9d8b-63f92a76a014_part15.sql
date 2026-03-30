@@ -1,5 +1,5 @@
 -- Email Billing
-CREATE TABLE public.email_billing (
+CREATE TABLE IF NOT EXISTS public.email_billing (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   campaign_id UUID REFERENCES public.email_campaigns(id) ON DELETE SET NULL,

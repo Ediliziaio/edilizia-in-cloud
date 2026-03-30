@@ -1,5 +1,5 @@
 -- POS: Piano Operativo di Sicurezza
-CREATE TABLE public.pos_documents (
+CREATE TABLE IF NOT EXISTS public.pos_documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,

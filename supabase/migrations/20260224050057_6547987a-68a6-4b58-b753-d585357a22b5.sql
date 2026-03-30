@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 1. integrations (generic, supports multiple providers)
-CREATE TABLE public.integrations (
+CREATE TABLE IF NOT EXISTS public.integrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'meta',

@@ -1,4 +1,4 @@
-CREATE TABLE public.internal_chat_members (
+CREATE TABLE IF NOT EXISTS public.internal_chat_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   channel_id UUID NOT NULL REFERENCES public.internal_chat_channels(id) ON DELETE CASCADE,
   user_id UUID NOT NULL,

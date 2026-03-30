@@ -1,6 +1,6 @@
 
 -- Create support_conversations table
-CREATE TABLE public.support_conversations (
+CREATE TABLE IF NOT EXISTS public.support_conversations (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   status text NOT NULL DEFAULT 'open',

@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 1. internal_ai_agents
-CREATE TABLE public.internal_ai_agents (
+CREATE TABLE IF NOT EXISTS public.internal_ai_agents (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id          UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   elevenlabs_agent_id TEXT,

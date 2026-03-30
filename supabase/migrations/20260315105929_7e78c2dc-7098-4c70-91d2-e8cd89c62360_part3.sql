@@ -1,1 +1,1 @@
-CREATE INDEX idx_kb_categories_company ON public.ai_kb_categories(company_id);
+CREATE INDEX IF NOT EXISTS idx_kb_categories_company ON public.ai_kb_categories(company_id);

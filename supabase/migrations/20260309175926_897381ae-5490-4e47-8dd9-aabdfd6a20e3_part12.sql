@@ -1,5 +1,5 @@
 -- 2. contact_attributions: first/last touch per contact
-CREATE TABLE public.contact_attributions (
+CREATE TABLE IF NOT EXISTS public.contact_attributions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   contact_id uuid NOT NULL REFERENCES public.marketing_contacts(id) ON DELETE CASCADE,

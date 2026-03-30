@@ -1,5 +1,5 @@
 -- 3. quotes — main quotes/preventivi table
-CREATE TABLE public.quotes (
+CREATE TABLE IF NOT EXISTS public.quotes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   quote_number TEXT NOT NULL,

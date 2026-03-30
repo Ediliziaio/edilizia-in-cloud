@@ -1,5 +1,5 @@
 -- Email Logs
-CREATE TABLE public.email_logs (
+CREATE TABLE IF NOT EXISTS public.email_logs (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   campaign_id UUID NOT NULL REFERENCES public.email_campaigns(id) ON DELETE CASCADE,
   contact_id UUID NOT NULL REFERENCES public.marketing_contacts(id) ON DELETE CASCADE,

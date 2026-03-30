@@ -1,7 +1,7 @@
 -- =============================================
 -- 2. Support Canned Responses
 -- =============================================
-CREATE TABLE public.support_canned_responses (
+CREATE TABLE IF NOT EXISTS public.support_canned_responses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   content text NOT NULL,

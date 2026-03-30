@@ -3,7 +3,7 @@
 -- =============================================================
 
 -- 1. Tabella order_installments
-CREATE TABLE public.order_installments (
+CREATE TABLE IF NOT EXISTS public.order_installments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   position INTEGER NOT NULL DEFAULT 0,

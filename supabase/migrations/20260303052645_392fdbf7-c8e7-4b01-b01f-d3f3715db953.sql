@@ -1,5 +1,5 @@
 -- Create sales_targets table
-CREATE TABLE public.sales_targets (
+CREATE TABLE IF NOT EXISTS public.sales_targets (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

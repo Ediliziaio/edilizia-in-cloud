@@ -1,6 +1,6 @@
 
 -- 1. Create company_activity_log table
-CREATE TABLE public.company_activity_log (
+CREATE TABLE IF NOT EXISTS public.company_activity_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,
@@ -11,9 +11,9 @@ CREATE TABLE public.company_activity_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_company_activity_log_company_id ON public.company_activity_log(company_id);
-CREATE INDEX idx_company_activity_log_created_at ON public.company_activity_log(created_at DESC);
-CREATE INDEX idx_company_activity_log_action ON public.company_activity_log(action);
+CREATE INDEX IF NOT EXISTS idx_company_activity_log_company_id ON public.company_activity_log(company_id);
+CREATE INDEX IF NOT EXISTS idx_company_activity_log_created_at ON public.company_activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_company_activity_log_action ON public.company_activity_log(action);
 
 -- 2. Enable RLS
 ALTER TABLE public.company_activity_log ENABLE ROW LEVEL SECURITY;

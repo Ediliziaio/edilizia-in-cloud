@@ -3,7 +3,7 @@
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS messaging_beta_enabled boolean NOT NULL DEFAULT false;
 
 -- 2. messaging_conversations
-CREATE TABLE public.messaging_conversations (
+CREATE TABLE IF NOT EXISTS public.messaging_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   phone_number text,
@@ -36,7 +36,7 @@ CREATE POLICY "Staff can view messaging conversations if permitted"
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- 3. messaging_messages
-CREATE TABLE public.messaging_messages (
+CREATE TABLE IF NOT EXISTS public.messaging_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id uuid NOT NULL REFERENCES public.messaging_conversations(id) ON DELETE CASCADE,
   sender_type text NOT NULL DEFAULT 'contact',
@@ -71,7 +71,7 @@ CREATE POLICY "Staff can view messaging messages if permitted"
   ));
 
 -- 4. messaging_ai_runs
-CREATE TABLE public.messaging_ai_runs (
+CREATE TABLE IF NOT EXISTS public.messaging_ai_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id uuid NOT NULL REFERENCES public.messaging_messages(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -104,7 +104,7 @@ CREATE POLICY "Staff can view messaging ai runs if permitted"
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- 5. messaging_daily_reports
-CREATE TABLE public.messaging_daily_reports (
+CREATE TABLE IF NOT EXISTS public.messaging_daily_reports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL,
@@ -139,7 +139,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.messaging_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messaging_conversations;
 
 -- 7. Indexes
-CREATE INDEX idx_messaging_conversations_company ON public.messaging_conversations(company_id);
-CREATE INDEX idx_messaging_messages_conversation ON public.messaging_messages(conversation_id);
-CREATE INDEX idx_messaging_ai_runs_message ON public.messaging_ai_runs(message_id);
-CREATE INDEX idx_messaging_daily_reports_company ON public.messaging_daily_reports(company_id);
+CREATE INDEX IF NOT EXISTS idx_messaging_conversations_company ON public.messaging_conversations(company_id);
+CREATE INDEX IF NOT EXISTS idx_messaging_messages_conversation ON public.messaging_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messaging_ai_runs_message ON public.messaging_ai_runs(message_id);
+CREATE INDEX IF NOT EXISTS idx_messaging_daily_reports_company ON public.messaging_daily_reports(company_id);

@@ -1,1 +1,1 @@
-ALTER TABLE public.marketing_opportunities ADD COLUMN tags text[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.marketing_opportunities ADD COLUMN IF NOT EXISTS tags text[] NOT NULL DEFAULT '{}';

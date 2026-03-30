@@ -1,5 +1,5 @@
 -- Create employees table (Dipendenti Interni)
-CREATE TABLE public.employees (
+CREATE TABLE IF NOT EXISTS public.employees (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   first_name text NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE public.employees (
 );
 
 -- Create external_teams table (Squadre Esterne)
-CREATE TABLE public.external_teams (
+CREATE TABLE IF NOT EXISTS public.external_teams (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name text NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE public.external_teams (
 );
 
 -- Create order_employees table (Assegnazione Dipendenti agli Ordini)
-CREATE TABLE public.order_employees (
+CREATE TABLE IF NOT EXISTS public.order_employees (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   employee_id uuid NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
@@ -40,7 +40,7 @@ CREATE TABLE public.order_employees (
 );
 
 -- Create order_external_teams table (Squadre Esterne per Ordine)
-CREATE TABLE public.order_external_teams (
+CREATE TABLE IF NOT EXISTS public.order_external_teams (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   external_team_id uuid NOT NULL REFERENCES public.external_teams(id) ON DELETE CASCADE,

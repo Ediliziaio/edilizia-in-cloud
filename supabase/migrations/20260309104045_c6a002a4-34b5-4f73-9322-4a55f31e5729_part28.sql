@@ -1,5 +1,5 @@
 -- 4. quote_items — line items
-CREATE TABLE public.quote_items (
+CREATE TABLE IF NOT EXISTS public.quote_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   quote_id UUID NOT NULL REFERENCES public.quotes(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

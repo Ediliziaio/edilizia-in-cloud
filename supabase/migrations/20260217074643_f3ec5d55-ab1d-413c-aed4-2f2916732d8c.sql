@@ -1,5 +1,5 @@
 
-CREATE TABLE public.admin_notification_prefs (
+CREATE TABLE IF NOT EXISTS public.admin_notification_prefs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   new_company boolean NOT NULL DEFAULT true,

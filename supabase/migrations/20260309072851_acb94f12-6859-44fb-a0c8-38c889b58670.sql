@@ -1,5 +1,5 @@
 -- Company branding / white-label table
-CREATE TABLE public.company_branding (
+CREATE TABLE IF NOT EXISTS public.company_branding (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL UNIQUE,
   -- Logo & visual

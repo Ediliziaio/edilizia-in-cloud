@@ -1,5 +1,5 @@
 -- Marketing Calendar Preferences table
-CREATE TABLE public.marketing_calendar_preferences (
+CREATE TABLE IF NOT EXISTS public.marketing_calendar_preferences (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE UNIQUE,
   week_start_day text NOT NULL DEFAULT 'monday',

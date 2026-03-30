@@ -1,5 +1,5 @@
 -- Create marketing_documents table
-CREATE TABLE public.marketing_documents (
+CREATE TABLE IF NOT EXISTS public.marketing_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   contact_id uuid NOT NULL REFERENCES public.marketing_contacts(id) ON DELETE CASCADE,
   opportunity_id uuid REFERENCES public.marketing_opportunities(id) ON DELETE SET NULL,

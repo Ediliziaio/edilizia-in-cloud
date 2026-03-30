@@ -1,1 +1,1 @@
-CREATE INDEX idx_user_availability_exceptions_date ON public.user_availability_exceptions(exception_date);
+CREATE INDEX IF NOT EXISTS idx_user_availability_exceptions_date ON public.user_availability_exceptions(exception_date);

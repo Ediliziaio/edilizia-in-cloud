@@ -1,6 +1,6 @@
 
 -- Step 1a: Tabella subscription_plans
-CREATE TABLE public.subscription_plans (
+CREATE TABLE IF NOT EXISTS public.subscription_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
@@ -34,13 +34,13 @@ CREATE POLICY "Super admins can manage all plans"
 
 -- Step 1b: Nuovi campi su companies
 ALTER TABLE public.companies
-  ADD COLUMN status text NOT NULL DEFAULT 'trial',
-  ADD COLUMN trial_ends_at timestamptz DEFAULT (now() + interval '14 days'),
-  ADD COLUMN subscription_plan_id uuid REFERENCES public.subscription_plans(id),
-  ADD COLUMN stripe_customer_id text;
+  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'trial',
+  ADD COLUMN IF NOT EXISTS trial_ends_at timestamptz DEFAULT (now() + interval '14 days'),
+  ADD COLUMN IF NOT EXISTS subscription_plan_id uuid REFERENCES public.subscription_plans(id),
+  ADD COLUMN IF NOT EXISTS stripe_customer_id text;
 
 -- Step 1c: Tabella company_subscriptions
-CREATE TABLE public.company_subscriptions (
+CREATE TABLE IF NOT EXISTS public.company_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   plan_id uuid NOT NULL REFERENCES public.subscription_plans(id),
@@ -66,7 +66,7 @@ CREATE POLICY "Company admins can view their subscriptions"
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
 -- Step 1d: Tabella subscription_logs
-CREATE TABLE public.subscription_logs (
+CREATE TABLE IF NOT EXISTS public.subscription_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   event_type text NOT NULL,

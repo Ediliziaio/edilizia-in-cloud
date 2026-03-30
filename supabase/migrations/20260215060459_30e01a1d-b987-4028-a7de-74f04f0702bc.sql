@@ -1,1 +1,1 @@
-ALTER TABLE public.order_items ADD COLUMN payment_method text DEFAULT NULL;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS payment_method text DEFAULT NULL;

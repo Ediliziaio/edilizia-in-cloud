@@ -1,5 +1,5 @@
 -- Create email_folders table
-CREATE TABLE public.email_folders (
+CREATE TABLE IF NOT EXISTS public.email_folders (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,

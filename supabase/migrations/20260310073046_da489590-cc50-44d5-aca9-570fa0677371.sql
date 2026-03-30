@@ -1,5 +1,5 @@
 -- Customer messages table for client<->company real-time chat
-CREATE TABLE public.customer_messages (
+CREATE TABLE IF NOT EXISTS public.customer_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   customer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

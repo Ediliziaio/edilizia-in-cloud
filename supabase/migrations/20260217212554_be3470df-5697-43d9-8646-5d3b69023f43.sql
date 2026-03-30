@@ -1,6 +1,6 @@
 
 -- Create automations table
-CREATE TABLE public.automations (
+CREATE TABLE IF NOT EXISTS public.automations (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name text NOT NULL,
@@ -41,9 +41,9 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Indexes
-CREATE INDEX idx_automations_company_id ON public.automations(company_id);
-CREATE INDEX idx_automations_trigger_type ON public.automations(trigger_type);
-CREATE INDEX idx_automations_is_active ON public.automations(is_active);
+CREATE INDEX IF NOT EXISTS idx_automations_company_id ON public.automations(company_id);
+CREATE INDEX IF NOT EXISTS idx_automations_trigger_type ON public.automations(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_automations_is_active ON public.automations(is_active);
 
 -- Function: execute_automation
 -- Called by triggers to evaluate and execute automations

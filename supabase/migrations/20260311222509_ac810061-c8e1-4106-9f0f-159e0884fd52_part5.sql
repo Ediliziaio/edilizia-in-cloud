@@ -1,1 +1,1 @@
-CREATE INDEX idx_user_availability_exceptions_avail_id ON public.user_availability_exceptions(availability_id);
+CREATE INDEX IF NOT EXISTS idx_user_availability_exceptions_avail_id ON public.user_availability_exceptions(availability_id);

@@ -1,5 +1,5 @@
 -- 1. Tabella fornitori
-CREATE TABLE public.suppliers (
+CREATE TABLE IF NOT EXISTS public.suppliers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -23,7 +23,7 @@ CREATE POLICY "Super admins can manage all suppliers"
   USING (has_role(auth.uid(), 'super_admin'));
 
 -- 2. Tabella template articoli (autocomplete)
-CREATE TABLE public.article_templates (
+CREATE TABLE IF NOT EXISTS public.article_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -48,15 +48,15 @@ CREATE POLICY "Super admins can manage all article templates"
 
 -- 3. Nuovi campi order_items
 ALTER TABLE public.order_items
-ADD COLUMN supplier_id UUID REFERENCES public.suppliers(id) ON DELETE SET NULL,
-ADD COLUMN purchase_price NUMERIC DEFAULT 0;
+ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.suppliers(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS purchase_price NUMERIC DEFAULT 0;
 
 -- 4. Nuovi campi orders (date cliente e IVA)
 ALTER TABLE public.orders
-ADD COLUMN warehouse_arrival_date DATE,
-ADD COLUMN work_start_date DATE,
-ADD COLUMN work_end_date DATE,
-ADD COLUMN vat_rate NUMERIC DEFAULT 22;
+ADD COLUMN IF NOT EXISTS warehouse_arrival_date DATE,
+ADD COLUMN IF NOT EXISTS work_start_date DATE,
+ADD COLUMN IF NOT EXISTS work_end_date DATE,
+ADD COLUMN IF NOT EXISTS vat_rate NUMERIC DEFAULT 22;
 
 -- 5. Aggiornare eventuali record con stati vecchi
 UPDATE public.order_items SET status = 'in_magazzino' 

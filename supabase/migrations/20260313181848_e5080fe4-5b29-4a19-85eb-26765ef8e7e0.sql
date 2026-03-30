@@ -1,4 +1,4 @@
-CREATE TABLE public.flow_execution_runs (
+CREATE TABLE IF NOT EXISTS public.flow_execution_runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   flow_id UUID NOT NULL REFERENCES public.automation_flows(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

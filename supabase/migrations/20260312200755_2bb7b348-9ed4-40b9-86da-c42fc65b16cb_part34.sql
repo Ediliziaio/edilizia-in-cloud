@@ -1,5 +1,5 @@
 -- 6. hr_richieste
-CREATE TABLE public.hr_richieste (
+CREATE TABLE IF NOT EXISTS public.hr_richieste (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   profilo_id uuid NOT NULL REFERENCES public.hr_profili(id) ON DELETE CASCADE,

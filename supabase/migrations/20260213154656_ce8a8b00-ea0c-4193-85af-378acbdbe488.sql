@@ -1,6 +1,6 @@
 
 -- Tabella giacenze magazzino
-CREATE TABLE public.warehouse_stock (
+CREATE TABLE IF NOT EXISTS public.warehouse_stock (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id),
   name text NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE public.warehouse_stock (
 );
 
 -- Tabella movimenti magazzino
-CREATE TABLE public.warehouse_movements (
+CREATE TABLE IF NOT EXISTS public.warehouse_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   stock_item_id uuid NOT NULL REFERENCES public.warehouse_stock(id),
   order_item_id uuid REFERENCES public.order_items(id),
@@ -42,7 +42,7 @@ CREATE TRIGGER validate_warehouse_movement_type
   FOR EACH ROW EXECUTE FUNCTION public.validate_movement_type();
 
 -- Colonna stock_item_id su order_items
-ALTER TABLE public.order_items ADD COLUMN stock_item_id uuid REFERENCES public.warehouse_stock(id);
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS stock_item_id uuid REFERENCES public.warehouse_stock(id);
 
 -- RLS warehouse_stock
 ALTER TABLE public.warehouse_stock ENABLE ROW LEVEL SECURITY;

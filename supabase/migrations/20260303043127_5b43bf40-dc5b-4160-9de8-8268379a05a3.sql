@@ -1,7 +1,7 @@
 -- ============================================
 -- 1. call_logs table
 -- ============================================
-CREATE TABLE public.call_logs (
+CREATE TABLE IF NOT EXISTS public.call_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

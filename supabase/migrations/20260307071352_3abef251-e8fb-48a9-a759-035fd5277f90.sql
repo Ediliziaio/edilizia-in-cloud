@@ -1,5 +1,5 @@
 -- email_credits: wallet per azienda (come ai_credits)
-CREATE TABLE public.email_credits (
+CREATE TABLE IF NOT EXISTS public.email_credits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   balance_eur NUMERIC NOT NULL DEFAULT 0,

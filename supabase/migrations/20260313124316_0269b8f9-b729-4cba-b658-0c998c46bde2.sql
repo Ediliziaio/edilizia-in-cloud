@@ -1,5 +1,5 @@
 -- Task Automation Rules
-CREATE TABLE public.task_automation_rules (
+CREATE TABLE IF NOT EXISTS public.task_automation_rules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,

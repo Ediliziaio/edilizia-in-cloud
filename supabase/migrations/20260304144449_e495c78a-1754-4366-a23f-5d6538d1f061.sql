@@ -1,5 +1,5 @@
 -- Queue table for delayed automation steps
-CREATE TABLE public.automation_queue (
+CREATE TABLE IF NOT EXISTS public.automation_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   enrollment_id uuid NOT NULL REFERENCES public.automation_enrollments(id) ON DELETE CASCADE,
   flow_id uuid NOT NULL REFERENCES public.automation_flows(id) ON DELETE CASCADE,

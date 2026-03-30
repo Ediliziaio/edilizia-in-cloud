@@ -1,5 +1,5 @@
 -- 6. ai_agent_audit_log
-CREATE TABLE public.ai_agent_audit_log (
+CREATE TABLE IF NOT EXISTS public.ai_agent_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   agent_id uuid,

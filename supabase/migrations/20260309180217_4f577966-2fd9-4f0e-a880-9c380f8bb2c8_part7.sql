@@ -1,5 +1,5 @@
 -- 2. form_views: tracking views
-CREATE TABLE public.form_views (
+CREATE TABLE IF NOT EXISTS public.form_views (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   form_id uuid NOT NULL REFERENCES public.lead_forms(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

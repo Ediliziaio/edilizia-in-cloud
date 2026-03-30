@@ -1,5 +1,5 @@
 -- email_pricing: configurazione super admin
-CREATE TABLE public.email_pricing (
+CREATE TABLE IF NOT EXISTS public.email_pricing (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'sendgrid',
   label TEXT,

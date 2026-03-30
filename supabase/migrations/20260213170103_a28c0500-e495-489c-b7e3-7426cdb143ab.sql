@@ -1,4 +1,4 @@
 ALTER TABLE public.profiles
-  ADD COLUMN fiscal_code text,
-  ADD COLUMN site_address text,
-  ADD COLUMN notes text;
+  ADD COLUMN IF NOT EXISTS fiscal_code text,
+  ADD COLUMN IF NOT EXISTS site_address text,
+  ADD COLUMN IF NOT EXISTS notes text;

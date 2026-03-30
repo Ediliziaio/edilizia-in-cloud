@@ -1,1 +1,1 @@
-CREATE INDEX idx_stripe_events_log_event_id ON public.stripe_events_log(stripe_event_id);
+CREATE INDEX IF NOT EXISTS idx_stripe_events_log_event_id ON public.stripe_events_log(stripe_event_id);

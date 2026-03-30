@@ -1,6 +1,6 @@
 
 -- Tabella referrers
-CREATE TABLE public.referrers (
+CREATE TABLE IF NOT EXISTS public.referrers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   email text NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE public.referrers (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX idx_referrers_referral_code ON public.referrers (referral_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referrers_referral_code ON public.referrers (referral_code);
 
 ALTER TABLE public.referrers ENABLE ROW LEVEL SECURITY;
 
@@ -25,7 +25,7 @@ ON public.referrers FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Tabella referral_companies
-CREATE TABLE public.referral_companies (
+CREATE TABLE IF NOT EXISTS public.referral_companies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   referrer_id uuid NOT NULL REFERENCES public.referrers(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -42,7 +42,7 @@ ON public.referral_companies FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Tabella referral_payouts
-CREATE TABLE public.referral_payouts (
+CREATE TABLE IF NOT EXISTS public.referral_payouts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   referrer_id uuid NOT NULL REFERENCES public.referrers(id) ON DELETE CASCADE,
   amount numeric NOT NULL DEFAULT 0,
@@ -62,4 +62,4 @@ ON public.referral_payouts FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Colonna referred_by in companies
-ALTER TABLE public.companies ADD COLUMN referred_by uuid REFERENCES public.referrers(id);
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS referred_by uuid REFERENCES public.referrers(id);

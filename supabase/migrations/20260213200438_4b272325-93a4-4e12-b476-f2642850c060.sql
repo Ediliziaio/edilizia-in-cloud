@@ -1,1 +1,1 @@
-ALTER TABLE public.order_salespeople ADD COLUMN deduction_amount numeric NOT NULL DEFAULT 0;
+ALTER TABLE public.order_salespeople ADD COLUMN IF NOT EXISTS deduction_amount numeric NOT NULL DEFAULT 0;

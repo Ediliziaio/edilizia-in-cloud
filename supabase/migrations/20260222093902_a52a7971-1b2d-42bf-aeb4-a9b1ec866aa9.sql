@@ -1,5 +1,5 @@
--- Create table for opportunity notes
-CREATE TABLE public.marketing_opportunity_notes (
+-- CREATE TABLE IF NOT EXISTS for opportunity notes
+CREATE TABLE IF NOT EXISTS public.marketing_opportunity_notes (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   opportunity_id UUID NOT NULL REFERENCES public.marketing_opportunities(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id),

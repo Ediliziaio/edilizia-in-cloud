@@ -1,5 +1,5 @@
 -- DUVRI: Documento Unico Valutazione Rischi da Interferenza
-CREATE TABLE public.duvri_documents (
+CREATE TABLE IF NOT EXISTS public.duvri_documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,

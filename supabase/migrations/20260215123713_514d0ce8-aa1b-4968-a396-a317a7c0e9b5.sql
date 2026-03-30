@@ -1,1 +1,1 @@
-ALTER TABLE order_items ADD COLUMN deposit_expected_date date DEFAULT null;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS deposit_expected_date date DEFAULT null;

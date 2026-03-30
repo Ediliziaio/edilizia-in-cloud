@@ -1,5 +1,5 @@
 -- Lifecycle notifications table for in-app alerts
-CREATE TABLE public.lifecycle_notifications (
+CREATE TABLE IF NOT EXISTS public.lifecycle_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   notification_type text NOT NULL,

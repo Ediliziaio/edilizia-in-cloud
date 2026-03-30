@@ -1,5 +1,5 @@
 -- 3. sms_logs table
-CREATE TABLE public.sms_logs (
+CREATE TABLE IF NOT EXISTS public.sms_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   contact_id uuid REFERENCES public.marketing_contacts(id) ON DELETE SET NULL,

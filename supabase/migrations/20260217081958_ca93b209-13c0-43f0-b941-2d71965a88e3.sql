@@ -1,6 +1,6 @@
 
 -- Create admin audit log table
-CREATE TABLE public.admin_audit_log (
+CREATE TABLE IF NOT EXISTS public.admin_audit_log (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL,
   action text NOT NULL,
@@ -25,6 +25,6 @@ USING (has_role(auth.uid(), 'super_admin'::app_role));
 -- This ensures audit logs cannot be tampered with from the client
 
 -- Index for efficient querying
-CREATE INDEX idx_audit_log_created_at ON public.admin_audit_log (created_at DESC);
-CREATE INDEX idx_audit_log_user_id ON public.admin_audit_log (user_id);
-CREATE INDEX idx_audit_log_action ON public.admin_audit_log (action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON public.admin_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.admin_audit_log (user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON public.admin_audit_log (action);

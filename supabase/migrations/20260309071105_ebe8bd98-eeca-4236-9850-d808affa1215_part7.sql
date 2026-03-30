@@ -1,7 +1,7 @@
 -- =============================================
 -- 3. Company Onboarding Progress
 -- =============================================
-CREATE TABLE public.company_onboarding (
+CREATE TABLE IF NOT EXISTS public.company_onboarding (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   template_id uuid NOT NULL REFERENCES public.onboarding_templates(id) ON DELETE CASCADE,

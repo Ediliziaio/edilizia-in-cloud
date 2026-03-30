@@ -1,1 +1,1 @@
-ALTER TABLE public.tasks ADD COLUMN ticket_id UUID REFERENCES public.tickets(id) ON DELETE SET NULL;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS ticket_id UUID REFERENCES public.tickets(id) ON DELETE SET NULL;

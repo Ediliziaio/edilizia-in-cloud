@@ -1,5 +1,5 @@
 -- WhatsApp Business configuration per company
-CREATE TABLE public.messaging_whatsapp_config (
+CREATE TABLE IF NOT EXISTS public.messaging_whatsapp_config (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   phone_number text,

@@ -1,7 +1,7 @@
 -- =============================================
 -- 4. Company Onboarding Step Completions
 -- =============================================
-CREATE TABLE public.company_onboarding_completions (
+CREATE TABLE IF NOT EXISTS public.company_onboarding_completions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   step_id uuid NOT NULL REFERENCES public.onboarding_steps(id) ON DELETE CASCADE,

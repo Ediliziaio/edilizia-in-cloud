@@ -1,5 +1,5 @@
 -- 4. ai_chat_sessions
-CREATE TABLE public.ai_chat_sessions (
+CREATE TABLE IF NOT EXISTS public.ai_chat_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   agent_id uuid NOT NULL REFERENCES public.ai_agents_v2(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

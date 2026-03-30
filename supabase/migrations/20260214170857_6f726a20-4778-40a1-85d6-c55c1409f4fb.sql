@@ -1,4 +1,4 @@
-CREATE TABLE public.support_messages (
+CREATE TABLE IF NOT EXISTS public.support_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id),
   sender_id uuid NOT NULL,

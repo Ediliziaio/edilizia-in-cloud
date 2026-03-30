@@ -1,6 +1,6 @@
 -- Feature Flags System: 2 new tables
 
-CREATE TABLE public.platform_feature_flags (
+CREATE TABLE IF NOT EXISTS public.platform_feature_flags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,

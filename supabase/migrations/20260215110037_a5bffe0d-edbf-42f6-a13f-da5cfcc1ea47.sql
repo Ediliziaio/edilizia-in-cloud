@@ -1,1 +1,1 @@
-ALTER TABLE public.employees ADD COLUMN role_type TEXT NOT NULL DEFAULT 'operaio';
+ALTER TABLE public.employees ADD COLUMN IF NOT EXISTS role_type TEXT NOT NULL DEFAULT 'operaio';

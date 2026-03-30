@@ -1,5 +1,5 @@
 -- 2. integration_credentials (encrypted token store)
-CREATE TABLE public.integration_credentials (
+CREATE TABLE IF NOT EXISTS public.integration_credentials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
   access_token_encrypted TEXT NOT NULL,

@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 1A. Tabella SCADENZE (scadenzario unificato)
-CREATE TABLE public.scadenze (
+CREATE TABLE IF NOT EXISTS public.scadenze (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   

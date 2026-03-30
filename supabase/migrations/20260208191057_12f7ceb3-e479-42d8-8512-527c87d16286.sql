@@ -2,7 +2,7 @@
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'salesperson';
 
 -- 2. Creare tabella venditori
-CREATE TABLE public.salespeople (
+CREATE TABLE IF NOT EXISTS public.salespeople (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -18,9 +18,9 @@ CREATE TABLE public.salespeople (
 );
 
 -- Indici per performance
-CREATE INDEX idx_salespeople_company ON public.salespeople(company_id);
-CREATE INDEX idx_salespeople_user ON public.salespeople(user_id);
-CREATE INDEX idx_salespeople_active ON public.salespeople(company_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_salespeople_company ON public.salespeople(company_id);
+CREATE INDEX IF NOT EXISTS idx_salespeople_user ON public.salespeople(user_id);
+CREATE INDEX IF NOT EXISTS idx_salespeople_active ON public.salespeople(company_id, is_active);
 
 -- Trigger per updated_at
 CREATE TRIGGER update_salespeople_updated_at
@@ -58,7 +58,7 @@ USING (
 );
 
 -- 3. Creare tabella provvigioni ordine
-CREATE TABLE public.order_salespeople (
+CREATE TABLE IF NOT EXISTS public.order_salespeople (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     salesperson_id UUID NOT NULL REFERENCES public.salespeople(id) ON DELETE CASCADE,
@@ -74,9 +74,9 @@ CREATE TABLE public.order_salespeople (
 );
 
 -- Indici per performance
-CREATE INDEX idx_order_salespeople_order ON public.order_salespeople(order_id);
-CREATE INDEX idx_order_salespeople_salesperson ON public.order_salespeople(salesperson_id);
-CREATE INDEX idx_order_salespeople_unpaid ON public.order_salespeople(salesperson_id, is_paid) WHERE is_paid = false;
+CREATE INDEX IF NOT EXISTS idx_order_salespeople_order ON public.order_salespeople(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_salespeople_salesperson ON public.order_salespeople(salesperson_id);
+CREATE INDEX IF NOT EXISTS idx_order_salespeople_unpaid ON public.order_salespeople(salesperson_id, is_paid) WHERE is_paid = false;
 
 -- RLS per order_salespeople
 ALTER TABLE public.order_salespeople ENABLE ROW LEVEL SECURITY;

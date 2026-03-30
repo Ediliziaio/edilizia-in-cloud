@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 1. attribution_sessions: tracks visitor sessions with UTM data
-CREATE TABLE public.attribution_sessions (
+CREATE TABLE IF NOT EXISTS public.attribution_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   session_id text NOT NULL,

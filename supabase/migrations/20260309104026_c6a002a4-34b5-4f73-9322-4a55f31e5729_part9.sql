@@ -1,5 +1,5 @@
 -- 2. quote_pdf_materials — library of reusable PDF attachments
-CREATE TABLE public.quote_pdf_materials (
+CREATE TABLE IF NOT EXISTS public.quote_pdf_materials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,

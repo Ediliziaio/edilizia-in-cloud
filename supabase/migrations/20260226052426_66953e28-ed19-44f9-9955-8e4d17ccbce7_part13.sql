@@ -1,1 +1,1 @@
-CREATE INDEX idx_gcem_google_event ON public.google_calendar_event_map(google_event_id);
+CREATE INDEX IF NOT EXISTS idx_gcem_google_event ON public.google_calendar_event_map(google_event_id);

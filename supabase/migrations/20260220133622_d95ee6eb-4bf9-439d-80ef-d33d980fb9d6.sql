@@ -1,4 +1,4 @@
-CREATE TABLE public.order_errors (
+CREATE TABLE IF NOT EXISTS public.order_errors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   company_id UUID NOT NULL,

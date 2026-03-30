@@ -1,4 +1,4 @@
-CREATE TABLE public.marketing_opportunity_lists (
+CREATE TABLE IF NOT EXISTS public.marketing_opportunity_lists (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   pipeline_id uuid NOT NULL REFERENCES public.marketing_pipelines(id) ON DELETE CASCADE,

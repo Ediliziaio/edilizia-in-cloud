@@ -1,1 +1,1 @@
-ALTER TABLE public.orders ADD COLUMN has_building_bonus boolean NOT NULL DEFAULT false;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS has_building_bonus boolean NOT NULL DEFAULT false;

@@ -1,5 +1,5 @@
 -- A/B Testing: branches table
-CREATE TABLE public.ai_agent_branches (
+CREATE TABLE IF NOT EXISTS public.ai_agent_branches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   agent_id uuid NOT NULL REFERENCES public.ai_agents(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

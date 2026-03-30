@@ -1,5 +1,5 @@
 -- GDPR Data Export/Deletion Requests
-CREATE TABLE public.gdpr_data_requests (
+CREATE TABLE IF NOT EXISTS public.gdpr_data_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

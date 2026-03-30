@@ -1,5 +1,5 @@
 -- 8. integration_sync_jobs (job queue)
-CREATE TABLE public.integration_sync_jobs (
+CREATE TABLE IF NOT EXISTS public.integration_sync_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,

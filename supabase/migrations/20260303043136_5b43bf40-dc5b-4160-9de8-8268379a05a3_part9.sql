@@ -1,7 +1,7 @@
 -- ============================================
 -- 2. campaign_costs table
 -- ============================================
-CREATE TABLE public.campaign_costs (
+CREATE TABLE IF NOT EXISTS public.campaign_costs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   source text NOT NULL,

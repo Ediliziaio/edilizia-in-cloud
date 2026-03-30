@@ -17,7 +17,7 @@ CREATE TYPE public.company_sector AS ENUM (
 CREATE TYPE public.ticket_status AS ENUM ('aperto', 'in_lavorazione', 'risolto');
 
 -- Tabella aziende
-CREATE TABLE public.companies (
+CREATE TABLE IF NOT EXISTS public.companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
@@ -28,7 +28,7 @@ CREATE TABLE public.companies (
 );
 
 -- Tabella profili utenti (collegata a auth.users)
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
   first_name TEXT NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE public.profiles (
 );
 
 -- Tabella ruoli utenti (separata per sicurezza)
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role public.app_role NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE public.user_roles (
 );
 
 -- Tabella stati ordine personalizzabili per azienda
-CREATE TABLE public.order_statuses (
+CREATE TABLE IF NOT EXISTS public.order_statuses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE public.order_statuses (
 );
 
 -- Tabella ordini
-CREATE TABLE public.orders (
+CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   customer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -77,7 +77,7 @@ CREATE TABLE public.orders (
 );
 
 -- Tabella storico cambi stato ordine
-CREATE TABLE public.order_status_history (
+CREATE TABLE IF NOT EXISTS public.order_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   status_id UUID NOT NULL REFERENCES public.order_statuses(id) ON DELETE CASCADE,
@@ -86,7 +86,7 @@ CREATE TABLE public.order_status_history (
 );
 
 -- Tabella ticket assistenza
-CREATE TABLE public.tickets (
+CREATE TABLE IF NOT EXISTS public.tickets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -98,7 +98,7 @@ CREATE TABLE public.tickets (
 );
 
 -- Tabella messaggi ticket
-CREATE TABLE public.ticket_messages (
+CREATE TABLE IF NOT EXISTS public.ticket_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES public.tickets(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -366,14 +366,14 @@ CREATE POLICY "Customers can manage their ticket messages"
   );
 
 -- Create indexes for performance
-CREATE INDEX idx_profiles_company_id ON public.profiles(company_id);
-CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
-CREATE INDEX idx_order_statuses_company_id ON public.order_statuses(company_id);
-CREATE INDEX idx_order_statuses_position ON public.order_statuses(company_id, position);
-CREATE INDEX idx_orders_company_id ON public.orders(company_id);
-CREATE INDEX idx_orders_customer_id ON public.orders(customer_id);
-CREATE INDEX idx_orders_status_id ON public.orders(current_status_id);
-CREATE INDEX idx_order_history_order_id ON public.order_status_history(order_id);
-CREATE INDEX idx_tickets_company_id ON public.tickets(company_id);
-CREATE INDEX idx_tickets_customer_id ON public.tickets(customer_id);
-CREATE INDEX idx_ticket_messages_ticket_id ON public.ticket_messages(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_company_id ON public.profiles(company_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_order_statuses_company_id ON public.order_statuses(company_id);
+CREATE INDEX IF NOT EXISTS idx_order_statuses_position ON public.order_statuses(company_id, position);
+CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status_id ON public.orders(current_status_id);
+CREATE INDEX IF NOT EXISTS idx_order_history_order_id ON public.order_status_history(order_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_company_id ON public.tickets(company_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON public.tickets(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON public.ticket_messages(ticket_id);

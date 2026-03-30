@@ -1,5 +1,5 @@
--- Create table for order-level attachments with visibility control
-CREATE TABLE public.order_attachments (
+-- CREATE TABLE IF NOT EXISTS for order-level attachments with visibility control
+CREATE TABLE IF NOT EXISTS public.order_attachments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   file_name TEXT NOT NULL,

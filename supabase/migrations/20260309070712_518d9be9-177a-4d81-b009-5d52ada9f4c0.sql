@@ -1,7 +1,7 @@
 -- =============================================
 -- 1. Company Health Scores (server-side persistence)
 -- =============================================
-CREATE TABLE public.company_health_scores (
+CREATE TABLE IF NOT EXISTS public.company_health_scores (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   score integer NOT NULL DEFAULT 0,

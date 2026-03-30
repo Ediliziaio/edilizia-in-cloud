@@ -1,1 +1,1 @@
-ALTER TABLE public.marketing_pipeline_stages ADD COLUMN auto_status text DEFAULT NULL;
+ALTER TABLE public.marketing_pipeline_stages ADD COLUMN IF NOT EXISTS auto_status text DEFAULT NULL;

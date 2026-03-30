@@ -1,1 +1,1 @@
-CREATE INDEX idx_tickets_assigned_to ON public.tickets (assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON public.tickets (assigned_to);

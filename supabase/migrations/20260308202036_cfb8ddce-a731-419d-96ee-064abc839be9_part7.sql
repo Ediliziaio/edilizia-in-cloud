@@ -1,1 +1,1 @@
-CREATE INDEX idx_internal_call_logs_contact ON public.internal_call_logs(contact_id);
+CREATE INDEX IF NOT EXISTS idx_internal_call_logs_contact ON public.internal_call_logs(contact_id);

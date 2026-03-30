@@ -1,5 +1,5 @@
 -- Template gallery for AI agent quick-creation
-CREATE TABLE public.ai_agent_templates (
+CREATE TABLE IF NOT EXISTS public.ai_agent_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   description text,

@@ -1,1 +1,1 @@
-CREATE INDEX idx_api_keys_key_prefix ON public.api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON public.api_keys(key_prefix);

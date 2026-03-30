@@ -1,4 +1,4 @@
-CREATE TABLE public.giornale_foto (
+CREATE TABLE IF NOT EXISTS public.giornale_foto (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   giornale_id UUID NOT NULL REFERENCES public.giornale_lavori(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

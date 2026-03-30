@@ -1,5 +1,5 @@
 -- Create platform_announcements table
-CREATE TABLE public.platform_announcements (
+CREATE TABLE IF NOT EXISTS public.platform_announcements (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   content TEXT NOT NULL DEFAULT '',

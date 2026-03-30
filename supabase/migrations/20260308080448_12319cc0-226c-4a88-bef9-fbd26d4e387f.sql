@@ -1,5 +1,5 @@
 -- 1. Create cost_budgets table
-CREATE TABLE public.cost_budgets (
+CREATE TABLE IF NOT EXISTS public.cost_budgets (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   category TEXT NOT NULL,

@@ -1,5 +1,5 @@
 -- Marketing Calendar Availability table
-CREATE TABLE public.marketing_calendar_availability (
+CREATE TABLE IF NOT EXISTS public.marketing_calendar_availability (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   calendar_id uuid NOT NULL REFERENCES public.marketing_calendars(id) ON DELETE CASCADE,

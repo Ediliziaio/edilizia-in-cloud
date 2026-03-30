@@ -1,5 +1,5 @@
 -- 1B. Tabella PRIMA_NOTA_ENTRIES
-CREATE TABLE public.prima_nota_entries (
+CREATE TABLE IF NOT EXISTS public.prima_nota_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   

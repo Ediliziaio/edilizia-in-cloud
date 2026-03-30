@@ -1,5 +1,5 @@
 -- Email Campaigns
-CREATE TABLE public.email_campaigns (
+CREATE TABLE IF NOT EXISTS public.email_campaigns (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,

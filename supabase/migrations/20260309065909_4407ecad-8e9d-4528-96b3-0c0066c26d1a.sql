@@ -1,5 +1,5 @@
 -- 1) Tabella stripe_events_log per idempotenza e audit
-CREATE TABLE public.stripe_events_log (
+CREATE TABLE IF NOT EXISTS public.stripe_events_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   stripe_event_id text NOT NULL UNIQUE,
   event_type text NOT NULL,

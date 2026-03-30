@@ -1,5 +1,5 @@
 -- 5. hr_giornate
-CREATE TABLE public.hr_giornate (
+CREATE TABLE IF NOT EXISTS public.hr_giornate (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   profilo_id uuid NOT NULL REFERENCES public.hr_profili(id) ON DELETE CASCADE,

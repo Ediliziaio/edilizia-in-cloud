@@ -1,5 +1,5 @@
 -- 3. whatsapp_credits
-CREATE TABLE public.whatsapp_credits (
+CREATE TABLE IF NOT EXISTS public.whatsapp_credits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE UNIQUE,
   balance_eur numeric(12,4) NOT NULL DEFAULT 0,

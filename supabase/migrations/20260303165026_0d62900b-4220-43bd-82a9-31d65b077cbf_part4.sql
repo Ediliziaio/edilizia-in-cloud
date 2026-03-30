@@ -1,5 +1,5 @@
 -- meta_insights_cache: caches Meta API responses with TTL
-CREATE TABLE public.meta_insights_cache (
+CREATE TABLE IF NOT EXISTS public.meta_insights_cache (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   ad_account_id text NOT NULL,

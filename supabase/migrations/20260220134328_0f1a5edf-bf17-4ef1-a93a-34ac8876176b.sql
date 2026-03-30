@@ -1,1 +1,1 @@
-ALTER TABLE order_errors ADD COLUMN error_category TEXT NOT NULL DEFAULT 'altro';
+ALTER TABLE order_errors ADD COLUMN IF NOT EXISTS error_category TEXT NOT NULL DEFAULT 'altro';

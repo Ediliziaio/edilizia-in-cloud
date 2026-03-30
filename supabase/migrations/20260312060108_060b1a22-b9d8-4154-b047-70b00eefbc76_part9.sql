@@ -1,5 +1,5 @@
 -- Table: phone_number_sms_usage
-CREATE TABLE public.phone_number_sms_usage (
+CREATE TABLE IF NOT EXISTS public.phone_number_sms_usage (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number_id UUID NOT NULL REFERENCES public.virtual_phone_numbers(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

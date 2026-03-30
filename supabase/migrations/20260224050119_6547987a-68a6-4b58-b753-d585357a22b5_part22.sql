@@ -1,5 +1,5 @@
 -- 5. integration_field_mappings
-CREATE TABLE public.integration_field_mappings (
+CREATE TABLE IF NOT EXISTS public.integration_field_mappings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,

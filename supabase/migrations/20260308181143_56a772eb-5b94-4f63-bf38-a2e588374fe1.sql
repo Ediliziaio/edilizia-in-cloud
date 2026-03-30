@@ -1,5 +1,5 @@
 -- 1. company_billing_overrides
-CREATE TABLE public.company_billing_overrides (
+CREATE TABLE IF NOT EXISTS public.company_billing_overrides (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   service text NOT NULL CHECK (service IN ('email', 'ai_agents', 'whatsapp', 'sms', 'phone_numbers')),

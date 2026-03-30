@@ -3,10 +3,10 @@
 -- =============================================
 
 -- Aggiungere collegamento dipendente-utente
-ALTER TABLE public.employees ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.employees ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- Indice per ricerca veloce
-CREATE INDEX idx_employees_user_id ON public.employees(user_id);
+CREATE INDEX IF NOT EXISTS idx_employees_user_id ON public.employees(user_id);
 
 -- =============================================
 -- Fase 2: Aggiungere ruolo "employee" all'enum
@@ -19,7 +19,7 @@ ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'employee';
 -- Fase 3: Creare tabella work_logs
 -- =============================================
 
-CREATE TABLE public.work_logs (
+CREATE TABLE IF NOT EXISTS public.work_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
     order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
@@ -38,9 +38,9 @@ CREATE TABLE public.work_logs (
 );
 
 -- Indici per ricerche veloci
-CREATE INDEX idx_work_logs_employee_date ON public.work_logs(employee_id, work_date);
-CREATE INDEX idx_work_logs_order ON public.work_logs(order_id);
-CREATE INDEX idx_work_logs_is_approved ON public.work_logs(is_approved);
+CREATE INDEX IF NOT EXISTS idx_work_logs_employee_date ON public.work_logs(employee_id, work_date);
+CREATE INDEX IF NOT EXISTS idx_work_logs_order ON public.work_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_work_logs_is_approved ON public.work_logs(is_approved);
 
 -- =============================================
 -- Fase 4: RLS Policies per work_logs

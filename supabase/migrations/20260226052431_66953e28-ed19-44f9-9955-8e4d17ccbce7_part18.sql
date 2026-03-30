@@ -1,5 +1,5 @@
 -- 4. google_calendar_busy_slots (cached busy blocks)
-CREATE TABLE public.google_calendar_busy_slots (
+CREATE TABLE IF NOT EXISTS public.google_calendar_busy_slots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

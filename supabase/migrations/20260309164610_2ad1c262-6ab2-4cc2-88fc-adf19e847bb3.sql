@@ -1,4 +1,4 @@
-CREATE TABLE public.bank_reconciliations (
+CREATE TABLE IF NOT EXISTS public.bank_reconciliations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   transaction_id uuid NOT NULL REFERENCES public.bank_transactions(id) ON DELETE CASCADE,

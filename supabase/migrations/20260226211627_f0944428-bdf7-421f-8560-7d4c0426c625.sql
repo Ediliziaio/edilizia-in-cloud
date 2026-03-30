@@ -1,4 +1,4 @@
-CREATE TABLE public.google_calendar_sync_log (
+CREATE TABLE IF NOT EXISTS public.google_calendar_sync_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   started_at timestamptz NOT NULL DEFAULT now(),
   completed_at timestamptz,

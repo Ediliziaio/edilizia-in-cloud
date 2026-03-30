@@ -1,5 +1,5 @@
 -- reporting_preferences: user-specific report settings
-CREATE TABLE public.reporting_preferences (
+CREATE TABLE IF NOT EXISTS public.reporting_preferences (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

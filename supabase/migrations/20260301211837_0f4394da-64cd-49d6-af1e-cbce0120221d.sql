@@ -1,5 +1,5 @@
 -- Rate limiting table for sensitive edge functions
-CREATE TABLE public.edge_function_rate_limits (
+CREATE TABLE IF NOT EXISTS public.edge_function_rate_limits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   function_name text NOT NULL,
   caller_id text NOT NULL, -- user_id or IP

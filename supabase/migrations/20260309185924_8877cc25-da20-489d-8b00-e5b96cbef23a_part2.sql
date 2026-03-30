@@ -1,5 +1,5 @@
 -- 2B. PURCHASE_ORDERS
-CREATE TABLE public.purchase_orders (
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   supplier_id UUID NOT NULL REFERENCES public.suppliers(id) ON DELETE RESTRICT,

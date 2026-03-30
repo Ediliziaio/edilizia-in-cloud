@@ -1,5 +1,5 @@
 -- Create employee_attachments table
-CREATE TABLE public.employee_attachments (
+CREATE TABLE IF NOT EXISTS public.employee_attachments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id uuid NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
   file_name text NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE public.employee_attachments (
 );
 
 -- Create external_team_attachments table
-CREATE TABLE public.external_team_attachments (
+CREATE TABLE IF NOT EXISTS public.external_team_attachments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   external_team_id uuid NOT NULL REFERENCES public.external_teams(id) ON DELETE CASCADE,
   file_name text NOT NULL,

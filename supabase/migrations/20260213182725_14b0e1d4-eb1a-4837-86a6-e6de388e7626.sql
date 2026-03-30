@@ -1,2 +1,2 @@
-ALTER TABLE public.order_items ADD COLUMN is_paid boolean DEFAULT false;
-ALTER TABLE public.order_items ADD COLUMN paid_date date;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS is_paid boolean DEFAULT false;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS paid_date date;

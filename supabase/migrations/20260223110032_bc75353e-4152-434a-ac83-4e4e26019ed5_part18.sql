@@ -1,5 +1,5 @@
 -- 4. automation_enrollments - Iscrizioni contatto/opportunità
-CREATE TABLE public.automation_enrollments (
+CREATE TABLE IF NOT EXISTS public.automation_enrollments (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   flow_id UUID NOT NULL REFERENCES public.automation_flows(id) ON DELETE CASCADE,

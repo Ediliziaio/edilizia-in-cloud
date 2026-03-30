@@ -1,5 +1,5 @@
 -- 3. form_submissions: submitted data
-CREATE TABLE public.form_submissions (
+CREATE TABLE IF NOT EXISTS public.form_submissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   form_id uuid NOT NULL REFERENCES public.lead_forms(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

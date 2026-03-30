@@ -1,6 +1,6 @@
 
 -- Create appointments table
-CREATE TABLE public.appointments (
+CREATE TABLE IF NOT EXISTS public.appointments (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   order_id uuid NULL REFERENCES public.orders(id) ON DELETE SET NULL,
@@ -50,6 +50,6 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Index for common queries
-CREATE INDEX idx_appointments_company_id ON public.appointments(company_id);
-CREATE INDEX idx_appointments_order_id ON public.appointments(order_id);
-CREATE INDEX idx_appointments_date ON public.appointments(appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_company_id ON public.appointments(company_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_order_id ON public.appointments(order_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(appointment_date);

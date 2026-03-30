@@ -2,7 +2,7 @@
 -- Permette di estendere il sistema custom fields a: ordini_variazione,
 -- giornale_lavori, pos_documents, duvri_documents (e futuri entity type)
 
-CREATE TABLE public.entity_custom_field_values (
+CREATE TABLE IF NOT EXISTS public.entity_custom_field_values (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id   UUID        NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   entity_type  TEXT        NOT NULL, -- es. 'ordini_variazione', 'giornale_lavori', 'pos_document', 'duvri_document'

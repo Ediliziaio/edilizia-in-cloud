@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 1. automation_flows - Definizione del flusso
-CREATE TABLE public.automation_flows (
+CREATE TABLE IF NOT EXISTS public.automation_flows (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL DEFAULT 'Nuova Automazione',

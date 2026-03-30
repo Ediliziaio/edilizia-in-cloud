@@ -1,6 +1,6 @@
 -- Internal chat system
 
-CREATE TABLE public.internal_chat_channels (
+CREATE TABLE IF NOT EXISTS public.internal_chat_channels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL DEFAULT '',

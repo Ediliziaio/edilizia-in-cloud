@@ -1,5 +1,5 @@
 -- Tabella marketing_pipelines
-CREATE TABLE public.marketing_pipelines (
+CREATE TABLE IF NOT EXISTS public.marketing_pipelines (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name text NOT NULL,

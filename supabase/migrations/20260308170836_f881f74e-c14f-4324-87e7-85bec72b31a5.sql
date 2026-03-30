@@ -1,5 +1,5 @@
 -- 1. telnyx_settings table
-CREATE TABLE public.telnyx_settings (
+CREATE TABLE IF NOT EXISTS public.telnyx_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   api_key_encrypted text NOT NULL,
   messaging_profile_id text,

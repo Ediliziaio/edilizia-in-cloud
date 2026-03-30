@@ -1,4 +1,4 @@
-CREATE TABLE public.multi_company_access (
+CREATE TABLE IF NOT EXISTS public.multi_company_access (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

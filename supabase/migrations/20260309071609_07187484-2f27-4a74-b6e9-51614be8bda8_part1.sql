@@ -1,5 +1,5 @@
 -- API usage log
-CREATE TABLE public.api_usage_log (
+CREATE TABLE IF NOT EXISTS public.api_usage_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   api_key_id uuid NOT NULL REFERENCES public.api_keys(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

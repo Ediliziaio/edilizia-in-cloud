@@ -1,6 +1,6 @@
 
 -- Create tasks table
-CREATE TABLE public.tasks (
+CREATE TABLE IF NOT EXISTS public.tasks (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   title text NOT NULL,
@@ -55,7 +55,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Index for performance
-CREATE INDEX idx_tasks_company_id ON public.tasks(company_id);
-CREATE INDEX idx_tasks_assigned_to ON public.tasks(assigned_to);
-CREATE INDEX idx_tasks_status ON public.tasks(status);
-CREATE INDEX idx_tasks_due_date ON public.tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_company_id ON public.tasks(company_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON public.tasks(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON public.tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON public.tasks(due_date);

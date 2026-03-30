@@ -1,5 +1,5 @@
 -- 7. integration_webhook_events (event inbox/queue)
-CREATE TABLE public.integration_webhook_events (
+CREATE TABLE IF NOT EXISTS public.integration_webhook_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
   integration_id UUID REFERENCES public.integrations(id) ON DELETE SET NULL,

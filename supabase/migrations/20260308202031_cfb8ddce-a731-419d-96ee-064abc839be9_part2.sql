@@ -1,5 +1,5 @@
 -- 2. internal_outbound_campaigns (created before internal_call_logs because of FK)
-CREATE TABLE public.internal_outbound_campaigns (
+CREATE TABLE IF NOT EXISTS public.internal_outbound_campaigns (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id        UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   agent_id          UUID NOT NULL REFERENCES public.internal_ai_agents(id) ON DELETE CASCADE,

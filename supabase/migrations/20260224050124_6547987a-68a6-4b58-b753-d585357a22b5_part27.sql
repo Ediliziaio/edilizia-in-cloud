@@ -1,5 +1,5 @@
 -- 6. integration_webhook_subscriptions
-CREATE TABLE public.integration_webhook_subscriptions (
+CREATE TABLE IF NOT EXISTS public.integration_webhook_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

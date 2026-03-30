@@ -2,7 +2,7 @@
 ALTER TYPE app_role ADD VALUE 'company_staff';
 
 -- Create staff_permissions table
-CREATE TABLE public.staff_permissions (
+CREATE TABLE IF NOT EXISTS public.staff_permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

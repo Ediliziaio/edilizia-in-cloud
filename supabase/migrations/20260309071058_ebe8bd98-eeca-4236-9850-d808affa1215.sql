@@ -1,7 +1,7 @@
 -- =============================================
 -- 1. Onboarding Checklist Templates (admin-configured)
 -- =============================================
-CREATE TABLE public.onboarding_templates (
+CREATE TABLE IF NOT EXISTS public.onboarding_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL DEFAULT 'Default',
   description text,

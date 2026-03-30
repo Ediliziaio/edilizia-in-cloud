@@ -1,5 +1,5 @@
 -- GDPR Consent Records
-CREATE TABLE public.gdpr_consents (
+CREATE TABLE IF NOT EXISTS public.gdpr_consents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,

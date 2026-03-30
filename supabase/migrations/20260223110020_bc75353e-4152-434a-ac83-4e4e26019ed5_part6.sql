@@ -1,5 +1,5 @@
 -- 2. automation_nodes - Nodi del builder
-CREATE TABLE public.automation_nodes (
+CREATE TABLE IF NOT EXISTS public.automation_nodes (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   flow_id UUID NOT NULL REFERENCES public.automation_flows(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
