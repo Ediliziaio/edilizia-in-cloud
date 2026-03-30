@@ -2,7 +2,7 @@
  * Pure transformation functions for company costs data.
  * Extracted from useCompanyCostsData to improve maintainability.
  */
-import { format, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, isWithinInterval } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, isWithinInterval, isBefore, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
@@ -121,25 +121,42 @@ export function buildExternalTeamCosts(externalTeamCosts: any[]): UnifiedCost[] 
   }));
 }
 
-/** Transform active employees into fixed monthly salary costs */
+/** Transform active employees into fixed monthly salary costs (one entry per month from hire_date) */
 export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
-  return activeEmployees.map((emp): UnifiedCost => ({
-    id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}`,
-    name: `${emp.first_name} ${emp.last_name} (stipendio)`,
-    cost_type: "fixed",
-    amount: Number(emp.gross_salary) || 0,
-    category: "Personale",
-    recurrence: "monthly",
-    due_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
-    is_paid: false,
-    paid_date: null,
-    notes: null,
-    order_id: null,
-    order: null,
-    isFromOrder: true,
-    supplierName: null,
-    vat_rate: 0,
-  }));
+  const rows: UnifiedCost[] = [];
+  const now = new Date();
+  const currentMonthEnd = endOfMonth(now);
+
+  activeEmployees.forEach((emp) => {
+    const salary = Number(emp.gross_salary) || 0;
+    if (salary === 0) return;
+
+    const hireDate = emp.hire_date ? new Date(emp.hire_date) : addMonths(now, -11);
+    let month = startOfMonth(hireDate);
+
+    while (!isAfter(month, currentMonthEnd)) {
+      const monthEnd = endOfMonth(month);
+      rows.push({
+        id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}_${format(month, "yyyy-MM")}`,
+        name: `${emp.first_name} ${emp.last_name} (stipendio)`,
+        cost_type: "fixed",
+        amount: salary,
+        category: "Personale",
+        recurrence: "monthly",
+        due_date: format(monthEnd, "yyyy-MM-dd"),
+        is_paid: isBefore(monthEnd, startOfMonth(now)),
+        paid_date: isBefore(monthEnd, startOfMonth(now)) ? format(monthEnd, "yyyy-MM-dd") : null,
+        notes: null,
+        order_id: null,
+        order: null,
+        isFromOrder: true,
+        supplierName: null,
+        vat_rate: 0,
+      });
+      month = addMonths(month, 1);
+    }
+  });
+  return rows;
 }
 
 /** Transform commissions into unified cost format */
