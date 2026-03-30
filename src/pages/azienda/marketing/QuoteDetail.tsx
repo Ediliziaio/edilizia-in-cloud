@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { queryKeys } from "@/lib/queryKeys";
+import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
@@ -21,14 +22,6 @@ import {
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
 } from "lucide-react";
-
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; }> = {
-  bozza: { label: "Bozza", variant: "secondary" },
-  inviata: { label: "Inviata", variant: "default" },
-  accettata: { label: "Accettata", variant: "default" },
-  rifiutata: { label: "Rifiutata", variant: "destructive" },
-  scaduta: { label: "Scaduta", variant: "outline" },
-};
 
 export default function QuoteDetail() {
   const { id } = useParams();
@@ -123,7 +116,7 @@ export default function QuoteDetail() {
     );
   }
 
-  const sc = statusConfig[quote.status] || statusConfig.bozza;
+  const sc = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG] || QUOTE_STATUS_CONFIG.bozza;
 
   return (
     <div className="space-y-6">

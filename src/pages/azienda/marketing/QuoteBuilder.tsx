@@ -105,22 +105,6 @@ import {
   Settings2,
 } from "lucide-react";
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
-interface QuoteItem {
-  id?: string;
-  item_type: string;
-  name: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  discount_percent: number;
-  vat_rate: number;
-  unit_of_measure: string;
-  sort_order: number;
-  article_template_id?: string | null;
-}
-
 // ─── Helper components ────────────────────────────────────────────────────────
 
 function MargineSemaforo({
@@ -296,9 +280,9 @@ function ProductSearchDialog({
       setPreview(null);
       return;
     }
-    calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y).then((r: any) =>
-      setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia })
-    );
+    calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y)
+      .then((r: any) => setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia }))
+      .catch(() => setPreview(null));
   }, [mx, my, qty, pending]);
 
   const mqPreview =
@@ -753,6 +737,8 @@ export default function QuoteBuilder() {
       setPdfImmagini((existingQuote as any).pdf_mostra_immagini ?? true);
       setPdfSchedeTecniche((existingQuote as any).pdf_includi_schede_tecniche ?? false);
       setPdfFirma((existingQuote as any).firma_digitale_abilitata ?? true);
+      // Ripristina override layout template salvato
+      setLayoutOverride((existingQuote as any).template_layout_override ?? null);
     }
   }, [existingQuote]);
 
@@ -1099,9 +1085,10 @@ export default function QuoteBuilder() {
     });
   };
 
-  // Autosave bozza silenzioso
+  // Autosave bozza silenzioso con indicatore di errore
   const lastSavedHashRef = useRef<string>("");
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [autosaveFailed, setAutosaveFailed] = useState(false);
 
   const autosaveDraft = useCallback(async () => {
     if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
@@ -1114,8 +1101,9 @@ export default function QuoteBuilder() {
         updated_at: new Date().toISOString(),
       }).eq("id", id!);
       lastSavedHashRef.current = hash;
+      setAutosaveFailed(false);
     } catch {
-      // Silenzioso — non bloccare l'utente
+      setAutosaveFailed(true);
     }
   }, [clientName, items.length, discountPercent, companyId, user, saving, isEdit, id]);
 
@@ -1124,6 +1112,19 @@ export default function QuoteBuilder() {
     autosaveRef.current = setInterval(autosaveDraft, 60_000);
     return () => { if (autosaveRef.current) clearInterval(autosaveRef.current); };
   }, [autosaveDraft, isEdit]);
+
+  // Avvisa prima di uscire con modifiche non salvate
+  const isDirty = !saving && (items.length > 0 || clientName.trim() !== "");
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   // Step validation
   const validateStep = (currentStep: number): boolean => {
@@ -1314,6 +1315,12 @@ export default function QuoteBuilder() {
           <h1 className="text-2xl font-bold tracking-tight">
             {isEdit ? "Modifica Preventivo" : "Nuovo Preventivo"}
           </h1>
+          {autosaveFailed && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
+              <AlertTriangle className="h-3 w-3" />
+              Salvataggio automatico fallito — salva manualmente
+            </p>
+          )}
         </div>
       </div>
 

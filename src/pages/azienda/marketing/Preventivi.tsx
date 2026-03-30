@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { queryKeys } from "@/lib/queryKeys";
+import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -49,16 +50,6 @@ import {
   FileText,
 } from "lucide-react";
 
-type QuoteStatus = "bozza" | "inviata" | "accettata" | "rifiutata" | "scaduta";
-
-const statusConfig: Record<QuoteStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  bozza: { label: "Bozza", variant: "secondary" },
-  inviata: { label: "Inviata", variant: "default" },
-  accettata: { label: "Accettata", variant: "default" },
-  rifiutata: { label: "Rifiutata", variant: "destructive" },
-  scaduta: { label: "Scaduta", variant: "outline" },
-};
-
 export default function Preventivi() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -67,9 +58,21 @@ export default function Preventivi() {
 
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const PAGE_SIZE = 50;
+
+  // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(0);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
     queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter],
@@ -189,8 +192,8 @@ export default function Preventivi() {
   };
 
   const filtered = quotes.filter((q: any) => {
-    if (search) {
-      const s = search.toLowerCase();
+    if (debouncedSearch) {
+      const s = debouncedSearch.toLowerCase();
       return (
         q.quote_number?.toLowerCase().includes(s) ||
         q.client_name?.toLowerCase().includes(s) ||
@@ -316,7 +319,7 @@ export default function Preventivi() {
             </TableHeader>
             <TableBody>
               {filtered.map((q: any) => {
-                const sc = statusConfig[q.status as QuoteStatus] || statusConfig.bozza;
+                const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
                 return (
                   <TableRow
                     key={q.id}
@@ -422,9 +425,12 @@ export default function Preventivi() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteQuote && deleteMutation.mutate(deleteQuote.id)}
+              disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina
+              {deleteMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminazione...</>
+              ) : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

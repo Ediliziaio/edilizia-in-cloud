@@ -29,6 +29,9 @@ export default function AccettaPreventivo() {
         if (error || !data?.valid) {
           setStatus("invalid");
           setErrorMsg(data?.reason || "Link non valido o scaduto");
+        } else if (!data.quote) {
+          setStatus("invalid");
+          setErrorMsg("Dati del preventivo non disponibili. Contatta il fornitore.");
         } else {
           setQuote(data.quote);
           setStatus("idle");
