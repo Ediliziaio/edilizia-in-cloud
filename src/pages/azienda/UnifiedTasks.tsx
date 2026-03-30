@@ -18,13 +18,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange, User } from "lucide-react";
+import { Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange, BarChart2, User } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
 import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
+import { TaskStatsView } from "@/components/attivita/TaskStatsView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
 import { format, isAfter, isBefore, addHours, startOfWeek, addDays, addWeeks, addMonths, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -85,7 +86,7 @@ export default function UnifiedTasks() {
   const [filterAssignee, setFilterAssignee] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("myday");
-  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar" | "agenda">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar" | "agenda" | "stats">("list");
   const [searchText, setSearchText] = useState("");
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const debouncedSearch = useDebounce(searchText, 300);
@@ -452,6 +453,16 @@ export default function UnifiedTasks() {
                 >
                   <CalendarRange className="h-4 w-4" />
                 </button>
+                <button
+                  onClick={() => setViewMode("stats")}
+                  className={cn(
+                    "p-2 transition-colors",
+                    viewMode === "stats" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                  title="Statistiche"
+                >
+                  <BarChart2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -482,6 +493,8 @@ export default function UnifiedTasks() {
                   </Button>
                 </CardContent>
               </Card>
+            ) : viewMode === "stats" ? (
+              <TaskStatsView tasks={tasks} />
             ) : viewMode === "agenda" ? (
               <TaskAgendaView
                 tasks={filteredTasks}
