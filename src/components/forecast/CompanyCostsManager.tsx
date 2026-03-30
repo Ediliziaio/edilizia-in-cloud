@@ -311,6 +311,7 @@ export default function CompanyCostsManager() {
             categoryDistribution={data.categoryDistribution}
             availableYears={data.availableYears}
             fixedCostsTrend={data.fixedCostsTrend}
+            breakEvenData={data.breakEvenData}
           />
 
           {/* Filters */}

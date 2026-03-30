@@ -329,3 +329,48 @@ export function exportCostsToCSV(filteredCosts: any[], filteredOrderItemCosts: a
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export interface BreakEvenData {
+  monthlyFixedCosts: number;
+  averageOrderMargin: number;
+  breakEvenRevenue: number;
+  breakEvenOrders: number;
+  averageOrderValue: number;
+  monthlyRevenue: number;
+  coveragePercent: number;
+  status: "above" | "near" | "below";
+}
+
+export function calculateBreakEven(
+  fixedCosts: any[],
+  monthlyRevenue: number,
+  averageOrderValue: number = 15000,
+  marginPercent: number = 30
+): BreakEvenData {
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const monthlyFixed = fixedCosts
+    .filter((c: any) => {
+      if (!c.due_date || c.due_date === "9999-12-31") return false;
+      const d = new Date(c.due_date);
+      return d >= monthStart && d <= monthEnd;
+    })
+    .reduce((s: number, c: any) => s + Number(c.amount), 0);
+
+  const breakEvenRevenue = marginPercent > 0 ? monthlyFixed / (marginPercent / 100) : 0;
+  const breakEvenOrders = averageOrderValue > 0 ? Math.ceil(breakEvenRevenue / averageOrderValue) : 0;
+  const coveragePercent = breakEvenRevenue > 0 ? Math.min(100, (monthlyRevenue / breakEvenRevenue) * 100) : 100;
+  const status: "above" | "near" | "below" = coveragePercent >= 100 ? "above" : coveragePercent >= 80 ? "near" : "below";
+
+  return {
+    monthlyFixedCosts: monthlyFixed,
+    averageOrderMargin: marginPercent,
+    breakEvenRevenue,
+    breakEvenOrders,
+    averageOrderValue,
+    monthlyRevenue,
+    coveragePercent,
+    status,
+  };
+}

@@ -7,6 +7,7 @@ import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   type UnifiedCost,
+  type BreakEvenData,
   buildOrderItemCosts,
   buildExternalTeamCosts,
   buildEmployeeCosts,
@@ -16,7 +17,10 @@ import {
   sortCostsByPriority,
   buildCategoryDistribution,
   exportCostsToCSV,
+  calculateBreakEven,
 } from "@/lib/costsUtils";
+
+export type { BreakEvenData } from "@/lib/costsUtils";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
@@ -473,5 +477,6 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     isLoading,
     exportCostsCSV,
     allCostsUnfiltered,
+    breakEvenData: calculateBreakEven(fixedCosts, 0),
   };
 }

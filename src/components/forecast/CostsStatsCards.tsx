@@ -3,8 +3,11 @@ import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowU
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
+import type { BreakEvenData } from "@/hooks/useCompanyCostsData";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -60,6 +63,7 @@ interface CostsStatsCardsProps {
   categoryDistribution?: { name: string; value: number }[];
   availableYears?: number[];
   fixedCostsTrend?: { month: string; pctFixed: number }[];
+  breakEvenData?: BreakEvenData;
 }
 
 const currentYear = new Date().getFullYear();
@@ -69,7 +73,7 @@ const PIE_COLORS = [
   "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
 ];
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [] }: CostsStatsCardsProps) {
+export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData }: CostsStatsCardsProps) {
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
@@ -408,6 +412,50 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Break-even Card */}
+      {breakEvenData && (
+        <Card className={cn(
+          "border-2",
+          breakEvenData.status === "above" && "border-green-400 bg-green-50 dark:bg-green-900/10",
+          breakEvenData.status === "near"  && "border-orange-400 bg-orange-50 dark:bg-orange-900/10",
+          breakEvenData.status === "below" && "border-red-400 bg-red-50 dark:bg-red-900/10",
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-4 w-4" />
+                <span className="text-sm font-semibold">Break-even mensile</span>
+              </div>
+              <Badge className={cn(
+                breakEvenData.status === "above" && "bg-green-100 text-green-800",
+                breakEvenData.status === "near"  && "bg-orange-100 text-orange-800",
+                breakEvenData.status === "below" && "bg-red-100 text-red-800",
+              )}>
+                {breakEvenData.status === "above" ? "Coperto ✓" : breakEvenData.status === "near" ? "Quasi coperto" : "Sotto break-even"}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-2">
+              <div>
+                <p className="text-xs text-muted-foreground">Costi fissi mese</p>
+                <p className="text-lg font-bold">{formatCurrency(breakEvenData.monthlyFixedCosts)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Fatturato necessario</p>
+                <p className="text-lg font-bold">{formatCurrency(breakEvenData.breakEvenRevenue)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">N. commesse necessarie</p>
+                <p className="text-lg font-bold">{breakEvenData.breakEvenOrders} ordini</p>
+              </div>
+            </div>
+            <Progress value={breakEvenData.coveragePercent} className="mt-3 h-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {breakEvenData.coveragePercent.toFixed(0)}% del break-even coperto dal fatturato corrente
+            </p>
           </CardContent>
         </Card>
       )}
