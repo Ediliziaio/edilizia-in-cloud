@@ -218,6 +218,24 @@ export default function EditorDocumento() {
             </div>
           )}
 
+          {/* Autofattura estera (TD17/18/19) banner */}
+          {["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(state.tipo) && (
+            <div className="flex items-start gap-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-sm">
+              <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-blue-800">
+                  {state.tipo === "integrazione_servizi_estero" ? "Autofattura TD17 — Acquisto servizi dall'estero" :
+                   state.tipo === "integrazione_beni_ue" ? "Integrazione TD18 — Acquisto beni intracomunitari (UE)" :
+                   "Integrazione TD19 — Acquisto beni extra-UE (art.17 c.2)"}
+                </p>
+                <p className="text-blue-700 text-xs mt-0.5">
+                  Il campo <strong>Fornitore Estero</strong> rappresenta il cedente nella fattura originale ricevuta.
+                  Inserisci i dati del fornitore straniero. Il destinatario (Cessionario) sarà automaticamente la tua azienda.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
             {/* LEFT: Cliente */}

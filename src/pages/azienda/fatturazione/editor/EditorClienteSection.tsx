@@ -165,7 +165,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-primary/60 shadow-sm">
       <div className="flex items-center justify-between">
-        <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">Cliente / Committente</Label>
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">
+          {["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(state.tipo)
+            ? "Fornitore Estero"
+            : "Cliente / Committente"}
+        </Label>
         {hasCliente && !disabled && (
           <Button
             variant="ghost"
