@@ -362,7 +362,13 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            {isDirty ? (
+              <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Modifiche non salvate
+              </span>
+            ) : <span />}
             <Button onClick={() => onSave(permissions)} disabled={isLoading || !isDirty}>
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Salva Permessi

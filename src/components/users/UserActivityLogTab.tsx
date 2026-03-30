@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Loader2, Download, FileText } from "lucide-react";
+import { Loader2, Download, FileText, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,10 +126,15 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
             {logs.map((log) => (
               <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge variant="outline" className={ACTION_COLORS[log.action] || ""}>
                       {ACTION_LABELS[log.action] || log.action}
                     </Badge>
+                    {(log as any).is_impersonated && (
+                      <Badge variant="outline" className="bg-amber-600/10 text-amber-700 border-amber-600/20 gap-1">
+                        <ShieldAlert className="h-3 w-3" /> Via Impersonazione
+                      </Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
                     </span>

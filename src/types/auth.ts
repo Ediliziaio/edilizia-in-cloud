@@ -32,11 +32,11 @@ export const PLATFORM_ROLES: PlatformRole[] = [
 ];
 
 export const PLATFORM_ROLE_LABELS: Record<PlatformRole, string> = {
-  platform_manager: "Manager",
-  platform_sales: "Sales",
-  platform_support: "Support",
+  platform_manager: "Gestore Piattaforma",
+  platform_sales: "Commerciale",
+  platform_support: "Supporto",
   platform_marketing: "Marketing",
-  platform_implementation: "Implementation",
+  platform_implementation: "Implementazione",
 };
 
 export const PLATFORM_ROLE_DESCRIPTIONS: Record<PlatformRole, string> = {

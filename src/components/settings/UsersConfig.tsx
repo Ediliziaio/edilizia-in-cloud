@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, LockOpen, UserCheck, Phone, TrendingUp, Clock, Wifi, AlertTriangle, Download, Upload } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, LockOpen, UserCheck, Phone, TrendingUp, Clock, Wifi, AlertTriangle, Download, Upload, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -254,6 +255,8 @@ export function UsersConfig() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Fetch teams for filter
   const { data: teams = [] } = useQuery({
@@ -537,6 +540,76 @@ export function UsersConfig() {
     toast.success("Export completato");
   };
 
+  const toggleSelectUser = (userId: string) => {
+    setSelectedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const selectableIds = filteredUsers.filter(u => !isCurrentUser(u.id)).map(u => u.id);
+    if (selectedUsers.size === selectableIds.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(selectableIds));
+    }
+  };
+
+  const handleBulkLock = async () => {
+    setBulkActionLoading(true);
+    const lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    try {
+      await Promise.all(
+        Array.from(selectedUsers).map(uid =>
+          supabase.from("profiles").update({ locked_until: lockUntil } as never).eq("id", uid).eq("company_id", effectiveCompanyId!)
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast.success(`${selectedUsers.size} utente/i bloccato/i`);
+      setSelectedUsers(new Set());
+    } catch {
+      toast.error("Errore nel blocco degli account");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleBulkUnlock = async () => {
+    setBulkActionLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedUsers).map(uid =>
+          supabase.from("profiles").update({ locked_until: null, failed_login_count: 0 } as never).eq("id", uid).eq("company_id", effectiveCompanyId!)
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast.success(`${selectedUsers.size} utente/i sbloccato/i`);
+      setSelectedUsers(new Set());
+    } catch {
+      toast.error("Errore nello sblocco degli account");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkActionLoading(true);
+    let deleted = 0;
+    for (const uid of Array.from(selectedUsers)) {
+      try {
+        const { data, error } = await supabase.functions.invoke("delete-company-user", { body: { userId: uid } });
+        if (!error && !data?.error) deleted++;
+      } catch { /* skip */ }
+    }
+    queryClient.invalidateQueries({ queryKey: ["company-users"] });
+    toast.success(`${deleted} utente/i eliminato/i`);
+    setSelectedUsers(new Set());
+    setBulkActionLoading(false);
+  };
+
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -658,6 +731,42 @@ export function UsersConfig() {
             </div>
           </div>
 
+          {/* Bulk action toolbar */}
+          {selectedUsers.size > 0 && (
+            <div className="flex items-center gap-2 mt-4 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
+              <CheckSquare className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">{selectedUsers.size} selezionato/i</span>
+              <div className="flex items-center gap-1 ml-auto">
+                <Button size="sm" variant="outline" disabled={bulkActionLoading} onClick={handleBulkUnlock}>
+                  <LockOpen className="h-3.5 w-3.5 mr-1" /> Sblocca
+                </Button>
+                <Button size="sm" variant="outline" disabled={bulkActionLoading} onClick={handleBulkLock}>
+                  <Lock className="h-3.5 w-3.5 mr-1" /> Blocca
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive" disabled={bulkActionLoading}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eliminare {selectedUsers.size} utente/i?</AlertDialogTitle>
+                      <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annulla</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBulkDelete}>Elimina</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedUsers(new Set())}>
+                  Deseleziona
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Filters */}
           <div className="flex items-center gap-3 mt-4">
             <div className="relative flex-1 max-w-sm">
@@ -736,6 +845,13 @@ export function UsersConfig() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={filteredUsers.filter(u => !isCurrentUser(u.id)).length > 0 && selectedUsers.size === filteredUsers.filter(u => !isCurrentUser(u.id)).length}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Seleziona tutti"
+                    />
+                  </TableHead>
                   <TableHead className="w-12"></TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
@@ -754,6 +870,15 @@ export function UsersConfig() {
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
                   >
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      {!isCurrentUser(u.id) && (
+                        <Checkbox
+                          checked={selectedUsers.has(u.id)}
+                          onCheckedChange={() => toggleSelectUser(u.id)}
+                          aria-label={`Seleziona ${u.first_name}`}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs bg-primary/10 text-primary">

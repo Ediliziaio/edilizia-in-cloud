@@ -148,19 +148,17 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     setFormError(null);
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      // Item 18: use branded reset email via edge function
+      const { error } = await supabase.functions.invoke("reset-password-branded", {
+        body: { email, redirect_to: window.location.origin },
       });
       if (error) {
-        setFormError("Impossibile inviare l'email di reset. Riprova.");
-        toast({
-          variant: "destructive",
-          title: "Errore",
-          description: "Impossibile inviare l'email di reset. Riprova.",
+        // Fallback to standard Supabase reset if EF fails
+        await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
         });
-      } else {
-        setResetSent(true);
       }
+      setResetSent(true);
     } catch {
       setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({

@@ -36,11 +36,11 @@ interface PlatformUser {
 
 const ROLE_STAT_CARDS: { role: "super_admin" | PlatformRole; label: string; colorClass: string }[] = [
   { role: "super_admin", label: "Super Admin", colorClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
-  { role: "platform_manager", label: "Manager", colorClass: PLATFORM_ROLE_COLORS.platform_manager },
-  { role: "platform_sales", label: "Sales", colorClass: PLATFORM_ROLE_COLORS.platform_sales },
-  { role: "platform_support", label: "Support", colorClass: PLATFORM_ROLE_COLORS.platform_support },
-  { role: "platform_marketing", label: "Marketing", colorClass: PLATFORM_ROLE_COLORS.platform_marketing },
-  { role: "platform_implementation", label: "Implementation", colorClass: PLATFORM_ROLE_COLORS.platform_implementation },
+  { role: "platform_manager", label: PLATFORM_ROLE_LABELS.platform_manager, colorClass: PLATFORM_ROLE_COLORS.platform_manager },
+  { role: "platform_sales", label: PLATFORM_ROLE_LABELS.platform_sales, colorClass: PLATFORM_ROLE_COLORS.platform_sales },
+  { role: "platform_support", label: PLATFORM_ROLE_LABELS.platform_support, colorClass: PLATFORM_ROLE_COLORS.platform_support },
+  { role: "platform_marketing", label: PLATFORM_ROLE_LABELS.platform_marketing, colorClass: PLATFORM_ROLE_COLORS.platform_marketing },
+  { role: "platform_implementation", label: PLATFORM_ROLE_LABELS.platform_implementation, colorClass: PLATFORM_ROLE_COLORS.platform_implementation },
 ];
 
 function getInitials(first: string, last: string) {

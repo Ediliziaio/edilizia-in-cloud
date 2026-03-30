@@ -37,7 +37,7 @@ export default function SettingsUserDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { role, user: currentUser } = useAuth();
+  const { role, user: currentUser, isImpersonating } = useAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -148,7 +148,8 @@ export default function SettingsUserDetail() {
           target_user_id: userId!,
           action: "permissions_updated",
           details: {},
-        });
+          is_impersonated: isImpersonating,
+        } as any);
       }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
@@ -222,7 +223,8 @@ export default function SettingsUserDetail() {
           target_user_id: userId!,
           action: "role_changed",
           details: { from: userData.role, to: newRole },
-        });
+          is_impersonated: isImpersonating,
+        } as any);
       }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
