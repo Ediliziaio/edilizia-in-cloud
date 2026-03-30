@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Play, Pause, Volume2, Search, Settings2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useElevenLabsVoices } from "../hooks/useElevenLabsVoices";
+import { VoiceCloneUpload } from "./VoiceCloneUpload";
 
 interface VoiceSelectorProps {
   value: string | null;
@@ -105,6 +106,11 @@ export function VoiceSelector({
           )}
         </div>
       )}
+
+      {/* Voice clone */}
+      <div className="flex justify-end">
+        <VoiceCloneUpload />
+      </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2">

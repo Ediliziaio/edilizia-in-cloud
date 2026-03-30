@@ -254,6 +254,32 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "add_voice": {
+        // P2-05: Add voice clone from base64 audio
+        if (!payload?.name || !payload?.audio_base64) {
+          throw new Error("name e audio_base64 richiesti");
+        }
+        const { decode: base64Decode } = await import("https://deno.land/std@0.168.0/encoding/base64.ts");
+        const audioBytes = base64Decode(payload.audio_base64 as string);
+        const formData = new FormData();
+        formData.append("name", payload.name as string);
+        if (payload.description) formData.append("description", payload.description as string);
+        const blob = new Blob([audioBytes], { type: "audio/mpeg" });
+        formData.append("files", blob, "sample.mp3");
+
+        const voiceRes = await fetch(`${EL_BASE}/voices/add`, {
+          method: "POST",
+          headers: { "xi-api-key": apiKey },
+          body: formData,
+        });
+        if (!voiceRes.ok) {
+          const err = await voiceRes.json().catch(() => ({}));
+          throw new Error(`ElevenLabs add_voice error: ${err?.detail?.message || voiceRes.status}`);
+        }
+        result = await voiceRes.json();
+        break;
+      }
+
       case "sync_kb": {
         // Sync local docs to EL — just returns current EL docs for comparison
         if (!agent_id) throw new Error("agent_id richiesto");

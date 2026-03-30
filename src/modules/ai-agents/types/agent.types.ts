@@ -130,4 +130,5 @@ export type ProxyAction =
   | "get_conversations"
   | "get_conversation"
   | "get_conversation_audio"
-  | "get_phone_numbers";
+  | "get_phone_numbers"
+  | "add_voice";
