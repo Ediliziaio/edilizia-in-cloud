@@ -17,7 +17,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
 import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
-import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
+import { format, isAfter, isBefore, addHours, startOfWeek, addDays, addWeeks, addMonths, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
@@ -174,9 +174,42 @@ export default function UnifiedTasks() {
       .eq("id", task.id);
     if (error) {
       toast.error("Errore", { description: error.message });
-    } else {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      return;
     }
+
+    // Task ricorrente completata → crea la prossima occorrenza
+    if (newStatus === "completata" && task.is_recurring && task.recurrence_rule && task.due_date) {
+      const base = parseISO(task.due_date);
+      let nextDue: Date;
+      switch (task.recurrence_rule) {
+        case "daily":     nextDue = addDays(base, 1);    break;
+        case "weekly":    nextDue = addWeeks(base, 1);   break;
+        case "biweekly":  nextDue = addWeeks(base, 2);   break;
+        case "monthly":   nextDue = addMonths(base, 1);  break;
+        default:          nextDue = addWeeks(base, 1);
+      }
+      const endDate = task.recurrence_end_date ? parseISO(task.recurrence_end_date) : null;
+      if (!endDate || nextDue <= endDate) {
+        const { id: _id, created_at: _ca, updated_at: _ua, completed_at: _coa, ...rest } = task;
+        const { error: insErr } = await supabase.from("tasks").insert({
+          ...rest,
+          status: "da_fare",
+          due_date: format(nextDue, "yyyy-MM-dd"),
+          parent_task_id: task.id,
+          completed_at: null,
+          assigned_profile: undefined,
+          order: undefined,
+          stock_item: undefined,
+          cost: undefined,
+          contact: undefined,
+          opportunity: undefined,
+        } as any);
+        if (insErr) toast.error("Errore creazione ricorrenza", { description: insErr.message });
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
   };
 
   const isOverdue = (task: any) => task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);

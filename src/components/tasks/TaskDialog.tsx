@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarDays, Trash2 } from "lucide-react";
+import { CalendarDays, Trash2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,14 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
+
+const RECURRENCE_OPTIONS = [
+  { value: "none",      label: "Nessuna ripetizione" },
+  { value: "daily",     label: "Ogni giorno" },
+  { value: "weekly",    label: "Ogni settimana" },
+  { value: "biweekly",  label: "Ogni 2 settimane" },
+  { value: "monthly",   label: "Ogni mese" },
+];
 
 interface TaskData {
   id?: string;
@@ -33,6 +41,9 @@ interface TaskData {
   opportunity_id: string | null;
   ticket_id: string | null;
   category: string;
+  is_recurring?: boolean;
+  recurrence_rule?: string | null;
+  recurrence_end_date?: string | null;
 }
 
 interface TaskDialogProps {
@@ -93,6 +104,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [opportunityId, setOpportunityId] = useState<string>("");
   const [ticketId, setTicketId] = useState<string>("");
   const [category, setCategory] = useState("generale");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState<string>("none");
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -110,6 +124,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOpportunityId(task.opportunity_id || "");
       setTicketId(task.ticket_id || "");
       setCategory(task.category);
+      setIsRecurring(task.is_recurring ?? false);
+      setRecurrenceRule(task.recurrence_rule ?? "none");
+      setRecurrenceEndDate(task.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined);
     } else {
       setTitle("");
       setNotes("");
@@ -124,6 +141,9 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOpportunityId(defaultOpportunityId || "");
       setTicketId(defaultTicketId || "");
       setCategory(defaultCategory || "generale");
+      setIsRecurring(false);
+      setRecurrenceRule("none");
+      setRecurrenceEndDate(undefined);
     }
   }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
 
@@ -250,6 +270,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         ticket_id: category === "assistenza" && ticketId && ticketId !== "none" ? ticketId : (defaultTicketId || null),
         category,
         completed_at: status === "completata" ? new Date().toISOString() : null,
+        is_recurring: isRecurring && recurrenceRule !== "none",
+        recurrence_rule: isRecurring && recurrenceRule !== "none" ? recurrenceRule : null,
+        recurrence_end_date: isRecurring && recurrenceRule !== "none" && recurrenceEndDate
+          ? format(recurrenceEndDate, "yyyy-MM-dd")
+          : null,
       };
 
       if (isEditing && task?.id) {
@@ -362,6 +387,69 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Ripetizione */}
+          <div className="space-y-2 border rounded-md p-3 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 cursor-pointer">
+                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                Ripetizione
+              </Label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isRecurring}
+                onClick={() => setIsRecurring((v) => !v)}
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  isRecurring ? "bg-primary" : "bg-input"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 rounded-full bg-background shadow-lg transition-transform",
+                    isRecurring ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+            {isRecurring && (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Ogni</Label>
+                  <Select value={recurrenceRule} onValueChange={setRecurrenceRule}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {RECURRENCE_OPTIONS.filter((o) => o.value !== "none").map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Termina il (opz.)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn("w-full justify-start font-normal h-8 text-sm", !recurrenceEndDate && "text-muted-foreground")}>
+                        <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                        {recurrenceEndDate ? format(recurrenceEndDate, "dd/MM/yy") : "Nessuna fine"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} locale={it} />
+                      {recurrenceEndDate && (
+                        <div className="p-2 border-t">
+                          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setRecurrenceEndDate(undefined)}>
+                            Rimuovi data fine
+                          </Button>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             )}
           </div>
