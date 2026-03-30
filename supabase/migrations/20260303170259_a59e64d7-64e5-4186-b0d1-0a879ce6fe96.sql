@@ -1,1 +1,2 @@
-ALTER TABLE public.reporting_preferences ADD CONSTRAINT reporting_preferences_company_user_key_unique UNIQUE (company_id, user_id, report_key);
+ALTER TABLE public.reporting_preferences DROP CONSTRAINT IF EXISTS reporting_preferences_company_user_key_unique,
+  ADD CONSTRAINT reporting_preferences_company_user_key_unique UNIQUE (company_id, user_id, report_key);
