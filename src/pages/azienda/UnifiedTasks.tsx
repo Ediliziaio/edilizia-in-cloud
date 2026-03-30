@@ -1,5 +1,13 @@
-import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { SortableTaskRow } from "@/components/attivita/SortableTaskRow";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ListTodo, ExternalLink, CheckCircle2, Search, LayoutList, Kanban, CalendarDays, User } from "lucide-react";
+import { Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, User } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -81,6 +89,20 @@ export default function UnifiedTasks() {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const debouncedSearch = useDebounce(searchText, 300);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+      for (const u of updates) {
+        await supabase.from("tasks").update({ sort_order: u.sort_order }).eq("id", u.id);
+      }
+    },
+    onError: () => toast.error("Errore nel salvataggio dell'ordine"),
+  });
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -113,6 +135,7 @@ export default function UnifiedTasks() {
           opportunity:marketing_opportunities!tasks_opportunity_id_fkey(name, value)
         `)
         .eq("company_id", companyId)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -162,6 +185,19 @@ export default function UnifiedTasks() {
       return true;
     });
   }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
+    const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(filteredTasks, oldIndex, newIndex);
+    const updates = reordered.map((t, i) => ({ id: t.id, sort_order: i + 1 }));
+    reorderMutation.mutate(updates, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all }),
+    });
+  }, [filteredTasks, reorderMutation, queryClient]);
 
   const handleToggleComplete = async (task: any) => {
     const newStatus = task.status === "completata" ? "da_fare" : "completata";
@@ -425,74 +461,39 @@ export default function UnifiedTasks() {
               <>
                 <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
                 <Card>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">
-                          <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
-                        </TableHead>
-                        <TableHead>Titolo</TableHead>
-                        <TableHead>Assegnatario</TableHead>
-                        <TableHead>Collegamento</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead>Priorità</TableHead>
-                        <TableHead>Scadenza</TableHead>
-                        <TableHead>Stato</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTasks.map((task) => (
-                        <TableRow
-                          key={task.id}
-                          className={cn(
-                            "cursor-pointer transition-colors",
-                            isOverdue(task) && "bg-destructive/5",
-                            task.status === "completata" && "opacity-60",
-                            selectedIds.has(task.id) && "bg-primary/5"
-                          )}
-                          onClick={() => setSelectedTask(task)}
-                        >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {task.assigned_profile ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}` : "—"}
-                          </TableCell>
-                          <TableCell>{renderCorrelation(task)}</TableCell>
-                          <TableCell>
-                            <span className="text-xs text-muted-foreground">{ALL_CATEGORY_LABELS[task.category] || task.category}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={PRIORITY_CONFIG[task.priority]?.className || ""}>
-                              {PRIORITY_CONFIG[task.priority]?.label || task.priority}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {task.due_date ? (
-                              <span className={cn("text-sm", isOverdue(task) && "text-destructive font-medium")}>
-                                {format(new Date(task.due_date), "dd/MM/yyyy")}
-                              </span>
-                            ) : "—"}
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <button
-                              className={cn(
-                                "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
-                                task.status === "completata" ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-muted"
-                              )}
-                              onClick={() => handleToggleComplete(task)}
-                            >
-                              <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
-                              {STATUS_LABELS[task.status] || task.status}
-                            </button>
-                          </TableCell>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-6 px-1" />
+                          <TableHead className="w-10">
+                            <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
+                          </TableHead>
+                          <TableHead>Titolo</TableHead>
+                          <TableHead>Assegnatario</TableHead>
+                          <TableHead>Collegamento</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Priorità</TableHead>
+                          <TableHead>Scadenza</TableHead>
+                          <TableHead>Stato</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                          {filteredTasks.map((task) => (
+                            <SortableTaskRow
+                              key={task.id}
+                              task={task}
+                              isSelected={selectedIds.has(task.id)}
+                              onToggleSelect={() => toggleSelect(task.id)}
+                              onSelect={() => setSelectedTask(task)}
+                              onToggleComplete={() => handleToggleComplete(task)}
+                            />
+                          ))}
+                        </SortableContext>
+                      </TableBody>
+                    </Table>
+                  </DndContext>
                 </Card>
               </>
             )}
