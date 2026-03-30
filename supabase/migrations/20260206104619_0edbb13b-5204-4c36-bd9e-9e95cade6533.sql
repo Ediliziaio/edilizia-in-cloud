@@ -1,8 +1,12 @@
 -- Enum per ruoli applicazione
-CREATE TYPE public.app_role AS ENUM ('super_admin', 'company_admin', 'customer');
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('super_admin', 'company_admin', 'customer');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Enum per settori azienda (per template stati ordine)
-CREATE TYPE public.company_sector AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.company_sector AS ENUM (
   'serramenti',
   'infissi', 
   'bagni',
@@ -12,9 +16,14 @@ CREATE TYPE public.company_sector AS ENUM (
   'ristrutturazioni',
   'altro'
 );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Enum per stati ticket
-CREATE TYPE public.ticket_status AS ENUM ('aperto', 'in_lavorazione', 'risolto');
+DO $$ BEGIN
+  CREATE TYPE public.ticket_status AS ENUM ('aperto', 'in_lavorazione', 'risolto');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Tabella aziende
 CREATE TABLE IF NOT EXISTS public.companies (
