@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     }
 
     // Look up internal agent (try v2 first, then legacy)
-    let agent: { id: string; company_id: string; llm_model: string; tts_model?: string | null; send_confirmation_after_booking?: boolean } | null = null;
+    let agent: { id: string; company_id: string; llm_model: string; tts_model?: string | null; send_confirmation_after_booking?: boolean; sms_postcall_enabled?: boolean; sms_postcall_trigger?: string; sms_postcall_template?: string } | null = null;
     let agentV2Id: string | null = null;
 
     const { data: agentV2 } = await adminClient
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     if (!agent) {
       const { data: agentLegacy } = await adminClient
         .from("ai_agents")
-        .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
+        .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking, sms_postcall_enabled, sms_postcall_trigger, sms_postcall_template")
         .eq("elevenlabs_agent_id", elevenlabsAgentId)
         .single();
       agent = agentLegacy;
@@ -564,6 +564,54 @@ Deno.serve(async (req) => {
         }
       } catch (confirmErr) {
         console.error("[WEBHOOK] Post-call confirmation error:", confirmErr);
+      }
+    }
+
+    // ============ SMS POST-CALL (P1-06) ============
+    const smsAgent = agent as typeof agent & { sms_postcall_enabled?: boolean; sms_postcall_trigger?: string; sms_postcall_template?: string };
+    if (smsAgent?.sms_postcall_enabled && contactId) {
+      try {
+        const trigger = smsAgent.sms_postcall_trigger || "missed_call";
+        const callDuration = durationSeconds ?? 0;
+        const isMissedCall = callDuration < 10; // < 10s = missed/unanswered
+        const shouldSend =
+          trigger === "always" ||
+          (trigger === "missed_call" && isMissedCall) ||
+          (trigger === "appointment_created" && appointmentCreated);
+
+        if (shouldSend) {
+          const { data: contact } = await adminClient
+            .from("marketing_contacts")
+            .select("phone, first_name")
+            .eq("id", contactId)
+            .single();
+
+          if (contact?.phone) {
+            const template = smsAgent.sms_postcall_template ||
+              "Ciao {nome}, abbiamo tentato di chiamarti. Richiamaci al più presto.";
+            const smsText = template
+              .replace("{nome}", contact.first_name || "")
+              .replace("{data}", new Date().toLocaleDateString("it-IT"))
+              .replace("{ora}", new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }));
+
+            await fetch(`${supabaseUrl}/functions/v1/send-contact-message`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                company_id: companyId,
+                contact_id: contactId,
+                channel: "sms",
+                content: smsText,
+              }),
+            });
+            console.log(`[WEBHOOK] SMS post-call inviato a contatto ${contactId} (trigger: ${trigger})`);
+          }
+        }
+      } catch (smsErr) {
+        console.error("[WEBHOOK] SMS post-call error:", smsErr);
       }
     }
 

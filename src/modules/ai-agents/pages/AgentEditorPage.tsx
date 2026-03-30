@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,6 +159,15 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(
     (agentAny.business_hours_enabled as boolean) ?? false
   );
+  const [smsPostcallEnabled, setSmsPostcallEnabled] = useState(
+    (agentAny.sms_postcall_enabled as boolean) ?? false
+  );
+  const [smsPostcallTrigger, setSmsPostcallTrigger] = useState(
+    (agentAny.sms_postcall_trigger as string) ?? "missed_call"
+  );
+  const [smsPostcallTemplate, setSmsPostcallTemplate] = useState(
+    (agentAny.sms_postcall_template as string) ?? "Ciao {nome}, abbiamo tentato di chiamarti. Richiamaci al più presto o prenota un appuntamento."
+  );
   const [orarioApertura, setOrarioApertura] = useState(
     ((agentAny.orario_apertura as string) ?? "08:00:00").slice(0, 5)
   );
@@ -192,6 +202,9 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
       orario_apertura: orarioApertura + ":00",
       orario_chiusura: orarioChiusura + ":00",
       giorni_attivi: giorniAttivi,
+      sms_postcall_enabled: smsPostcallEnabled,
+      sms_postcall_trigger: smsPostcallTrigger,
+      sms_postcall_template: smsPostcallTemplate,
     } as AIAgentUpdate);
     toast.success("Configurazione avanzata salvata");
   };
@@ -351,6 +364,53 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="h-4 w-4" /> SMS post-chiamata
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Abilita SMS post-chiamata</Label>
+              <p className="text-xs text-muted-foreground">
+                Invia un SMS via Telnyx dopo la chiamata
+              </p>
+            </div>
+            <Switch checked={smsPostcallEnabled} onCheckedChange={setSmsPostcallEnabled} />
+          </div>
+          {smsPostcallEnabled && (
+            <>
+              <div className="space-y-2">
+                <Label>Quando inviare</Label>
+                <Select value={smsPostcallTrigger} onValueChange={setSmsPostcallTrigger}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="missed_call">Chiamata persa (&lt;10s)</SelectItem>
+                    <SelectItem value="appointment_created">Appuntamento creato</SelectItem>
+                    <SelectItem value="always">Sempre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Testo SMS</Label>
+                <Textarea
+                  value={smsPostcallTemplate}
+                  onChange={(e) => setSmsPostcallTemplate(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Variabili: <code>{"{nome}"}</code> <code>{"{data}"}</code> <code>{"{ora}"}</code>
+                </p>
               </div>
             </>
           )}
