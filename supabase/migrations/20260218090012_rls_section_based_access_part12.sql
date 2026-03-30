@@ -3,6 +3,7 @@
 -- ─────────────────────────────────────────────────────────────
 
 -- employee_attachments — staff con can_view_employees vede i documenti
+DROP POLICY IF EXISTS "Staff can view employee attachments if permitted" ON public.employee_attachments;
 CREATE POLICY "Staff can view employee attachments if permitted"
   ON public.employee_attachments FOR SELECT
   USING (

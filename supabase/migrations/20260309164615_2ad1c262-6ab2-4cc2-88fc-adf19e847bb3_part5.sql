@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Tenant isolation for bank_reconciliations" ON public.bank_reconciliations;
 CREATE POLICY "Tenant isolation for bank_reconciliations"
   ON public.bank_reconciliations
   FOR ALL

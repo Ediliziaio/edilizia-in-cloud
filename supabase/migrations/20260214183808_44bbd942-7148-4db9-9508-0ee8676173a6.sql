@@ -23,22 +23,27 @@ CREATE TABLE public.tasks (
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Company admins can manage their tasks" ON public.tasks;
 CREATE POLICY "Company admins can manage their tasks"
 ON public.tasks FOR ALL
 USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Staff can view tasks if permitted" ON public.tasks;
 CREATE POLICY "Staff can view tasks if permitted"
 ON public.tasks FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Staff can manage tasks if permitted" ON public.tasks;
 CREATE POLICY "Staff can manage tasks if permitted"
 ON public.tasks FOR ALL
 USING (has_permission(auth.uid(), 'can_edit_orders'::text) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Employees can view assigned tasks" ON public.tasks;
 CREATE POLICY "Employees can view assigned tasks"
 ON public.tasks FOR SELECT
 USING (assigned_to = auth.uid());
 
+DROP POLICY IF EXISTS "Super admins can manage all tasks" ON public.tasks;
 CREATE POLICY "Super admins can manage all tasks"
 ON public.tasks FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));

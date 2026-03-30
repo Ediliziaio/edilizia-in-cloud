@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.email_optin_tokens (
 ALTER TABLE public.email_optin_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Company admins can manage tokens for their contacts
+DROP POLICY IF EXISTS "Company admins manage optin tokens" ON public.email_optin_tokens;
 CREATE POLICY "Company admins manage optin tokens"
   ON public.email_optin_tokens FOR ALL
   USING (
@@ -24,6 +25,7 @@ CREATE POLICY "Company admins manage optin tokens"
   );
 
 -- Super admins can manage all tokens
+DROP POLICY IF EXISTS "Super admins manage all optin tokens" ON public.email_optin_tokens;
 CREATE POLICY "Super admins manage all optin tokens"
   ON public.email_optin_tokens FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));

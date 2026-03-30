@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can manage their company orders" ON public.orders;
 CREATE POLICY "Staff can manage their company orders"
   ON public.orders FOR ALL
   USING (

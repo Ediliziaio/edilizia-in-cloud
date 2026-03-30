@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins can manage IP allowlist" ON public.admin_ip_allowlist;
 CREATE POLICY "Super admins can manage IP allowlist"
 ON public.admin_ip_allowlist
 FOR ALL TO authenticated

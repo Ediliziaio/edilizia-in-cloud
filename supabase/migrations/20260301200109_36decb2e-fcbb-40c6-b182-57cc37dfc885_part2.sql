@@ -1,4 +1,5 @@
 -- Super admins can do everything
+DROP POLICY IF EXISTS "Super admins can manage announcements" ON public.platform_announcements;
 CREATE POLICY "Super admins can manage announcements"
 ON public.platform_announcements
 FOR ALL

@@ -59,6 +59,7 @@ ALTER TABLE public.order_employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_external_teams ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for employees
+DROP POLICY IF EXISTS "Company admins can manage their employees" ON public.employees;
 CREATE POLICY "Company admins can manage their employees"
 ON public.employees FOR ALL
 USING (
@@ -66,11 +67,13 @@ USING (
   company_id = get_user_company_id(auth.uid())
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all employees" ON public.employees;
 CREATE POLICY "Super admins can manage all employees"
 ON public.employees FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- RLS Policies for external_teams
+DROP POLICY IF EXISTS "Company admins can manage their external teams" ON public.external_teams;
 CREATE POLICY "Company admins can manage their external teams"
 ON public.external_teams FOR ALL
 USING (
@@ -78,11 +81,13 @@ USING (
   company_id = get_user_company_id(auth.uid())
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all external teams" ON public.external_teams;
 CREATE POLICY "Super admins can manage all external teams"
 ON public.external_teams FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- RLS Policies for order_employees
+DROP POLICY IF EXISTS "Company admins can manage their order employees" ON public.order_employees;
 CREATE POLICY "Company admins can manage their order employees"
 ON public.order_employees FOR ALL
 USING (
@@ -94,11 +99,13 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all order employees" ON public.order_employees;
 CREATE POLICY "Super admins can manage all order employees"
 ON public.order_employees FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- RLS Policies for order_external_teams
+DROP POLICY IF EXISTS "Company admins can manage their order external teams" ON public.order_external_teams;
 CREATE POLICY "Company admins can manage their order external teams"
 ON public.order_external_teams FOR ALL
 USING (
@@ -110,6 +117,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all order external teams" ON public.order_external_teams;
 CREATE POLICY "Super admins can manage all order external teams"
 ON public.order_external_teams FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));

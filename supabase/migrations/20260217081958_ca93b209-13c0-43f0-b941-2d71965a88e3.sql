@@ -15,6 +15,7 @@ CREATE TABLE public.admin_audit_log (
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- Only super admins can read audit logs
+DROP POLICY IF EXISTS "Super admins can view audit logs" ON public.admin_audit_log;
 CREATE POLICY "Super admins can view audit logs"
 ON public.admin_audit_log
 FOR SELECT

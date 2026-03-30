@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "login_attempts_select_admin" ON public.login_attempts;
 CREATE POLICY "login_attempts_select_admin"
   ON public.login_attempts FOR SELECT TO authenticated
   USING (

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins can manage platform settings" ON public.platform_settings;
 CREATE POLICY "Super admins can manage platform settings"
   ON public.platform_settings
   FOR ALL

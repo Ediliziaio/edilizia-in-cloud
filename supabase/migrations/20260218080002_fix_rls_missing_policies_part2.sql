@@ -1,5 +1,6 @@
 -- Dipendenti (ruolo employee) possono vedere gli articoli degli ordini
 -- a cui sono assegnati tramite order_employees
+DROP POLICY IF EXISTS "Employees can view items of their assigned orders" ON public.order_items;
 CREATE POLICY "Employees can view items of their assigned orders"
   ON public.order_items FOR SELECT
   USING (

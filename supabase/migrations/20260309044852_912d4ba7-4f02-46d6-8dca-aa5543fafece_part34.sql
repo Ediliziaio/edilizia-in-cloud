@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "teams_insert" ON public.teams;
 CREATE POLICY "teams_insert"
   ON public.teams FOR INSERT TO authenticated
   WITH CHECK (

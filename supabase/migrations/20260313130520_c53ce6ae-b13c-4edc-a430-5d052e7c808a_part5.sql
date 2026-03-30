@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can view comments for their company tasks" ON public.task_comments;
 CREATE POLICY "Users can view comments for their company tasks"
   ON public.task_comments
   FOR SELECT

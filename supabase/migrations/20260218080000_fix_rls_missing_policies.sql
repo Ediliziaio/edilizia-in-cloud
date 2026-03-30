@@ -19,6 +19,7 @@
 
 -- Company staff con permesso can_view_orders può vedere gli articoli
 -- degli ordini della propria azienda
+DROP POLICY IF EXISTS "Staff can view order items if permitted" ON public.order_items;
 CREATE POLICY "Staff can view order items if permitted"
   ON public.order_items FOR SELECT
   USING (

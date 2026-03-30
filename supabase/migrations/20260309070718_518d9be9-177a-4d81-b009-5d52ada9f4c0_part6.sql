@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "super_admin_manage_canned" ON public.support_canned_responses;
 CREATE POLICY "super_admin_manage_canned" ON public.support_canned_responses
   FOR ALL TO authenticated
   USING (

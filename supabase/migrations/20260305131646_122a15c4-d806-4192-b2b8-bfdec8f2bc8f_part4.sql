@@ -1,4 +1,5 @@
 -- Super admin bypass
+DROP POLICY IF EXISTS "Super admins can manage all installments" ON public.order_installments;
 CREATE POLICY "Super admins can manage all installments"
 ON public.order_installments
 FOR ALL

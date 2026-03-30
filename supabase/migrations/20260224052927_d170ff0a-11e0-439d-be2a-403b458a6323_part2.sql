@@ -1,4 +1,5 @@
 -- Also allow super_admin
+DROP POLICY IF EXISTS "Super admins can update webhook events" ON public.integration_webhook_events;
 CREATE POLICY "Super admins can update webhook events"
 ON public.integration_webhook_events
 FOR UPDATE

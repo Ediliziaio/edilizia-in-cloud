@@ -1,4 +1,5 @@
 -- RLS: dipendente inserisce le proprie (solo pending)
+DROP POLICY IF EXISTS "employee_insert_own_leave" ON public.leave_requests;
 CREATE POLICY "employee_insert_own_leave"
   ON public.leave_requests FOR INSERT
   WITH CHECK (

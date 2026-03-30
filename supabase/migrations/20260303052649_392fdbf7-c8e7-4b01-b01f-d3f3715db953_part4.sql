@@ -1,4 +1,5 @@
 -- SELECT: all company members can read
+DROP POLICY IF EXISTS "Company members can view sales targets" ON public.sales_targets;
 CREATE POLICY "Company members can view sales targets"
 ON public.sales_targets FOR SELECT
 TO authenticated

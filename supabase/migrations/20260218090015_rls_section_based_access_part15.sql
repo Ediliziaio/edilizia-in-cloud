@@ -1,4 +1,5 @@
 -- external_team_attachments — documenti contratti squadre esterne
+DROP POLICY IF EXISTS "Staff can view external team attachments if permitted" ON public.external_team_attachments;
 CREATE POLICY "Staff can view external team attachments if permitted"
   ON public.external_team_attachments FOR SELECT
   USING (

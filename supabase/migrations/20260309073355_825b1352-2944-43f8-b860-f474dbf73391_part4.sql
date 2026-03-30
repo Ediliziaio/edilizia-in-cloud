@@ -1,4 +1,5 @@
 -- Allow referrers to see their own payouts
+DROP POLICY IF EXISTS "referrer_self_payouts" ON public.referral_payouts;
 CREATE POLICY "referrer_self_payouts" ON public.referral_payouts
   FOR SELECT TO authenticated
   USING (

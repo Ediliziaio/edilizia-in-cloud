@@ -1,4 +1,5 @@
 -- RLS ticket_messages per staff
+DROP POLICY IF EXISTS "Staff can view company ticket messages" ON public.ticket_messages;
 CREATE POLICY "Staff can view company ticket messages"
   ON public.ticket_messages FOR SELECT TO authenticated
   USING (

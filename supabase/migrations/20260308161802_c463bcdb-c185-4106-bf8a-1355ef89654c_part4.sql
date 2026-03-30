@@ -1,4 +1,5 @@
 -- RLS: Allow public read on marketing_calendar_availability for booking
+DROP POLICY IF EXISTS "Public can read availability for active calendars" ON public.marketing_calendar_availability;
 CREATE POLICY "Public can read availability for active calendars"
   ON public.marketing_calendar_availability
   FOR SELECT

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company members can delete own branches" ON public.ai_agent_branches;
 CREATE POLICY "Company members can delete own branches"
   ON public.ai_agent_branches FOR DELETE
   TO authenticated

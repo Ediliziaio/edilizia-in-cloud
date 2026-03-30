@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can manage installments for their company orders" ON public.order_installments;
 CREATE POLICY "Users can manage installments for their company orders"
 ON public.order_installments
 FOR ALL

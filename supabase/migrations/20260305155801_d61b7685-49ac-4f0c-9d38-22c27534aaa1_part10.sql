@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can insert company ticket messages" ON public.ticket_messages;
 CREATE POLICY "Staff can insert company ticket messages"
   ON public.ticket_messages FOR INSERT TO authenticated
   WITH CHECK (

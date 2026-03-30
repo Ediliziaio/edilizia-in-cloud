@@ -1,4 +1,5 @@
 -- RLS: Allow anon to read appointments for slot exclusion (only date/time, no details)
+DROP POLICY IF EXISTS "Public can check appointment slots" ON public.appointments;
 CREATE POLICY "Public can check appointment slots"
   ON public.appointments
   FOR SELECT

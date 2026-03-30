@@ -1,5 +1,6 @@
 
 -- Allow customers to view their own appointments
+DROP POLICY IF EXISTS "customer_view_own_appointments" ON public.appointments;
 CREATE POLICY "customer_view_own_appointments"
   ON public.appointments
   FOR SELECT

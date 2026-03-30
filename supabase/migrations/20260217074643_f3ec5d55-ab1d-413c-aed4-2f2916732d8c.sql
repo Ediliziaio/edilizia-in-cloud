@@ -11,6 +11,7 @@ CREATE TABLE public.admin_notification_prefs (
 
 ALTER TABLE public.admin_notification_prefs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage their own prefs" ON public.admin_notification_prefs;
 CREATE POLICY "Super admins can manage their own prefs"
 ON public.admin_notification_prefs
 FOR ALL

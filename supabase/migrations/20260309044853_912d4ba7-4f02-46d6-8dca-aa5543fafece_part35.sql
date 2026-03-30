@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "teams_update" ON public.teams;
 CREATE POLICY "teams_update"
   ON public.teams FOR UPDATE TO authenticated
   USING (

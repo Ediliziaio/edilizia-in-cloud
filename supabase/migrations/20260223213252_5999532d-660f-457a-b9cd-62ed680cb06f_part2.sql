@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company can manage own global automation settings" ON public.automation_global_settings;
 CREATE POLICY "Company can manage own global automation settings"
   ON public.automation_global_settings FOR ALL
   TO authenticated

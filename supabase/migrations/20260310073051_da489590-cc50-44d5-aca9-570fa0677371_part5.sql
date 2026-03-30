@@ -1,4 +1,5 @@
 -- Customer can see their own messages
+DROP POLICY IF EXISTS "customer_own_messages" ON public.customer_messages;
 CREATE POLICY "customer_own_messages"
   ON public.customer_messages
   FOR ALL

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Authenticated users can read own company email credits log" ON public.email_credits_log;
 CREATE POLICY "Authenticated users can read own company email credits log"
   ON public.email_credits_log FOR SELECT TO authenticated
   USING (

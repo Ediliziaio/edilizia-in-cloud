@@ -17,6 +17,7 @@ CREATE TABLE public.support_conversations (
 ALTER TABLE public.support_conversations ENABLE ROW LEVEL SECURITY;
 
 -- Only super_admin can manage
+DROP POLICY IF EXISTS "Super admins can manage all support conversations" ON public.support_conversations;
 CREATE POLICY "Super admins can manage all support conversations"
 ON public.support_conversations
 FOR ALL

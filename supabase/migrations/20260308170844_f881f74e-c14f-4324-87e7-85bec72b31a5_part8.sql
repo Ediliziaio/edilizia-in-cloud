@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company users can view their sms_logs" ON public.sms_logs;
 CREATE POLICY "Company users can view their sms_logs"
   ON public.sms_logs
   FOR SELECT

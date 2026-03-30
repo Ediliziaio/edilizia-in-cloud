@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "user_sessions_insert_self" ON public.user_sessions;
 CREATE POLICY "user_sessions_insert_self"
   ON public.user_sessions FOR INSERT TO authenticated
   WITH CHECK (

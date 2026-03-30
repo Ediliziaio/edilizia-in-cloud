@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS order_items (
 -- 3. RLS policies per order_items
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their order items" ON public.order_items;
 CREATE POLICY "Company admins can manage their order items"
   ON order_items FOR ALL
   USING (
@@ -30,6 +31,7 @@ CREATE POLICY "Company admins can manage their order items"
     )
   );
 
+DROP POLICY IF EXISTS "Customers can view their order items" ON public.order_items;
 CREATE POLICY "Customers can view their order items"
   ON order_items FOR SELECT
   USING (
@@ -40,6 +42,7 @@ CREATE POLICY "Customers can view their order items"
     )
   );
 
+DROP POLICY IF EXISTS "Super admins can manage all order items" ON public.order_items;
 CREATE POLICY "Super admins can manage all order items"
   ON order_items FOR ALL
   USING (has_role(auth.uid(), 'super_admin'));

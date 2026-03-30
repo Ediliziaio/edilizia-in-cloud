@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "fattura_ordine_delete" ON public.fattura_ordine;
 CREATE POLICY "fattura_ordine_delete" ON public.fattura_ordine
   FOR DELETE TO authenticated
   USING (

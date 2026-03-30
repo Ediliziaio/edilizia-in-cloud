@@ -1,4 +1,5 @@
 -- RLS via campaign join
+DROP POLICY IF EXISTS "campaign_contacts_company" ON public.ai_campaign_contacts;
 CREATE POLICY "campaign_contacts_company" ON public.ai_campaign_contacts
   FOR ALL TO authenticated
   USING (

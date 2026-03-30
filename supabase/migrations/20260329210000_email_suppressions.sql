@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.email_suppressions (
 ALTER TABLE public.email_suppressions ENABLE ROW LEVEL SECURITY;
 
 -- Only super_admins can read/write the suppression list
+DROP POLICY IF EXISTS "Super admins manage email_suppressions" ON public.email_suppressions;
 CREATE POLICY "Super admins manage email_suppressions"
   ON public.email_suppressions FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));

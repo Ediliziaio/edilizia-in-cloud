@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "System manages busy slots" ON public.google_calendar_busy_slots;
 CREATE POLICY "System manages busy slots"
   ON public.google_calendar_busy_slots FOR ALL
   TO authenticated

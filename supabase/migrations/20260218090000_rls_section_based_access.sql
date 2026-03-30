@@ -20,6 +20,7 @@
 -- ─────────────────────────────────────────────────────────────
 
 -- 1. orders — il gap più critico: staff non vedeva nessun ordine
+DROP POLICY IF EXISTS "Staff can view their company orders" ON public.orders;
 CREATE POLICY "Staff can view their company orders"
   ON public.orders FOR SELECT
   USING (

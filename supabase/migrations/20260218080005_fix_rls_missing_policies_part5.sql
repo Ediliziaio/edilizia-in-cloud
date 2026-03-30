@@ -6,6 +6,7 @@
 -- non può registrare scarichi/carichi magazzino — operazione che
 -- avviene ogni volta che un articolo ordine cambia stato.
 
+DROP POLICY IF EXISTS "Staff can manage warehouse movements if permitted" ON public.warehouse_movements;
 CREATE POLICY "Staff can manage warehouse movements if permitted"
   ON public.warehouse_movements FOR ALL
   USING (

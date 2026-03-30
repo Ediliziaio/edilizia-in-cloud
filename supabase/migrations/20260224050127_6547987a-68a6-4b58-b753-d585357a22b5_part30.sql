@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Admins can manage own company webhook subs" ON public.integration_webhook_subscriptions;
 CREATE POLICY "Admins can manage own company webhook subs"
   ON public.integration_webhook_subscriptions FOR ALL TO authenticated
   USING (company_id = public.get_user_company_id(auth.uid())

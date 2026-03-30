@@ -1,4 +1,5 @@
 -- 2. order_statuses — necessari per visualizzare i nomi degli stati (Kanban)
+DROP POLICY IF EXISTS "Staff can view their company order statuses" ON public.order_statuses;
 CREATE POLICY "Staff can view their company order statuses"
   ON public.order_statuses FOR SELECT
   USING (

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins can manage their own impersonations" ON public.active_impersonations;
 CREATE POLICY "Super admins can manage their own impersonations"
 ON public.active_impersonations
 FOR ALL TO authenticated

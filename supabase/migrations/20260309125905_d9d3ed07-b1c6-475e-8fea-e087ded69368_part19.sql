@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "partners_view_materials" ON public.partner_materials;
 CREATE POLICY "partners_view_materials" ON public.partner_materials FOR SELECT TO authenticated
 USING (
   is_active = true AND

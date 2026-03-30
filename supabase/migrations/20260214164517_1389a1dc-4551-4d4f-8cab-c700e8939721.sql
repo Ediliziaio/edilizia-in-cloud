@@ -19,6 +19,7 @@ CREATE UNIQUE INDEX idx_referrers_referral_code ON public.referrers (referral_co
 
 ALTER TABLE public.referrers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all referrers" ON public.referrers;
 CREATE POLICY "Super admins can manage all referrers"
 ON public.referrers FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
@@ -35,6 +36,7 @@ CREATE TABLE public.referral_companies (
 
 ALTER TABLE public.referral_companies ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all referral_companies" ON public.referral_companies;
 CREATE POLICY "Super admins can manage all referral_companies"
 ON public.referral_companies FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
@@ -54,6 +56,7 @@ CREATE TABLE public.referral_payouts (
 
 ALTER TABLE public.referral_payouts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all referral_payouts" ON public.referral_payouts;
 CREATE POLICY "Super admins can manage all referral_payouts"
 ON public.referral_payouts FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));

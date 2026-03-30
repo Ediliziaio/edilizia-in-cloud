@@ -1,4 +1,5 @@
 -- Allow referrers to see their own referral_companies
+DROP POLICY IF EXISTS "referrer_self_companies" ON public.referral_companies;
 CREATE POLICY "referrer_self_companies" ON public.referral_companies
   FOR SELECT TO authenticated
   USING (

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins manage overrides" ON public.company_feature_overrides;
 CREATE POLICY "Super admins manage overrides"
   ON public.company_feature_overrides FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role))

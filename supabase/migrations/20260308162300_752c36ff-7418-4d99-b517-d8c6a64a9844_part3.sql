@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company users manage loss reasons" ON public.opportunity_loss_reasons;
 CREATE POLICY "Company users manage loss reasons"
   ON public.opportunity_loss_reasons FOR ALL
   TO authenticated

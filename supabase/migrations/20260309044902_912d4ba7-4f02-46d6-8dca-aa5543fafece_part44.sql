@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "team_members_update" ON public.team_members;
 CREATE POLICY "team_members_update"
   ON public.team_members FOR UPDATE TO authenticated
   USING (

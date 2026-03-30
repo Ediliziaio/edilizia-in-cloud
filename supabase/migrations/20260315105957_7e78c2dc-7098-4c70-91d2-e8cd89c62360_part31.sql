@@ -1,4 +1,5 @@
 -- Storage policy: company-scoped access
+DROP POLICY IF EXISTS "kb_storage_company_access" ON public.storage;
 CREATE POLICY "kb_storage_company_access" ON storage.objects
   FOR ALL TO authenticated
   USING (

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.bank_alert_rules (
 
 ALTER TABLE public.bank_alert_rules ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "bank_alert_rules_tenant" ON public.bank_alert_rules;
 CREATE POLICY "bank_alert_rules_tenant" ON public.bank_alert_rules
   FOR ALL TO authenticated
   USING (company_id = public.get_my_company_id())

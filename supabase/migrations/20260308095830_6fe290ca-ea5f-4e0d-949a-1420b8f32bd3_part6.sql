@@ -1,4 +1,5 @@
 -- Policies for whatsapp_broadcast_recipients
+DROP POLICY IF EXISTS "Users can view recipients of their broadcasts" ON public.whatsapp_broadcast_recipients;
 CREATE POLICY "Users can view recipients of their broadcasts"
   ON whatsapp_broadcast_recipients FOR SELECT TO authenticated
   USING (broadcast_id IN (

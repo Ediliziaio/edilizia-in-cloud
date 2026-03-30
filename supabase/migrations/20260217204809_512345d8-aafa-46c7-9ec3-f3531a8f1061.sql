@@ -19,6 +19,7 @@ CREATE INDEX idx_company_activity_log_action ON public.company_activity_log(acti
 ALTER TABLE public.company_activity_log ENABLE ROW LEVEL SECURITY;
 
 -- RLS: company admins can read their own company logs
+DROP POLICY IF EXISTS "Company admins can view their activity logs" ON public.company_activity_log;
 CREATE POLICY "Company admins can view their activity logs"
 ON public.company_activity_log
 FOR SELECT
@@ -28,12 +29,14 @@ USING (
 );
 
 -- RLS: super admins can read all
+DROP POLICY IF EXISTS "Super admins can view all activity logs" ON public.company_activity_log;
 CREATE POLICY "Super admins can view all activity logs"
 ON public.company_activity_log
 FOR SELECT
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- RLS: staff with settings permission can view
+DROP POLICY IF EXISTS "Staff can view activity logs if permitted" ON public.company_activity_log;
 CREATE POLICY "Staff can view activity logs if permitted"
 ON public.company_activity_log
 FOR SELECT

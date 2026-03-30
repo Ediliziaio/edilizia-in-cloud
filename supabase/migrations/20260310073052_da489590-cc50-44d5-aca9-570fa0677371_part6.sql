@@ -1,4 +1,5 @@
 -- Company staff can see messages for their company
+DROP POLICY IF EXISTS "staff_company_messages" ON public.customer_messages;
 CREATE POLICY "staff_company_messages"
   ON public.customer_messages
   FOR ALL

@@ -1,4 +1,5 @@
 -- DELETE: only admins
+DROP POLICY IF EXISTS "Admins can delete sales targets" ON public.sales_targets;
 CREATE POLICY "Admins can delete sales targets"
 ON public.sales_targets FOR DELETE
 TO authenticated

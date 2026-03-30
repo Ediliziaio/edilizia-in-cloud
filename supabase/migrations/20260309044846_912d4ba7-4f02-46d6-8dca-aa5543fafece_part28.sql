@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "user_audit_log_select_admin" ON public.user_audit_log;
 CREATE POLICY "user_audit_log_select_admin"
   ON public.user_audit_log FOR SELECT TO authenticated
   USING (

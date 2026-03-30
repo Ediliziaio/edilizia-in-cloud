@@ -7,6 +7,7 @@
 -- Nota: FOR ALL su has_permission copre già SELECT, ma Postgres
 -- combina le policy in OR — la policy SELECT esistente rimane attiva.
 
+DROP POLICY IF EXISTS "Staff can manage warehouse stock if permitted" ON public.warehouse_stock;
 CREATE POLICY "Staff can manage warehouse stock if permitted"
   ON public.warehouse_stock FOR ALL
   USING (

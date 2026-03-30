@@ -1,4 +1,5 @@
 -- RLS via session join
+DROP POLICY IF EXISTS "chat_messages_via_session" ON public.ai_chat_messages;
 CREATE POLICY "chat_messages_via_session" ON public.ai_chat_messages FOR ALL TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.ai_chat_sessions s

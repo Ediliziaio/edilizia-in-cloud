@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "fatture_ricevute_company_isolation" ON public.fatture_ricevute;
 CREATE POLICY "fatture_ricevute_company_isolation"
   ON public.fatture_ricevute
   FOR ALL

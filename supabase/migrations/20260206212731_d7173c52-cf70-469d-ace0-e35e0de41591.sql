@@ -15,6 +15,7 @@ CREATE TABLE public.order_attachments (
 ALTER TABLE public.order_attachments ENABLE ROW LEVEL SECURITY;
 
 -- Company admins can manage their order attachments
+DROP POLICY IF EXISTS "Company admins can manage their order attachments" ON public.order_attachments;
 CREATE POLICY "Company admins can manage their order attachments"
   ON public.order_attachments FOR ALL
   USING (
@@ -27,6 +28,7 @@ CREATE POLICY "Company admins can manage their order attachments"
   );
 
 -- Customers can view ONLY visible order attachments
+DROP POLICY IF EXISTS "Customers can view visible order attachments" ON public.order_attachments;
 CREATE POLICY "Customers can view visible order attachments"
   ON public.order_attachments FOR SELECT
   USING (
@@ -39,6 +41,7 @@ CREATE POLICY "Customers can view visible order attachments"
   );
 
 -- Super admins can manage all order attachments
+DROP POLICY IF EXISTS "Super admins can manage all order attachments" ON public.order_attachments;
 CREATE POLICY "Super admins can manage all order attachments"
   ON public.order_attachments FOR ALL
   USING (has_role(auth.uid(), 'super_admin'));

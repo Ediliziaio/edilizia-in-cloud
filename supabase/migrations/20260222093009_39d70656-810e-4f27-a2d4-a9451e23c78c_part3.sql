@@ -1,4 +1,5 @@
 -- RLS policies
+DROP POLICY IF EXISTS "Company admins can manage opportunity field values" ON public.marketing_opportunity_field_values;
 CREATE POLICY "Company admins can manage opportunity field values"
 ON public.marketing_opportunity_field_values
 FOR ALL

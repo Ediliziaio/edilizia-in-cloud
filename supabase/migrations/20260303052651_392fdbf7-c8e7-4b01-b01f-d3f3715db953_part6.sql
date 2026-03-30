@@ -1,4 +1,5 @@
 -- UPDATE: only admins
+DROP POLICY IF EXISTS "Admins can update sales targets" ON public.sales_targets;
 CREATE POLICY "Admins can update sales targets"
 ON public.sales_targets FOR UPDATE
 TO authenticated

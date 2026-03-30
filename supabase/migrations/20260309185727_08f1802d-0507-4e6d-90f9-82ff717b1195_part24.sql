@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "prima_nota_tenant_delete" ON public.prima_nota_entries;
 CREATE POLICY "prima_nota_tenant_delete" ON public.prima_nota_entries
   FOR DELETE TO authenticated
   USING (company_id IN (

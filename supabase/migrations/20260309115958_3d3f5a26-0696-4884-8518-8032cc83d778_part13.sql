@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_delete_template_assets" ON public.storage;
 CREATE POLICY "company_delete_template_assets"
 ON storage.objects FOR DELETE TO authenticated
 USING (

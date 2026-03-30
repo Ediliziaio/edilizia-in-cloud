@@ -49,6 +49,7 @@ CREATE INDEX idx_work_logs_is_approved ON public.work_logs(is_approved);
 ALTER TABLE public.work_logs ENABLE ROW LEVEL SECURITY;
 
 -- I dipendenti possono gestire i propri rapportini
+DROP POLICY IF EXISTS "Employees can manage their own work logs" ON public.work_logs;
 CREATE POLICY "Employees can manage their own work logs"
 ON public.work_logs FOR ALL
 USING (
@@ -58,11 +59,13 @@ USING (
 );
 
 -- Super admin può gestire tutti i work logs
+DROP POLICY IF EXISTS "Super admins can manage all work logs" ON public.work_logs;
 CREATE POLICY "Super admins can manage all work logs"
 ON public.work_logs FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Company admin può gestire i work logs della propria azienda
+DROP POLICY IF EXISTS "Company admins can manage their work logs" ON public.work_logs;
 CREATE POLICY "Company admins can manage their work logs"
 ON public.work_logs FOR ALL
 USING (
@@ -75,6 +78,7 @@ USING (
 );
 
 -- Company staff con permesso can_view_employees può visualizzare
+DROP POLICY IF EXISTS "Staff can view work logs if permitted" ON public.work_logs;
 CREATE POLICY "Staff can view work logs if permitted"
 ON public.work_logs FOR SELECT
 USING (
@@ -100,11 +104,13 @@ EXECUTE FUNCTION public.update_updated_at_column();
 -- =============================================
 
 -- I dipendenti possono vedere il proprio profilo
+DROP POLICY IF EXISTS "Employees can view their own profile" ON public.employees;
 CREATE POLICY "Employees can view their own profile"
 ON public.employees FOR SELECT
 USING (user_id = auth.uid());
 
 -- Staff con permesso può vedere i dipendenti
+DROP POLICY IF EXISTS "Staff can view employees if permitted" ON public.employees;
 CREATE POLICY "Staff can view employees if permitted"
 ON public.employees FOR SELECT
 USING (

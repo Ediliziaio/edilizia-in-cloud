@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins full access google connections" ON public.google_calendar_connections;
 CREATE POLICY "Super admins full access google connections"
   ON public.google_calendar_connections FOR ALL
   TO authenticated

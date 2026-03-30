@@ -1,4 +1,5 @@
 -- Company admins can view their queue
+DROP POLICY IF EXISTS "Company users can view own queue" ON public.automation_queue;
 CREATE POLICY "Company users can view own queue"
   ON public.automation_queue
   FOR SELECT

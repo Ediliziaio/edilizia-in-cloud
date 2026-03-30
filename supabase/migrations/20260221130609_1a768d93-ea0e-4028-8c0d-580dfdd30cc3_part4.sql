@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can manage orders if permitted" ON public.orders;
 CREATE POLICY "Staff can manage orders if permitted"
 ON public.orders
 FOR ALL

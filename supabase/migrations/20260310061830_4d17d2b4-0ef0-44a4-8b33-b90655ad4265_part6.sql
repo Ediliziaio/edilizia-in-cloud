@@ -1,4 +1,5 @@
 -- RLS: dipendente vede le proprie
+DROP POLICY IF EXISTS "employee_own_leave_select" ON public.leave_requests;
 CREATE POLICY "employee_own_leave_select"
   ON public.leave_requests FOR SELECT
   USING (

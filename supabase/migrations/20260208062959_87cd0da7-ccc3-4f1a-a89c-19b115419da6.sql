@@ -31,6 +31,7 @@ CREATE TABLE public.staff_permissions (
 ALTER TABLE public.staff_permissions ENABLE ROW LEVEL SECURITY;
 
 -- RLS: Company admins can manage staff permissions
+DROP POLICY IF EXISTS "Company admins can manage staff permissions" ON public.staff_permissions;
 CREATE POLICY "Company admins can manage staff permissions"
   ON public.staff_permissions FOR ALL
   USING (
@@ -39,11 +40,13 @@ CREATE POLICY "Company admins can manage staff permissions"
   );
 
 -- RLS: Staff can view their own permissions
+DROP POLICY IF EXISTS "Staff can view their own permissions" ON public.staff_permissions;
 CREATE POLICY "Staff can view their own permissions"
   ON public.staff_permissions FOR SELECT
   USING (user_id = auth.uid());
 
 -- RLS: Super admins can manage all staff permissions
+DROP POLICY IF EXISTS "Super admins can manage all staff permissions" ON public.staff_permissions;
 CREATE POLICY "Super admins can manage all staff permissions"
   ON public.staff_permissions FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));

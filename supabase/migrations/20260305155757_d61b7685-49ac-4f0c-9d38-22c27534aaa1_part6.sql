@@ -1,4 +1,5 @@
 -- RLS: company_staff con permesso can_view_tickets
+DROP POLICY IF EXISTS "Staff can view company tickets" ON public.tickets;
 CREATE POLICY "Staff can view company tickets"
   ON public.tickets FOR SELECT TO authenticated
   USING (

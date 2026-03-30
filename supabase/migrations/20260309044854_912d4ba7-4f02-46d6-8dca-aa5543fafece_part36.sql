@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "teams_delete" ON public.teams;
 CREATE POLICY "teams_delete"
   ON public.teams FOR DELETE TO authenticated
   USING (

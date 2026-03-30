@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "super_admin_manage_health_scores" ON public.company_health_scores;
 CREATE POLICY "super_admin_manage_health_scores" ON public.company_health_scores
   FOR ALL TO authenticated
   USING (

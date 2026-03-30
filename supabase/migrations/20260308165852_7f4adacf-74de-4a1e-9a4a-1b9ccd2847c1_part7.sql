@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company members can update own branches" ON public.ai_agent_branches;
 CREATE POLICY "Company members can update own branches"
   ON public.ai_agent_branches FOR UPDATE
   TO authenticated

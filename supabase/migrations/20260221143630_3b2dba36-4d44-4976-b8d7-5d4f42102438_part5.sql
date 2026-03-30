@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can view marketing contacts if permitted" ON public.marketing_contacts;
 CREATE POLICY "Staff can view marketing contacts if permitted"
 ON public.marketing_contacts
 FOR SELECT

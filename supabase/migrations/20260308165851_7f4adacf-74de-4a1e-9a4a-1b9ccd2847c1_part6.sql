@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company members can insert own branches" ON public.ai_agent_branches;
 CREATE POLICY "Company members can insert own branches"
   ON public.ai_agent_branches FOR INSERT
   TO authenticated

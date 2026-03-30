@@ -1,4 +1,5 @@
 -- RLS Policies (same pattern as orders, employees, etc.)
+DROP POLICY IF EXISTS "Company admins can manage their marketing contacts" ON public.marketing_contacts;
 CREATE POLICY "Company admins can manage their marketing contacts"
 ON public.marketing_contacts
 FOR ALL

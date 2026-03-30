@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "super_admin_read_email_log" ON public.email_delivery_log;
 CREATE POLICY "super_admin_read_email_log"
   ON public.email_delivery_log FOR SELECT
   USING (

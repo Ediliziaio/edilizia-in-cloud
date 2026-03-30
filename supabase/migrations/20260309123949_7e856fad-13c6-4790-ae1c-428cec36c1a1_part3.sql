@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "super_admins_manage_addons_log" ON public.company_addons_log;
 CREATE POLICY "super_admins_manage_addons_log"
 ON public.company_addons_log FOR ALL
 TO authenticated

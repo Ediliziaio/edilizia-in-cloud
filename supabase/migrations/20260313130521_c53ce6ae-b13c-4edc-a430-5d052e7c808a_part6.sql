@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can insert comments" ON public.task_comments;
 CREATE POLICY "Users can insert comments"
   ON public.task_comments
   FOR INSERT

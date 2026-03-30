@@ -18,11 +18,13 @@ CREATE TABLE public.super_admin_permissions (
 ALTER TABLE public.super_admin_permissions ENABLE ROW LEVEL SECURITY;
 
 -- Only super admins can manage their own permissions
+DROP POLICY IF EXISTS "Super admins can view all permissions" ON public.super_admin_permissions;
 CREATE POLICY "Super admins can view all permissions"
 ON public.super_admin_permissions
 FOR SELECT
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Super admins can manage permissions" ON public.super_admin_permissions;
 CREATE POLICY "Super admins can manage permissions"
 ON public.super_admin_permissions
 FOR ALL

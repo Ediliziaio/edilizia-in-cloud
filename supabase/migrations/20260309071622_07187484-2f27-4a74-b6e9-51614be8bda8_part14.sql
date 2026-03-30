@@ -1,4 +1,5 @@
 -- Policies for api_usage_daily
+DROP POLICY IF EXISTS "Company reads own api daily stats" ON public.api_usage_daily;
 CREATE POLICY "Company reads own api daily stats"
 ON public.api_usage_daily FOR SELECT TO authenticated
 USING (

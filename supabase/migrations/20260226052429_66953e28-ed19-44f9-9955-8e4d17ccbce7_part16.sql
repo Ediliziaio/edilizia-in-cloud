@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users manage own event mappings" ON public.google_calendar_event_map;
 CREATE POLICY "Users manage own event mappings"
   ON public.google_calendar_event_map FOR ALL
   TO authenticated

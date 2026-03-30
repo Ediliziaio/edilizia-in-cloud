@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Authenticated users can manage own company auto topup" ON public.company_auto_topup;
 CREATE POLICY "Authenticated users can manage own company auto topup"
   ON public.company_auto_topup FOR ALL TO authenticated
   USING (

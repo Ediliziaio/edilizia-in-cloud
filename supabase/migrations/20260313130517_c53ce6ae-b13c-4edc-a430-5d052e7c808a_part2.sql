@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can manage checklist items for their company tasks" ON public.task_checklist_items;
 CREATE POLICY "Users can manage checklist items for their company tasks"
   ON public.task_checklist_items
   FOR ALL

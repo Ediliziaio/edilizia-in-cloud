@@ -20,21 +20,25 @@ CREATE TABLE public.appointments (
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 -- Company admin: ALL on own company
+DROP POLICY IF EXISTS "Company admins can manage their appointments" ON public.appointments;
 CREATE POLICY "Company admins can manage their appointments"
 ON public.appointments FOR ALL
 USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
 -- Staff with can_view_calendar: SELECT
+DROP POLICY IF EXISTS "Staff can view appointments if permitted" ON public.appointments;
 CREATE POLICY "Staff can view appointments if permitted"
 ON public.appointments FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_calendar'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- Staff with can_edit_orders: ALL
+DROP POLICY IF EXISTS "Staff can manage appointments if permitted" ON public.appointments;
 CREATE POLICY "Staff can manage appointments if permitted"
 ON public.appointments FOR ALL
 USING (has_permission(auth.uid(), 'can_edit_orders'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- Super admin: ALL
+DROP POLICY IF EXISTS "Super admins can manage all appointments" ON public.appointments;
 CREATE POLICY "Super admins can manage all appointments"
 ON public.appointments FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));

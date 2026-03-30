@@ -19,14 +19,17 @@ CREATE TABLE public.automations (
 ALTER TABLE public.automations ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Company admins can manage their automations" ON public.automations;
 CREATE POLICY "Company admins can manage their automations"
 ON public.automations FOR ALL
 USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all automations" ON public.automations;
 CREATE POLICY "Super admins can manage all automations"
 ON public.automations FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view automations if permitted" ON public.automations;
 CREATE POLICY "Staff can view automations if permitted"
 ON public.automations FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_settings'::text) AND company_id = get_user_company_id(auth.uid()));

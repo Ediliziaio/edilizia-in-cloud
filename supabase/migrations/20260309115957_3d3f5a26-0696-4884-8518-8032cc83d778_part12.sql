@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_read_template_assets" ON public.storage;
 CREATE POLICY "company_read_template_assets"
 ON storage.objects FOR SELECT TO authenticated
 USING (

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins can manage company notes" ON public.company_notes;
 CREATE POLICY "Super admins can manage company notes"
   ON public.company_notes
   FOR ALL

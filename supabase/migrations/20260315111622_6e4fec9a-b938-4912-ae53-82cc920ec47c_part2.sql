@@ -3,7 +3,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'ai_elevenlabs_config' AND policyname = 'Company members can view own config'
   ) THEN
-    CREATE POLICY "Company members can view own config"
+    DROP POLICY IF EXISTS "Company members can view own config" ON public.ai_elevenlabs_config;
+CREATE POLICY "Company members can view own config"
       ON public.ai_elevenlabs_config
       FOR SELECT
       TO authenticated
@@ -13,7 +14,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'ai_elevenlabs_config' AND policyname = 'Company members can update own config'
   ) THEN
-    CREATE POLICY "Company members can update own config"
+    DROP POLICY IF EXISTS "Company members can update own config" ON public.ai_elevenlabs_config;
+CREATE POLICY "Company members can update own config"
       ON public.ai_elevenlabs_config
       FOR UPDATE
       TO authenticated
@@ -24,7 +26,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'ai_elevenlabs_config' AND policyname = 'Company members can insert own config'
   ) THEN
-    CREATE POLICY "Company members can insert own config"
+    DROP POLICY IF EXISTS "Company members can insert own config" ON public.ai_elevenlabs_config;
+CREATE POLICY "Company members can insert own config"
       ON public.ai_elevenlabs_config
       FOR INSERT
       TO authenticated

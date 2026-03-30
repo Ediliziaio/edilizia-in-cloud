@@ -1,4 +1,5 @@
 -- RLS for marketing_contact_list_members
+DROP POLICY IF EXISTS "Company admins can manage list members" ON public.marketing_contact_list_members;
 CREATE POLICY "Company admins can manage list members"
   ON public.marketing_contact_list_members FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND EXISTS (

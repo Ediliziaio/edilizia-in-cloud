@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_access_availability" ON public.user_availability;
 CREATE POLICY "company_access_availability" ON public.user_availability
   FOR ALL USING (
     company_id IN (

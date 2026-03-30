@@ -1,4 +1,5 @@
 -- INSERT: only admins
+DROP POLICY IF EXISTS "Admins can insert sales targets" ON public.sales_targets;
 CREATE POLICY "Admins can insert sales targets"
 ON public.sales_targets FOR INSERT
 TO authenticated

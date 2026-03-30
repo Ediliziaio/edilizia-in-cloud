@@ -1,4 +1,5 @@
 -- Policies for api_keys
+DROP POLICY IF EXISTS "Company admins manage own api keys" ON public.api_keys;
 CREATE POLICY "Company admins manage own api keys"
 ON public.api_keys FOR ALL TO authenticated
 USING (

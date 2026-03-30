@@ -1,4 +1,5 @@
 -- Orders: staff RLS policies
+DROP POLICY IF EXISTS "Staff can view orders if permitted" ON public.orders;
 CREATE POLICY "Staff can view orders if permitted"
 ON public.orders
 FOR SELECT

@@ -1,5 +1,6 @@
 -- Company staff con permesso can_edit_orders può gestire gli articoli
 -- degli ordini della propria azienda
+DROP POLICY IF EXISTS "Staff can manage order items if permitted" ON public.order_items;
 CREATE POLICY "Staff can manage order items if permitted"
   ON public.order_items FOR ALL
   USING (

@@ -1,4 +1,5 @@
 -- 6. order_item_attachments — allegati agli articoli ordine
+DROP POLICY IF EXISTS "Staff can view order item attachments if permitted" ON public.order_item_attachments;
 CREATE POLICY "Staff can view order item attachments if permitted"
   ON public.order_item_attachments FOR SELECT
   USING (

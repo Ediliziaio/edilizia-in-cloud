@@ -1,4 +1,5 @@
 -- Audit log: read-only for company admins and super admins
+DROP POLICY IF EXISTS "Admins read gdpr audit log" ON public.gdpr_audit_log;
 CREATE POLICY "Admins read gdpr audit log"
 ON public.gdpr_audit_log FOR SELECT TO authenticated
 USING (

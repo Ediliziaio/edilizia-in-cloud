@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage their order errors" ON public.order_errors;
 CREATE POLICY "Company admins can manage their order errors"
 ON public.order_errors
 FOR ALL

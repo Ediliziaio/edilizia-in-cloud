@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can view opportunity field values if permitted" ON public.marketing_opportunity_field_values;
 CREATE POLICY "Staff can view opportunity field values if permitted"
 ON public.marketing_opportunity_field_values
 FOR SELECT

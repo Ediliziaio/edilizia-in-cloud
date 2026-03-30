@@ -47,14 +47,17 @@ ALTER TABLE public.order_items ADD COLUMN stock_item_id uuid REFERENCES public.w
 -- RLS warehouse_stock
 ALTER TABLE public.warehouse_stock ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their warehouse stock" ON public.warehouse_stock;
 CREATE POLICY "Company admins can manage their warehouse stock"
   ON public.warehouse_stock FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all warehouse stock" ON public.warehouse_stock;
 CREATE POLICY "Super admins can manage all warehouse stock"
   ON public.warehouse_stock FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view warehouse stock if permitted" ON public.warehouse_stock;
 CREATE POLICY "Staff can view warehouse stock if permitted"
   ON public.warehouse_stock FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_warehouse'::text) AND company_id = get_user_company_id(auth.uid()));
@@ -62,12 +65,14 @@ CREATE POLICY "Staff can view warehouse stock if permitted"
 -- RLS warehouse_movements
 ALTER TABLE public.warehouse_movements ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their warehouse movements" ON public.warehouse_movements;
 CREATE POLICY "Company admins can manage their warehouse movements"
   ON public.warehouse_movements FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND EXISTS (
     SELECT 1 FROM public.warehouse_stock ws WHERE ws.id = warehouse_movements.stock_item_id AND ws.company_id = get_user_company_id(auth.uid())
   ));
 
+DROP POLICY IF EXISTS "Super admins can manage all warehouse movements" ON public.warehouse_movements;
 CREATE POLICY "Super admins can manage all warehouse movements"
   ON public.warehouse_movements FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));

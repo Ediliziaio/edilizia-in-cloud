@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can view own company execution runs" ON public.flow_execution_runs;
 CREATE POLICY "Users can view own company execution runs"
   ON public.flow_execution_runs
   FOR SELECT

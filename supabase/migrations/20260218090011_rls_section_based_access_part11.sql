@@ -4,6 +4,7 @@
 
 -- profiles — lo staff che vede ordini deve poter leggere i profili
 -- cliente (nome, telefono, indirizzo) collegati agli ordini
+DROP POLICY IF EXISTS "Staff can view company profiles if permitted" ON public.profiles;
 CREATE POLICY "Staff can view company profiles if permitted"
   ON public.profiles FOR SELECT
   USING (

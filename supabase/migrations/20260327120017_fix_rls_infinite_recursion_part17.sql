@@ -1,4 +1,5 @@
 -- Company admins
+DROP POLICY IF EXISTS "Company admins can manage their order items" ON public.order_items;
 CREATE POLICY "Company admins can manage their order items"
 ON public.order_items FOR ALL
 TO authenticated

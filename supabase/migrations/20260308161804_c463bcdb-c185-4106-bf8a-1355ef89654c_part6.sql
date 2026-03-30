@@ -1,4 +1,5 @@
 -- RLS: Allow anon to insert appointments (for public booking)
+DROP POLICY IF EXISTS "Public can create bookings" ON public.appointments;
 CREATE POLICY "Public can create bookings"
   ON public.appointments
   FOR INSERT

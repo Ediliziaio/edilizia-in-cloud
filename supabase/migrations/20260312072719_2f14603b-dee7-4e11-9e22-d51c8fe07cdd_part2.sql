@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_see_own_invoices" ON public.subscription_invoices;
 CREATE POLICY "company_see_own_invoices"
   ON public.subscription_invoices
   FOR SELECT

@@ -3,6 +3,7 @@
 -- ─────────────────────────────────────────────────────────────
 
 -- external_teams — lista squadre (necessaria nei dettagli ordine)
+DROP POLICY IF EXISTS "Staff can view external teams if permitted" ON public.external_teams;
 CREATE POLICY "Staff can view external teams if permitted"
   ON public.external_teams FOR SELECT
   USING (

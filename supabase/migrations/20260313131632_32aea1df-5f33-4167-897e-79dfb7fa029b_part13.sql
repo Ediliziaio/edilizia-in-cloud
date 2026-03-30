@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "automation_log_select" ON public.automation_log;
 CREATE POLICY "automation_log_select" ON public.automation_log FOR SELECT
 USING (
   EXISTS (

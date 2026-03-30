@@ -9,10 +9,12 @@ CREATE TABLE public.support_messages (
 
 ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all support messages" ON public.support_messages;
 CREATE POLICY "Super admins can manage all support messages"
   ON public.support_messages FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Company admins can manage their support messages" ON public.support_messages;
 CREATE POLICY "Company admins can manage their support messages"
   ON public.support_messages FOR ALL
   USING (
@@ -20,6 +22,7 @@ CREATE POLICY "Company admins can manage their support messages"
     AND company_id = get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Staff can view support messages if permitted" ON public.support_messages;
 CREATE POLICY "Staff can view support messages if permitted"
   ON public.support_messages FOR SELECT
   USING (

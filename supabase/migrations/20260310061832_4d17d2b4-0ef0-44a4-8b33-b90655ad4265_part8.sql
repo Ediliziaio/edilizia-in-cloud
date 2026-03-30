@@ -1,4 +1,5 @@
 -- RLS: dipendente aggiorna le proprie pending OPPURE admin/staff aggiorna qualsiasi
+DROP POLICY IF EXISTS "employee_update_leave" ON public.leave_requests;
 CREATE POLICY "employee_update_leave"
   ON public.leave_requests FOR UPDATE
   USING (

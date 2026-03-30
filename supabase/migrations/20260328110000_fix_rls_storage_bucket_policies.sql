@@ -17,18 +17,21 @@ DROP POLICY IF EXISTS "Authenticated users can upload marketing attachments" ON 
 DROP POLICY IF EXISTS "Authenticated users can view marketing attachments" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete marketing attachments" ON storage.objects;
 
+DROP POLICY IF EXISTS "ma_ins" ON public.storage;
 CREATE POLICY "ma_ins" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'marketing-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "ma_sel" ON public.storage;
 CREATE POLICY "ma_sel" ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'marketing-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "ma_del" ON public.storage;
 CREATE POLICY "ma_del" ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'marketing-attachments'
@@ -42,18 +45,21 @@ DROP POLICY IF EXISTS "Auth users can upload campaign attachments" ON storage.ob
 DROP POLICY IF EXISTS "Auth users can read campaign attachments" ON storage.objects;
 DROP POLICY IF EXISTS "Auth users can delete campaign attachments" ON storage.objects;
 
+DROP POLICY IF EXISTS "ca_ins" ON public.storage;
 CREATE POLICY "ca_ins" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'campaign-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "ca_sel" ON public.storage;
 CREATE POLICY "ca_sel" ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'campaign-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "ca_del" ON public.storage;
 CREATE POLICY "ca_del" ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'campaign-attachments'
@@ -67,18 +73,21 @@ DROP POLICY IF EXISTS "Authenticated users can upload prima nota attachments" ON
 DROP POLICY IF EXISTS "Authenticated users can read prima nota attachments" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete prima nota attachments" ON storage.objects;
 
+DROP POLICY IF EXISTS "pna_ins" ON public.storage;
 CREATE POLICY "pna_ins" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'prima-nota-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "pna_sel" ON public.storage;
 CREATE POLICY "pna_sel" ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'prima-nota-attachments'
     AND (storage.foldername(name))[1] = (auth.jwt() -> 'raw_app_meta_data' ->> 'company_id')
   );
 
+DROP POLICY IF EXISTS "pna_del" ON public.storage;
 CREATE POLICY "pna_del" ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'prima-nota-attachments'

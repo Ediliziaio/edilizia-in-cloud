@@ -1,4 +1,5 @@
 -- Allow customers to view installments for their own orders
+DROP POLICY IF EXISTS "customer_view_own_installments" ON public.order_installments;
 CREATE POLICY "customer_view_own_installments"
   ON public.order_installments
   FOR SELECT

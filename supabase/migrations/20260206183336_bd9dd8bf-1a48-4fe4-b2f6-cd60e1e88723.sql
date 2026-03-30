@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.order_item_attachments (
 ALTER TABLE public.order_item_attachments ENABLE ROW LEVEL SECURITY;
 
 -- 4. Policy: Company admins possono gestire allegati dei propri ordini
+DROP POLICY IF EXISTS "Company admins can manage their order item attachments" ON public.order_item_attachments;
 CREATE POLICY "Company admins can manage their order item attachments"
   ON public.order_item_attachments FOR ALL
   USING (
@@ -32,6 +33,7 @@ CREATE POLICY "Company admins can manage their order item attachments"
   );
 
 -- 5. Policy: Clienti possono vedere allegati dei propri ordini
+DROP POLICY IF EXISTS "Customers can view their order item attachments" ON public.order_item_attachments;
 CREATE POLICY "Customers can view their order item attachments"
   ON public.order_item_attachments FOR SELECT
   USING (
@@ -44,19 +46,23 @@ CREATE POLICY "Customers can view their order item attachments"
   );
 
 -- 6. Policy: Super admins accesso completo
+DROP POLICY IF EXISTS "Super admins can manage all order item attachments" ON public.order_item_attachments;
 CREATE POLICY "Super admins can manage all order item attachments"
   ON public.order_item_attachments FOR ALL
   USING (has_role(auth.uid(), 'super_admin'));
 
 -- 7. Storage policies per il bucket
+DROP POLICY IF EXISTS "Anyone can view order attachments" ON public.storage;
 CREATE POLICY "Anyone can view order attachments"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'order-attachments');
 
+DROP POLICY IF EXISTS "Authenticated users can upload order attachments" ON public.storage;
 CREATE POLICY "Authenticated users can upload order attachments"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'order-attachments' AND auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Users can delete their uploaded attachments" ON public.storage;
 CREATE POLICY "Users can delete their uploaded attachments"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'order-attachments' AND auth.role() = 'authenticated');

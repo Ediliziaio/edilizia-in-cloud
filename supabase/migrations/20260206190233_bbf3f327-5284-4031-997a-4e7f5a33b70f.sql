@@ -9,6 +9,7 @@ CREATE TABLE public.suppliers (
 
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their suppliers" ON public.suppliers;
 CREATE POLICY "Company admins can manage their suppliers"
   ON public.suppliers FOR ALL
   USING (
@@ -16,6 +17,7 @@ CREATE POLICY "Company admins can manage their suppliers"
     company_id = get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Super admins can manage all suppliers" ON public.suppliers;
 CREATE POLICY "Super admins can manage all suppliers"
   ON public.suppliers FOR ALL
   USING (has_role(auth.uid(), 'super_admin'));
@@ -31,6 +33,7 @@ CREATE TABLE public.article_templates (
 
 ALTER TABLE public.article_templates ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their article templates" ON public.article_templates;
 CREATE POLICY "Company admins can manage their article templates"
   ON public.article_templates FOR ALL
   USING (
@@ -38,6 +41,7 @@ CREATE POLICY "Company admins can manage their article templates"
     company_id = get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Super admins can manage all article templates" ON public.article_templates;
 CREATE POLICY "Super admins can manage all article templates"
   ON public.article_templates FOR ALL
   USING (has_role(auth.uid(), 'super_admin'));

@@ -1,1 +1,2 @@
+DROP POLICY IF EXISTS "Company admins can manage bank transactions" ON public.bank_transactions;
 CREATE POLICY "Company admins can manage bank transactions" ON public.bank_transactions FOR ALL TO authenticated USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()) AND public.has_role(auth.uid(), 'company_admin'::public.app_role)) WITH CHECK (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()) AND public.has_role(auth.uid(), 'company_admin'::public.app_role));

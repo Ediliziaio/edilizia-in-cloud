@@ -173,32 +173,38 @@ CREATE TRIGGER update_tickets_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- RLS Policies for companies
+DROP POLICY IF EXISTS "Super admins can do everything with companies" ON public.companies;
 CREATE POLICY "Super admins can do everything with companies"
   ON public.companies FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can view their own company" ON public.companies;
 CREATE POLICY "Company admins can view their own company"
   ON public.companies FOR SELECT
   TO authenticated
   USING (id = public.get_user_company_id(auth.uid()));
 
 -- RLS Policies for profiles
+DROP POLICY IF EXISTS "Super admins can do everything with profiles" ON public.profiles;
 CREATE POLICY "Super admins can do everything with profiles"
   ON public.profiles FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile"
   ON public.profiles FOR SELECT
   TO authenticated
   USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE
   TO authenticated
   USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "Company admins can view profiles in their company" ON public.profiles;
 CREATE POLICY "Company admins can view profiles in their company"
   ON public.profiles FOR SELECT
   TO authenticated
@@ -207,6 +213,7 @@ CREATE POLICY "Company admins can view profiles in their company"
     AND company_id = public.get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Company admins can manage profiles in their company" ON public.profiles;
 CREATE POLICY "Company admins can manage profiles in their company"
   ON public.profiles FOR ALL
   TO authenticated
@@ -216,22 +223,26 @@ CREATE POLICY "Company admins can manage profiles in their company"
   );
 
 -- RLS Policies for user_roles
+DROP POLICY IF EXISTS "Super admins can manage all roles" ON public.user_roles;
 CREATE POLICY "Super admins can manage all roles"
   ON public.user_roles FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Users can view their own role" ON public.user_roles;
 CREATE POLICY "Users can view their own role"
   ON public.user_roles FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
 -- RLS Policies for order_statuses
+DROP POLICY IF EXISTS "Super admins can manage all order statuses" ON public.order_statuses;
 CREATE POLICY "Super admins can manage all order statuses"
   ON public.order_statuses FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can manage their order statuses" ON public.order_statuses;
 CREATE POLICY "Company admins can manage their order statuses"
   ON public.order_statuses FOR ALL
   TO authenticated
@@ -240,17 +251,20 @@ CREATE POLICY "Company admins can manage their order statuses"
     AND company_id = public.get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Customers can view their company order statuses" ON public.order_statuses;
 CREATE POLICY "Customers can view their company order statuses"
   ON public.order_statuses FOR SELECT
   TO authenticated
   USING (company_id = public.get_user_company_id(auth.uid()));
 
 -- RLS Policies for orders
+DROP POLICY IF EXISTS "Super admins can manage all orders" ON public.orders;
 CREATE POLICY "Super admins can manage all orders"
   ON public.orders FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can manage their company orders" ON public.orders;
 CREATE POLICY "Company admins can manage their company orders"
   ON public.orders FOR ALL
   TO authenticated
@@ -259,17 +273,20 @@ CREATE POLICY "Company admins can manage their company orders"
     AND company_id = public.get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Customers can view their own orders" ON public.orders;
 CREATE POLICY "Customers can view their own orders"
   ON public.orders FOR SELECT
   TO authenticated
   USING (customer_id = auth.uid());
 
 -- RLS Policies for order_status_history
+DROP POLICY IF EXISTS "Super admins can manage all order history" ON public.order_status_history;
 CREATE POLICY "Super admins can manage all order history"
   ON public.order_status_history FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can manage their order history" ON public.order_status_history;
 CREATE POLICY "Company admins can manage their order history"
   ON public.order_status_history FOR ALL
   TO authenticated
@@ -282,6 +299,7 @@ CREATE POLICY "Company admins can manage their order history"
     )
   );
 
+DROP POLICY IF EXISTS "Customers can view their order history" ON public.order_status_history;
 CREATE POLICY "Customers can view their order history"
   ON public.order_status_history FOR SELECT
   TO authenticated
@@ -294,11 +312,13 @@ CREATE POLICY "Customers can view their order history"
   );
 
 -- RLS Policies for tickets
+DROP POLICY IF EXISTS "Super admins can manage all tickets" ON public.tickets;
 CREATE POLICY "Super admins can manage all tickets"
   ON public.tickets FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can manage their company tickets" ON public.tickets;
 CREATE POLICY "Company admins can manage their company tickets"
   ON public.tickets FOR ALL
   TO authenticated
@@ -307,17 +327,20 @@ CREATE POLICY "Company admins can manage their company tickets"
     AND company_id = public.get_user_company_id(auth.uid())
   );
 
+DROP POLICY IF EXISTS "Customers can manage their own tickets" ON public.tickets;
 CREATE POLICY "Customers can manage their own tickets"
   ON public.tickets FOR ALL
   TO authenticated
   USING (customer_id = auth.uid());
 
 -- RLS Policies for ticket_messages
+DROP POLICY IF EXISTS "Super admins can manage all ticket messages" ON public.ticket_messages;
 CREATE POLICY "Super admins can manage all ticket messages"
   ON public.ticket_messages FOR ALL
   TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'));
 
+DROP POLICY IF EXISTS "Company admins can manage their ticket messages" ON public.ticket_messages;
 CREATE POLICY "Company admins can manage their ticket messages"
   ON public.ticket_messages FOR ALL
   TO authenticated
@@ -330,6 +353,7 @@ CREATE POLICY "Company admins can manage their ticket messages"
     )
   );
 
+DROP POLICY IF EXISTS "Customers can manage their ticket messages" ON public.ticket_messages;
 CREATE POLICY "Customers can manage their ticket messages"
   ON public.ticket_messages FOR ALL
   TO authenticated

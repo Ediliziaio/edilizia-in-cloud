@@ -1,4 +1,5 @@
 -- RLS: company members can read their own subscription
+DROP POLICY IF EXISTS "Users can read own company ai_subscriptions" ON public.ai_subscriptions;
 CREATE POLICY "Users can read own company ai_subscriptions"
   ON public.ai_subscriptions FOR SELECT TO authenticated
   USING (

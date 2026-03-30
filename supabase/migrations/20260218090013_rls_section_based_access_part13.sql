@@ -1,4 +1,5 @@
 -- Dipendenti vedono i propri allegati (buste paga, documenti, ecc.)
+DROP POLICY IF EXISTS "Employees can view their own attachments" ON public.employee_attachments;
 CREATE POLICY "Employees can view their own attachments"
   ON public.employee_attachments FOR SELECT
   USING (

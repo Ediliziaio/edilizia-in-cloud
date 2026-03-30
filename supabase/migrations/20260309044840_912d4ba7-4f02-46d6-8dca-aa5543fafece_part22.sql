@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "perm_templates_update" ON public.permission_templates;
 CREATE POLICY "perm_templates_update"
   ON public.permission_templates FOR UPDATE TO authenticated
   USING (

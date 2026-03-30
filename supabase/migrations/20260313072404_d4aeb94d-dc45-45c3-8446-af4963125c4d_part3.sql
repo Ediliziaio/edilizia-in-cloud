@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "fattura_ordine_select" ON public.fattura_ordine;
 CREATE POLICY "fattura_ordine_select" ON public.fattura_ordine
   FOR SELECT TO authenticated
   USING (

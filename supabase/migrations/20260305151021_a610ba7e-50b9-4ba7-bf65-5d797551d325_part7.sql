@@ -1,4 +1,5 @@
 -- 4. SELECT policy — tenant-scoped: user must belong to the company that owns the order
+DROP POLICY IF EXISTS "Company users can view own order attachments" ON public.storage;
 CREATE POLICY "Company users can view own order attachments"
 ON storage.objects FOR SELECT TO authenticated
 USING (

@@ -1,4 +1,5 @@
 -- Admin-only write access
+DROP POLICY IF EXISTS "billing_integrations_admin_modify" ON public.billing_integrations;
 CREATE POLICY "billing_integrations_admin_modify"
 ON public.billing_integrations
 FOR ALL

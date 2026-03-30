@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company members can delete invoice PDFs" ON public.storage;
 CREATE POLICY "Company members can delete invoice PDFs"
 ON storage.objects FOR DELETE
 TO authenticated

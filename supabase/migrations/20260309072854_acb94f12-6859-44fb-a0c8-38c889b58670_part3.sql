@@ -1,4 +1,5 @@
 -- Company admins can insert/update their own branding
+DROP POLICY IF EXISTS "company_admin_manage_branding" ON public.company_branding;
 CREATE POLICY "company_admin_manage_branding"
   ON public.company_branding FOR ALL
   TO authenticated

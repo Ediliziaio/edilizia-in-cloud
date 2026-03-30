@@ -31,6 +31,7 @@ CREATE TRIGGER update_salespeople_updated_at
 -- RLS per salespeople
 ALTER TABLE public.salespeople ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their salespeople" ON public.salespeople;
 CREATE POLICY "Company admins can manage their salespeople"
 ON public.salespeople FOR ALL
 USING (
@@ -38,14 +39,17 @@ USING (
     company_id = get_user_company_id(auth.uid())
 );
 
+DROP POLICY IF EXISTS "Salespeople can view themselves" ON public.salespeople;
 CREATE POLICY "Salespeople can view themselves"
 ON public.salespeople FOR SELECT
 USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Super admins can manage all salespeople" ON public.salespeople;
 CREATE POLICY "Super admins can manage all salespeople"
 ON public.salespeople FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view salespeople if permitted" ON public.salespeople;
 CREATE POLICY "Staff can view salespeople if permitted"
 ON public.salespeople FOR SELECT
 USING (
@@ -77,6 +81,7 @@ CREATE INDEX idx_order_salespeople_unpaid ON public.order_salespeople(salesperso
 -- RLS per order_salespeople
 ALTER TABLE public.order_salespeople ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their order salespeople" ON public.order_salespeople;
 CREATE POLICY "Company admins can manage their order salespeople"
 ON public.order_salespeople FOR ALL
 USING (
@@ -88,6 +93,7 @@ USING (
     )
 );
 
+DROP POLICY IF EXISTS "Salespeople can view their commissions" ON public.order_salespeople;
 CREATE POLICY "Salespeople can view their commissions"
 ON public.order_salespeople FOR SELECT
 USING (
@@ -98,10 +104,12 @@ USING (
     )
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all order salespeople" ON public.order_salespeople;
 CREATE POLICY "Super admins can manage all order salespeople"
 ON public.order_salespeople FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view order salespeople if permitted" ON public.order_salespeople;
 CREATE POLICY "Staff can view order salespeople if permitted"
 ON public.order_salespeople FOR SELECT
 USING (

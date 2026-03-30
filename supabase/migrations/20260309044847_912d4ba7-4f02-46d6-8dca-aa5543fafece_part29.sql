@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "user_audit_log_insert" ON public.user_audit_log;
 CREATE POLICY "user_audit_log_insert"
   ON public.user_audit_log FOR INSERT TO authenticated
   WITH CHECK (

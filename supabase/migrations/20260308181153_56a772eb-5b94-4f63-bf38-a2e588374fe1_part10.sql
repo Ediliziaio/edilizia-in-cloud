@@ -1,4 +1,5 @@
 -- Company members can read their own
+DROP POLICY IF EXISTS "company_read" ON public.whatsapp_credits;
 CREATE POLICY "company_read" ON public.whatsapp_credits
   FOR SELECT TO authenticated
   USING (

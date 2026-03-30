@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage contact field values" ON public.marketing_contact_field_values;
 CREATE POLICY "Company admins can manage contact field values"
   ON public.marketing_contact_field_values FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND EXISTS (

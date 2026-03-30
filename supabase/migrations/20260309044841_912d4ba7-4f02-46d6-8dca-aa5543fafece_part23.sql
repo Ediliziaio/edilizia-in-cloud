@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "perm_templates_delete" ON public.permission_templates;
 CREATE POLICY "perm_templates_delete"
   ON public.permission_templates FOR DELETE TO authenticated
   USING (

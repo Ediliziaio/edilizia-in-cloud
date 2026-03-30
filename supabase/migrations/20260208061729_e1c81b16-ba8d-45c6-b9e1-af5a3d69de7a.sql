@@ -33,6 +33,7 @@ ALTER TABLE public.employee_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.external_team_attachments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy for employee_attachments
+DROP POLICY IF EXISTS "Company admins can manage their employee attachments" ON public.employee_attachments;
 CREATE POLICY "Company admins can manage their employee attachments"
 ON public.employee_attachments FOR ALL
 USING (
@@ -44,11 +45,13 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all employee attachments" ON public.employee_attachments;
 CREATE POLICY "Super admins can manage all employee attachments"
 ON public.employee_attachments FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- RLS Policy for external_team_attachments
+DROP POLICY IF EXISTS "Company admins can manage their external team attachments" ON public.external_team_attachments;
 CREATE POLICY "Company admins can manage their external team attachments"
 ON public.external_team_attachments FOR ALL
 USING (
@@ -60,6 +63,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Super admins can manage all external team attachments" ON public.external_team_attachments;
 CREATE POLICY "Super admins can manage all external team attachments"
 ON public.external_team_attachments FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
@@ -69,6 +73,7 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('personnel-attachments', 'personnel-attachments', true);
 
 -- Storage policies
+DROP POLICY IF EXISTS "Company admins can upload personnel attachments" ON public.storage;
 CREATE POLICY "Company admins can upload personnel attachments"
 ON storage.objects FOR INSERT
 WITH CHECK (
@@ -76,10 +81,12 @@ WITH CHECK (
   has_role(auth.uid(), 'company_admin'::app_role)
 );
 
+DROP POLICY IF EXISTS "Anyone can read personnel attachments" ON public.storage;
 CREATE POLICY "Anyone can read personnel attachments"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'personnel-attachments');
 
+DROP POLICY IF EXISTS "Company admins can delete personnel attachments" ON public.storage;
 CREATE POLICY "Company admins can delete personnel attachments"
 ON storage.objects FOR DELETE
 USING (

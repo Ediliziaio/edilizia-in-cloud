@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "teams_select" ON public.teams;
 CREATE POLICY "teams_select"
   ON public.teams FOR SELECT TO authenticated
   USING (

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_webhook_deliveries" ON public.webhook_deliveries;
 CREATE POLICY "company_webhook_deliveries" ON webhook_deliveries
   FOR ALL USING (
     webhook_id IN (

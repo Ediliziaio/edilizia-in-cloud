@@ -1,1 +1,2 @@
+DROP POLICY IF EXISTS "Staff view internal automation flows" ON public.internal_automation_flows;
 CREATE POLICY "Staff view internal automation flows" ON public.internal_automation_flows FOR SELECT USING (has_permission(auth.uid(), 'can_view_settings') AND company_id = get_user_company_id(auth.uid()));

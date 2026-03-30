@@ -1,4 +1,5 @@
 -- Admin-only read access (company_admin + super_admin)
+DROP POLICY IF EXISTS "billing_integrations_admin_select" ON public.billing_integrations;
 CREATE POLICY "billing_integrations_admin_select"
 ON public.billing_integrations
 FOR SELECT

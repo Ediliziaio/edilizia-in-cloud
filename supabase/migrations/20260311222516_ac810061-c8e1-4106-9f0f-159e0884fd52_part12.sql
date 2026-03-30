@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_access_availability_exceptions" ON public.user_availability_exceptions;
 CREATE POLICY "company_access_availability_exceptions" ON public.user_availability_exceptions
   FOR ALL USING (
     availability_id IN (

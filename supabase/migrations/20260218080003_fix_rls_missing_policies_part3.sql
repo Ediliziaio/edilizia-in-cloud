@@ -4,6 +4,7 @@
 
 -- Company staff con permesso can_view_orders può vedere i costi squadre
 -- esterne degli ordini della propria azienda
+DROP POLICY IF EXISTS "Staff can view order external teams if permitted" ON public.order_external_teams;
 CREATE POLICY "Staff can view order external teams if permitted"
   ON public.order_external_teams FOR SELECT
   USING (

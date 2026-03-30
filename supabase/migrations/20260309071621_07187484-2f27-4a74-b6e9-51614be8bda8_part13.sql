@@ -1,4 +1,5 @@
 -- Policies for api_usage_log
+DROP POLICY IF EXISTS "Company reads own api usage" ON public.api_usage_log;
 CREATE POLICY "Company reads own api usage"
 ON public.api_usage_log FOR SELECT TO authenticated
 USING (

@@ -1,4 +1,5 @@
 -- Company members can read their own branding
+DROP POLICY IF EXISTS "company_members_read_branding" ON public.company_branding;
 CREATE POLICY "company_members_read_branding"
   ON public.company_branding FOR SELECT
   TO authenticated

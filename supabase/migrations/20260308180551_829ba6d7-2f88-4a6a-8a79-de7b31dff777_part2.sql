@@ -1,4 +1,5 @@
 -- SELECT for company members
+DROP POLICY IF EXISTS "Company members can read own whatsapp_credits_log" ON public.whatsapp_credits_log;
 CREATE POLICY "Company members can read own whatsapp_credits_log"
   ON public.whatsapp_credits_log
   FOR SELECT

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company admins can manage alert prefs" ON public.scadenza_alert_prefs;
 CREATE POLICY "Company admins can manage alert prefs" ON public.scadenza_alert_prefs
   FOR ALL TO authenticated
   USING (company_id IN (

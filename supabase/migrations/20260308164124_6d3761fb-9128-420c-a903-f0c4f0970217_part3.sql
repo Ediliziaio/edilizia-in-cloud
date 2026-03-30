@@ -1,4 +1,5 @@
 -- RLS: only super_admin can modify
+DROP POLICY IF EXISTS "Super admins can manage ai_subscriptions" ON public.ai_subscriptions;
 CREATE POLICY "Super admins can manage ai_subscriptions"
   ON public.ai_subscriptions FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'::app_role))

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "perm_templates_insert" ON public.permission_templates;
 CREATE POLICY "perm_templates_insert"
   ON public.permission_templates FOR INSERT TO authenticated
   WITH CHECK (

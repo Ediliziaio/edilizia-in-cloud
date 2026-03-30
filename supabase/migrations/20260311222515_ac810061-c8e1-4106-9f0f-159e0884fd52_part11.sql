@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_access_availability_slots" ON public.user_availability_slots;
 CREATE POLICY "company_access_availability_slots" ON public.user_availability_slots
   FOR ALL USING (
     availability_id IN (

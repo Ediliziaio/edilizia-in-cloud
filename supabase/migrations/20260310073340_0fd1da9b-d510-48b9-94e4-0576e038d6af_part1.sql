@@ -1,4 +1,5 @@
 -- Allow customers to view invoices linked to their orders
+DROP POLICY IF EXISTS "customer_view_own_invoices" ON public.invoices;
 CREATE POLICY "customer_view_own_invoices"
   ON public.invoices
   FOR SELECT

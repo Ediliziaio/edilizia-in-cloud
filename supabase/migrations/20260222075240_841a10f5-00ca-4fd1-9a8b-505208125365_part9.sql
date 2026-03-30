@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can view contact field values if permitted" ON public.marketing_contact_field_values;
 CREATE POLICY "Staff can view contact field values if permitted"
   ON public.marketing_contact_field_values FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND EXISTS (

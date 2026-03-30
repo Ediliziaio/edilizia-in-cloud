@@ -15,14 +15,17 @@ CREATE TABLE public.treasury_categories (
 ALTER TABLE public.treasury_categories ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies
+DROP POLICY IF EXISTS "Company admins can manage their treasury categories" ON public.treasury_categories;
 CREATE POLICY "Company admins can manage their treasury categories"
 ON public.treasury_categories FOR ALL
 USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Staff can view treasury categories if permitted" ON public.treasury_categories;
 CREATE POLICY "Staff can view treasury categories if permitted"
 ON public.treasury_categories FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_forecast'::text) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all treasury categories" ON public.treasury_categories;
 CREATE POLICY "Super admins can manage all treasury categories"
 ON public.treasury_categories FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));

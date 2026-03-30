@@ -1,4 +1,5 @@
 -- Venditori vedono gli ordini su cui sono assegnati
+DROP POLICY IF EXISTS "Salespeople can view their assigned orders" ON public.orders;
 CREATE POLICY "Salespeople can view their assigned orders"
   ON public.orders FOR SELECT
   USING (

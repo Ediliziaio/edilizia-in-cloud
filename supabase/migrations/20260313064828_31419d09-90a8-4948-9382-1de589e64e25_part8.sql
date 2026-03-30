@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_isolation_reconciliation_log" ON public.anagrafica_reconciliation_log;
 CREATE POLICY "company_isolation_reconciliation_log"
   ON anagrafica_reconciliation_log
   FOR ALL

@@ -1,4 +1,5 @@
 -- 3. order_status_history — log cambi stato visibile allo staff
+DROP POLICY IF EXISTS "Staff can view their company order status history" ON public.order_status_history;
 CREATE POLICY "Staff can view their company order status history"
   ON public.order_status_history FOR SELECT
   USING (

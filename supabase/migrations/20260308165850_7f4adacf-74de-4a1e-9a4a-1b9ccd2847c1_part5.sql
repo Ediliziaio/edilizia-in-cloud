@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company members can view own branches" ON public.ai_agent_branches;
 CREATE POLICY "Company members can view own branches"
   ON public.ai_agent_branches FOR SELECT
   TO authenticated

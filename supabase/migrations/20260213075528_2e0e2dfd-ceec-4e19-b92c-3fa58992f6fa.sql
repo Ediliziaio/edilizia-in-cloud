@@ -21,11 +21,13 @@ CREATE TABLE public.subscription_plans (
 
 ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can view active plans" ON public.subscription_plans;
 CREATE POLICY "Anyone authenticated can view active plans"
   ON public.subscription_plans FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Super admins can manage all plans" ON public.subscription_plans;
 CREATE POLICY "Super admins can manage all plans"
   ON public.subscription_plans FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
@@ -53,10 +55,12 @@ CREATE TABLE public.company_subscriptions (
 
 ALTER TABLE public.company_subscriptions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all subscriptions" ON public.company_subscriptions;
 CREATE POLICY "Super admins can manage all subscriptions"
   ON public.company_subscriptions FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Company admins can view their subscriptions" ON public.company_subscriptions;
 CREATE POLICY "Company admins can view their subscriptions"
   ON public.company_subscriptions FOR SELECT
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
@@ -76,10 +80,12 @@ CREATE TABLE public.subscription_logs (
 
 ALTER TABLE public.subscription_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Super admins can manage all logs" ON public.subscription_logs;
 CREATE POLICY "Super admins can manage all logs"
   ON public.subscription_logs FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Company admins can view their logs" ON public.subscription_logs;
 CREATE POLICY "Company admins can view their logs"
   ON public.subscription_logs FOR SELECT
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));

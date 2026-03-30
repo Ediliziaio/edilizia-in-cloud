@@ -1,4 +1,5 @@
 -- Users manage own consents
+DROP POLICY IF EXISTS "Users manage own consents" ON public.gdpr_consents;
 CREATE POLICY "Users manage own consents"
 ON public.gdpr_consents FOR ALL TO authenticated
 USING (

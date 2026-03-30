@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "company_access_notif_prefs" ON public.user_notification_preferences;
 CREATE POLICY "company_access_notif_prefs" ON public.user_notification_preferences
   FOR ALL USING (
     company_id IN (

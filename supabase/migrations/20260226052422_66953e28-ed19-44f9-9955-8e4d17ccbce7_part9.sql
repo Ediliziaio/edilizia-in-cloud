@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users manage own google settings" ON public.google_calendar_settings;
 CREATE POLICY "Users manage own google settings"
   ON public.google_calendar_settings FOR ALL
   TO authenticated

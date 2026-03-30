@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Staff can update company tickets" ON public.tickets;
 CREATE POLICY "Staff can update company tickets"
   ON public.tickets FOR UPDATE TO authenticated
   USING (

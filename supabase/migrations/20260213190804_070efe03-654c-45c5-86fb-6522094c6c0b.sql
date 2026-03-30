@@ -20,6 +20,7 @@ ALTER TABLE public.order_items
 CREATE INDEX IF NOT EXISTS idx_article_templates_category ON public.article_templates(company_id, category);
 
 -- Add staff permission for viewing orders to also access article templates
+DROP POLICY IF EXISTS "Staff can view article templates if permitted" ON public.article_templates;
 CREATE POLICY "Staff can view article templates if permitted"
   ON public.article_templates
   FOR SELECT
@@ -29,6 +30,7 @@ CREATE POLICY "Staff can view article templates if permitted"
   );
 
 -- Staff with edit orders can manage article templates
+DROP POLICY IF EXISTS "Staff can manage article templates if permitted" ON public.article_templates;
 CREATE POLICY "Staff can manage article templates if permitted"
   ON public.article_templates
   FOR ALL

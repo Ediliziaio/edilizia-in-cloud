@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users manage own google connection" ON public.google_calendar_connections;
 CREATE POLICY "Users manage own google connection"
   ON public.google_calendar_connections FOR ALL
   TO authenticated

@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Super admins can manage telnyx_settings" ON public.telnyx_settings;
 CREATE POLICY "Super admins can manage telnyx_settings"
   ON public.telnyx_settings
   FOR ALL

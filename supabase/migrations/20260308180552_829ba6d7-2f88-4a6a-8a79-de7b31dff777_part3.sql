@@ -1,5 +1,6 @@
 -- INSERT for service (via edge functions with service role, so no user-facing insert policy needed)
 -- Super admin full access for SELECT/UPDATE/DELETE
+DROP POLICY IF EXISTS "Super admin manage whatsapp_credits_log" ON public.whatsapp_credits_log;
 CREATE POLICY "Super admin manage whatsapp_credits_log"
   ON public.whatsapp_credits_log
   FOR ALL

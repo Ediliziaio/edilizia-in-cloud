@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS public.expense_reports (
 
 ALTER TABLE public.expense_reports ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "expense_reports_tenant" ON public.expense_reports;
 CREATE POLICY "expense_reports_tenant" ON public.expense_reports
   FOR ALL TO authenticated
   USING (company_id = public.get_my_company_id())
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.expense_report_items (
 
 ALTER TABLE public.expense_report_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "expense_report_items_tenant" ON public.expense_report_items;
 CREATE POLICY "expense_report_items_tenant" ON public.expense_report_items
   FOR ALL TO authenticated
   USING (company_id = public.get_my_company_id())

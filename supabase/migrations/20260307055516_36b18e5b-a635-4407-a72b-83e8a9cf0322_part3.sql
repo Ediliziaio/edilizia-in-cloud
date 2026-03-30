@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Users can manage their company tests" ON public.ai_agent_tests;
 CREATE POLICY "Users can manage their company tests"
   ON public.ai_agent_tests
   FOR ALL

@@ -1,4 +1,5 @@
 -- 5. order_attachments — allegati a livello ordine
+DROP POLICY IF EXISTS "Staff can view order attachments if permitted" ON public.order_attachments;
 CREATE POLICY "Staff can view order attachments if permitted"
   ON public.order_attachments FOR SELECT
   USING (

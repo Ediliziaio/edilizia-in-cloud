@@ -1,3 +1,4 @@
+DROP POLICY IF EXISTS "Company users can insert broadcasts" ON public.whatsapp_broadcasts;
 CREATE POLICY "Company users can insert broadcasts"
   ON whatsapp_broadcasts FOR INSERT TO authenticated
   WITH CHECK (company_id IN (

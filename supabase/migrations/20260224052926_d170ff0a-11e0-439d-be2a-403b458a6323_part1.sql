@@ -1,4 +1,5 @@
 -- Fix 4: Add UPDATE RLS policy on integration_webhook_events for retry functionality
+DROP POLICY IF EXISTS "Company admins can update webhook events" ON public.integration_webhook_events;
 CREATE POLICY "Company admins can update webhook events"
 ON public.integration_webhook_events
 FOR UPDATE

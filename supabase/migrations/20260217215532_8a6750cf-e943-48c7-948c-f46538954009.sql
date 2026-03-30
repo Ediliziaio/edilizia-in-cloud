@@ -20,14 +20,17 @@ CREATE TABLE public.messaging_conversations (
 
 ALTER TABLE public.messaging_conversations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their messaging conversations" ON public.messaging_conversations;
 CREATE POLICY "Company admins can manage their messaging conversations"
   ON public.messaging_conversations FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all messaging conversations" ON public.messaging_conversations;
 CREATE POLICY "Super admins can manage all messaging conversations"
   ON public.messaging_conversations FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view messaging conversations if permitted" ON public.messaging_conversations;
 CREATE POLICY "Staff can view messaging conversations if permitted"
   ON public.messaging_conversations FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
@@ -48,16 +51,19 @@ CREATE TABLE public.messaging_messages (
 
 ALTER TABLE public.messaging_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their messaging messages" ON public.messaging_messages;
 CREATE POLICY "Company admins can manage their messaging messages"
   ON public.messaging_messages FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND EXISTS (
     SELECT 1 FROM public.messaging_conversations c WHERE c.id = messaging_messages.conversation_id AND c.company_id = get_user_company_id(auth.uid())
   ));
 
+DROP POLICY IF EXISTS "Super admins can manage all messaging messages" ON public.messaging_messages;
 CREATE POLICY "Super admins can manage all messaging messages"
   ON public.messaging_messages FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view messaging messages if permitted" ON public.messaging_messages;
 CREATE POLICY "Staff can view messaging messages if permitted"
   ON public.messaging_messages FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND EXISTS (
@@ -82,14 +88,17 @@ CREATE TABLE public.messaging_ai_runs (
 
 ALTER TABLE public.messaging_ai_runs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their messaging ai runs" ON public.messaging_ai_runs;
 CREATE POLICY "Company admins can manage their messaging ai runs"
   ON public.messaging_ai_runs FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all messaging ai runs" ON public.messaging_ai_runs;
 CREATE POLICY "Super admins can manage all messaging ai runs"
   ON public.messaging_ai_runs FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view messaging ai runs if permitted" ON public.messaging_ai_runs;
 CREATE POLICY "Staff can view messaging ai runs if permitted"
   ON public.messaging_ai_runs FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
@@ -110,14 +119,17 @@ CREATE TABLE public.messaging_daily_reports (
 
 ALTER TABLE public.messaging_daily_reports ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Company admins can manage their messaging daily reports" ON public.messaging_daily_reports;
 CREATE POLICY "Company admins can manage their messaging daily reports"
   ON public.messaging_daily_reports FOR ALL
   USING (has_role(auth.uid(), 'company_admin'::app_role) AND company_id = get_user_company_id(auth.uid()));
 
+DROP POLICY IF EXISTS "Super admins can manage all messaging daily reports" ON public.messaging_daily_reports;
 CREATE POLICY "Super admins can manage all messaging daily reports"
   ON public.messaging_daily_reports FOR ALL
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
+DROP POLICY IF EXISTS "Staff can view messaging daily reports if permitted" ON public.messaging_daily_reports;
 CREATE POLICY "Staff can view messaging daily reports if permitted"
   ON public.messaging_daily_reports FOR SELECT
   USING (has_permission(auth.uid(), 'can_view_orders'::text) AND company_id = get_user_company_id(auth.uid()));
