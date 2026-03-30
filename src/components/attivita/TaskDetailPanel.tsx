@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { TaskChecklist } from "./TaskChecklist";
 import { TaskComments } from "./TaskComments";
+import { TaskTagPicker } from "./TaskTagPicker";
+import { TaskTagBadge } from "./TaskTagBadge";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
@@ -135,6 +137,33 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const queryClient = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
+
+  const { data: assignedTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ["task-tags-assigned", task?.id],
+    queryFn: async () => {
+      if (!task?.id) return [];
+      const { data, error } = await supabase
+        .from("task_tag_assignments")
+        .select("tag:task_tags(id, name, color)")
+        .eq("task_id", task.id);
+      if (error) return [];
+      return (data ?? []).map((r: any) => r.tag).filter(Boolean) as { id: string; name: string; color: string }[];
+    },
+    enabled: !!task?.id,
+  });
+
+  const removeTagMutation = useMutation({
+    mutationFn: async (tagId: string) => {
+      const { error } = await supabase
+        .from("task_tag_assignments")
+        .delete()
+        .eq("task_id", task.id)
+        .eq("tag_id", tagId);
+      if (error) throw error;
+    },
+    onSuccess: () => refetchTags(),
+    onError: () => toast.error("Errore rimozione tag"),
+  });
 
   const updateMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
@@ -412,6 +441,32 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </div>
             </>
           )}
+
+          {/* Etichette */}
+          <Separator />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Etichette
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pl-7">
+              {assignedTags.map((tag) => (
+                <TaskTagBadge
+                  key={tag.id}
+                  name={tag.name}
+                  color={tag.color}
+                  onRemove={() => removeTagMutation.mutate(tag.id)}
+                />
+              ))}
+              <TaskTagPicker
+                taskId={task.id}
+                assignedTags={assignedTags}
+                onChanged={() => refetchTags()}
+              />
+            </div>
+          </div>
 
           {/* Checklist */}
           <Separator />
