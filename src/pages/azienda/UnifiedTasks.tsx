@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
@@ -169,10 +169,40 @@ export default function UnifiedTasks() {
     return { active, expiring, overdue, completedThisWeek };
   }, [tasks]);
 
+  // Toast notifica al primo caricamento se ci sono task scaduti
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (notifiedRef.current || tasks.length === 0) return;
+    if (stats.overdue > 0) {
+      notifiedRef.current = true;
+      toast.warning(
+        `${stats.overdue} attività scadut${stats.overdue === 1 ? "a" : "e"}`,
+        {
+          description: "Clicca su \"Scadute\" per visualizzarle",
+          duration: 6000,
+          action: { label: "Vedi", onClick: () => { setActiveTab("all"); setFilterStatus("overdue"); } },
+        }
+      );
+    }
+  }, [tasks, stats.overdue]);
+
+  const handleStatFilterClick = useCallback((filter: "expiring" | "overdue") => {
+    setActiveTab("all");
+    setFilterStatus(filter);
+  }, []);
+
   const filteredTasks = useMemo(() => {
+    const now = new Date();
+    const in48h = addHours(now, 48);
     return tasks.filter((t) => {
       if (filterStatus === "active" && t.status === "completata") return false;
-      if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
+      if (filterStatus === "overdue") {
+        if (t.status === "completata" || !t.due_date || !isBefore(new Date(t.due_date), now)) return false;
+      } else if (filterStatus === "expiring") {
+        if (t.status === "completata" || !t.due_date) return false;
+        const d = new Date(t.due_date);
+        if (!isAfter(d, now) || !isBefore(d, in48h)) return false;
+      } else if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterFonte === "marketing" && !MARKETING_CATEGORIES.includes(t.category)) return false;
@@ -308,7 +338,7 @@ export default function UnifiedTasks() {
         <TabsContent value="all">
           <div className="space-y-6">
             <TaskQuickAdd />
-            <TaskStatCards {...stats} />
+            <TaskStatCards {...stats} onFilterClick={handleStatFilterClick} />
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -334,6 +364,8 @@ export default function UnifiedTasks() {
                   <SelectItem value="da_fare">Da fare</SelectItem>
                   <SelectItem value="in_corso">In corso</SelectItem>
                   <SelectItem value="completata">Completate</SelectItem>
+                  <SelectItem value="expiring">In scadenza (48h)</SelectItem>
+                  <SelectItem value="overdue">Scadute</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>

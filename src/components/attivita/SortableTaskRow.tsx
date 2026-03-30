@@ -5,7 +5,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { format, isBefore } from "date-fns";
+import { format, isBefore, isAfter, addHours } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
@@ -54,7 +54,10 @@ export function SortableTaskRow({
   };
 
   const now = new Date();
+  const in48h = addHours(now, 48);
   const isOverdue = task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
+  const isExpiring = !isOverdue && task.status !== "completata" && task.due_date &&
+    isAfter(new Date(task.due_date), now) && isBefore(new Date(task.due_date), in48h);
 
   const renderCorrelation = () => {
     if (task.order) {
@@ -95,6 +98,7 @@ export function SortableTaskRow({
         "cursor-pointer transition-colors",
         isDragging && "opacity-50 bg-muted z-50",
         isOverdue && "bg-destructive/5",
+        isExpiring && "bg-warning/5",
         task.status === "completata" && "opacity-60",
         isSelected && "bg-primary/5",
       )}
@@ -152,7 +156,11 @@ export function SortableTaskRow({
       {/* Due date */}
       <TableCell>
         {task.due_date ? (
-          <span className={cn("text-sm", isOverdue && "text-destructive font-medium")}>
+          <span className={cn(
+            "text-sm",
+            isOverdue && "text-destructive font-medium",
+            isExpiring && "text-warning font-medium",
+          )}>
             {format(new Date(task.due_date), "dd/MM/yyyy")}
           </span>
         ) : "—"}
