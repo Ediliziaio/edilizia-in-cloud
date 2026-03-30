@@ -116,6 +116,16 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           setIsLoading(false);
           return;
         }
+        // BUG 1: enforce mandatory 2FA setup if required by company admin
+        if (totpStatus?.require_2fa && !totpStatus?.enabled) {
+          toast({
+            title: "Autenticazione a due fattori obbligatoria",
+            description: "Il tuo account richiede la configurazione del 2FA per accedere.",
+          });
+          window.location.href = "/azienda/impostazioni/sicurezza";
+          setIsLoading(false);
+          return;
+        }
       } catch {
         // If TOTP check fails, proceed normally
       }

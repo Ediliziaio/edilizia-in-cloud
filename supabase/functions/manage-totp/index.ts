@@ -220,22 +220,33 @@ Deno.serve(async (req) => {
 
       // ── STATUS: Check if 2FA is enabled ──
       case "status": {
-        const { data: totpRow } = await supabase
-          .from("totp_secrets")
-          .select("is_verified, verified_at")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        const [totpResult, backupResult, profileResult] = await Promise.all([
+          supabase
+            .from("totp_secrets")
+            .select("is_verified, verified_at")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("totp_backup_codes")
+            .select("id, is_used")
+            .eq("user_id", user.id),
+          supabase
+            .from("profiles")
+            .select("require_2fa")
+            .eq("id", user.id)
+            .maybeSingle(),
+        ]);
 
-        const { data: backupCodes } = await supabase
-          .from("totp_backup_codes")
-          .select("id, is_used")
-          .eq("user_id", user.id);
+        const totpRow = totpResult.data;
+        const backupCodes = backupResult.data;
+        const profile = profileResult.data;
 
         return jsonResponse({
           enabled: totpRow?.is_verified || false,
           verified_at: totpRow?.verified_at || null,
           backup_codes_total: backupCodes?.length || 0,
-          backup_codes_remaining: backupCodes?.filter((c: any) => !c.is_used).length || 0,
+          backup_codes_remaining: backupCodes?.filter((c: { is_used: boolean }) => !c.is_used).length || 0,
+          require_2fa: profile?.require_2fa || false,
         });
       }
 
