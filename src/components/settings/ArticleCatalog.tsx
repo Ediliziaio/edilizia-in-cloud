@@ -121,6 +121,7 @@ function CsvImportDialog({
     try {
       const text = await readFile(file);
       const lines = text.split("\n").filter(Boolean);
+      if (lines.length === 0) throw new Error("File CSV vuoto.");
       const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
       const dataLines = lines.slice(1);
       setTotalRows(dataLines.length);
@@ -151,6 +152,7 @@ function CsvImportDialog({
     try {
       const text = await readFile(fileEl.files[0]);
       const lines = text.split("\n").filter(Boolean);
+      if (lines.length === 0) throw new Error("File CSV vuoto.");
       const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
       const allRows = lines.slice(1).map((line) => {
         const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
