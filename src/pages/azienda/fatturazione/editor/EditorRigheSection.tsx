@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,13 @@ interface Props {
   state: EditorState;
   dispatch: React.Dispatch<any>;
   disabled?: boolean;
+}
+
+/** Calcolo inverso: dato il prezzo lordo (IVA inclusa) e l'aliquota, ritorna il netto */
+function calcoloInverso(prezzoLordo: number, aliquotaStr: string): number {
+  const aliquota = parseFloat(aliquotaStr) || 0;
+  if (aliquota === 0) return prezzoLordo;
+  return Math.round((prezzoLordo / (1 + aliquota / 100)) * 10000) / 10000;
 }
 
 const UNITA_MISURA = ["pz", "h", "gg", "mese", "km", "kg", "l", "m", "m²", "m³", "kWh", "%"];
@@ -115,6 +122,7 @@ function SortableRow({
   onUpdate,
   onRemove,
   onDuplicate,
+  prezziLordi,
 }: {
   riga: RigaDocumento;
   index: number;
@@ -122,6 +130,7 @@ function SortableRow({
   onUpdate: (index: number, field: keyof RigaDocumento, value: unknown) => void;
   onRemove: (index: number) => void;
   onDuplicate: (index: number) => void;
+  prezziLordi?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -184,9 +193,16 @@ function SortableRow({
           <Input
             type="number"
             step="0.0001"
-            value={riga.prezzo_unitario}
-            onChange={(e) => onUpdate(index, "prezzo_unitario", parseFloat(e.target.value) || 0)}
+            value={prezziLordi
+              ? Math.round(riga.prezzo_unitario * (1 + (parseFloat(riga.aliquota_iva) || 0) / 100) * 10000) / 10000
+              : riga.prezzo_unitario
+            }
+            onChange={(e) => {
+              const v = parseFloat(e.target.value) || 0;
+              onUpdate(index, "prezzo_unitario", prezziLordi ? calcoloInverso(v, riga.aliquota_iva) : v);
+            }}
             className="h-7 text-xs border-0 bg-transparent px-1 text-right"
+            title={prezziLordi ? "Prezzo IVA inclusa (verrà scorporata automaticamente)" : "Prezzo netto"}
             disabled={disabled}
           />
           <Input
@@ -367,6 +383,11 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const righe = state.righe ?? [];
   const { data: articoli } = useArticoliNative();
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [usePrezziLordi, setUsePrezziLordi] = useState(false);
+  const [calcoloInversoOpen, setCalcoloInversoOpen] = useState(false);
+  const [calcoloLordo, setCalcoloLordo] = useState("");
+  const [calcoloAliquota, setCalcoloAliquota] = useState("22");
+  const calcoloNetto = calcoloLordo ? calcoloInverso(parseFloat(calcoloLordo) || 0, calcoloAliquota) : null;
   const [catalogSearch, setCatalogSearch] = useState("");
 
   const sensors = useSensors(
@@ -494,7 +515,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
             <span>Descrizione</span>
             <span className="text-right">Qtà</span>
             <span>U.M.</span>
-            <span className="text-right">Prezzo</span>
+            <span className="text-right">{usePrezziLordi ? "Prezzo lordo" : "Prezzo"}</span>
             <span className="text-right">Sc.%</span>
             <span>IVA</span>
             <span className="text-right">Importo</span>
@@ -513,6 +534,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   onUpdate={updateField}
                   onRemove={(idx) => dispatch({ type: "REMOVE_RIGA", index: idx })}
                   onDuplicate={(idx) => dispatch({ type: "DUPLICATE_RIGA", index: idx })}
+                  prezziLordi={usePrezziLordi}
                 />
               ))}
             </SortableContext>
@@ -522,14 +544,73 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
 
       {/* Footer buttons — stile Fatture in Cloud */}
       {!disabled && (
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
-            <Plus className="h-3 w-3 mr-1" />
-            Aggiungi nuova voce
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
-            + Riga descrittiva
-          </Button>
+        <div className="flex gap-2 flex-wrap items-center justify-between">
+          <div className="flex gap-2 flex-wrap items-center">
+            <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
+              <Plus className="h-3 w-3 mr-1" />
+              Aggiungi nuova voce
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
+              + Riga descrittiva
+            </Button>
+          </div>
+          <div className="flex gap-3 items-center">
+            {/* UX-04: Checkbox prezzi lordi */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={usePrezziLordi}
+                onChange={(e) => setUsePrezziLordi(e.target.checked)}
+                className="h-3.5 w-3.5 rounded"
+              />
+              <span className="text-xs text-muted-foreground">Prezzi lordi (IVA inclusa)</span>
+            </label>
+            {/* UX-03: Calcolo inverso */}
+            <Popover open={calcoloInversoOpen} onOpenChange={setCalcoloInversoOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <Calculator className="h-3 w-3" />
+                  Calcolo inverso
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3" align="end">
+                <p className="text-xs font-medium mb-2">Da prezzo lordo a netto</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Prezzo IVA inclusa (€)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="es. 122,00"
+                      value={calcoloLordo}
+                      onChange={(e) => setCalcoloLordo(e.target.value)}
+                      className="h-7 text-xs mt-0.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Aliquota IVA (%)</label>
+                    <Select value={calcoloAliquota} onValueChange={setCalcoloAliquota}>
+                      <SelectTrigger className="h-7 text-xs mt-0.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IVA_RATES.map((r) => <SelectItem key={r} value={r}>{r}%</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {calcoloNetto !== null && (
+                    <div className="bg-muted/50 rounded p-2 text-center">
+                      <p className="text-[10px] text-muted-foreground">Prezzo netto</p>
+                      <p className="text-base font-bold tabular-nums">€ {calcoloNetto.toFixed(4)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        IVA {calcoloAliquota}% = € {((parseFloat(calcoloLordo) || 0) - calcoloNetto).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       )}
     </div>

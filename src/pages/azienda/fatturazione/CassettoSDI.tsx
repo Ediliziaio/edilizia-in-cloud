@@ -9,8 +9,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, RefreshCw, ExternalLink, FileText, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Download, RefreshCw, ExternalLink, FileText, Search, Eye } from "lucide-react";
 import { toast } from "sonner";
+
+/** Indenta XML grezzo per visualizzazione leggibile */
+function formatXml(xml: string): string {
+  try {
+    let formatted = "";
+    let indent = 0;
+    const lines = xml.replace(/>\s*</g, ">\n<").split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("</")) {
+        indent = Math.max(0, indent - 1);
+      }
+      formatted += "  ".repeat(indent) + trimmed + "\n";
+      if (!trimmed.startsWith("</") && !trimmed.endsWith("/>") && !trimmed.startsWith("<?") && trimmed.includes("<") && !trimmed.includes("</")) {
+        indent++;
+      }
+    }
+    return formatted.trim();
+  } catch {
+    return xml;
+  }
+}
 
 const SDI_STATO_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   AT: { label: "Trasmessa", variant: "default" },
@@ -33,6 +58,8 @@ export default function CassettoSDI() {
   const [anno, setAnno] = useState(currentYear);
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
+  const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
+  const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string } | null>(null);
 
   const { data: documenti = [], isLoading } = useQuery({
     queryKey: ["cassetto-sdi", companyId, anno],
@@ -105,6 +132,20 @@ export default function CassettoSDI() {
       }
     } catch {
       toast.error("Errore nel download XML");
+    }
+  };
+
+  const handlePreviewXml = async (xmlUrl: string | null, numero: string) => {
+    if (!xmlUrl) return;
+    try {
+      const { data } = await supabase.storage.from("fatture-xml").download(xmlUrl);
+      if (data) {
+        const text = await data.text();
+        setXmlPreviewContent({ numero, xml: formatXml(text) });
+        setXmlPreviewOpen(true);
+      }
+    } catch {
+      toast.error("Errore nel caricamento XML");
     }
   };
 
@@ -235,17 +276,30 @@ export default function CassettoSDI() {
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         {doc.sdi_file_xml_url && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}>
-                            <Download className="h-3.5 w-3.5" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7"
+                              title="Visualizza XML"
+                              onClick={() => handlePreviewXml(doc.sdi_file_xml_url, doc.numero)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7"
+                              title="Scarica XML"
+                              onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
                         {doc.sdi_ricevuta_url && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
                             <FileText className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         {(doc.sdi_stato === "NS" || doc.stato === "rifiutata") && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReinvia(doc.id)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
                             <RefreshCw className="h-3.5 w-3.5" />
                           </Button>
                         )}
@@ -274,6 +328,41 @@ export default function CassettoSDI() {
           <p className="text-xs text-muted-foreground mt-2">Accesso con SPID, CIE o CNS</p>
         </CardContent>
       </Card>
+
+      {/* GAP-10: Modale anteprima XML formattata */}
+      <Dialog open={xmlPreviewOpen} onOpenChange={setXmlPreviewOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              XML Fattura Elettronica — {xmlPreviewContent?.numero}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 rounded border bg-muted/30">
+            <pre className="p-4 text-xs font-mono whitespace-pre text-foreground leading-relaxed">
+              {xmlPreviewContent?.xml || ""}
+            </pre>
+          </ScrollArea>
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!xmlPreviewContent) return;
+                const blob = new Blob([xmlPreviewContent.xml], { type: "application/xml" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${xmlPreviewContent.numero}.xml`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" /> Scarica XML
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

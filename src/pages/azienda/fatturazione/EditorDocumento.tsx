@@ -17,6 +17,9 @@ import {
   useEmittiDocumento,
   useDeleteDocumento,
 } from "@/hooks/useDocumentiFiscali";
+import { supabase } from "@/integrations/supabase/client";
+import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
 import { validateDocumento } from "@/lib/fatturazione/calcoli";
 import { EditorTopBar } from "./editor/EditorTopBar";
@@ -105,6 +108,36 @@ export default function EditorDocumento() {
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
+  const [isInviaSDILoading, setIsInviaSDILoading] = useState(false);
+
+  const handleInviaSDI = useCallback(async () => {
+    if (!state.id) return;
+    setIsInviaSDILoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await supabase.functions.invoke("invia-sdi", {
+        body: { documento_id: state.id },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[] };
+      if (!result.success) {
+        toast.error("Errore invio SDI", { description: JSON.stringify(result.errors) });
+        return;
+      }
+      toast.success("Fattura inviata al SDI", { description: `ID trasmissione: ${result.sdi_id}` });
+    } catch (err: any) {
+      toast.error("Errore invio SDI", { description: err.message });
+    } finally {
+      setIsInviaSDILoading(false);
+    }
+  }, [state.id]);
+
+  const handleDownloadPDF = useCallback(async () => {
+    if (!state.id || !state.numero) return;
+    try { await downloadNativePDF(state.id, state.numero); toast.success("PDF scaricato"); }
+    catch (err: any) { toast.error("Errore download PDF", { description: err.message }); }
+  }, [state.id, state.numero]);
 
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
@@ -148,6 +181,9 @@ export default function EditorDocumento() {
         validationErrorCount={criticalErrorCount}
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
+        onInviaSDI={handleInviaSDI}
+        onDownloadPDF={handleDownloadPDF}
+        isInviaSDILoading={isInviaSDILoading}
       />
 
       {/* Single-page scrollable form — full width, like Fatture in Cloud */}

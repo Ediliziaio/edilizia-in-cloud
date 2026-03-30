@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle } from "lucide-react";
+import { ArrowLeft, Check, Clock, Loader2, Send, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle, Mail, Printer, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -53,6 +54,10 @@ const STATO_CONFIG: Record<string, { label: string; variant: "default" | "second
   annullata: { label: "Annullata", variant: "secondary" },
 };
 
+// Tipi documento che possono essere inviati al SDI
+const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
+  "fattura_riepilogativa", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+
 interface Props {
   state: EditorState;
   isSaving: boolean;
@@ -63,166 +68,320 @@ interface Props {
   validationErrorCount?: number;
   onPreview?: () => void;
   onBack?: () => void;
+  onInviaSDI?: () => void;
+  onDownloadPDF?: () => void;
+  onSendEmail?: () => void;
+  isInviaSDILoading?: boolean;
 }
 
-export function EditorTopBar({ state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, onPreview, onBack }: Props) {
+export function EditorTopBar({
+  state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount,
+  onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, isInviaSDILoading,
+}: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const tipo = state.tipo as TipoDocumento;
   const isBozza = state.stato === "bozza";
+  const isEmessa = state.stato === "emessa";
+  const canInviaSDI = isEmessa && TIPI_SDI.includes(state.tipo);
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
   const companyLogo = (effectiveCompany as any)?.logo_url;
 
   return (
-    <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
-      {/* Back */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-9 w-9 rounded-full"
-        onClick={() => onBack ? onBack() : navigate("/azienda/documenti")}
-      >
-        <ArrowLeft className="h-4 w-4" />
-      </Button>
-
-      {/* Company logo */}
-      {companyLogo && (
-        <img
-          src={companyLogo}
-          alt="Logo"
-          className="h-6 object-contain shrink-0"
-        />
-      )}
-
-      {/* Doc type + number */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide border-primary/30 text-primary">
-          {TIPO_LABELS[tipo] ?? tipo}
-        </Badge>
-
-        {state.numero && (
-          <span className="font-mono text-base font-bold text-foreground tracking-tight">
-            {state.numero}
-          </span>
-        )}
-
-        <Badge
-          variant={statoConfig.variant}
-          className={`text-[11px] font-medium ${
-            state.stato === "pagata"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200"
-              : ""
-          }`}
-        >
-          {statoConfig.label}
-        </Badge>
-      </div>
-
-      {/* Center spacer + autosave indicator */}
-      <div className="ml-auto flex items-center gap-3">
-        {/* Validation error count pill */}
-        {(validationErrorCount ?? 0) > 0 && (
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-            <AlertCircle className="h-3 w-3" />
-            <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
-          </div>
-        )}
-
-        {/* Autosave indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {isSaving ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span className="hidden sm:inline">Salvataggio...</span>
-            </>
-          ) : lastSaved ? (
-            <>
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
-            </>
-          ) : (
-            <>
-              <Clock className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Non salvata</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-2 border-l pl-3 ml-1">
-        {/* Preview button */}
+    <>
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
+        {/* Back */}
         <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1.5"
-          onClick={onPreview}
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-full"
+          onClick={() => onBack ? onBack() : navigate("/azienda/documenti")}
         >
-          <Eye className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Anteprima</span>
+          <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        {/* More menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <Copy className="h-3.5 w-3.5 mr-2" />
-              Duplica
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Download className="h-3.5 w-3.5 mr-2" />
-              Scarica PDF
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Company logo */}
+        {companyLogo && (
+          <img
+            src={companyLogo}
+            alt="Logo"
+            className="h-6 object-contain shrink-0"
+          />
+        )}
 
-        {isBozza && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
-              onClick={onDelete}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Elimina</span>
-            </Button>
+        {/* Doc type + number */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide border-primary/30 text-primary">
+            {TIPO_LABELS[tipo] ?? tipo}
+          </Badge>
 
+          {state.numero && (
+            <span className="font-mono text-base font-bold text-foreground tracking-tight">
+              {state.numero}
+            </span>
+          )}
+
+          <Badge
+            variant={statoConfig.variant}
+            className={`text-[11px] font-medium ${
+              state.stato === "pagata"
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200"
+                : ""
+            }`}
+          >
+            {statoConfig.label}
+          </Badge>
+        </div>
+
+        {/* Center spacer + autosave indicator */}
+        <div className="ml-auto flex items-center gap-3">
+          {/* Validation error count pill */}
+          {(validationErrorCount ?? 0) > 0 && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+              <AlertCircle className="h-3 w-3" />
+              <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
+            </div>
+          )}
+
+          {/* Autosave indicator */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span className="hidden sm:inline">Salvataggio...</span>
+              </>
+            ) : lastSaved ? (
+              <>
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
+              </>
+            ) : (
+              <>
+                <Clock className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Non salvata</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 border-l pl-3 ml-1">
+          {/* Preview button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={onPreview}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Anteprima</span>
+          </Button>
+
+          {/* Post-emission actions: PDF, Stampa, Email — visibili come bottoni diretti */}
+          {!isBozza && (
+            <>
+              {onDownloadPDF && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 hidden md:flex"
+                  onClick={onDownloadPDF}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>PDF</span>
+                </Button>
+              )}
+              {onSendEmail && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 hidden lg:flex"
+                  onClick={onSendEmail}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  <span>Email</span>
+                </Button>
+              )}
+            </>
+          )}
+
+          {/* More menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
+                <Copy className="h-3.5 w-3.5 mr-2" />
+                Duplica
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDownloadPDF}>
+                <Download className="h-3.5 w-3.5 mr-2" />
+                Scarica PDF
+              </DropdownMenuItem>
+              {!isBozza && onSendEmail && (
+                <DropdownMenuItem onClick={onSendEmail}>
+                  <Mail className="h-3.5 w-3.5 mr-2" />
+                  Invia per email
+                </DropdownMenuItem>
+              )}
+              {!isBozza && (
+                <DropdownMenuItem onClick={() => window.print()}>
+                  <Printer className="h-3.5 w-3.5 mr-2" />
+                  Stampa
+                </DropdownMenuItem>
+              )}
+              {!isBozza && !["proforma", "preventivo", "ddt"].includes(state.tipo) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <FileText className="h-3.5 w-3.5 mr-2" />
+                    Esporta XML
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {isBozza && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Elimina</span>
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 shadow-sm"
+                    disabled={(validationErrorCount ?? 0) > 0}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Emetti
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Emetti documento</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Emetti {TIPO_LABELS[tipo] ?? tipo} N° {state.numero}?
+                      Questa azione non può essere annullata.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={onEmetti}>
+                      Emetti documento
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+
+          {/* Bottone Invia a SDI — visibile solo quando emessa e tipo SDI */}
+          {canInviaSDI && onInviaSDI && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   size="sm"
-                  className="h-8 gap-1.5 shadow-sm"
-                  disabled={(validationErrorCount ?? 0) > 0}
+                  className="h-8 gap-1.5 shadow-sm bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isInviaSDILoading}
                 >
-                  <Send className="h-3.5 w-3.5" />
-                  Emetti
+                  {isInviaSDILoading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Send className="h-3.5 w-3.5" />
+                  }
+                  <span className="hidden sm:inline">Invia a SDI</span>
+                  <span className="sm:hidden">SDI</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Emetti documento</AlertDialogTitle>
+                  <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Emetti {TIPO_LABELS[tipo] ?? tipo} N° {state.numero}?
-                    Questa azione non può essere annullata.
+                    Stai per inviare {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} al SDI.
+                    Una volta inviata, non potrà essere modificata. Confermi?
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={onEmetti}>
-                    Emetti documento
+                  <AlertDialogAction
+                    onClick={onInviaSDI}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Firma e invia
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* UX-01: Banner stato fattura elettronica post-emissione */}
+      {canInviaSDI && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-900">
+              Fattura elettronica: <strong>non firmata e non inviata al SDI</strong>
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Ti consigliamo di inviare il documento il prima possibile. Finché non viene inviata al SDI, non ha valore fiscale.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap shrink-0">
+            <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onPreview}>
+              <FileText className="h-3.5 w-3.5 mr-1" /> Visualizza XML
+            </Button>
+            {onDownloadPDF && (
+              <Button variant="outline" size="sm" className="h-8 text-xs bg-white border-amber-300 hover:bg-amber-50" onClick={onDownloadPDF}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Esporta XML
+              </Button>
+            )}
+            {onInviaSDI && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                    disabled={isInviaSDILoading}
+                  >
+                    {isInviaSDILoading
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Send className="h-3.5 w-3.5" />
+                    }
+                    Firma e invia
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Stai per inviare {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} al SDI.
+                      Una volta inviata, non potrà essere modificata. Confermi?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={onInviaSDI} className="bg-blue-600 hover:bg-blue-700">
+                      Firma e invia
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

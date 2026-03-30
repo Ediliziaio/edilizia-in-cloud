@@ -207,7 +207,10 @@ export function generateFatturaPAXML(
 
     xml += `
         <Anagrafica>
-          <Denominazione>${esc(snap?.ragione_sociale)}</Denominazione>
+          ${snap?.nome && snap?.cognome
+            ? `<Nome>${esc(snap.nome)}</Nome><Cognome>${esc(snap.cognome)}</Cognome>`
+            : `<Denominazione>${esc(snap?.ragione_sociale)}</Denominazione>`
+          }
         </Anagrafica>
       </DatiAnagrafici>
       <Sede>

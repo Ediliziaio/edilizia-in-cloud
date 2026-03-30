@@ -202,6 +202,32 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
               )}
             </div>
 
+            {/* ─── UX-09: Allega PDF al documento elettronico ─── */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="allega-pdf-sdi"
+                  checked={state.allega_pdf_sdi ?? false}
+                  onCheckedChange={(v) => setField("allega_pdf_sdi", v)}
+                  disabled={disabled}
+                />
+                <Label htmlFor="allega-pdf-sdi" className="text-xs cursor-pointer">
+                  Allega PDF al documento elettronico
+                </Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      Inserisce il PDF della fattura come allegato nell'XML FatturaPA (tag &lt;Allegati&gt;).
+                      Il destinatario riceverà sia l'XML sia il PDF leggibile.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
             {/* ─── CIG / CUP (for PA) ─── */}
             {isPA && (
               <div className="space-y-2 pt-2 border-t">

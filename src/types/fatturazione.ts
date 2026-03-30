@@ -164,6 +164,10 @@ export interface ScadenzaPagamento {
 
 export interface ClienteSnapshot {
   ragione_sociale: string;
+  /** Per persone fisiche B2C: Nome separato (usato in XML al posto di Denominazione) */
+  nome?: string;
+  /** Per persone fisiche B2C: Cognome separato (usato in XML al posto di Denominazione) */
+  cognome?: string;
   partita_iva?: string;
   codice_fiscale?: string;
   codice_sdi?: string;

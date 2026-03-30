@@ -14,7 +14,7 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Clock, Send, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Clock, Send, ExternalLink, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -49,6 +49,7 @@ export default function DocumentoDetail() {
   const updateMutation = useUpdateDocumento();
   const [ncLoading, setNcLoading] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
+  const [sdiLoading, setSdiLoading] = useState(false);
 
   if (isLoading || !doc) {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -87,6 +88,26 @@ export default function DocumentoDetail() {
     } catch (err: any) { toast.error("Errore nella generazione XML", { description: err.message }); }
   };
 
+  const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
+    "fattura_riepilogativa", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+  const canInviaSDI = doc.stato === "emessa" && TIPI_SDI.includes(doc.tipo);
+
+  const handleInviaSDI = async () => {
+    setSdiLoading(true);
+    try {
+      const { supabase: sb } = await import("@/integrations/supabase/client");
+      const resp = await sb.functions.invoke("invia-sdi", { body: { documento_id: doc.id } });
+      if (resp.error) throw new Error(resp.error.message);
+      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[] };
+      if (!result.success) {
+        toast.error("Errore invio SDI", { description: JSON.stringify(result.errors) });
+        return;
+      }
+      toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
+    } catch (err: any) { toast.error("Errore invio SDI", { description: err.message }); }
+    finally { setSdiLoading(false); }
+  };
+
   const handleConvertToFattura = async () => {
     try {
       setConvertLoading(true);
@@ -112,6 +133,59 @@ export default function DocumentoDetail() {
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-destructive" />
           <span className="font-medium text-destructive">DOCUMENTO NON FISCALE — Proforma</span>
+        </div>
+      )}
+
+      {/* UX-01: Banner stato SDI — mostrato quando emessa e non ancora inviata */}
+      {canInviaSDI && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-900">
+                Stato fattura elettronica: <strong>Non firmata e non inviata</strong>
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                La fattura deve essere inviata al Sistema di Interscambio (SDI) per avere valore fiscale.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white border-amber-300 hover:bg-amber-50"
+                onClick={handleDownloadXML}
+              >
+                <FileText className="h-4 w-4 mr-1" /> Visualizza XML
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={sdiLoading}
+                  >
+                    {sdiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                    Firma e invia al SDI
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Conferma invio al Sistema di Interscambio</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Stai per inviare {TIPO_LABELS[doc.tipo] ?? doc.tipo} N° {doc.numero} al SDI.
+                      Una volta inviata, non potrà essere modificata. Confermi?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleInviaSDI} className="bg-blue-600 hover:bg-blue-700">
+                      Firma e invia
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
         </div>
       )}
 
@@ -188,6 +262,33 @@ export default function DocumentoDetail() {
                   </Button>
                 </div>
                 <AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* Bottone Invia SDI nella barra azioni */}
+          {canInviaSDI && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={sdiLoading}>
+                  {sdiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                  Invia a SDI
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Conferma invio al SDI</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Inviare {TIPO_LABELS[doc.tipo] ?? doc.tipo} N° {doc.numero} al Sistema di Interscambio?
+                    Una volta inviata non potrà essere modificata.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleInviaSDI} className="bg-blue-600 hover:bg-blue-700">
+                    Invia
+                  </AlertDialogAction>
+                </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )}

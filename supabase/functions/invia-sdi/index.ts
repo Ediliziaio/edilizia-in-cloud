@@ -56,11 +56,14 @@ const TIPI_INVERSIONE = ["TD17", "TD18", "TD19"];
 
 function generateXML(doc: Record<string, any>, azienda: Record<string, any>, progressivoInvio?: string): string {
   const snap = doc.cliente_snapshot || {};
-  const isPa = snap.tipo_cliente === "PA";
-  const formato = isPa ? "FPA12" : "FPR12";
-  // PA: codice destinatario 6 chars obbligatorio; B2B/B2C: default "0000000" (7 chars)
-  const codDest = snap.codice_sdi || (isPa ? "000000" : "0000000");
   const tipoDoc = TIPO_TO_TD[doc.tipo] || "TD01";
+  const isInversione = TIPI_INVERSIONE.includes(tipoDoc);
+  const isPa = !isInversione && snap.tipo_cliente === "PA";
+  // TD17/18/19: formato sempre FPR12, destinatario = proprio codice SDI
+  const formato = isInversione ? "FPR12" : (isPa ? "FPA12" : "FPR12");
+  const codDest = isInversione
+    ? (azienda.codice_sdi || "0000000")
+    : (snap.codice_sdi || (isPa ? "000000" : "0000000"));
   const righe: any[] = doc.righe || [];
   const scadenze: any[] = doc.scadenze_pagamento || [];
 
@@ -75,6 +78,14 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
   // Use atomic counter from DB if provided, fallback to doc number for preview only
   const progressivo = progressivoInvio || (doc.numero || "00001").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
 
+  // Helper: genera anagrafica per persona fisica (Nome+Cognome) o società (Denominazione)
+  function anagraficaXml(ragioneSociale: string, nome?: string, cognome?: string): string {
+    if (nome && cognome) {
+      return `<Nome>${escXml(nome)}</Nome><Cognome>${escXml(cognome)}</Cognome>`;
+    }
+    return `<Denominazione>${escXml(ragioneSociale)}</Denominazione>`;
+  }
+
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <p:FatturaElettronica versione="${formato}" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <FatturaElettronicaHeader>
@@ -83,8 +94,43 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
       <ProgressivoInvio>${escXml(progressivo)}</ProgressivoInvio>
       <FormatoTrasmissione>${formato}</FormatoTrasmissione>
       <CodiceDestinatario>${escXml(codDest)}</CodiceDestinatario>
-      ${!snap.codice_sdi && snap.pec ? `<PECDestinatario>${escXml(snap.pec)}</PECDestinatario>` : ""}
-    </DatiTrasmissione>
+      ${!isInversione && !snap.codice_sdi && snap.pec ? `<PECDestinatario>${escXml(snap.pec)}</PECDestinatario>` : ""}
+    </DatiTrasmissione>`;
+
+  if (isInversione) {
+    // ── TD17/TD18/TD19: CedentePrestatore = fornitore estero, CessionarioCommittente = azienda italiana ──
+    xml += `
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        ${snap.partita_iva ? `<IdFiscaleIVA><IdPaese>${escXml(snap.indirizzo_nazione || "XX")}</IdPaese><IdCodice>${escXml(snap.partita_iva)}</IdCodice></IdFiscaleIVA>` : ""}
+        ${snap.codice_fiscale ? `<CodiceFiscale>${escXml(snap.codice_fiscale)}</CodiceFiscale>` : ""}
+        <Anagrafica><Denominazione>${escXml(snap.ragione_sociale || "Fornitore Estero")}</Denominazione></Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${escXml(snap.indirizzo_via || "Estero")}</Indirizzo>
+        <CAP>${escXml(snap.indirizzo_cap || "00000")}</CAP>
+        <Comune>${escXml(snap.indirizzo_comune || "Estero")}</Comune>
+        <Nazione>${escXml(snap.indirizzo_nazione || "XX")}</Nazione>
+      </Sede>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escXml(azienda.partita_iva)}</IdCodice></IdFiscaleIVA>
+        ${azienda.codice_fiscale ? `<CodiceFiscale>${escXml(azienda.codice_fiscale)}</CodiceFiscale>` : ""}
+        <Anagrafica><Denominazione>${escXml(azienda.ragione_sociale)}</Denominazione></Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${escXml(azienda.indirizzo_via)}${azienda.indirizzo_numero_civico ? ` ${escXml(azienda.indirizzo_numero_civico)}` : ""}</Indirizzo>
+        <CAP>${escXml(azienda.indirizzo_cap)}</CAP>
+        <Comune>${escXml(azienda.indirizzo_comune)}</Comune>
+        ${azienda.indirizzo_provincia ? `<Provincia>${escXml(azienda.indirizzo_provincia)}</Provincia>` : ""}
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>`;
+  } else {
+    // ── Fattura normale: CedentePrestatore = azienda, CessionarioCommittente = cliente ──
+    xml += `
     <CedentePrestatore>
       <DatiAnagrafici>
         <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escXml(azienda.partita_iva)}</IdCodice></IdFiscaleIVA>
@@ -105,7 +151,7 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
       <DatiAnagrafici>
         ${snap.partita_iva ? `<IdFiscaleIVA><IdPaese>${escXml(snap.indirizzo_nazione || "IT")}</IdPaese><IdCodice>${escXml(snap.partita_iva)}</IdCodice></IdFiscaleIVA>` : ""}
         ${snap.codice_fiscale ? `<CodiceFiscale>${escXml(snap.codice_fiscale)}</CodiceFiscale>` : ""}
-        <Anagrafica><Denominazione>${escXml(snap.ragione_sociale)}</Denominazione></Anagrafica>
+        <Anagrafica>${anagraficaXml(snap.ragione_sociale, snap.nome, snap.cognome)}</Anagrafica>
       </DatiAnagrafici>
       <Sede>
         <Indirizzo>${escXml(snap.indirizzo_via)}</Indirizzo>
@@ -115,7 +161,10 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
         <Nazione>${escXml(snap.indirizzo_nazione || "IT")}</Nazione>
       </Sede>
     </CessionarioCommittente>
-  </FatturaElettronicaHeader>
+  </FatturaElettronicaHeader>`;
+  }
+
+  xml += `
   <FatturaElettronicaBody>
     <DatiGenerali>
       <DatiGeneraliDocumento>
