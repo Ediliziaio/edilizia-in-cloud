@@ -158,6 +158,29 @@ Deno.serve(async (req) => {
 
           if (!aptErr && appointment) {
             appointmentCreated = true;
+            // P2-03: Push to Google Calendar (fire-and-forget)
+            // Find the agent owner to determine which Google Calendar to sync to
+            const { data: agentProfile } = await adminClient
+              .from("profiles")
+              .select("id")
+              .eq("company_id", companyId)
+              .eq("role", "owner")
+              .maybeSingle();
+            if (agentProfile?.id && appointment.id) {
+              fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-sync`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  action: "push_event",
+                  user_id: agentProfile.id,
+                  company_id: companyId,
+                  appointment_id: appointment.id,
+                }),
+              }).catch((e) => console.error("[WEBHOOK] Google Calendar sync error:", e));
+            }
           }
           break;
         }
