@@ -35,6 +35,8 @@ const TIPO_LABELS: Record<string, string> = {
   proforma: "Proforma",
   preventivo: "Preventivo",
   ddt: "DDT",
+  parcella: "Parcella",
+  fattura_accompagnatoria: "Fatt. Accompagnatoria",
   integrazione_servizi_estero: "TD17",
   integrazione_beni_ue: "TD18",
   integrazione_beni_extra_ue: "TD19",
@@ -56,7 +58,8 @@ const STATO_CONFIG: Record<string, { label: string; variant: "default" | "second
 
 // Tipi documento che possono essere inviati al SDI
 const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
-  "fattura_riepilogativa", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+  "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
+  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
 
 interface Props {
   state: EditorState;

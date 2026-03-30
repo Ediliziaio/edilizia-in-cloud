@@ -189,6 +189,7 @@ export type StatoDocumento =
 export type TipoDocumento =
   | 'fattura' | 'fattura_pa' | 'nota_credito' | 'nota_debito'
   | 'autofattura' | 'fattura_riepilogativa' | 'proforma' | 'preventivo' | 'ddt'
+  | 'parcella' | 'fattura_accompagnatoria'
   | 'integrazione_servizi_estero' | 'integrazione_beni_ue' | 'integrazione_beni_extra_ue';
 
 export interface DocumentoFiscale {

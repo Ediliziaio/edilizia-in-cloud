@@ -42,6 +42,8 @@ const TIPO_TO_TD: Record<string, string> = {
   autofattura: "TD20",
   fattura_riepilogativa: "TD24",
   ddt: "TD24",
+  fattura_accompagnatoria: "TD24",      // TD24 con DatiTrasporto
+  parcella: "TD06",                     // Parcella professionisti (art.21 DPR 633/72)
   // Fatture estere / autofatture integrazione
   integrazione_servizi_estero: "TD17",  // Acquisto servizi dall'estero (art.17 c.2)
   integrazione_beni_ue: "TD18",         // Acquisto beni intracomunitari
@@ -350,6 +352,45 @@ export function generateFatturaPAXML(
         ${d.NumeroDDT ? `<NumeroDDT>${esc(String(d.NumeroDDT))}</NumeroDDT>` : ""}
         ${d.DataDDT ? `<DataDDT>${fmtDate(String(d.DataDDT))}</DataDDT>` : ""}
       </DatiDDT>`;
+  }
+
+  // DatiTrasporto (per fatture accompagnatorie / DDT con dati trasporto)
+  const hasTrasporto = doc.ddt_causale_trasporto || doc.ddt_numero_colli || doc.ddt_peso || doc.ddt_mezzo_trasporto || doc.ddt_data_ora_consegna;
+  if (hasTrasporto) {
+    const vettore = doc.ddt_vettore as Record<string, string> | undefined;
+    xml += `
+      <DatiTrasporto>`;
+    if (vettore?.denominazione || vettore?.partita_iva) {
+      xml += `
+        <DatiAnagraficiVettore>
+          <DatiAnagrafici>`;
+      if (vettore.partita_iva) {
+        xml += `
+            <IdFiscaleIVA>
+              <IdPaese>IT</IdPaese>
+              <IdCodice>${esc(vettore.partita_iva)}</IdCodice>
+            </IdFiscaleIVA>`;
+      }
+      xml += `
+            <Anagrafica>
+              <Denominazione>${esc(vettore.denominazione || "")}</Denominazione>
+            </Anagrafica>
+          </DatiAnagrafici>
+        </DatiAnagraficiVettore>`;
+    }
+    if (doc.ddt_mezzo_trasporto) xml += `
+        <MezzoTrasporto>${esc(doc.ddt_mezzo_trasporto)}</MezzoTrasporto>`;
+    if (doc.ddt_causale_trasporto) xml += `
+        <CausaleTrasporto>${esc(doc.ddt_causale_trasporto)}</CausaleTrasporto>`;
+    if (doc.ddt_numero_colli) xml += `
+        <NumeroColli>${doc.ddt_numero_colli}</NumeroColli>`;
+    if (doc.ddt_peso) xml += `
+        <UnitaMisuraPeso>KG</UnitaMisuraPeso>
+        <PesoLordo>${esc(String(doc.ddt_peso))}</PesoLordo>`;
+    if (doc.ddt_data_ora_consegna) xml += `
+        <DataOraConsegna>${esc(doc.ddt_data_ora_consegna)}</DataOraConsegna>`;
+    xml += `
+      </DatiTrasporto>`;
   }
 
   xml += `
