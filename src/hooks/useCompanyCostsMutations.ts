@@ -308,8 +308,30 @@ export function useCompanyCostsMutations({
 
   const markPaidMutation = useMutation({
     mutationFn: async ({ id, date, paymentMethod }: { id: string; date: string; paymentMethod?: string }) => {
-      const { error } = await supabase.from("company_costs").update({ is_paid: true, paid_date: date, ...(paymentMethod ? { payment_method: paymentMethod } : {}) }).eq("id", id);
+      // Update the cost as paid
+      const { data: costData, error } = await supabase
+        .from("company_costs")
+        .update({ is_paid: true, paid_date: date, ...(paymentMethod ? { payment_method: paymentMethod } : {}) })
+        .eq("id", id)
+        .select("name, amount, company_id")
+        .single();
       if (error) throw error;
+
+      // Auto-create Prima Nota entry
+      if (costData) {
+        await supabase.from("prima_nota_entries").insert({
+          company_id: costData.company_id,
+          direction: "uscita",
+          amount: costData.amount,
+          description: `Pagamento: ${costData.name}`,
+          entry_date: date,
+          category: "Costi Aziendali",
+          cost_id: id,
+          is_auto: true,
+          auto_source: "company_cost_payment",
+          ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+        }).catch((e: any) => console.warn("[markPaid] prima_nota_entries insert failed:", e));
+      }
     },
     onSuccess: () => {
       invalidateCosts();
