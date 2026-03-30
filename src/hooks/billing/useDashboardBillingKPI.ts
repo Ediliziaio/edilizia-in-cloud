@@ -56,7 +56,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
 
       const docs = docRes.data ?? [];
 
-      const fattureTipo = ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"];
+      const fattureTipo = ["fattura", "fattura_pa", "fattura_accompagnatoria", "parcella", "autofattura"];
 
       let fatturato_mese = 0;
       let fatturato_ytd = 0;
@@ -140,7 +140,7 @@ export function useTopClientiByFatturato(companyId: string | null, limit = 5, en
         .from("documenti_fiscali")
         .select("anagrafica_id, imponibile_totale, stato")
         .eq("company_id", companyId!)
-        .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "autofattura"])
+        .in("tipo", ["fattura", "fattura_pa", "fattura_accompagnatoria", "parcella", "autofattura"])
         .neq("stato", "annullata")
         .is("deleted_at", null)
         .gte("data_emissione", yearStart);
