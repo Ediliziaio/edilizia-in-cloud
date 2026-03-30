@@ -29,6 +29,7 @@ import { CostsTable } from "./CostsTable";
 import { CostFormDialog } from "./CostFormDialog";
 import { CostsDialogs } from "./CostsDialogs";
 import { CostBudgetManager } from "./CostBudgetManager";
+import { CashFlowAlert } from "./CashFlowAlert";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
@@ -488,6 +489,18 @@ export default function CompanyCostsManager() {
 
       {/* Budget Section */}
       <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
+
+      {/* Cash Flow Semaforo */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Semaforo Cassa — Proiezione 30/60/90 giorni
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CashFlowAlert upcomingCosts={data.allCostsSorted} />
+        </CardContent>
+      </Card>
 
       <CostsDialogs
         deleteConfirmId={deleteConfirmId}
