@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_auto_scadenza_from_invoice ON public.invoices;
 CREATE TRIGGER trg_auto_scadenza_from_invoice
   AFTER INSERT OR UPDATE OF total, due_date, status ON invoices
   FOR EACH ROW

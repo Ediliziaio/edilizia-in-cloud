@@ -37,6 +37,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
+DROP TRIGGER IF EXISTS validate_warehouse_movement_type ON public.warehouse_movements;
 CREATE TRIGGER validate_warehouse_movement_type
   BEFORE INSERT OR UPDATE ON public.warehouse_movements
   FOR EACH ROW EXECUTE FUNCTION public.validate_movement_type();

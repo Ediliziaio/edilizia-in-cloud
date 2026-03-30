@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_sync_anagrafica_on_profile_update ON public.profiles;
 CREATE TRIGGER trg_sync_anagrafica_on_profile_update
   AFTER UPDATE OF first_name, last_name, email, phone, fiscal_code, address
   ON profiles

@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_invoice_lines_totals ON public.invoice_lines;
 CREATE TRIGGER trg_invoice_lines_totals
   AFTER INSERT OR UPDATE OR DELETE ON invoice_lines
   FOR EACH ROW EXECUTE FUNCTION trg_recalculate_invoice();

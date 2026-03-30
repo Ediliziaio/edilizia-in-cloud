@@ -168,6 +168,7 @@ END;
 $$;
 
 -- 4. Create triggers
+DROP TRIGGER IF EXISTS log_orders_activity ON public.orders;
 CREATE TRIGGER log_orders_activity
   AFTER INSERT OR UPDATE OR DELETE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
@@ -177,14 +178,17 @@ CREATE TRIGGER log_order_status_history_activity
   AFTER INSERT ON public.order_status_history
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
 
+DROP TRIGGER IF EXISTS log_suppliers_activity ON public.suppliers;
 CREATE TRIGGER log_suppliers_activity
   AFTER INSERT OR UPDATE OR DELETE ON public.suppliers
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
 
+DROP TRIGGER IF EXISTS log_employees_activity ON public.employees;
 CREATE TRIGGER log_employees_activity
   AFTER INSERT OR UPDATE ON public.employees
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
 
+DROP TRIGGER IF EXISTS log_profiles_activity ON public.profiles;
 CREATE TRIGGER log_profiles_activity
   AFTER INSERT OR UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
