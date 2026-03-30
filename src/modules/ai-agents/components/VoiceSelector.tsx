@@ -11,30 +11,9 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Play, Pause, Volume2, Search, Settings2 } from "lucide-react";
+import { Play, Pause, Volume2, Search, Settings2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface VoiceOption {
-  id: string;
-  name: string;
-  preview_url: string | null;
-  category: string;
-  gender?: string;
-  accent?: string;
-}
-
-const BUILT_IN_VOICES: VoiceOption[] = [
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", preview_url: null, category: "premade", gender: "female", accent: "american" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", preview_url: null, category: "premade", gender: "male", accent: "british" },
-  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", preview_url: null, category: "premade", gender: "male", accent: "american" },
-  { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", preview_url: null, category: "premade", gender: "female", accent: "american" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", preview_url: null, category: "premade", gender: "male", accent: "british" },
-  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", preview_url: null, category: "premade", gender: "female", accent: "british" },
-  { id: "iP95p4xoKVk53GoZ742B", name: "Chris", preview_url: null, category: "premade", gender: "male", accent: "american" },
-  { id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", preview_url: null, category: "premade", gender: "female", accent: "american" },
-  { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", preview_url: null, category: "premade", gender: "male", accent: "american" },
-  { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", preview_url: null, category: "premade", gender: "female", accent: "american" },
-];
+import { useElevenLabsVoices } from "../hooks/useElevenLabsVoices";
 
 interface VoiceSelectorProps {
   value: string | null;
@@ -59,28 +38,36 @@ export function VoiceSelector({
   const [expressiveMode, setExpressiveMode] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const togglePlay = (voice: VoiceOption) => {
-    if (!voice.preview_url) return;
-    if (playingId === voice.id) {
+  const { data: voices = [], isLoading, isError } = useElevenLabsVoices();
+
+  const togglePlay = (voiceId: string, previewUrl: string | null) => {
+    if (!previewUrl) return;
+    if (playingId === voiceId) {
       audioRef.current?.pause();
       setPlayingId(null);
     } else {
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(voice.preview_url);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+      const audio = new Audio(previewUrl);
       audio.onended = () => setPlayingId(null);
-      audio.play();
+      audio.onerror = () => setPlayingId(null);
+      audio.play().catch(() => setPlayingId(null));
       audioRef.current = audio;
-      setPlayingId(voice.id);
+      setPlayingId(voiceId);
     }
   };
 
-  const filtered = BUILT_IN_VOICES.filter((v) => {
+  const filtered = voices.filter((v) => {
     const matchSearch = v.name.toLowerCase().includes(search.toLowerCase());
-    const matchGender = genderFilter === "all" || v.gender === genderFilter;
-    return matchSearch && matchGender;
+    if (!matchSearch) return false;
+    if (genderFilter === "all") return true;
+    const gender = (v.labels?.gender || v.labels?.Gender || "").toLowerCase();
+    return gender === genderFilter;
   });
 
-  const selectedVoice = BUILT_IN_VOICES.find((v) => v.id === value);
+  const selectedVoice = voices.find((v) => v.voice_id === value);
 
   return (
     <div className="space-y-3">
@@ -99,7 +86,23 @@ export function VoiceSelector({
         <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-primary/5">
           <Volume2 className="h-4 w-4 text-primary" />
           <span className="text-sm font-medium">{selectedVoice.name}</span>
-          <span className="text-xs text-muted-foreground capitalize">({selectedVoice.gender})</span>
+          {selectedVoice.labels?.gender && (
+            <span className="text-xs text-muted-foreground capitalize">
+              ({selectedVoice.labels.gender})
+            </span>
+          )}
+          {selectedVoice.preview_url && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 ml-auto"
+              onClick={() => togglePlay(selectedVoice.voice_id, selectedVoice.preview_url)}
+            >
+              {playingId === selectedVoice.voice_id
+                ? <Pause className="h-3 w-3" />
+                : <Play className="h-3 w-3" />}
+            </Button>
+          )}
         </div>
       )}
 
@@ -128,28 +131,56 @@ export function VoiceSelector({
 
       {/* Voice list */}
       <ScrollArea className="h-[180px] rounded-md border p-2">
+        {isLoading && (
+          <div className="flex items-center justify-center h-full gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Caricamento voci...
+          </div>
+        )}
+        {isError && (
+          <div className="flex items-center justify-center h-full text-sm text-destructive">
+            Errore nel caricamento delle voci
+          </div>
+        )}
+        {!isLoading && !isError && filtered.length === 0 && (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            Nessuna voce trovata
+          </div>
+        )}
         <div className="space-y-1">
           {filtered.map((voice) => (
             <button
-              key={voice.id}
-              onClick={() => onChange(voice.id)}
+              key={voice.voice_id}
+              onClick={() => onChange(voice.voice_id)}
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent/50",
-                value === voice.id && "bg-primary/10 ring-1 ring-primary"
+                value === voice.voice_id && "bg-primary/10 ring-1 ring-primary"
               )}
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">{voice.name}</span>
-                <span className="text-[10px] text-muted-foreground capitalize">{voice.gender}</span>
+                {voice.labels?.gender && (
+                  <span className="text-[10px] text-muted-foreground capitalize">
+                    {voice.labels.gender}
+                  </span>
+                )}
+                <span className="text-[10px] text-muted-foreground capitalize bg-secondary px-1 rounded">
+                  {voice.category}
+                </span>
               </div>
               {voice.preview_url && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
-                  onClick={(e) => { e.stopPropagation(); togglePlay(voice); }}
+                  className="h-6 w-6 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay(voice.voice_id, voice.preview_url);
+                  }}
                 >
-                  {playingId === voice.id ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  {playingId === voice.voice_id
+                    ? <Pause className="h-3 w-3" />
+                    : <Play className="h-3 w-3" />}
                 </Button>
               )}
             </button>
