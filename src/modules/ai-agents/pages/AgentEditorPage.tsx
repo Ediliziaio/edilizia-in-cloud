@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ChevronRight, Shield, Settings2, Globe, Clock, AlertTriangle, Lock } from "lucide-react";
+import { ArrowLeft, ChevronRight, Shield, Settings2, Globe, Clock, AlertTriangle, Lock, CalendarClock } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { AIAgent, AIAgentUpdate } from "../types/agent.types";
 
@@ -154,6 +155,30 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
   const [sendConfirmation, setSendConfirmation] = useState(
     (agentAny.send_confirmation_after_booking as boolean) ?? true
   );
+  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(
+    (agentAny.business_hours_enabled as boolean) ?? false
+  );
+  const [orarioApertura, setOrarioApertura] = useState(
+    ((agentAny.orario_apertura as string) ?? "08:00:00").slice(0, 5)
+  );
+  const [orarioChiusura, setOrarioChiusura] = useState(
+    ((agentAny.orario_chiusura as string) ?? "20:00:00").slice(0, 5)
+  );
+  const [giorniAttivi, setGiorniAttivi] = useState<number[]>(
+    (agentAny.giorni_attivi as number[]) ?? [1, 2, 3, 4, 5]
+  );
+
+  const DAYS = [
+    { value: 1, label: "Lun" }, { value: 2, label: "Mar" }, { value: 3, label: "Mer" },
+    { value: 4, label: "Gio" }, { value: 5, label: "Ven" }, { value: 6, label: "Sab" },
+    { value: 0, label: "Dom" },
+  ];
+
+  const toggleDay = (day: number) => {
+    setGiorniAttivi(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
 
   const handleSave = () => {
     onSave({
@@ -163,6 +188,10 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
       auto_end_on_silence: autoEndOnSilence,
       silence_timeout: parseInt(silenceTimeout) || 30,
       send_confirmation_after_booking: sendConfirmation,
+      business_hours_enabled: businessHoursEnabled,
+      orario_apertura: orarioApertura + ":00",
+      orario_chiusura: orarioChiusura + ":00",
+      giorni_attivi: giorniAttivi,
     } as AIAgentUpdate);
     toast.success("Configurazione avanzata salvata");
   };
@@ -267,6 +296,64 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
             </div>
             <Switch checked={sendConfirmation} onCheckedChange={setSendConfirmation} />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarClock className="h-4 w-4" /> Orari di disponibilità
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Abilita controllo orari</Label>
+              <p className="text-xs text-muted-foreground">
+                Blocca le chiamate in uscita fuori dagli orari configurati
+              </p>
+            </div>
+            <Switch checked={businessHoursEnabled} onCheckedChange={setBusinessHoursEnabled} />
+          </div>
+          {businessHoursEnabled && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Orario apertura</Label>
+                  <Input
+                    type="time"
+                    value={orarioApertura}
+                    onChange={(e) => setOrarioApertura(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Orario chiusura</Label>
+                  <Input
+                    type="time"
+                    value={orarioChiusura}
+                    onChange={(e) => setOrarioChiusura(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Giorni attivi</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {DAYS.map((day) => (
+                    <div key={day.value} className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`day-${day.value}`}
+                        checked={giorniAttivi.includes(day.value)}
+                        onCheckedChange={() => toggleDay(day.value)}
+                      />
+                      <label htmlFor={`day-${day.value}`} className="text-sm cursor-pointer select-none">
+                        {day.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

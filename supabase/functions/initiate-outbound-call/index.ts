@@ -95,13 +95,31 @@ async function handleOutboundCall(
   // Get agent
   const { data: agent } = await adminClient
     .from("ai_agents")
-    .select("id, elevenlabs_agent_id, name")
+    .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi")
     .eq("id", agentId)
     .eq("company_id", companyId)
     .single();
 
   if (!agent) return json({ error: "Agente non trovato" }, 404);
   if (!agent.elevenlabs_agent_id) return json({ error: "Agente non configurato su ElevenLabs" }, 400);
+
+  // Business hours check (Italian timezone)
+  if (agent.business_hours_enabled) {
+    const nowIT = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
+    const dayIT = nowIT.getDay(); // 0=domenica
+    const timeNow = nowIT.getHours() * 60 + nowIT.getMinutes();
+    const activeDays: number[] = agent.giorni_attivi ?? [1, 2, 3, 4, 5];
+    if (!activeDays.includes(dayIT)) {
+      return json({ error: "Fuori dagli orari di disponibilità (giorno non attivo)" }, 403);
+    }
+    const [openH, openM] = (agent.orario_apertura ?? "08:00:00").split(":").map(Number);
+    const [closeH, closeM] = (agent.orario_chiusura ?? "20:00:00").split(":").map(Number);
+    const openMin = openH * 60 + openM;
+    const closeMin = closeH * 60 + closeM;
+    if (timeNow < openMin || timeNow >= closeMin) {
+      return json({ error: `Fuori dagli orari di disponibilità (${agent.orario_apertura?.slice(0, 5)}–${agent.orario_chiusura?.slice(0, 5)})` }, 403);
+    }
+  }
 
   // Resolve phone number
   let targetPhone = phoneNumber;
