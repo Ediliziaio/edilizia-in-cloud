@@ -1,4 +1,5 @@
 -- ─── Trigger 1: Auto Prima Nota on fattura emessa ─────────────────────────
+DROP FUNCTION IF EXISTS public.auto_prima_nota_fattura_emessa() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_prima_nota_fattura_emessa()
 RETURNS TRIGGER AS $$
 BEGIN

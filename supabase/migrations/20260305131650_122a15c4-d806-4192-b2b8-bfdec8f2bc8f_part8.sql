@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.create_order_atomic(JSONB, JSONB, JSONB, UUID, JSONB) CASCADE;
 CREATE OR REPLACE FUNCTION public.create_order_atomic(
   p_order_data  JSONB,
   p_items       JSONB    DEFAULT '[]'::jsonb,

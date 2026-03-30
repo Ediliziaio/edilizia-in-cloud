@@ -1,4 +1,5 @@
 -- get_low_stock_alerts
+DROP FUNCTION IF EXISTS public.get_low_stock_alerts(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_low_stock_alerts(p_company_id UUID)
 RETURNS TABLE (
   stock_item_id UUID, name TEXT, quantity INTEGER, quantity_reserved INTEGER,

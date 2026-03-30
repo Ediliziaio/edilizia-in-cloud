@@ -1,4 +1,5 @@
 -- RPC: get_automation_log_recent
+DROP FUNCTION IF EXISTS public.get_automation_log_recent(UUID, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_automation_log_recent(p_company_id UUID, p_limit INTEGER DEFAULT 20)
 RETURNS TABLE(
   log_id UUID, rule_id UUID, rule_nome TEXT, categoria TEXT,

@@ -1,4 +1,5 @@
 -- 2. Trigger: Quando fattura viene segnata come paid, aggiorna scadenza collegata
+DROP FUNCTION IF EXISTS public.auto_reconcile_invoice_payment() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_reconcile_invoice_payment()
 RETURNS TRIGGER
 LANGUAGE plpgsql

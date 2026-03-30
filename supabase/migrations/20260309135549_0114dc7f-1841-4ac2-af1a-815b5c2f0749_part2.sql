@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_order_status() CASCADE;
 CREATE OR REPLACE FUNCTION trigger_internal_auto_order_status()
 RETURNS TRIGGER AS $$
 DECLARE

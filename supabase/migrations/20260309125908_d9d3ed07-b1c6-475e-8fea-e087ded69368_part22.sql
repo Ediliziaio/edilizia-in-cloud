@@ -1,4 +1,5 @@
 -- Calculate monthly commissions
+DROP FUNCTION IF EXISTS public.calculate_monthly_commissions(INTEGER, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION public.calculate_monthly_commissions(
   p_month INTEGER,
   p_year INTEGER

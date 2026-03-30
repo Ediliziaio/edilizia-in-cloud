@@ -1,6 +1,7 @@
 -- ============================================================
 -- 8. RPC: get_stalled_opportunities
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_stalled_opportunities(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_stalled_opportunities(p_company_id UUID)
 RETURNS TABLE (
   opportunity_id UUID,

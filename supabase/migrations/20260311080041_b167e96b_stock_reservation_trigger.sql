@@ -1,4 +1,5 @@
 -- get_blocked_orders
+DROP FUNCTION IF EXISTS public.get_blocked_orders(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_blocked_orders(p_company_id UUID)
 RETURNS TABLE (
   order_id UUID, order_code TEXT, customer_name TEXT, expected_date DATE,

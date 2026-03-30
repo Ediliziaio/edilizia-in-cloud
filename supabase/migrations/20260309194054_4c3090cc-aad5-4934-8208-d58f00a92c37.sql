@@ -3,6 +3,7 @@
 -- ============================================
 
 -- 1. Trigger: Auto-genera scadenza quando una fattura viene creata con due_date
+DROP FUNCTION IF EXISTS public.auto_create_scadenza_from_invoice() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_create_scadenza_from_invoice()
 RETURNS TRIGGER
 LANGUAGE plpgsql

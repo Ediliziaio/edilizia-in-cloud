@@ -1,6 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- FUNZIONE: Ricalcola totali fattura
 -- ════════════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.recalculate_invoice_totals(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION recalculate_invoice_totals(p_invoice_id UUID)
 RETURNS VOID AS $$
 BEGIN

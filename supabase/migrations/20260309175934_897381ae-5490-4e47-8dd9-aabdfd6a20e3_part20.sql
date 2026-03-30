@@ -1,4 +1,5 @@
 -- 4. RPC: get_attribution_report
+DROP FUNCTION IF EXISTS public.get_attribution_report(uuid, timestamptz, timestamptz, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_attribution_report(
   p_company_id uuid,
   p_date_from timestamptz,

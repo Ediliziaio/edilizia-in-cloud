@@ -2,6 +2,7 @@
 -- Fix: update ticket_events function for ticket_assigned + ticket_updated
 -- ═══════════════════════════════════════════════════════
 
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_ticket_events() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_ticket_events()
 RETURNS trigger
 LANGUAGE plpgsql

@@ -23,6 +23,7 @@
 --   supabase.rpc('create_order_atomic', { p_order_data, p_items, p_salesperson, p_user_id })
 -- =============================================================
 
+DROP FUNCTION IF EXISTS public.create_order_atomic(JSONB, JSONB, JSONB, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.create_order_atomic(
   p_order_data  JSONB,
   p_items       JSONB    DEFAULT '[]'::jsonb,

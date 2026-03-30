@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.change_order_status(uuid, uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.change_order_status(
   p_order_id uuid,
   p_new_status_id uuid,

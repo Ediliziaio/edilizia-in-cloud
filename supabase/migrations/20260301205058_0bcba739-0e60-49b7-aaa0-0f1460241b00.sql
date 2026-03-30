@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.get_feature_usage_stats() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_feature_usage_stats()
 RETURNS jsonb
 LANGUAGE sql

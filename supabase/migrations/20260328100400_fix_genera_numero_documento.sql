@@ -2,6 +2,7 @@
 -- 1. Aggiungere supporto proforma, fatture estere (TD17/18/19)
 -- 2. Il CASE ELSE ora fallback a fattura per evitare numero fisso = 1
 
+DROP FUNCTION IF EXISTS public.genera_numero_documento_native(UUID, TEXT, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION public.genera_numero_documento_native(
   p_company_id UUID,
   p_tipo TEXT,

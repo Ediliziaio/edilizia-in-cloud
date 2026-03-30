@@ -1,4 +1,5 @@
 -- Create trigger_form_automations function
+DROP FUNCTION IF EXISTS public.trigger_form_automations(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_form_automations(p_submission_id UUID)
 RETURNS void
 LANGUAGE plpgsql

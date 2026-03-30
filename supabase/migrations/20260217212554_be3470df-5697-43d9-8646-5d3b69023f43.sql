@@ -48,6 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_automations_is_active ON public.automations(is_ac
 
 -- Function: execute_automation
 -- Called by triggers to evaluate and execute automations
+DROP FUNCTION IF EXISTS public.execute_automation(text, uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.execute_automation(
   p_trigger_type text,
   p_order_id uuid,
@@ -212,6 +213,7 @@ END;
 $$;
 
 -- Trigger function for orders table
+DROP FUNCTION IF EXISTS public.trigger_automation_on_order() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_automation_on_order()
 RETURNS trigger
 LANGUAGE plpgsql

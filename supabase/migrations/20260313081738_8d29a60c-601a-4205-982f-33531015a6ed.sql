@@ -2,6 +2,7 @@
 -- Fix BUG REALE 1: fn_prima_nota_on_incasso references non-existent 'prima_nota' table
 -- Must use 'prima_nota_entries' with correct column names
 
+DROP FUNCTION IF EXISTS public.fn_prima_nota_on_incasso() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_prima_nota_on_incasso()
 RETURNS trigger
 LANGUAGE plpgsql

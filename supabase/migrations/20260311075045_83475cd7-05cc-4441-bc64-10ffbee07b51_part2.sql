@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.get_order_materials_history(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_order_materials_history(p_order_id uuid)
 RETURNS TABLE(movement_id uuid, stock_item_name text, movement_type text, quantity integer, lot_number text, notes text, performed_by uuid, created_at timestamptz)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public

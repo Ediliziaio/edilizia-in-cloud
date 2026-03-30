@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.staff_update_own_password_flag(boolean) CASCADE;
 CREATE OR REPLACE FUNCTION public.staff_update_own_password_flag(
   _must_change boolean
 )

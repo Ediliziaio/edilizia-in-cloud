@@ -1,4 +1,5 @@
 -- 2) RPC for cruscotto invoice stats
+DROP FUNCTION IF EXISTS public.get_cruscotto_invoice_stats(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_cruscotto_invoice_stats(p_company_id uuid)
 RETURNS json
 LANGUAGE plpgsql

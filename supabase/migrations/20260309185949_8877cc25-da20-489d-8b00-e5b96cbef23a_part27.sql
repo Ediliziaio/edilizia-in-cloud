@@ -1,6 +1,7 @@
 -- =============================================
 -- 2F. FUNZIONE: Crea OdA da ordine cliente
 -- =============================================
+DROP FUNCTION IF EXISTS public.create_oda_from_order(UUID, UUID, UUID, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.create_oda_from_order(
   p_order_id UUID,
   p_supplier_id UUID,

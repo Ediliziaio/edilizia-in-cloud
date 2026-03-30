@@ -4,6 +4,7 @@
 -- ═══════════════════════════════════════════════════════
 
 -- Fix order status function: orders uses current_status_id, not status
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_order_status() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_order_status()
  RETURNS trigger
  LANGUAGE plpgsql

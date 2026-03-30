@@ -1,4 +1,5 @@
 -- Funzione atomica deduct_email_credits (stile deduct_ai_credits)
+DROP FUNCTION IF EXISTS public.deduct_email_credits(UUID, NUMERIC) CASCADE;
 CREATE OR REPLACE FUNCTION public.deduct_email_credits(p_company_id UUID, p_cost NUMERIC)
 RETURNS JSONB
 LANGUAGE plpgsql

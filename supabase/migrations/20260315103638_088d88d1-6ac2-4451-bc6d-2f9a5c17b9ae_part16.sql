@@ -1,4 +1,5 @@
 -- Validation trigger for conversations
+DROP FUNCTION IF EXISTS public.validate_ai_conversation_v2() CASCADE;
 CREATE OR REPLACE FUNCTION validate_ai_conversation_v2()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

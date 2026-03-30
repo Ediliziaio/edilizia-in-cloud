@@ -1,4 +1,5 @@
 -- RPC: get_cruscotto_stats
+DROP FUNCTION IF EXISTS public.get_cruscotto_stats(UUID, DATE, DATE) CASCADE;
 CREATE OR REPLACE FUNCTION get_cruscotto_stats(
   p_company_id UUID,
   p_date_from DATE,

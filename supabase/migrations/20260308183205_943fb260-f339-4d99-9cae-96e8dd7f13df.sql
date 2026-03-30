@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.get_dashboard_kpis(uuid, timestamptz, timestamptz, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_dashboard_kpis(
   p_company_id uuid,
   p_date_from timestamptz,

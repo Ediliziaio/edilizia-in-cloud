@@ -1,4 +1,5 @@
 -- 4. Funzione get_leave_summary
+DROP FUNCTION IF EXISTS public.get_leave_summary(uuid, integer) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_leave_summary(
   p_company_id uuid,
   p_year integer DEFAULT NULL

@@ -1,4 +1,5 @@
 -- 2. Function to create daily due-date notifications
+DROP FUNCTION IF EXISTS public.create_task_due_notifications() CASCADE;
 CREATE OR REPLACE FUNCTION public.create_task_due_notifications()
 RETURNS integer
 LANGUAGE plpgsql

@@ -1,6 +1,7 @@
 -- ============================================================
 -- FUNCTION 2: get_vendor_trend_mensile
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_vendor_trend_mensile(UUID, INTEGER, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_vendor_trend_mensile(
   p_company_id UUID,
   p_anno INTEGER DEFAULT NULL,

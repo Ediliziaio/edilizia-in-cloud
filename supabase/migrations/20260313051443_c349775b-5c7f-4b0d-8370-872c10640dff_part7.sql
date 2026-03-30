@@ -1,6 +1,7 @@
 -- ============================================================
 -- 5. RPC for document counts (server-side aggregation)
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_documenti_counts(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_documenti_counts(p_company_id UUID)
 RETURNS JSON AS $$
 DECLARE

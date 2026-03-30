@@ -1,4 +1,5 @@
 -- RPCs
+DROP FUNCTION IF EXISTS public.get_treasury_summary(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_treasury_summary(p_company_id uuid)
 RETURNS TABLE (total_balance numeric, total_credit_balance numeric, total_debit_balance numeric, accounts_count bigint, connections_count bigint, monthly_income numeric, monthly_expenses numeric, monthly_net numeric, last_sync_at timestamptz)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public

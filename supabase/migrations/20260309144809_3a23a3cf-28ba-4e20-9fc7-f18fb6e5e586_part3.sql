@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_appointment_events() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_appointment_events()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE

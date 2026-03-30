@@ -1,5 +1,6 @@
 
 -- Function to auto-expire trial companies whose trial_ends_at has passed
+DROP FUNCTION IF EXISTS public.auto_expire_trials() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_expire_trials()
 RETURNS integer
 LANGUAGE plpgsql

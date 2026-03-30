@@ -2,6 +2,7 @@
 -- Inserts the cash movement and updates importo_pagato on the invoice
 -- within the same DB transaction, eliminating the read-modify-write race.
 
+DROP FUNCTION IF EXISTS public.registra_incasso_atomico(uuid, uuid, numeric, text, date, text, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.registra_incasso_atomico(
   p_company_id      uuid,
   p_documento_id    uuid,

@@ -1,6 +1,7 @@
 -- ============================================================
 -- 9. RPC: get_sales_velocity
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_sales_velocity(UUID, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION get_sales_velocity(
   p_company_id UUID,
   p_days_back INTEGER DEFAULT 90

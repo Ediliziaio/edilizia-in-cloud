@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.trg_recalculate_invoice() CASCADE;
 CREATE OR REPLACE FUNCTION trg_recalculate_invoice()
 RETURNS TRIGGER AS $$
 BEGIN

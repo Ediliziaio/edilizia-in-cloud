@@ -1,6 +1,7 @@
 -- =============================================
 -- 2D. TRIGGER: Ricalcolo totali OdA
 -- =============================================
+DROP FUNCTION IF EXISTS public.recalc_purchase_order_totals() CASCADE;
 CREATE OR REPLACE FUNCTION public.recalc_purchase_order_totals()
 RETURNS TRIGGER
 LANGUAGE plpgsql

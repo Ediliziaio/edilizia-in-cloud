@@ -1,4 +1,5 @@
 -- Check e aggiorna scadenze scadute (per cron o trigger)
+DROP FUNCTION IF EXISTS public.check_overdue_scadenze() CASCADE;
 CREATE OR REPLACE FUNCTION public.check_overdue_scadenze()
 RETURNS INTEGER
 LANGUAGE plpgsql

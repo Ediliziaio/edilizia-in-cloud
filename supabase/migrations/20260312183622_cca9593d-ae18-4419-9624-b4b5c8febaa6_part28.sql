@@ -1,6 +1,7 @@
 -- ============================================================
 -- TRIGGER: aggiorna stats anagrafica dopo inserimento fattura
 -- ============================================================
+DROP FUNCTION IF EXISTS public.aggiorna_stats_anagrafica_native() CASCADE;
 CREATE OR REPLACE FUNCTION public.aggiorna_stats_anagrafica_native()
 RETURNS TRIGGER AS $$
 BEGIN

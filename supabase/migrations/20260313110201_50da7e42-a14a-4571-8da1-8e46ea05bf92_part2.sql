@@ -1,6 +1,7 @@
 -- ============================================================
 -- FUNZIONE: get_callcenter_speed_to_lead_distribuzione
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_callcenter_speed_to_lead_distribuzione(UUID, DATE, DATE, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_callcenter_speed_to_lead_distribuzione(
   p_company_id UUID,
   p_data_inizio DATE,

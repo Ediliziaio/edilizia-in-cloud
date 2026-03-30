@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.get_cash_flow_by_month(uuid, int) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_cash_flow_by_month(p_company_id uuid, p_months int DEFAULT 6)
 RETURNS TABLE (month text, income numeric, expenses numeric, net numeric)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public

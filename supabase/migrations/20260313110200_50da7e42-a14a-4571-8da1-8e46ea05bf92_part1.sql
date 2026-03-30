@@ -1,6 +1,7 @@
 -- ============================================================
 -- FUNZIONE: get_callcenter_kpi_per_operatore
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_callcenter_kpi_per_operatore(UUID, DATE, DATE, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_callcenter_kpi_per_operatore(
   p_company_id UUID,
   p_data_inizio DATE,

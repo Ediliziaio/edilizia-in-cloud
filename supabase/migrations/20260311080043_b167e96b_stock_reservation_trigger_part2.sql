@@ -1,4 +1,5 @@
 -- get_order_materials_history
+DROP FUNCTION IF EXISTS public.get_order_materials_history(UUID, UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_order_materials_history(p_company_id UUID, p_order_id UUID)
 RETURNS TABLE (
   movement_id UUID, stock_item_name TEXT, order_item_name TEXT, movement_type TEXT,

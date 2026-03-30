@@ -1,4 +1,5 @@
 -- RPC function for server-side paginated customers
+DROP FUNCTION IF EXISTS public.get_customers_paginated(UUID, TEXT, UUID, BOOLEAN, TEXT, TEXT, TEXT, INT, INT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_customers_paginated(
   p_company_id UUID,
   p_search TEXT DEFAULT NULL,

@@ -1,4 +1,5 @@
 -- 5. RPC consume_ai_credits (atomic, uses bonus first)
+DROP FUNCTION IF EXISTS public.consume_ai_credits(uuid, numeric, text, uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.consume_ai_credits(
   p_company_id uuid,
   p_amount numeric,

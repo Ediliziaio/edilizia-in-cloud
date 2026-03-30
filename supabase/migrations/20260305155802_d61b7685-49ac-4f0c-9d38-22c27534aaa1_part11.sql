@@ -1,4 +1,5 @@
 -- Trigger per aggiornare last_message_at quando arriva un nuovo messaggio
+DROP FUNCTION IF EXISTS public.update_ticket_last_message_at() CASCADE;
 CREATE OR REPLACE FUNCTION public.update_ticket_last_message_at()
   RETURNS TRIGGER
   LANGUAGE plpgsql

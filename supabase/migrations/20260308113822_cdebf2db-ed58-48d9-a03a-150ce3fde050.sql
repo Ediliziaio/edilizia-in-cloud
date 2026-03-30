@@ -2,6 +2,7 @@
 -- Only creating the remaining RPCs
 
 -- RPC: get_email_stats_by_campaign
+DROP FUNCTION IF EXISTS public.get_email_stats_by_campaign(uuid, uuid, timestamptz, timestamptz) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_email_stats_by_campaign(
   p_company_id uuid,
   p_campaign_id uuid DEFAULT NULL,

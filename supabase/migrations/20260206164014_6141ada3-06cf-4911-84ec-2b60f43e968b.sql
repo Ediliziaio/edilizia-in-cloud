@@ -1,4 +1,5 @@
 -- Trigger per prevenire eliminazione di stati ordine già in uso
+DROP FUNCTION IF EXISTS public.prevent_status_deletion_if_used() CASCADE;
 CREATE OR REPLACE FUNCTION public.prevent_status_deletion_if_used()
 RETURNS TRIGGER 
 LANGUAGE plpgsql

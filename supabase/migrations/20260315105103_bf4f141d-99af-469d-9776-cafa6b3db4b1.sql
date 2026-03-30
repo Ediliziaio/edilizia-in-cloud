@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.increment_agent_stats(UUID, INT, INT, NUMERIC, INT, NUMERIC) CASCADE;
 CREATE OR REPLACE FUNCTION public.increment_agent_stats(
   p_agent_id UUID,
   p_chiamate INT DEFAULT 0,

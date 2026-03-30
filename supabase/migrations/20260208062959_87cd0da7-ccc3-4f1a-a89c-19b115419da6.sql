@@ -52,6 +52,7 @@ CREATE POLICY "Super admins can manage all staff permissions"
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Helper function to check specific permission
+DROP FUNCTION IF EXISTS public.has_permission(uuid, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.has_permission(_user_id uuid, _permission text)
 RETURNS boolean
 LANGUAGE plpgsql

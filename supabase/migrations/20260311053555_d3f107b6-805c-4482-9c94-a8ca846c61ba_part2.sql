@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.validate_lead_score_fields() CASCADE;
 CREATE OR REPLACE FUNCTION validate_lead_score_fields()
 RETURNS TRIGGER LANGUAGE plpgsql
 SET search_path = public

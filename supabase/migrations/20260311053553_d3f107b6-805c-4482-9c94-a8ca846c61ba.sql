@@ -1,4 +1,5 @@
 -- Fix search_path on validation trigger functions
+DROP FUNCTION IF EXISTS public.validate_lost_reason_category() CASCADE;
 CREATE OR REPLACE FUNCTION validate_lost_reason_category()
 RETURNS TRIGGER LANGUAGE plpgsql
 SET search_path = public

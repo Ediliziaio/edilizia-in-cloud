@@ -1,4 +1,5 @@
 -- 8. updated_at triggers
+DROP FUNCTION IF EXISTS public.set_updated_at() CASCADE;
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql

@@ -1,4 +1,5 @@
 -- 10. Function: check_and_update_login_attempt
+DROP FUNCTION IF EXISTS public.check_and_update_login_attempt(UUID, BOOLEAN, INET) CASCADE;
 CREATE OR REPLACE FUNCTION public.check_and_update_login_attempt(
   p_user_id UUID,
   p_success BOOLEAN,

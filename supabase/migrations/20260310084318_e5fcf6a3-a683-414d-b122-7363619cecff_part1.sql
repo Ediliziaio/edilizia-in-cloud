@@ -1,4 +1,5 @@
 -- Auto-create trigger for future super_admin assignments
+DROP FUNCTION IF EXISTS public.fn_auto_create_superadmin_permissions() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_auto_create_superadmin_permissions()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN

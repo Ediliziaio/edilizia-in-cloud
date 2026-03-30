@@ -1,5 +1,6 @@
 -- Trigger to validate order total_amount matches the sum of installments
 -- This prevents client-side manipulation of order totals via API
+DROP FUNCTION IF EXISTS public.validate_order_total() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_order_total()
 RETURNS trigger
 LANGUAGE plpgsql

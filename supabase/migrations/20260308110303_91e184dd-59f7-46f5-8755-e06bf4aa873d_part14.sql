@@ -1,4 +1,5 @@
 -- 7. Enhanced deduct with logging
+DROP FUNCTION IF EXISTS public.deduct_email_credits_with_log(uuid, numeric, text, uuid, jsonb) CASCADE;
 CREATE OR REPLACE FUNCTION public.deduct_email_credits_with_log(
   p_company_id uuid,
   p_cost numeric,

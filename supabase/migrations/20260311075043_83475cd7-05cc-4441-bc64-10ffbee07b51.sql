@@ -1,5 +1,6 @@
 -- MG1b: RPCs and triggers
 
+DROP FUNCTION IF EXISTS public.get_blocked_orders(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_blocked_orders(p_company_id uuid)
 RETURNS TABLE(order_id uuid, order_code text, customer_name text, expected_date date, total_items bigint, missing_items bigint)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public

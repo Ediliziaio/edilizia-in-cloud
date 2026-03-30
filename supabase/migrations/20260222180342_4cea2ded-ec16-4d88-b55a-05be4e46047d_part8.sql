@@ -1,4 +1,5 @@
 -- Trigger: log note added
+DROP FUNCTION IF EXISTS public.log_note_added() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_note_added() RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.marketing_contact_activities (contact_id, company_id, activity_type, description, metadata, created_by)

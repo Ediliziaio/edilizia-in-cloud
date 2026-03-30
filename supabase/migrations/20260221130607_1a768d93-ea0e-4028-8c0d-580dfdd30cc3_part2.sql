@@ -1,4 +1,5 @@
 -- Create helper function for staff visibility check
+DROP FUNCTION IF EXISTS public.check_staff_visibility(uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.check_staff_visibility(_user_id uuid, _assigned_to uuid)
 RETURNS boolean
 LANGUAGE plpgsql

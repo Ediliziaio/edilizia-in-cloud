@@ -1,6 +1,7 @@
 -- Fix 4 UPDATE trigger functions to use direct enrollment pattern (like stock_events)
 -- instead of inserting into non-existent internal_automation_trigger_events table
 
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_order_status() CASCADE;
 CREATE OR REPLACE FUNCTION public.trigger_internal_auto_order_status()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE

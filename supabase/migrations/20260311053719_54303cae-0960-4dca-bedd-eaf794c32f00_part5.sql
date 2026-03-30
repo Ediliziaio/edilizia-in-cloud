@@ -1,4 +1,5 @@
 -- Validation trigger for win_probability
+DROP FUNCTION IF EXISTS public.validate_win_probability() CASCADE;
 CREATE OR REPLACE FUNCTION validate_win_probability()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

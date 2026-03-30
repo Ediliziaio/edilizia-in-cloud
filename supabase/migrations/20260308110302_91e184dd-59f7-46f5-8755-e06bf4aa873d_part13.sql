@@ -1,4 +1,5 @@
 -- 6. RPC: get_platform_email_stats
+DROP FUNCTION IF EXISTS public.get_platform_email_stats(timestamptz, timestamptz) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_platform_email_stats(
   p_date_from timestamptz DEFAULT NULL,
   p_date_to timestamptz DEFAULT NULL

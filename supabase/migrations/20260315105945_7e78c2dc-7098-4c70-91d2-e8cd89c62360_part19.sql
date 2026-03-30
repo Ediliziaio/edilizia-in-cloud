@@ -1,4 +1,5 @@
 -- Validation trigger for chat session stato
+DROP FUNCTION IF EXISTS public.validate_chat_session_stato() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_chat_session_stato()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

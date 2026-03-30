@@ -1,4 +1,5 @@
 -- 3. Trigger di sincronizzazione: installments → colonne legacy su orders
+DROP FUNCTION IF EXISTS public.sync_installments_to_order_columns() CASCADE;
 CREATE OR REPLACE FUNCTION public.sync_installments_to_order_columns()
 RETURNS TRIGGER
 LANGUAGE plpgsql

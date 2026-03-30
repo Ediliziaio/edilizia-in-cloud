@@ -1,4 +1,5 @@
 -- Validation trigger instead of CHECK constraint
+DROP FUNCTION IF EXISTS public.validate_billing_mode() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_billing_mode()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

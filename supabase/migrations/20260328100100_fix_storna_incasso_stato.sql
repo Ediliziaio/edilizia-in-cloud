@@ -1,6 +1,7 @@
 -- Fix B9: storna_incasso_atomico — stato resta 'emessa' anche con pagamento parziale residuo
 -- Dopo storno, se importo_pagato > 0 deve tornare 'parzialmente_pagata', non 'emessa'
 
+DROP FUNCTION IF EXISTS public.storna_incasso_atomico(uuid, uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.storna_incasso_atomico(
   p_company_id   uuid,
   p_movimento_id uuid

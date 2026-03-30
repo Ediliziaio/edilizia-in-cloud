@@ -1,4 +1,5 @@
 -- ─── Trigger 2: Auto Prima Nota on incasso (movimenti_cassa_native) ───────
+DROP FUNCTION IF EXISTS public.auto_prima_nota_incasso() CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_prima_nota_incasso()
 RETURNS TRIGGER AS $$
 DECLARE

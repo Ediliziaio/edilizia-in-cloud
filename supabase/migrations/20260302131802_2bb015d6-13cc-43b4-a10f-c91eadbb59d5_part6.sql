@@ -1,4 +1,5 @@
 -- RPC to get last access per company (max last_sign_in from auth.users via profiles)
+DROP FUNCTION IF EXISTS public.get_company_last_access() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_last_access()
 RETURNS TABLE(company_id uuid, last_access timestamptz)
 LANGUAGE sql

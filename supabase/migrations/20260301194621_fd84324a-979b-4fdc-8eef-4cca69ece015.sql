@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.get_company_health_data() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_health_data()
 RETURNS TABLE(
   company_id uuid,

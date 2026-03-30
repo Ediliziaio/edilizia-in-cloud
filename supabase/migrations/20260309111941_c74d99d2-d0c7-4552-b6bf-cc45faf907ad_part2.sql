@@ -1,4 +1,5 @@
 -- Trigger: log quote status changes to marketing_contact_activities
+DROP FUNCTION IF EXISTS public.log_quote_status_change() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_quote_status_change()
 RETURNS trigger
 LANGUAGE plpgsql

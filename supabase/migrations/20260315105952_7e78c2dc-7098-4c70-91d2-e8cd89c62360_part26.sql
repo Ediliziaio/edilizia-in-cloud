@@ -1,4 +1,5 @@
 -- Validation trigger for message ruolo
+DROP FUNCTION IF EXISTS public.validate_chat_message_ruolo() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_chat_message_ruolo()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

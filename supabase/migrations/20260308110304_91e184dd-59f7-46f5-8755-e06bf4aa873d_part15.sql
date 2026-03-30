@@ -1,4 +1,5 @@
 -- 8. Add credits helper (topup with logging)
+DROP FUNCTION IF EXISTS public.add_email_credits_with_log(uuid, numeric, text, text, jsonb) CASCADE;
 CREATE OR REPLACE FUNCTION public.add_email_credits_with_log(
   p_company_id uuid,
   p_amount numeric,

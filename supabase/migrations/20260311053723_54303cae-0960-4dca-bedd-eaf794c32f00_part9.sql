@@ -1,4 +1,5 @@
 -- Validation triggers for lead_score, icp_score, icp_tier
+DROP FUNCTION IF EXISTS public.validate_lead_score_fields() CASCADE;
 CREATE OR REPLACE FUNCTION validate_lead_score_fields()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

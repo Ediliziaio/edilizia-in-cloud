@@ -1,4 +1,5 @@
 -- Customers can view their own order items
+DROP FUNCTION IF EXISTS public.get_order_customer_id(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_order_customer_id(_order_id uuid)
 RETURNS uuid
 LANGUAGE sql

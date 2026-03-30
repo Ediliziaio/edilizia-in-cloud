@@ -1,4 +1,5 @@
 -- Aggregate function: total orders value (for admin dashboard)
+DROP FUNCTION IF EXISTS public.get_total_orders_value() CASCADE;
 CREATE OR REPLACE FUNCTION public.get_total_orders_value()
 RETURNS TABLE(total_count bigint, total_value numeric)
 LANGUAGE sql

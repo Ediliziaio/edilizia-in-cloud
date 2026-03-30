@@ -1,4 +1,5 @@
 -- Fix search_path on validation functions
+DROP FUNCTION IF EXISTS public.validate_ai_agent_v2_stato() CASCADE;
 CREATE OR REPLACE FUNCTION validate_ai_agent_v2_stato()
 RETURNS TRIGGER LANGUAGE plpgsql
 SET search_path = public

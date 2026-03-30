@@ -1,6 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- FUNZIONE: Aggiorna paid_amount e segna come pagata
 -- ════════════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.trg_update_paid_amount() CASCADE;
 CREATE OR REPLACE FUNCTION trg_update_paid_amount()
 RETURNS TRIGGER AS $$
 DECLARE v_invoice_id UUID;

@@ -1,4 +1,5 @@
 -- 6. generate_quote_number() — progressive OFF-YYYY-NNN
+DROP FUNCTION IF EXISTS public.generate_quote_number(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.generate_quote_number(p_company_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql

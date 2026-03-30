@@ -1,4 +1,5 @@
 -- 6. RPCs
+DROP FUNCTION IF EXISTS public.update_kb_sync_status(uuid, text, text, text) CASCADE;
 CREATE OR REPLACE FUNCTION public.update_kb_sync_status(
   p_doc_id uuid,
   p_status text,

@@ -1,4 +1,5 @@
 -- 5. Fix get_treasury_summary RPC to use subqueries (no GROUP BY issues with 0 accounts)
+DROP FUNCTION IF EXISTS public.get_treasury_summary(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_treasury_summary(p_company_id uuid)
 RETURNS TABLE (
   total_balance        numeric,

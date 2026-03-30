@@ -1,4 +1,5 @@
 -- 9. RPC: get_sales_forecast
+DROP FUNCTION IF EXISTS public.get_sales_forecast(UUID, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION get_sales_forecast(p_company_id UUID, p_months_ahead INTEGER DEFAULT 3)
 RETURNS TABLE (
   forecast_month DATE, expected_revenue DECIMAL, weighted_revenue DECIMAL,

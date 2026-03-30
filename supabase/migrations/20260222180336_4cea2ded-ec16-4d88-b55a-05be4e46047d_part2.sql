@@ -1,4 +1,5 @@
 -- Trigger: log contact assigned_to change
+DROP FUNCTION IF EXISTS public.log_contact_assigned() CASCADE;
 CREATE OR REPLACE FUNCTION public.log_contact_assigned() RETURNS trigger AS $$
 DECLARE
   assignee_name text;

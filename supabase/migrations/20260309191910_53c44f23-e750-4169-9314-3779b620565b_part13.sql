@@ -1,4 +1,5 @@
 -- 9. get_scadenzario_summary - Fix con campi aggiuntivi
+DROP FUNCTION IF EXISTS public.get_scadenzario_summary(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_scadenzario_summary(p_company_id UUID)
 RETURNS JSON
 LANGUAGE plpgsql

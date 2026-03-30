@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.assign_round_robin(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION public.assign_round_robin(p_team_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql

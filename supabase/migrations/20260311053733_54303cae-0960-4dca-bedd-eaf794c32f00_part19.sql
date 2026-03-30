@@ -1,6 +1,7 @@
 -- ============================================================
 -- 6. RPC: get_weighted_pipeline
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_weighted_pipeline(UUID) CASCADE;
 CREATE OR REPLACE FUNCTION get_weighted_pipeline(p_company_id UUID)
 RETURNS TABLE (
   pipeline_id UUID,

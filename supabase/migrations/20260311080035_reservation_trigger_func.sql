@@ -1,4 +1,5 @@
 -- Reservation trigger function
+DROP FUNCTION IF EXISTS public.trigger_update_stock_reservation() CASCADE;
 CREATE OR REPLACE FUNCTION trigger_update_stock_reservation()
 RETURNS TRIGGER AS $$
 BEGIN

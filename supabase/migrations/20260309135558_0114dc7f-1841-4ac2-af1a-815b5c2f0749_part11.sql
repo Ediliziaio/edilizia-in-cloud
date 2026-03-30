@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS public.trigger_internal_auto_stock_events() CASCADE;
 CREATE OR REPLACE FUNCTION trigger_internal_auto_stock_events()
 RETURNS TRIGGER AS $$
 DECLARE

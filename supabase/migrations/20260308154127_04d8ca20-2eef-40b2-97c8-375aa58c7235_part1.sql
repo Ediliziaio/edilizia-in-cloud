@@ -1,6 +1,7 @@
 -- 2. Add allow_re_enrollment to automation_flows config (no schema change needed, uses config_json)
 
 -- 3. Create DB trigger on call_logs to fire automation trigger event
+DROP FUNCTION IF EXISTS public.fire_call_registered_automation() CASCADE;
 CREATE OR REPLACE FUNCTION public.fire_call_registered_automation()
 RETURNS trigger
 LANGUAGE plpgsql

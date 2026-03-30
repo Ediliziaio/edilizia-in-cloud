@@ -1,4 +1,5 @@
 -- 9. RPC stats
+DROP FUNCTION IF EXISTS public.get_ai_company_stats(UUID, INTEGER) CASCADE;
 CREATE OR REPLACE FUNCTION get_ai_company_stats(p_company_id UUID, p_giorni INTEGER DEFAULT 30)
 RETURNS TABLE(
   agenti_attivi BIGINT,

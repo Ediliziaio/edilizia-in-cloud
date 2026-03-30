@@ -1,6 +1,7 @@
 -- ============================================================
 -- FUNZIONE: get_callcenter_fonte_lead_performance
 -- ============================================================
+DROP FUNCTION IF EXISTS public.get_callcenter_fonte_lead_performance(UUID, DATE, DATE) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_callcenter_fonte_lead_performance(
   p_company_id UUID,
   p_data_inizio DATE,

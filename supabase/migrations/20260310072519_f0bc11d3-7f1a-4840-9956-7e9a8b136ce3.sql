@@ -1,4 +1,5 @@
 
+DROP FUNCTION IF EXISTS public.get_cashflow_summary(UUID, INT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_cashflow_summary(
   p_company_id UUID,
   p_months_ahead INT DEFAULT 3

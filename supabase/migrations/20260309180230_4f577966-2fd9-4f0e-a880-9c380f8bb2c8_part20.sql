@@ -1,4 +1,5 @@
 -- 4. Trigger: update form stats on submission insert
+DROP FUNCTION IF EXISTS public.fn_update_form_stats() CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_update_form_stats()
 RETURNS trigger
 LANGUAGE plpgsql
