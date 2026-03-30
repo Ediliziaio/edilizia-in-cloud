@@ -68,23 +68,35 @@ export default function Preventivi() {
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<any | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const PAGE_SIZE = 50;
 
-  const { data: quotes = [], isLoading } = useQuery({
-    queryKey: queryKeys.quotes.list(companyId),
+  const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at")
+        .select("id, quote_number, client_name, title, status, total, created_at", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(500);
+        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+
+      if (statusFilter !== "tutti") {
+        query = query.eq("status", statusFilter as any);
+      }
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data;
+      return { data: data || [], total: count || 0 };
     },
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  const quotes = quotesPage.data;
+  const totalQuotes = quotesPage.total;
+  const totalPages = Math.ceil(totalQuotes / PAGE_SIZE);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -101,28 +113,82 @@ export default function Preventivi() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (quote: any) => {
+      // 1. Carica righe originali
+      const { data: originalItems, error: itemsErr } = await supabase
+        .from("quote_items")
+        .select("*")
+        .eq("quote_id", quote.id)
+        .order("sort_order");
+      if (itemsErr) throw itemsErr;
+
+      // 2. Carica allegati originali
+      const { data: originalAttachments } = await supabase
+        .from("quote_pdf_attachments")
+        .select("material_id, sort_order")
+        .eq("quote_id", quote.id);
+
+      // 3. Genera nuovo numero
       const { data: numData } = await supabase.rpc("generate_quote_number", {
         p_company_id: companyId!,
       });
-      const { id, created_at, updated_at, quote_number, signature_token, sent_at, viewed_at, signed_at, signed_by_name, signed_by_ip, refused_at, refused_reason, pdf_storage_path, pdf_generated_at, expires_at, created_by, ...rest } = quote;
-      const { error } = await supabase.from("quotes").insert({
-        ...rest,
-        quote_number: numData || `OFF-${new Date().getFullYear()}-DUP`,
-        status: "bozza",
-        created_by: user?.id,
-        created_at: new Date().toISOString(),
-      });
-      if (error) throw error;
+
+      // 4. Inserisci testata (escludi campi univoci)
+      const {
+        id, created_at, updated_at, quote_number,
+        signature_token, sent_at, viewed_at, signed_at,
+        signed_by_name, signed_by_ip, refused_at, refused_reason,
+        pdf_storage_path, pdf_generated_at, expires_at, created_by,
+        ...rest
+      } = quote;
+
+      const { data: newQuote, error: quoteErr } = await supabase
+        .from("quotes")
+        .insert({
+          ...rest,
+          quote_number: numData || `OFF-${new Date().getFullYear()}-DUP`,
+          status: "bozza",
+          created_by: user?.id,
+          created_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (quoteErr) throw quoteErr;
+
+      // 5. Copia righe
+      if (originalItems && originalItems.length > 0) {
+        const { error: newItemsErr } = await supabase.from("quote_items").insert(
+          originalItems.map(({ id: _id, created_at: _ca, updated_at: _ua, ...item }: any) => ({
+            ...item,
+            quote_id: newQuote.id,
+          }))
+        );
+        if (newItemsErr) throw newItemsErr;
+      }
+
+      // 6. Copia allegati PDF
+      if (originalAttachments && originalAttachments.length > 0) {
+        await supabase.from("quote_pdf_attachments").insert(
+          originalAttachments.map((a: any) => ({ ...a, quote_id: newQuote.id }))
+        );
+      }
+
+      return newQuote.id;
     },
-    onSuccess: () => {
+    onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
-      toast.success("Preventivo duplicato");
+      toast.success("Preventivo duplicato con tutte le righe");
+      navigate(`/azienda/marketing/preventivi/${newId}`);
     },
-    onError: () => toast.error("Errore duplicazione"),
+    onError: (err: any) => toast.error("Errore duplicazione: " + (err.message || "errore")),
   });
 
+  // Reset to page 0 when status filter changes
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(0);
+  };
+
   const filtered = quotes.filter((q: any) => {
-    if (statusFilter !== "tutti" && q.status !== statusFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       return (
@@ -134,11 +200,25 @@ export default function Preventivi() {
     return true;
   });
 
-  // KPIs
-  const bozze = quotes.filter((q: any) => q.status === "bozza").length;
-  const inviate = quotes.filter((q: any) => q.status === "inviata").length;
-  const accettate = quotes.filter((q: any) => q.status === "accettata").length;
-  const valoreTotale = quotes
+  // KPIs — query separata senza paginazione né filtro status
+  const { data: kpiData } = useQuery({
+    queryKey: ["quotes-kpi", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("status, total")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 3 * 60 * 1000,
+  });
+  const kpiRows = kpiData || [];
+  const bozze = kpiRows.filter((q: any) => q.status === "bozza").length;
+  const inviate = kpiRows.filter((q: any) => q.status === "inviata").length;
+  const accettate = kpiRows.filter((q: any) => q.status === "accettata").length;
+  const valoreTotale = kpiRows
     .filter((q: any) => q.status === "accettata")
     .reduce((sum: number, q: any) => sum + (q.total || 0), 0);
 
@@ -194,7 +274,7 @@ export default function Preventivi() {
             className="pl-9"
           />
         </div>
-        <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+        <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
           <TabsList>
             <TabsTrigger value="tutti">Tutti</TabsTrigger>
             <TabsTrigger value="bozza">Bozze</TabsTrigger>
@@ -301,6 +381,32 @@ export default function Preventivi() {
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-muted-foreground">
+            {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalQuotes)} di {totalQuotes}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setCurrentPage((p) => p - 1)}
+            >
+              Precedente
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentPage((p) => p + 1)}
+            >
+              Successiva
+            </Button>
+          </div>
         </div>
       )}
 

@@ -417,6 +417,42 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
+            {/* T3: Testi standard condizioni */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Testi Standard</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Condizioni di pagamento</Label>
+                  <Textarea
+                    value={form.payment_terms_text || ''}
+                    onChange={e => updateForm({ payment_terms_text: e.target.value })}
+                    rows={3}
+                    placeholder="Acconto 30%, saldo a consegna..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Condizioni di consegna</Label>
+                  <Textarea
+                    value={form.delivery_terms_text || ''}
+                    onChange={e => updateForm({ delivery_terms_text: e.target.value })}
+                    rows={2}
+                    placeholder="3-4 settimane dalla conferma..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Coordinate bancarie (footer)</Label>
+                  <Textarea
+                    value={form.bank_details || ''}
+                    onChange={e => updateForm({ bank_details: e.target.value })}
+                    rows={2}
+                    placeholder="IBAN: IT00 X000 0000 0000 0000 0000 000 · BIC: XXXXITXX"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* H: Actions */}
             <div className="flex gap-3 pb-8">
               <Button variant="outline" onClick={handleCancel}>Annulla</Button>

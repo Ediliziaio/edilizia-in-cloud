@@ -32,11 +32,15 @@ export interface QuoteTemplate {
   cover_tagline: string;
   show_watermark: boolean;
   watermark_text: string;
+  payment_terms_text: string;
+  delivery_terms_text: string;
+  bank_details: string;
   created_at: string;
   updated_at: string;
 }
 
 export const COLOR_PALETTES = [
+  // Palette base
   { name: 'Blu Professionale', primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE', headerText: '#FFFFFF' },
   { name: 'Verde Fiducia', primary: '#166534', secondary: '#22C55E', accent: '#DCFCE7', headerText: '#FFFFFF' },
   { name: 'Rosso Energia', primary: '#991B1B', secondary: '#EF4444', accent: '#FEE2E2', headerText: '#FFFFFF' },
@@ -45,6 +49,12 @@ export const COLOR_PALETTES = [
   { name: 'Arancio Energia', primary: '#C2410C', secondary: '#F97316', accent: '#FFF7ED', headerText: '#FFFFFF' },
   { name: 'Teal Moderno', primary: '#0F766E', secondary: '#14B8A6', accent: '#CCFBF1', headerText: '#FFFFFF' },
   { name: 'Nero Lusso', primary: '#111827', secondary: '#374151', accent: '#F9FAFB', headerText: '#FFFFFF' },
+  // Palette specifiche edilizia e serramenti
+  { name: 'Navy Edilizia', primary: '#1E3A5F', secondary: '#2563EB', accent: '#EFF6FF', headerText: '#FFFFFF' },
+  { name: 'Cantiere Arancio', primary: '#EA580C', secondary: '#F97316', accent: '#FFF7ED', headerText: '#FFFFFF' },
+  { name: 'Verde Bosco', primary: '#14532D', secondary: '#16A34A', accent: '#F0FDF4', headerText: '#FFFFFF' },
+  { name: 'Acciaio', primary: '#1C1917', secondary: '#57534E', accent: '#FAFAF9', headerText: '#FFFFFF' },
+  { name: 'Sabbia Classico', primary: '#78350F', secondary: '#B45309', accent: '#FFFBEB', headerText: '#FFFFFF' },
 ] as const;
 
 export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'created_at' | 'updated_at'> = {
@@ -74,4 +84,7 @@ export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'create
   cover_tagline: '',
   show_watermark: false,
   watermark_text: 'OFFERTA RISERVATA',
+  payment_terms_text: 'Acconto del 30% alla firma del contratto. Saldo alla consegna.',
+  delivery_terms_text: '3-4 settimane dalla conferma ordine.',
+  bank_details: '',
 };

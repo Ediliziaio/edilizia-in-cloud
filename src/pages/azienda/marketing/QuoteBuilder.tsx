@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
 import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
+import type { QuoteItemPro } from "@/types/quoteItem";
 import {
   usePreventivoCosti,
   calcolaMargine,
@@ -33,6 +34,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronsUpDown, Check, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Table,
   TableBody,
@@ -95,21 +121,18 @@ interface QuoteItem {
   article_template_id?: string | null;
 }
 
-interface QuoteItemPro extends QuoteItem {
-  item_category: string;
-  tariffa_id?: string | null;
-  prezzo_acquisto: number;
-  mostra_nel_pdf: boolean;
-  is_optional: boolean;
-  misura_x?: number | null;
-  misura_y?: number | null;
-  _parentIdx?: number;
-}
-
 // ─── Helper components ────────────────────────────────────────────────────────
 
-function MargineSemaforo({ pct }: { pct: number }) {
-  const s = semaforo(pct);
+function MargineSemaforo({
+  pct,
+  sogliaMin = 15,
+  target = 25,
+}: {
+  pct: number;
+  sogliaMin?: number;
+  target?: number;
+}) {
+  const s = semaforo(pct, sogliaMin, target);
   const colors = {
     green: "bg-green-100 text-green-700",
     yellow: "bg-yellow-100 text-yellow-700",
@@ -122,6 +145,104 @@ function MargineSemaforo({ pct }: { pct: number }) {
     >
       {icons[s]} {pct.toFixed(1)}%
     </span>
+  );
+}
+
+function SortableItem({
+  id,
+  children,
+}: {
+  id: string;
+  children: (dragHandle: React.ReactNode) => React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const handle = (
+    <button
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1 touch-none shrink-0"
+      tabIndex={-1}
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(handle)}
+    </div>
+  );
+}
+
+function ContactCombobox({
+  contacts,
+  value,
+  onChange,
+}: {
+  contacts: any[];
+  value: string | null;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = contacts.find((c) => c.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          {selected
+            ? `${selected.first_name} ${selected.last_name}${selected.company_name ? ` (${selected.company_name})` : ""}`
+            : "Cerca contatto..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Cerca per nome, azienda, email..." />
+          <CommandList>
+            <CommandEmpty>Nessun contatto trovato</CommandEmpty>
+            <CommandGroup>
+              {contacts.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`${c.first_name} ${c.last_name} ${c.company_name || ""} ${c.email || ""}`}
+                  onSelect={() => { onChange(c.id); setOpen(false); }}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${value === c.id ? "opacity-100" : "opacity-0"}`} />
+                  <div>
+                    <div className="font-medium text-sm">
+                      {c.first_name} {c.last_name}
+                    </div>
+                    {c.company_name && (
+                      <div className="text-xs text-muted-foreground">{c.company_name}</div>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -471,7 +592,7 @@ export default function QuoteBuilder() {
   const [kmCantiere, setKmCantiere] = useState(0);
 
   // Step 1: Items
-  const [items, setItems] = useState<QuoteItem[]>([]);
+  const [items, setItems] = useState<QuoteItemPro[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
 
   // P03: Search dialog
@@ -499,6 +620,10 @@ export default function QuoteBuilder() {
 
   const selectedTemplate =
     templates.find((t) => t.id === selectedTemplateId) ?? defaultTemplate;
+  const [layoutOverride, setLayoutOverride] = useState<QuoteTemplateLayout | null>(null);
+  const effectiveTemplate = layoutOverride
+    ? { ...selectedTemplate, layout: layoutOverride }
+    : selectedTemplate;
 
   // P03: load impostazioni, tariffe, articoli, categorie
   const {
@@ -889,7 +1014,7 @@ export default function QuoteBuilder() {
     );
     const upv = qty > 0 ? prezzo_vendita / qty : prezzo_vendita;
     const upa = qty > 0 ? prezzo_acquisto / qty : prezzo_acquisto;
-    const newItems: QuoteItemPro[] = [...(items as QuoteItemPro[])];
+    const newItems: QuoteItemPro[] = [...items];
     const newItem: QuoteItemPro = {
       item_type: "product",
       item_category: "prodotto",
@@ -958,9 +1083,85 @@ export default function QuoteBuilder() {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setItems((prev) => {
+      const arr = prev as QuoteItemPro[];
+      const oldIdx = arr.findIndex((_, i) => `item-${i}` === active.id);
+      const newIdx = arr.findIndex((_, i) => `item-${i}` === over.id);
+      return arrayMove(arr, oldIdx, newIdx).map((it, i) => ({ ...it, sort_order: i }));
+    });
+  };
+
+  // Autosave bozza silenzioso
+  const lastSavedHashRef = useRef<string>("");
+  const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const autosaveDraft = useCallback(async () => {
+    if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
+    const hash = JSON.stringify({ clientName, itemsLen: items.length, discountPercent });
+    if (hash === lastSavedHashRef.current) return;
+    try {
+      await supabase.from("quotes").update({
+        client_name: clientName,
+        discount_percent: discountPercent,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id!);
+      lastSavedHashRef.current = hash;
+    } catch {
+      // Silenzioso — non bloccare l'utente
+    }
+  }, [clientName, items.length, discountPercent, companyId, user, saving, isEdit, id]);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    autosaveRef.current = setInterval(autosaveDraft, 60_000);
+    return () => { if (autosaveRef.current) clearInterval(autosaveRef.current); };
+  }, [autosaveDraft, isEdit]);
+
+  // Step validation
+  const validateStep = (currentStep: number): boolean => {
+    switch (currentStep) {
+      case 0: {
+        if (!clientName.trim()) {
+          toast.error("Inserisci il nome del cliente prima di procedere");
+          return false;
+        }
+        return true;
+      }
+      case 1: {
+        const activeItems = items.filter(
+          (i) => !["nota", "subtotale"].includes(i.item_category)
+        );
+        if (activeItems.length === 0) {
+          toast.error("Aggiungi almeno un prodotto o servizio");
+          return false;
+        }
+        const vuoti = activeItems.filter((i) => !i.name.trim());
+        if (vuoti.length > 0) {
+          toast.error(`${vuoti.length} riga/e senza nome — completale prima di procedere`);
+          return false;
+        }
+        return true;
+      }
+      default:
+        return true;
+    }
+  };
+
+  const handleNext = () => {
+    if (validateStep(step)) setStep(step + 1);
+  };
+
   // Calculations
   const totaliPro = calcolaTotaliPreventivo(
-    items as any[],
+    items,
     impostazioni.overhead_percentuale ?? 0
   );
   const subtotal = totaliPro.subtotale;
@@ -996,20 +1197,8 @@ export default function QuoteBuilder() {
         discount_percent: discountPercent,
         created_by: user.id,
         template_id: selectedTemplateId || null,
-        // P03 fields
-        tipo_lavoro: tipoLavoro || null,
-        indirizzo_lavori: indirizzoLavori || null,
-        piano_installazione: pianoInstallazione,
-        km_cantiere: kmCantiere,
-        totale_costo_interno: totaliPro.costo_totale,
-        totale_overhead: totaliPro.overhead_totale,
-        margine_totale_percentuale: totaliPro.margine_totale_pct,
-        pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
-        pdf_mostra_solo_totale: pdfSoloTotale,
-        pdf_mostra_sconti: pdfSconti,
-        pdf_mostra_immagini: pdfImmagini,
-        pdf_includi_schede_tecniche: pdfSchedeTecniche,
-        firma_digitale_abilitata: pdfFirma,
+        // NOTE: colonne pro_v2 (tipo_lavoro, pdf_*, margine_*, firma_digitale_abilitata,
+        // template_layout_override) richiede migrazione preventivo_pro_v2 applicata.
         subtotal: subtotal - discountAmt,
         discount_amount: discountAmt,
         vat_amount: vatAmount,
@@ -1152,22 +1341,11 @@ export default function QuoteBuilder() {
           <CardContent className="space-y-4">
             <div>
               <Label>Seleziona contatto esistente</Label>
-              <Select
-                value={contactId || ""}
-                onValueChange={handleContactSelect}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Cerca contatto..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name}{" "}
-                      {c.company_name ? `(${c.company_name})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ContactCombobox
+                contacts={contacts}
+                value={contactId}
+                onChange={handleContactSelect}
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1274,12 +1452,12 @@ export default function QuoteBuilder() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <Label>Tipo di lavoro</Label>
-                <Select value={tipoLavoro} onValueChange={setTipoLavoro}>
+                <Select value={tipoLavoro || "__none__"} onValueChange={(v) => setTipoLavoro(v === "__none__" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona tipo..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nessuno specificato</SelectItem>
+                    <SelectItem value="__none__">Nessuno specificato</SelectItem>
                     {categorie.map((c: any) => (
                       <SelectItem key={c.id} value={c.nome}>
                         {c.nome}
@@ -1420,7 +1598,7 @@ export default function QuoteBuilder() {
                 </div>
               </CardHeader>
               <CardContent>
-                {(items as QuoteItemPro[]).length === 0 ? (
+                {items.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
                     <p className="font-medium">Nessun prodotto</p>
@@ -1429,8 +1607,17 @@ export default function QuoteBuilder() {
                     </p>
                   </div>
                 ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={items.map((_, i) => `item-${i}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
                   <div className="space-y-2">
-                    {(items as QuoteItemPro[]).map((item, idx) => {
+                    {items.map((item, idx) => {
                       const isChild =
                         item._parentIdx != null ||
                         ["posa", "smaltimento", "trasporto", "nolo"].includes(
@@ -1446,9 +1633,10 @@ export default function QuoteBuilder() {
                       );
 
                       return (
+                        <SortableItem key={`item-${idx}`} id={`item-${idx}`}>
+                          {(dragHandle) => (
                         <div
-                          key={idx}
-                          className={`border rounded-lg p-3 ${
+                          className={`border rounded-lg p-3 flex gap-1 items-start ${
                             isChild
                               ? "ml-6 bg-muted/20 border-dashed"
                               : ""
@@ -1456,6 +1644,7 @@ export default function QuoteBuilder() {
                             isSubtotale ? "border-t-2 border-t-border" : ""
                           }`}
                         >
+                          {!isChild && dragHandle}
                           {isChild && (
                             <span className="text-muted-foreground text-xs mr-2">
                               └
@@ -1468,7 +1657,7 @@ export default function QuoteBuilder() {
                               </span>
                               <span className="font-bold">
                                 {formatCurrency(
-                                  (items as QuoteItemPro[])
+                                  items
                                     .slice(0, idx)
                                     .reduce(
                                       (s, i) =>
@@ -1619,11 +1808,11 @@ export default function QuoteBuilder() {
                                       <DropdownMenuItem
                                         onClick={() => {
                                           const copy = {
-                                            ...(items as QuoteItemPro[])[idx],
+                                            ...items[idx],
                                             id: undefined,
                                             sort_order: items.length,
                                           };
-                                          setItems([...items, copy as any]);
+                                          setItems([...items, copy]);
                                         }}
                                       >
                                         Duplica
@@ -1633,11 +1822,11 @@ export default function QuoteBuilder() {
                                           updateItem(
                                             idx,
                                             "is_optional",
-                                            !(item as any).is_optional
+                                            !item.is_optional
                                           )
                                         }
                                       >
-                                        {(item as any).is_optional
+                                        {item.is_optional
                                           ? "Rimuovi optional"
                                           : "Rendi opzionale"}
                                       </DropdownMenuItem>
@@ -1646,11 +1835,11 @@ export default function QuoteBuilder() {
                                           updateItem(
                                             idx,
                                             "mostra_nel_pdf",
-                                            !(item as any).mostra_nel_pdf
+                                            !item.mostra_nel_pdf
                                           )
                                         }
                                       >
-                                        {(item as any).mostra_nel_pdf
+                                        {item.mostra_nel_pdf
                                           ? "Nascondi nel PDF"
                                           : "Mostra nel PDF"}
                                       </DropdownMenuItem>
@@ -1665,14 +1854,14 @@ export default function QuoteBuilder() {
                                 </div>
                               </div>
                               {/* Badges visibili a tutti */}
-                              {((item as any).is_optional || !(item as any).mostra_nel_pdf) && (
+                              {(item.is_optional || !item.mostra_nel_pdf) && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  {(item as any).is_optional && (
+                                  {item.is_optional && (
                                     <Badge variant="outline" className="text-xs">
                                       Opzionale
                                     </Badge>
                                   )}
-                                  {!(item as any).mostra_nel_pdf && (
+                                  {!item.mostra_nel_pdf && (
                                     <Badge variant="secondary" className="text-xs">
                                       Nascosto PDF
                                     </Badge>
@@ -1690,15 +1879,19 @@ export default function QuoteBuilder() {
                                         item.prezzo_acquisto * item.quantity
                                       )}
                                     </span>
-                                    <MargineSemaforo pct={margine.margine_percentuale} />
+                                    <MargineSemaforo pct={margine.margine_percentuale} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
                                   </div>
                                 )}
                             </div>
                           )}
                         </div>
+                          )}
+                        </SortableItem>
                       );
                     })}
                   </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
 
                 {/* Totals in step 1 */}
@@ -1757,7 +1950,7 @@ export default function QuoteBuilder() {
               <CardContent className="space-y-2 text-sm">
                 {["prodotto", "posa", "trasporto", "smaltimento", "nolo"].map(
                   (cat) => {
-                    const catItems = (items as QuoteItemPro[]).filter(
+                    const catItems = items.filter(
                       (i) => i.item_category === cat && !i.is_optional
                     );
                     if (catItems.length === 0) return null;
@@ -1820,7 +2013,7 @@ export default function QuoteBuilder() {
                       </div>
                       <div className="flex justify-between items-center font-medium">
                         <span>Margine</span>
-                        <MargineSemaforo pct={totaliPro.margine_totale_pct} />
+                        <MargineSemaforo pct={totaliPro.margine_totale_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
                       </div>
                       {tipoLavoro &&
                         (() => {
@@ -2108,7 +2301,7 @@ export default function QuoteBuilder() {
                         totaliPro.costo_totale -
                         totaliPro.overhead_totale
                     )}
-                    <MargineSemaforo pct={totaliPro.margine_totale_pct} />
+                    <MargineSemaforo pct={totaliPro.margine_totale_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
                   </span>
                 </div>
                 {tipoLavoro &&
@@ -2183,8 +2376,9 @@ export default function QuoteBuilder() {
                     ).map((layout) => (
                       <button
                         key={layout}
+                        onClick={() => setLayoutOverride(layout)}
                         className={`border rounded-lg p-2 text-center text-xs transition-all ${
-                          selectedTemplate?.layout === layout
+                          (layoutOverride ?? selectedTemplate?.layout) === layout
                             ? "border-primary ring-1 ring-primary/30 bg-primary/5"
                             : "border-border opacity-60"
                         }`}
@@ -2199,10 +2393,10 @@ export default function QuoteBuilder() {
                     ))}
                   </div>
                   {/* Mini preview */}
-                  {selectedTemplate && (
+                  {effectiveTemplate && (
                     <div className="flex justify-center">
                       <QuoteTemplatePreview
-                        template={selectedTemplate}
+                        template={effectiveTemplate}
                         companyName={effectiveCompany?.name}
                         scale={0.25}
                       />
@@ -2239,7 +2433,7 @@ export default function QuoteBuilder() {
             Salva Bozza
           </Button>
           {step < STEPS.length - 1 ? (
-            <Button onClick={() => setStep(step + 1)}>
+            <Button onClick={handleNext}>
               Avanti
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
