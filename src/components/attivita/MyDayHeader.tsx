@@ -3,7 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AlertTriangle, CalendarDays, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function MyDayHeader() {
+interface MyDayHeaderProps {
+  estimatedHoursToday?: number;
+}
+
+export function MyDayHeader({ estimatedHoursToday }: MyDayHeaderProps) {
   const { profile } = useAuth();
   const { data: count } = useMyTaskCount();
 
@@ -20,7 +24,7 @@ export function MyDayHeader() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className={`grid grid-cols-1 gap-3 ${estimatedHoursToday ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-primary/10 p-2">
@@ -56,6 +60,20 @@ export function MyDayHeader() {
             </div>
           </CardContent>
         </Card>
+
+        {estimatedHoursToday != null && estimatedHoursToday > 0 && (
+          <Card className="border-primary/20">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Clock className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">~{estimatedHoursToday}h</p>
+                <p className="text-xs text-muted-foreground">Stimate oggi</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

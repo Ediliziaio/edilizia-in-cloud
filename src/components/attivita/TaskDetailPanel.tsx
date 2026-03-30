@@ -324,6 +324,15 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             onSave={saveField("due_date")}
           />
 
+          {/* Stima ore */}
+          <EditableField
+            label="Stima (ore)"
+            icon={Clock}
+            value={task.estimated_hours != null ? String(task.estimated_hours) : null}
+            type="number"
+            onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
+          />
+
           {/* Category */}
           <div className="flex items-start gap-3">
             <Tag className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />

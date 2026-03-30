@@ -47,7 +47,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
     enabled: !!companyId && !!userId,
   });
 
-  const { overdue, today, tomorrow, thisWeek, noDate } = useMemo(() => {
+  const { overdue, today, tomorrow, thisWeek, noDate, estimatedHoursToday } = useMemo(() => {
     const now = new Date();
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
@@ -71,7 +71,8 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
         else if (d <= weekEnd) thisWeek.push(t);
       }
     }
-    return { overdue, today, tomorrow, thisWeek, noDate };
+    const estimatedHoursToday = today.reduce((sum: number, t: any) => sum + (t.estimated_hours ?? 0), 0);
+    return { overdue, today, tomorrow, thisWeek, noDate, estimatedHoursToday };
   }, [tasks]);
 
   const handleTaskSelect = (task: any) => {
@@ -93,7 +94,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
 
   return (
     <div className="space-y-6">
-      <MyDayHeader />
+      <MyDayHeader estimatedHoursToday={estimatedHoursToday} />
 
       {!hasAnyTasks ? (
         <MyDayEmptyState onNewTask={onNewTask} />
