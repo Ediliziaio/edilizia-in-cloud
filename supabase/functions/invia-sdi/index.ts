@@ -49,6 +49,7 @@ function isValidCodiceFiscale(cf: string | null | undefined): boolean {
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
   autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
+  parcella: "TD06", fattura_accompagnatoria: "TD24",
   integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18",
   integrazione_beni_extra_ue: "TD19",
 };

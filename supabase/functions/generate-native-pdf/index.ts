@@ -57,6 +57,7 @@ function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>)
     nota_debito: "NOTA DI DEBITO", autofattura: "AUTOFATTURA", proforma: "PROFORMA",
     preventivo: "PREVENTIVO", ddt: "DOCUMENTO DI TRASPORTO",
     fattura_riepilogativa: "FATTURA RIEPILOGATIVA",
+    parcella: "PARCELLA", fattura_accompagnatoria: "FATTURA ACCOMPAGNATORIA",
   };
   const docLabel = tipoLabels[doc.tipo] || "DOCUMENTO";
 
