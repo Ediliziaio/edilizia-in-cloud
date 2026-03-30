@@ -131,21 +131,26 @@ export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
     const salary = Number(emp.gross_salary) || 0;
     if (salary === 0) return;
 
+    const inpsRate = Number(emp.inps_rate) || 28;
     const hireDate = emp.hire_date ? new Date(emp.hire_date) : addMonths(now, -11);
     let month = startOfMonth(hireDate);
 
     while (!isAfter(month, currentMonthEnd)) {
       const monthEnd = endOfMonth(month);
+      const isPaid = isBefore(monthEnd, startOfMonth(now));
+      const paidDate = isPaid ? format(monthEnd, "yyyy-MM-dd") : null;
+
+      // Stipendio lordo
       rows.push({
         id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}_${format(month, "yyyy-MM")}`,
-        name: `${emp.first_name} ${emp.last_name} (stipendio)`,
+        name: `${emp.first_name} ${emp.last_name} — stipendio lordo`,
         cost_type: "fixed",
         amount: salary,
         category: "Personale",
         recurrence: "monthly",
         due_date: format(monthEnd, "yyyy-MM-dd"),
-        is_paid: isBefore(monthEnd, startOfMonth(now)),
-        paid_date: isBefore(monthEnd, startOfMonth(now)) ? format(monthEnd, "yyyy-MM-dd") : null,
+        is_paid: isPaid,
+        paid_date: paidDate,
         notes: null,
         order_id: null,
         order: null,
@@ -153,6 +158,26 @@ export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
         supplierName: null,
         vat_rate: 0,
       });
+
+      // Oneri INPS
+      rows.push({
+        id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}_inps_${format(month, "yyyy-MM")}`,
+        name: `${emp.first_name} ${emp.last_name} — oneri INPS (${inpsRate}%)`,
+        cost_type: "fixed",
+        amount: salary * (inpsRate / 100),
+        category: "Personale",
+        recurrence: "monthly",
+        due_date: format(monthEnd, "yyyy-MM-dd"),
+        is_paid: isPaid,
+        paid_date: paidDate,
+        notes: `Contributi datore di lavoro ${inpsRate}%`,
+        order_id: null,
+        order: null,
+        isFromOrder: true,
+        supplierName: null,
+        vat_rate: 0,
+      });
+
       month = addMonths(month, 1);
     }
   });
