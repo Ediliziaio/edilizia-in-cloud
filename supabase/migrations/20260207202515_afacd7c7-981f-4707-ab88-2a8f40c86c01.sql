@@ -123,6 +123,7 @@ ON public.order_external_teams FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Trigger for updated_at on employees
+DROP TRIGGER IF EXISTS update_employees_updated_at ON public.employees;
 CREATE TRIGGER update_employees_updated_at
 BEFORE UPDATE ON public.employees
 FOR EACH ROW

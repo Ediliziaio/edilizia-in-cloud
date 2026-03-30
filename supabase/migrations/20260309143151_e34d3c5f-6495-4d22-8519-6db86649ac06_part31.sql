@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS ia_appointment_updated ON public.appointments;
 CREATE TRIGGER ia_appointment_updated
   AFTER UPDATE ON public.appointments
   FOR EACH ROW

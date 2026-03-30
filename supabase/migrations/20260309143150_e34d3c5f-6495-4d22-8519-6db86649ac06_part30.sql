@@ -1,4 +1,5 @@
 -- Appointments
+DROP TRIGGER IF EXISTS ia_appointment_created ON public.appointments;
 CREATE TRIGGER ia_appointment_created
   AFTER INSERT ON public.appointments
   FOR EACH ROW

@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS ia_task_events ON public.tasks;
 CREATE TRIGGER ia_task_events
   AFTER UPDATE ON public.tasks
   FOR EACH ROW

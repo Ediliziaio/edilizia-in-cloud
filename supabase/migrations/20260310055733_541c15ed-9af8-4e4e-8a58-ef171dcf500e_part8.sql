@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_notify_task_assigned ON public.tasks;
 CREATE TRIGGER trg_notify_task_assigned
   AFTER INSERT ON tasks
   FOR EACH ROW

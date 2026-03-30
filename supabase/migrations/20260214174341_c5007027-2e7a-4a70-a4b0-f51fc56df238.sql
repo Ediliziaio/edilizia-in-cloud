@@ -45,12 +45,14 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_support_message_upsert_conversation ON public.support_messages;
 CREATE TRIGGER on_support_message_upsert_conversation
 AFTER INSERT ON public.support_messages
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_support_message_conversation();
 
 -- Update timestamp trigger
+DROP TRIGGER IF EXISTS update_support_conversations_updated_at ON public.support_conversations;
 CREATE TRIGGER update_support_conversations_updated_at
 BEFORE UPDATE ON public.support_conversations
 FOR EACH ROW

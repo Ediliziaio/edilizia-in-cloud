@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_update_form_views ON public.form_views;
 CREATE TRIGGER trg_update_form_views
   AFTER INSERT ON public.form_views
   FOR EACH ROW

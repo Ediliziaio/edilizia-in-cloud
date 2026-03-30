@@ -172,6 +172,7 @@ CREATE TRIGGER log_orders_activity
   AFTER INSERT OR UPDATE OR DELETE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();
 
+DROP TRIGGER IF EXISTS log_order_status_history_activity ON public.order_status_history;
 CREATE TRIGGER log_order_status_history_activity
   AFTER INSERT ON public.order_status_history
   FOR EACH ROW EXECUTE FUNCTION public.log_company_activity();

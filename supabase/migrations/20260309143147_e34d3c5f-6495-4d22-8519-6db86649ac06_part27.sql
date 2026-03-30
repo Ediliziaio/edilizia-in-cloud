@@ -1,4 +1,5 @@
 -- Employees
+DROP TRIGGER IF EXISTS ia_employee_added ON public.employees;
 CREATE TRIGGER ia_employee_added
   AFTER INSERT ON public.employees
   FOR EACH ROW

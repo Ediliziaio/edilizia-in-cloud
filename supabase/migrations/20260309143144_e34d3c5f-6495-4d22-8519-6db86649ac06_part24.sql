@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS ia_ticket_events ON public.tickets;
 CREATE TRIGGER ia_ticket_events
   AFTER UPDATE ON public.tickets
   FOR EACH ROW

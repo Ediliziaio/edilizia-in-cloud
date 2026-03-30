@@ -44,6 +44,7 @@ ON public.appointments FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_appointments_updated_at ON public.appointments;
 CREATE TRIGGER update_appointments_updated_at
 BEFORE UPDATE ON public.appointments
 FOR EACH ROW

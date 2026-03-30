@@ -78,6 +78,7 @@ CREATE POLICY "Super admins can manage all warehouse movements"
   USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Trigger updated_at per warehouse_stock
+DROP TRIGGER IF EXISTS update_warehouse_stock_updated_at ON public.warehouse_stock;
 CREATE TRIGGER update_warehouse_stock_updated_at
   BEFORE UPDATE ON public.warehouse_stock
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

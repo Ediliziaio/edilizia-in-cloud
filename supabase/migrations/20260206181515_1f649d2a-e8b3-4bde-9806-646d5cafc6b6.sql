@@ -48,6 +48,7 @@ CREATE POLICY "Super admins can manage all order items"
   USING (has_role(auth.uid(), 'super_admin'));
 
 -- 4. Trigger per updated_at
+DROP TRIGGER IF EXISTS update_order_items_updated_at ON public.order_items;
 CREATE TRIGGER update_order_items_updated_at
   BEFORE UPDATE ON order_items
   FOR EACH ROW

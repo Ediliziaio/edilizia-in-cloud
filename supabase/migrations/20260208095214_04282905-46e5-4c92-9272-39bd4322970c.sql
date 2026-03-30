@@ -94,6 +94,7 @@ USING (
 -- Fase 5: Trigger per updated_at
 -- =============================================
 
+DROP TRIGGER IF EXISTS update_work_logs_updated_at ON public.work_logs;
 CREATE TRIGGER update_work_logs_updated_at
 BEFORE UPDATE ON public.work_logs
 FOR EACH ROW

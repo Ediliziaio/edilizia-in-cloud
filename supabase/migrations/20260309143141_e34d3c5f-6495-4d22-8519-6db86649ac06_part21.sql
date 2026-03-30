@@ -3,6 +3,7 @@
 -- ═══════════════════════════════════════════════════════
 
 -- Orders
+DROP TRIGGER IF EXISTS ia_order_created ON public.orders;
 CREATE TRIGGER ia_order_created
   AFTER INSERT ON public.orders
   FOR EACH ROW

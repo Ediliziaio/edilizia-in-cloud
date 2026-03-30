@@ -49,6 +49,7 @@ ON public.tasks FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_tasks_updated_at ON public.tasks;
 CREATE TRIGGER update_tasks_updated_at
 BEFORE UPDATE ON public.tasks
 FOR EACH ROW

@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_validate_order_total ON public.orders;
 CREATE TRIGGER trg_validate_order_total
   BEFORE UPDATE ON public.orders
   FOR EACH ROW

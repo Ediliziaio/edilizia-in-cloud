@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS ia_order_status ON public.orders;
 CREATE TRIGGER ia_order_status
   AFTER UPDATE ON public.orders
   FOR EACH ROW

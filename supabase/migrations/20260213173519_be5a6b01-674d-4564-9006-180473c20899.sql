@@ -40,6 +40,7 @@ FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_forecast'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_company_costs_updated_at ON public.company_costs;
 CREATE TRIGGER update_company_costs_updated_at
 BEFORE UPDATE ON public.company_costs
 FOR EACH ROW

@@ -23,6 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_salespeople_user ON public.salespeople(user_id);
 CREATE INDEX IF NOT EXISTS idx_salespeople_active ON public.salespeople(company_id, is_active);
 
 -- Trigger per updated_at
+DROP TRIGGER IF EXISTS update_salespeople_updated_at ON public.salespeople;
 CREATE TRIGGER update_salespeople_updated_at
     BEFORE UPDATE ON public.salespeople
     FOR EACH ROW

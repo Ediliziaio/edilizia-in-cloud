@@ -3,6 +3,7 @@
 -- ═══════════════════════════════════════════════════════
 
 -- 1) Order created
+DROP TRIGGER IF EXISTS internal_auto_order_created ON public.orders;
 CREATE TRIGGER internal_auto_order_created
   AFTER INSERT ON orders
   FOR EACH ROW

@@ -83,6 +83,7 @@ END;
 $$;
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_staff_permissions_updated_at ON public.staff_permissions;
 CREATE TRIGGER update_staff_permissions_updated_at
   BEFORE UPDATE ON public.staff_permissions
   FOR EACH ROW

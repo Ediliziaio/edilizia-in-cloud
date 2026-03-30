@@ -21,6 +21,7 @@ END;
 $$;
 
 -- Creare il trigger
+DROP TRIGGER IF EXISTS check_status_before_delete ON public.order_statuses;
 CREATE TRIGGER check_status_before_delete
 BEFORE DELETE ON order_statuses
 FOR EACH ROW EXECUTE FUNCTION public.prevent_status_deletion_if_used();

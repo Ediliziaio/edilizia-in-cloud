@@ -156,18 +156,22 @@ END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
 -- Create triggers for updated_at
+DROP TRIGGER IF EXISTS update_companies_updated_at ON public.companies;
 CREATE TRIGGER update_companies_updated_at
   BEFORE UPDATE ON public.companies
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
 CREATE TRIGGER update_orders_updated_at
   BEFORE UPDATE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_tickets_updated_at ON public.tickets;
 CREATE TRIGGER update_tickets_updated_at
   BEFORE UPDATE ON public.tickets
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

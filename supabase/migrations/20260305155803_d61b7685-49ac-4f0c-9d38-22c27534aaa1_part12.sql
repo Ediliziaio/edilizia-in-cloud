@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_ticket_message_update_last_message ON public.ticket_messages;
 CREATE TRIGGER trg_ticket_message_update_last_message
   AFTER INSERT ON public.ticket_messages
   FOR EACH ROW

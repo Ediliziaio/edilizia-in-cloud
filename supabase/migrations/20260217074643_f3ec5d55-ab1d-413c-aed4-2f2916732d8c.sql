@@ -18,6 +18,7 @@ FOR ALL
 USING (has_role(auth.uid(), 'super_admin'::app_role) AND user_id = auth.uid())
 WITH CHECK (has_role(auth.uid(), 'super_admin'::app_role) AND user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS update_admin_notification_prefs_updated_at ON public.admin_notification_prefs;
 CREATE TRIGGER update_admin_notification_prefs_updated_at
 BEFORE UPDATE ON public.admin_notification_prefs
 FOR EACH ROW

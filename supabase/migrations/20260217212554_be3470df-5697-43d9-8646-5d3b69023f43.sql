@@ -35,6 +35,7 @@ ON public.automations FOR SELECT
 USING (has_permission(auth.uid(), 'can_view_settings'::text) AND company_id = get_user_company_id(auth.uid()));
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_automations_updated_at ON public.automations;
 CREATE TRIGGER update_automations_updated_at
 BEFORE UPDATE ON public.automations
 FOR EACH ROW
@@ -254,11 +255,13 @@ END;
 $$;
 
 -- Create triggers on orders
+DROP TRIGGER IF EXISTS automation_on_order_insert ON public.orders;
 CREATE TRIGGER automation_on_order_insert
 AFTER INSERT ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_automation_on_order();
 
+DROP TRIGGER IF EXISTS automation_on_order_update ON public.orders;
 CREATE TRIGGER automation_on_order_update
 AFTER UPDATE ON public.orders
 FOR EACH ROW

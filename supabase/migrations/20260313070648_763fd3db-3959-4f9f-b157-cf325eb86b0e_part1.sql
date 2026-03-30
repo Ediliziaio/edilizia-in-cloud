@@ -1,3 +1,4 @@
+DROP TRIGGER IF EXISTS trg_prima_nota_on_fattura_emessa ON public.documenti_fiscali;
 CREATE TRIGGER trg_prima_nota_on_fattura_emessa
   AFTER UPDATE ON public.documenti_fiscali
   FOR EACH ROW
