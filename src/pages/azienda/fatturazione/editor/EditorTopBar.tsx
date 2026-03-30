@@ -61,6 +61,13 @@ const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autof
   "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
   "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
 
+const TIPO_TO_TD: Record<string, string> = {
+  fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
+  autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
+  fattura_accompagnatoria: "TD24", parcella: "TD06",
+  integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19",
+};
+
 interface Props {
   state: EditorState;
   isSaving: boolean;
@@ -117,6 +124,11 @@ export function EditorTopBar({
           <Badge variant="outline" className="font-semibold text-xs uppercase tracking-wide border-primary/30 text-primary">
             {TIPO_LABELS[tipo] ?? tipo}
           </Badge>
+          {TIPO_TO_TD[tipo] && (
+            <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-5 text-muted-foreground">
+              {TIPO_TO_TD[tipo]}
+            </Badge>
+          )}
 
           {state.numero && (
             <span className="font-mono text-base font-bold text-foreground tracking-tight">
