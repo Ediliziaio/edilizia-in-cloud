@@ -131,71 +131,75 @@ export function useCompanyCostsMutations({
         const { error } = await supabase.from("company_costs").update({ ...basePayload, due_date: data.due_date }).eq("id", editingCostId);
         if (error) throw error;
 
-        // If end_date is set and recurrence is not "once", generate missing future occurrences
+        // Generate missing future occurrences — bulk INSERT (1 query check + 1 INSERT)
         let additionalCreated = 0;
         if (data.recurrence !== "once" && data.end_date && data.due_date) {
           const periods = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
           const baseDate = new Date(data.due_date);
+          const allDates: string[] = [];
           for (let i = 0; i < periods; i++) {
-            const date = getNextDate(baseDate, data.recurrence, i);
-            const dateStr = format(date, "yyyy-MM-dd");
-            // Skip the date we just updated
-            if (dateStr === data.due_date) continue;
-            // Check for existing duplicate
+            const dateStr = format(getNextDate(baseDate, data.recurrence, i), "yyyy-MM-dd");
+            if (dateStr !== data.due_date) allDates.push(dateStr);
+          }
+          if (allDates.length > 0) {
             const { data: existing } = await supabase
               .from("company_costs")
-              .select("id")
+              .select("due_date")
               .eq("company_id", companyId!)
               .eq("name", data.name)
-              .eq("due_date", dateStr)
-              .limit(1);
-            if (existing && existing.length > 0) continue;
-            const { error: insertErr } = await supabase.from("company_costs").insert({
-              ...basePayload,
-              due_date: dateStr,
-              is_paid: false,
-            });
-            if (insertErr) throw insertErr;
-            additionalCreated++;
+              .in("due_date", allDates);
+            const existingDates = new Set((existing || []).map((r: any) => r.due_date));
+            const datesToInsert = allDates.filter(d => !existingDates.has(d));
+            if (datesToInsert.length > 0) {
+              const { error: insertErr } = await supabase.from("company_costs").insert(
+                datesToInsert.map(d => ({ ...basePayload, due_date: d, is_paid: false }))
+              );
+              if (insertErr) throw insertErr;
+              additionalCreated = datesToInsert.length;
+            }
           }
         }
 
         return { created: 1 + additionalCreated, isEdit: true, additionalCreated };
       }
 
-      let periods = 1;
-      if (data.recurrence !== "once" && data.end_date && data.due_date) {
-        const calculated = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
-        if (calculated > 0) periods = calculated;
-      }
       const baseDate = new Date(data.due_date);
       let created = 0;
 
-      for (let i = 0; i < periods; i++) {
-        const date = getNextDate(baseDate, data.recurrence, i);
-        const dateStr = format(date, "yyyy-MM-dd");
-
-        if (periods > 1) {
-          const { data: existing } = await supabase
-            .from("company_costs")
-            .select("id")
-            .eq("company_id", companyId!)
-            .eq("name", data.name)
-            .eq("due_date", dateStr)
-            .limit(1);
-          if (existing && existing.length > 0) continue;
+      if (data.recurrence !== "once" && data.end_date && data.due_date) {
+        // Bulk path: genera tutte le date → 1 check duplicati → 1 INSERT
+        const periods = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
+        const allDates: string[] = [];
+        for (let i = 0; i < (periods > 0 ? periods : 1); i++) {
+          allDates.push(format(getNextDate(baseDate, data.recurrence, i), "yyyy-MM-dd"));
         }
-
+        const { data: existing } = await supabase
+          .from("company_costs")
+          .select("due_date")
+          .eq("company_id", companyId!)
+          .eq("name", data.name)
+          .in("due_date", allDates);
+        const existingDates = new Set((existing || []).map((r: any) => r.due_date));
+        const datesToInsert = allDates.filter(d => !existingDates.has(d));
+        if (datesToInsert.length > 0) {
+          const { error } = await supabase.from("company_costs").insert(
+            datesToInsert.map(d => ({ ...basePayload, due_date: d, is_paid: false }))
+          );
+          if (error) throw error;
+          created = datesToInsert.length;
+        }
+      } else {
+        // Single INSERT
         const { error } = await supabase.from("company_costs").insert({
           ...basePayload,
-          due_date: dateStr,
+          due_date: data.due_date,
           is_paid: false,
         });
         if (error) throw error;
-        created++;
+        created = 1;
       }
 
-      return { created, isEdit: false, periods, baseDate };
+      return { created, isEdit: false, periods: created, baseDate };
     },
     onSuccess: (result) => {
       invalidateCosts();
