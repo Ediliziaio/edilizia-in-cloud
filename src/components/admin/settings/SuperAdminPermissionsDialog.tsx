@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search, Megaphone } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe, Search, Megaphone, Eye, Download, Settings, Database, AlertTriangle } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
@@ -33,6 +34,17 @@ interface Permissions {
   can_view_platform_stats: boolean;
   can_manage_marketing: boolean;
   allowed_company_ids: string[] | null;
+  // Granular
+  billing_read: boolean;
+  billing_write: boolean;
+  impersonation: boolean;
+  user_management: boolean;
+  pricing_override: boolean;
+  feature_flags: boolean;
+  audit_log_access: boolean;
+  bulk_actions: boolean;
+  data_export: boolean;
+  support_tickets: boolean;
 }
 
 const defaults: Permissions = {
@@ -44,9 +56,27 @@ const defaults: Permissions = {
   can_view_platform_stats: true,
   can_manage_marketing: true,
   allowed_company_ids: null,
+  billing_read: true,
+  billing_write: true,
+  impersonation: true,
+  user_management: true,
+  pricing_override: true,
+  feature_flags: true,
+  audit_log_access: true,
+  bulk_actions: true,
+  data_export: true,
+  support_tickets: true,
 };
 
-const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: typeof Building2; label: string; desc: string }[] = [
+interface PermItem {
+  key: keyof Omit<Permissions, "allowed_company_ids">;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  desc: string;
+  highRisk?: boolean;
+}
+
+const legacyPermItems: PermItem[] = [
   { key: "can_manage_companies", icon: Building2, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_companies, desc: "Creare, modificare, eliminare aziende" },
   { key: "can_manage_plans", icon: CreditCard, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_plans, desc: "Gestire piani di abbonamento" },
   { key: "can_manage_tickets", icon: HeadphonesIcon, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_tickets, desc: "Gestire ticket di supporto" },
@@ -56,12 +86,46 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
   { key: "can_manage_marketing", icon: Megaphone, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_marketing, desc: "Gestire CRM e marketing della piattaforma" },
 ];
 
+const granularPermSections: { label: string; items: PermItem[] }[] = [
+  {
+    label: "Billing & Pagamenti",
+    items: [
+      { key: "billing_read", icon: Eye, label: "Lettura billing", desc: "Visualizzare fatture, piani e storico pagamenti" },
+      { key: "billing_write", icon: CreditCard, label: "Scrittura billing", desc: "Modificare piani, emettere crediti", highRisk: true },
+      { key: "pricing_override", icon: CreditCard, label: "Override pricing", desc: "Impostare prezzi personalizzati per company", highRisk: true },
+    ],
+  },
+  {
+    label: "Accesso & Sicurezza",
+    items: [
+      { key: "impersonation", icon: Users, label: "Impersonation", desc: "Accedere come un'altra azienda", highRisk: true },
+      { key: "user_management", icon: Users, label: "Gestione utenti", desc: "Creare, modificare, disabilitare utenti" },
+      { key: "audit_log_access", icon: Eye, label: "Accesso audit log", desc: "Visualizzare log di tutte le azioni admin" },
+    ],
+  },
+  {
+    label: "Dati & Export",
+    items: [
+      { key: "data_export", icon: Download, label: "Export dati", desc: "Esportare dati CSV/Excel della piattaforma" },
+      { key: "bulk_actions", icon: Database, label: "Azioni bulk", desc: "Operazioni massivi su più aziende", highRisk: true },
+    ],
+  },
+  {
+    label: "Configurazione",
+    items: [
+      { key: "feature_flags", icon: Settings, label: "Feature Flags", desc: "Abilitare/disabilitare funzionalità per company" },
+      { key: "support_tickets", icon: HeadphonesIcon, label: "Ticket di supporto", desc: "Gestire e rispondere ai ticket" },
+    ],
+  },
+];
+
 export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminId, adminName }: Props) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isSelf = adminId === user?.id;
   const [perms, setPerms] = useState<Permissions>(defaults);
   const [allCompanies, setAllCompanies] = useState(true);
+  const [activeTab, setActiveTab] = useState<"legacy" | "granular">("granular");
 
   const { data: currentPerms, isLoading: loadingPerms } = useQuery({
     queryKey: queryKeys.admin.superAdminPermissions(adminId),
@@ -98,6 +162,16 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         can_view_platform_stats: currentPerms.can_view_platform_stats,
         can_manage_marketing: currentPerms.can_manage_marketing,
         allowed_company_ids: currentPerms.allowed_company_ids,
+        billing_read: currentPerms.billing_read ?? currentPerms.can_manage_plans,
+        billing_write: currentPerms.billing_write ?? currentPerms.can_manage_plans,
+        impersonation: currentPerms.impersonation ?? currentPerms.can_manage_companies,
+        user_management: currentPerms.user_management ?? currentPerms.can_manage_admins,
+        pricing_override: currentPerms.pricing_override ?? currentPerms.can_manage_plans,
+        feature_flags: currentPerms.feature_flags ?? currentPerms.can_manage_companies,
+        audit_log_access: currentPerms.audit_log_access ?? currentPerms.can_view_platform_stats,
+        bulk_actions: currentPerms.bulk_actions ?? currentPerms.can_manage_companies,
+        data_export: currentPerms.data_export ?? currentPerms.can_view_platform_stats,
+        support_tickets: currentPerms.support_tickets ?? currentPerms.can_manage_tickets,
       });
       setAllCompanies(currentPerms.allowed_company_ids === null);
     } else {
@@ -110,11 +184,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
     mutationFn: async (updatedPerms: Permissions) => {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("manage-super-admins", {
-        body: {
-          action: "update-permissions",
-          userId: adminId,
-          permissions: updatedPerms,
-        },
+        body: { action: "update-permissions", userId: adminId, permissions: updatedPerms },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) throw new Error(res.error.message);
@@ -156,6 +226,35 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
     return companies.filter((c) => c.name.toLowerCase().includes(q));
   }, [companies, debouncedCompanySearch]);
 
+  const PermRow = ({ item }: { item: PermItem }) => {
+    const Icon = item.icon;
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+        <div className="flex items-start gap-3">
+          <div className={`rounded-lg p-2 mt-0.5 ${item.highRisk ? "bg-red-100 dark:bg-red-900" : "bg-primary/10"}`}>
+            <Icon className={`h-4 w-4 ${item.highRisk ? "text-red-600 dark:text-red-400" : "text-primary"}`} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">{item.label}</Label>
+              {item.highRisk && (
+                <Badge variant="destructive" className="text-[10px] h-4">
+                  <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />Alto rischio
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{item.desc}</p>
+          </div>
+        </div>
+        <Switch
+          checked={perms[item.key] as boolean}
+          onCheckedChange={(v) => setPerms({ ...perms, [item.key]: v })}
+          disabled={isSelf}
+        />
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
@@ -179,23 +278,40 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                   </AlertDescription>
                 </Alert>
               )}
-              <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
-              {permItems.map(({ key, icon: Icon, label, desc }) => (
-                <div key={key} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-primary/10 p-2 mt-0.5"><Icon className="h-4 w-4 text-primary" /></div>
-                    <div>
-                      <Label className="text-sm font-medium">{label}</Label>
-                      <p className="text-xs text-muted-foreground">{desc}</p>
+
+              {/* Tab switcher */}
+              <div className="flex rounded-lg bg-muted p-1 gap-1">
+                <button
+                  onClick={() => setActiveTab("granular")}
+                  className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors ${activeTab === "granular" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Permessi Granulari
+                </button>
+                <button
+                  onClick={() => setActiveTab("legacy")}
+                  className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors ${activeTab === "legacy" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Moduli (Legacy)
+                </button>
+              </div>
+
+              {activeTab === "granular" ? (
+                <div className="space-y-4">
+                  {granularPermSections.map((section) => (
+                    <div key={section.label}>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{section.label}</p>
+                      <div className="space-y-2">
+                        {section.items.map((item) => <PermRow key={item.key} item={item} />)}
+                      </div>
                     </div>
-                  </div>
-                  <Switch
-                    checked={perms[key]}
-                    onCheckedChange={(v) => setPerms({ ...perms, [key]: v })}
-                    disabled={isSelf}
-                  />
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground mb-3">Permessi a livello di modulo (mantenuti per retrocompatibilità)</p>
+                  {legacyPermItems.map((item) => <PermRow key={item.key} item={item} />)}
+                </div>
+              )}
 
               <Separator className="my-4" />
 

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const TABLE_MAP: Record<string, string> = {
   email:     "email_credits",
@@ -30,17 +30,9 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Auth check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return json({ error: "Unauthorized" }, 401);
-    }
-
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data: { user } } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    // Auth check using standard requireAuth() helper (replaces insecure anonClient.auth.getUser() pattern)
+    const { userId } = await requireAuth(req, getCorsHeaders(req));
+    const user = { id: userId };
 
     const { companyId, amountEur, service, paymentMethod, notes: topupNotes } = await req.json();
 
@@ -186,6 +178,6 @@ Deno.serve(async (req) => {
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+    headers: { ...secureHeaders, "Content-Type": "application/json" },
   });
 }
