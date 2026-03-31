@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2, Settings2 } from "lucide-react";
+import { Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2, Settings2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -46,6 +46,7 @@ interface BillingOverride {
   markup_multiplier: number | null;
   monthly_fee_eur: number | null;
   custom_notes: string | null;
+  custom_max_orders: number | null;
   updated_at: string;
 }
 
@@ -64,6 +65,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustmentsPage, setAdjustmentsPage] = useState(0);
+  const [customMaxOrders, setCustomMaxOrders] = useState<string>("");
 
   // Fetch overrides
   const { data: overrides, isLoading: overridesLoading } = useQuery({
@@ -76,6 +78,45 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       if (error) throw error;
       return (data ?? []) as unknown as BillingOverride[];
     },
+  });
+
+  // Fetch global limits override row (service = '_limits')
+  const { data: limitsOverride } = useQuery({
+    queryKey: [...queryKeys.billingOverrides.byCompany(companyId), "_limits"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("company_billing_overrides" as never)
+        .select("custom_max_orders")
+        .eq("company_id", companyId)
+        .eq("service" as never, "_limits")
+        .maybeSingle();
+      return data as { custom_max_orders: number | null } | null;
+    },
+  });
+
+  // Sync state from fetched data on first load
+  useEffect(() => {
+    if (limitsOverride?.custom_max_orders != null) {
+      setCustomMaxOrders(String(limitsOverride.custom_max_orders));
+    }
+  }, [limitsOverride]);
+
+  // Save custom_max_orders limit override
+  const saveLimitsOverride = useMutation({
+    mutationFn: async (maxOrders: number | null) => {
+      const { error } = await supabase
+        .from("company_billing_overrides" as never)
+        .upsert(
+          { company_id: companyId, service: "_limits", custom_max_orders: maxOrders, updated_at: new Date().toISOString(), updated_by: user?.id } as never,
+          { onConflict: "company_id,service" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.billingOverrides.byCompany(companyId), "_limits"] });
+      toast.success("Limite ordini personalizzato salvato");
+    },
+    onError: (e) => toast.error("Errore: " + e.message),
   });
 
   // Fetch credit balances
@@ -285,6 +326,60 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      {/* Plan Limits Override */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" /> Override Limiti di Piano
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-3 max-w-sm">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Limite ordini personalizzato
+                <span className="ml-1 text-[10px] text-muted-foreground/60">(vuoto = usa il limite del piano)</span>
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Es: 500"
+                value={customMaxOrders}
+                onChange={(e) => setCustomMaxOrders(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              disabled={saveLimitsOverride.isPending}
+              onClick={() => {
+                const val = customMaxOrders.trim() ? parseInt(customMaxOrders) : null;
+                saveLimitsOverride.mutate(val);
+              }}
+              className="h-9"
+            >
+              {saveLimitsOverride.isPending && <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />}
+              Salva
+            </Button>
+            {customMaxOrders && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9"
+                disabled={saveLimitsOverride.isPending}
+                onClick={() => { setCustomMaxOrders(""); saveLimitsOverride.mutate(null); }}
+              >
+                Rimuovi
+              </Button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Sovrascrive il limite ordini del piano per questa azienda. Impostare a -1 per illimitato.
+          </p>
         </CardContent>
       </Card>
 

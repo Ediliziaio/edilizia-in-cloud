@@ -25,6 +25,7 @@ import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
+import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 
 interface DateRange {
   from: Date | undefined;
@@ -970,6 +971,8 @@ function OrdersListInner() {
           </Button>
         </div>
       </div>
+
+      <PlanLimitWarning resourceType="orders" />
 
       <OrdersStatsCards
         stats={stats}
