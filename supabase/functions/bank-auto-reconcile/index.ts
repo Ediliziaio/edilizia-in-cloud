@@ -142,9 +142,10 @@ Deno.serve(async (req) => {
             const remaining = (inv.total || 0) - (inv.paid_amount || 0);
             if (remaining <= 0) continue;
 
+            console.log('IBAN match check tx:', tx.creditor_iban || tx.debtor_iban, '| inv:', inv.bank_iban);
             const score = computeMatchScore(tx, {
               remaining,
-              client_iban: inv.bank_iban,
+              client_iban: inv.bank_iban, // bank_iban è il campo corretto (non client_iban)
               client_company_name: inv.client_company_name,
             });
 
