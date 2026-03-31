@@ -29,6 +29,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Download,
   Upload,
   Search,
@@ -92,6 +102,7 @@ export default function FattureRicevutePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
+  const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
 
   // ─── Data Query ──────────────────────────────────────────
 
@@ -405,19 +416,16 @@ export default function FattureRicevutePage() {
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
-                      {f.stato !== "contabilizzata" && (
+                      {f.stato === "letta" && (
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
+                          className="text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
                           title="Contabilizza"
-                          onClick={() =>
-                            updateStatoMutation.mutate({
-                              id: f.id,
-                              stato: "contabilizzata",
-                            })
-                          }
+                          onClick={() => setContabilizzaFattura(f)}
                         >
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Contabilizza
                         </Button>
                       )}
                     </div>
@@ -428,6 +436,60 @@ export default function FattureRicevutePage() {
           </Table>
         </Card>
       )}
+
+      {/* Contabilizza Confirmation Dialog */}
+      <AlertDialog open={!!contabilizzaFattura} onOpenChange={(open) => { if (!open) setContabilizzaFattura(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Contabilizza fattura ricevuta</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Confermi la contabilizzazione di questa fattura passiva?</p>
+                {contabilizzaFattura && (
+                  <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cedente</span>
+                      <span className="font-medium">{contabilizzaFattura.cedente_ragione_sociale}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Numero</span>
+                      <span className="font-mono">{contabilizzaFattura.numero_fattura}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Importo totale</span>
+                      <span className="font-semibold">{formatCurrency(contabilizzaFattura.totale_documento)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                if (contabilizzaFattura) {
+                  updateStatoMutation.mutate(
+                    { id: contabilizzaFattura.id, stato: "contabilizzata" },
+                    {
+                      onSuccess: () => {
+                        toast.success("Fattura contabilizzata", {
+                          description: `${contabilizzaFattura.cedente_ragione_sociale} — ${formatCurrency(contabilizzaFattura.totale_documento)}`,
+                        });
+                        setContabilizzaFattura(null);
+                      },
+                    }
+                  );
+                }
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              Contabilizza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* XML Preview Dialog */}
       <Dialog open={!!xmlPreview} onOpenChange={() => setXmlPreview(null)}>
