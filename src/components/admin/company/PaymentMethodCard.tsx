@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Wallet, Save, Loader2, Link as LinkIcon, Copy, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Wallet, Save, Loader2, Link as LinkIcon, Copy, Check, CreditCard, Building2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { Company } from "@/types/auth";
 
-type PaymentMethodType = "none" | "stripe" | "bank_transfer" | "other";
+type PaymentMethodType = "none" | "stripe" | "bank_transfer" | "sepa_debit" | "other";
 
 interface PaymentMethodCardProps {
   company: Company;
@@ -25,6 +26,57 @@ interface PaymentMethodCardProps {
   checkoutUrl?: string | null;
 }
 
+// IBAN validation: checks format and basic structure
+function validateIban(iban: string): { valid: boolean; message: string } {
+  const cleaned = iban.replace(/\s/g, "").toUpperCase();
+  if (!cleaned) return { valid: false, message: "" };
+  if (cleaned.length < 15 || cleaned.length > 34) {
+    return { valid: false, message: "Lunghezza IBAN non valida" };
+  }
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(cleaned)) {
+    return { valid: false, message: "Formato IBAN non valido" };
+  }
+  // Italian IBAN: IT + 25 chars total = 27
+  if (cleaned.startsWith("IT") && cleaned.length !== 27) {
+    return { valid: false, message: "IBAN italiano: deve essere 27 caratteri (IT + 25)" };
+  }
+  // Mod-97 check
+  const rearranged = cleaned.slice(4) + cleaned.slice(0, 4);
+  const numeric = rearranged.split("").map((c) => {
+    const code = c.charCodeAt(0);
+    return code >= 65 ? String(code - 55) : c;
+  }).join("");
+  let remainder = 0;
+  for (const char of numeric) {
+    remainder = (remainder * 10 + parseInt(char)) % 97;
+  }
+  if (remainder !== 1) {
+    return { valid: false, message: "IBAN non valido (checksum fallito)" };
+  }
+  return { valid: true, message: "IBAN valido" };
+}
+
+function formatIban(iban: string): string {
+  const cleaned = iban.replace(/\s/g, "").toUpperCase();
+  return cleaned.replace(/(.{4})/g, "$1 ").trim();
+}
+
+const METHOD_ICONS: Record<PaymentMethodType, React.ComponentType<{ className?: string }>> = {
+  none: Wallet,
+  stripe: CreditCard,
+  bank_transfer: Building2,
+  sepa_debit: Building2,
+  other: Wallet,
+};
+
+const METHOD_LABELS: Record<PaymentMethodType, string> = {
+  none: "Non configurato",
+  stripe: "Carta di credito (Stripe)",
+  bank_transfer: "Bonifico IBAN",
+  sepa_debit: "Addebito SEPA",
+  other: "Altro provider",
+};
+
 export function PaymentMethodCard({
   company,
   onSave,
@@ -38,7 +90,9 @@ export function PaymentMethodCard({
   const [accountHolder, setAccountHolder] = useState(company.bank_account_holder || "");
   const [bankName, setBankName] = useState(company.bank_name || "");
   const [notes, setNotes] = useState(company.payment_notes || "");
+  const [bic, setBic] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedIban, setCopiedIban] = useState(false);
 
   useEffect(() => {
     setMethod((company.payment_method as PaymentMethodType) || "none");
@@ -51,9 +105,9 @@ export function PaymentMethodCard({
   const handleSave = () => {
     onSave({
       payment_method: method,
-      bank_iban: method === "bank_transfer" ? iban || null : null,
-      bank_account_holder: method === "bank_transfer" ? accountHolder || null : null,
-      bank_name: method === "bank_transfer" ? bankName || null : null,
+      bank_iban: (method === "bank_transfer" || method === "sepa_debit") ? iban.replace(/\s/g, "").toUpperCase() || null : null,
+      bank_account_holder: (method === "bank_transfer" || method === "sepa_debit") ? accountHolder || null : null,
+      bank_name: (method === "bank_transfer" || method === "sepa_debit") ? bankName || null : null,
       payment_notes: method === "other" ? notes || null : null,
     });
   };
@@ -66,18 +120,45 @@ export function PaymentMethodCard({
     }
   };
 
+  const handleCopyIban = async () => {
+    const formatted = iban.replace(/\s/g, "").toUpperCase();
+    if (formatted) {
+      await navigator.clipboard.writeText(formatted);
+      setCopiedIban(true);
+      setTimeout(() => setCopiedIban(false), 2000);
+    }
+  };
+
+  const ibanValidation = (method === "bank_transfer" || method === "sepa_debit") && iban
+    ? validateIban(iban)
+    : null;
+
   const hasChanges =
     method !== (company.payment_method || "none") ||
-    (method === "bank_transfer" && (iban !== (company.bank_iban || "") || accountHolder !== (company.bank_account_holder || "") || bankName !== (company.bank_name || ""))) ||
+    ((method === "bank_transfer" || method === "sepa_debit") && (
+      iban.replace(/\s/g, "").toUpperCase() !== (company.bank_iban || "") ||
+      accountHolder !== (company.bank_account_holder || "") ||
+      bankName !== (company.bank_name || "")
+    )) ||
     (method === "other" && notes !== (company.payment_notes || ""));
+
+  const MethodIcon = METHOD_ICONS[method] ?? Wallet;
+  const isConfigured = method !== "none";
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wallet className="h-5 w-5" />
-          Metodo di Pagamento
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <MethodIcon className="h-5 w-5" />
+            Metodo di Pagamento
+          </CardTitle>
+          {isConfigured && (
+            <Badge variant="default" className="text-[10px]">
+              {METHOD_LABELS[method]}
+            </Badge>
+          )}
+        </div>
         <CardDescription>Configura come l'azienda paga l'abbonamento</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -88,10 +169,21 @@ export function PaymentMethodCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Non configurato</SelectItem>
-              <SelectItem value="stripe">Stripe (Carta di credito)</SelectItem>
-              <SelectItem value="bank_transfer">Bonifico IBAN</SelectItem>
-              <SelectItem value="other">Altro provider</SelectItem>
+              <SelectItem value="none">
+                <div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Non configurato</div>
+              </SelectItem>
+              <SelectItem value="stripe">
+                <div className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Carta di credito (Stripe)</div>
+              </SelectItem>
+              <SelectItem value="bank_transfer">
+                <div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Bonifico IBAN</div>
+              </SelectItem>
+              <SelectItem value="sepa_debit">
+                <div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Addebito SEPA</div>
+              </SelectItem>
+              <SelectItem value="other">
+                <div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Altro provider</div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -124,19 +216,67 @@ export function PaymentMethodCard({
           </div>
         )}
 
-        {method === "bank_transfer" && (
+        {(method === "bank_transfer" || method === "sepa_debit") && (
           <div className="space-y-3 pt-2">
+            {/* IBAN field with validation */}
             <div className="space-y-2">
               <Label>IBAN</Label>
-              <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IT60 X054 2811 1010 0000 0123 456" />
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Input
+                    value={iban}
+                    onChange={(e) => setIban(e.target.value)}
+                    placeholder="IT60 X054 2811 1010 0000 0123 456"
+                    className={ibanValidation ? (ibanValidation.valid ? "border-emerald-500 pr-8" : "border-destructive pr-8") : ""}
+                    onBlur={(e) => {
+                      if (e.target.value) setIban(formatIban(e.target.value));
+                    }}
+                  />
+                  {ibanValidation && (
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                      {ibanValidation.valid
+                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        : <AlertCircle className="h-4 w-4 text-destructive" />}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  disabled={!iban}
+                  onClick={handleCopyIban}
+                  title="Copia IBAN"
+                >
+                  {copiedIban ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              {ibanValidation && !ibanValidation.valid && ibanValidation.message && (
+                <p className="text-xs text-destructive">{ibanValidation.message}</p>
+              )}
+              {ibanValidation?.valid && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ {ibanValidation.message}</p>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Intestatario conto</Label>
               <Input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} placeholder="Nome azienda o persona" />
             </div>
+
             <div className="space-y-2">
               <Label>Nome banca</Label>
               <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Es. Intesa Sanpaolo" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>BIC/SWIFT <span className="text-muted-foreground text-xs">(facoltativo, per bonifici internazionali)</span></Label>
+              <Input
+                value={bic}
+                onChange={(e) => setBic(e.target.value.toUpperCase())}
+                placeholder="Es. BCITITMM"
+                maxLength={11}
+              />
             </div>
           </div>
         )}
@@ -149,7 +289,12 @@ export function PaymentMethodCard({
         )}
 
         {hasChanges && (
-          <Button onClick={handleSave} disabled={isSaving} size="sm" className="mt-2">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || (ibanValidation !== null && !ibanValidation.valid)}
+            size="sm"
+            className="mt-2"
+          >
             {isSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
             Salva metodo di pagamento
           </Button>
