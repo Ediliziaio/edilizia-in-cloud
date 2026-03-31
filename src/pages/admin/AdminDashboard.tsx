@@ -16,6 +16,7 @@ import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentAct
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
 import { AdminSystemHealth, IntegrationHealthSection } from "@/components/admin/dashboard/AdminSystemHealth";
+import { AdminNpsSection } from "@/components/admin/dashboard/AdminNpsSection";
 import { AdminAddonsSummary } from "@/components/admin/dashboard/AdminAddonsSummary";
 import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAnalysis";
 import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
@@ -144,6 +145,8 @@ export default function AdminDashboard() {
         return <AdminRecentActivity activities={recentActivity} />;
       case "addon-summary":
         return <AdminAddonsSummary />;
+      case "nps-survey":
+        return <AdminNpsSection />;
       default:
         return null;
     }

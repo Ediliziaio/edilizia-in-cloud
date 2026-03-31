@@ -48,6 +48,7 @@ const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
 const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
+const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
@@ -147,6 +148,7 @@ const App = () => (
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
+              <Route path="/feedback/nps" element={<NpsSurvey />} />
 
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />

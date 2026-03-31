@@ -53,6 +53,7 @@ export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "recent-companies", label: "Aziende Recenti", category: "tables", visible: true, span: 1 },
   { id: "recent-activity", label: "Attività Recente", category: "tables", visible: true, span: 1 },
   { id: "addon-summary", label: "Addon Attivi", category: "kpi", visible: true, span: 1 },
+  { id: "nps-survey", label: "NPS Survey", category: "alerts", visible: true, span: 1 },
 ];
 
 function loadLayout(): DashboardWidget[] {
