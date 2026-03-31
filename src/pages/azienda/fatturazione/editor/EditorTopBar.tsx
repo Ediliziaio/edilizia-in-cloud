@@ -24,6 +24,7 @@ import {
 import { formatRelativeTime } from "@/lib/formatters";
 import type { EditorState } from "./useEditorState";
 import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
+import type { Company } from "@/types/auth";
 
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
@@ -106,7 +107,7 @@ export function EditorTopBar({
   const isEmessa = state.stato === "emessa";
   const canInviaSDI = isEmessa && TIPI_SDI.includes(state.tipo);
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
-  const companyLogo = (effectiveCompany as any)?.logo_url;
+  const companyLogo = (effectiveCompany as Company | null)?.logo_url;
 
   return (
     <>

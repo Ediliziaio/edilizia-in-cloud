@@ -14,7 +14,7 @@ import { createEmptyRiga } from "./useEditorState";
 import { formatCurrency } from "@/lib/formatters";
 import { NATURE_IVA } from "@/types/fatturazione";
 import type { RigaDocumento, ArticoloNative } from "@/types/fatturazione";
-import type { EditorState } from "./useEditorState";
+import type { EditorState, Action } from "./useEditorState";
 
 import {
   DndContext,
@@ -35,7 +35,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 interface Props {
   state: EditorState;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<Action>;
   disabled?: boolean;
 }
 

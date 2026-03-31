@@ -14,7 +14,7 @@ export type EditorState = Partial<DocumentoFiscale> & {
   _initialized?: boolean;
 };
 
-type Action =
+export type Action =
   | { type: "INIT"; payload: DocumentoFiscale }
   | { type: "SET_FIELD"; field: string; value: unknown }
   | { type: "SET_CLIENTE"; anagrafica_id: string; snapshot: ClienteSnapshot }

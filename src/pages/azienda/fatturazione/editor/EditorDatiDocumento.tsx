@@ -9,12 +9,24 @@ import { CalendarIcon, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
-import { TIPI_DOCUMENTO_FATTURAPA } from "@/types/fatturazione";
-import type { EditorState } from "./useEditorState";
+import { TIPI_DOCUMENTO_FATTURAPA as TIPI_DOC } from "@/types/fatturazione";
+
+// Maps internal tipo to SDI TipoDocumento code (mirrors generateXML.ts)
+const TIPO_TO_TD: Record<string, string> = {
+  fattura: "TD01", fattura_pa: "TD01",
+  acconto_fattura: "TD02", acconto_parcella: "TD03",
+  nota_credito: "TD04", nota_debito: "TD05", parcella: "TD06",
+  reverse_charge_interno: "TD16",
+  integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19",
+  autofattura: "TD20", autofattura_splafonamento: "TD21",
+  fattura_riepilogativa: "TD24", ddt: "TD24", fattura_accompagnatoria: "TD24",
+  fattura_differita_b: "TD25", autoconsumo: "TD27",
+};
+import type { EditorState, Action } from "./useEditorState";
 
 interface Props {
   state: EditorState;
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<Action>;
   disabled?: boolean;
 }
 
@@ -71,26 +83,18 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
         </div>
       </div>
 
-      {/* Numerazione / Serie */}
+      {/* Tipo SDI / Serie */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-[10px] text-muted-foreground">Numerazione</Label>
-          <Select
-            value={state.sdi_id_trasmissione ?? "TD01"}
-            onValueChange={(v) => setField("sdi_id_trasmissione", v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="h-7 text-[11px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(TIPI_DOCUMENTO_FATTURAPA).map(([k, v]) => (
-                <SelectItem key={k} value={k} className="text-xs">
-                  {k} – {v}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-[10px] text-muted-foreground">Tipo SDI</Label>
+          <div className="h-7 flex items-center px-2 rounded-md border bg-muted/50 text-[11px] font-mono text-muted-foreground select-none">
+            {state.tipo ? (TIPO_TO_TD[state.tipo] ?? "—") : "—"}
+            {state.tipo && TIPO_TO_TD[state.tipo] && (
+              <span className="ml-1 text-[10px] font-sans font-normal truncate">
+                – {TIPI_DOC[TIPO_TO_TD[state.tipo] as keyof typeof TIPI_DOC] ?? ""}
+              </span>
+            )}
+          </div>
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground">Serie</Label>
