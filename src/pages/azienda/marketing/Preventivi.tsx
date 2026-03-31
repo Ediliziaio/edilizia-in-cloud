@@ -21,6 +21,7 @@ interface QuoteRow {
   status: string;
   total: number | null;
   created_at: string;
+  expires_at: string | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -128,7 +129,7 @@ export default function Preventivi() {
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
@@ -305,11 +306,12 @@ export default function Preventivi() {
       const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
       return {
         Numero: q.quote_number || "",
-        Cliente: q.client_name || "",
         Titolo: q.title || "",
+        Cliente: q.client_name || "",
         Stato: sc.label,
         "Totale (€)": q.total || 0,
-        Data: q.created_at ? format(new Date(q.created_at), "dd/MM/yyyy", { locale: it }) : "",
+        "Data creazione": q.created_at ? format(new Date(q.created_at), "dd/MM/yyyy", { locale: it }) : "",
+        Scadenza: q.expires_at ? format(new Date(q.expires_at), "dd/MM/yyyy", { locale: it }) : "",
       };
     });
 

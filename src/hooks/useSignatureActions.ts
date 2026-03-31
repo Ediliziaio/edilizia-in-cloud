@@ -43,8 +43,9 @@ export function useSignatureActions(quoteId: string | undefined) {
       toast.success("Offerta inviata al cliente per la firma");
       invalidate();
     },
-    onError: (err: any) => {
-      toast.error("Errore invio: " + (err.message || "errore sconosciuto"));
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "errore sconosciuto";
+      toast.error("Errore invio: " + message);
     },
   });
 

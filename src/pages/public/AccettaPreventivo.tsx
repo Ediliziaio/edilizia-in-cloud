@@ -35,9 +35,9 @@ export default function AccettaPreventivo() {
     "loading" | "idle" | "signing" | "refusing" | "accepted" | "rejected" | "error" | "invalid"
   >("loading");
   const [errorMsg, setErrorMsg] = useState("");
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<Record<string, unknown> | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
-  const [company, setCompany] = useState<any>(null);
+  const [company, setCompany] = useState<Record<string, unknown> | null>(null);
 
   // Firma
   const [signedByName, setSignedByName] = useState("");
@@ -70,7 +70,7 @@ export default function AccettaPreventivo() {
       return;
     }
     setNameError("");
-    setStatus("loading");
+    setStatus("signing");
     try {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "sign", signed_by_name: signedByName.trim() },
@@ -78,14 +78,14 @@ export default function AccettaPreventivo() {
       if (error) throw new Error(error.message);
       if (data?.valid === false) throw new Error(data.reason || "Firma non valida");
       setStatus("accepted");
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Errore sconosciuto");
       setStatus("error");
     }
   };
 
   const handleRefuse = async () => {
-    setStatus("loading");
+    setStatus("refusing");
     try {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "refuse", refuse_reason: refuseReason.trim() || null },
@@ -93,8 +93,8 @@ export default function AccettaPreventivo() {
       if (error) throw new Error(error.message);
       if (data?.valid === false) throw new Error(data.reason || "Azione non valida");
       setStatus("rejected");
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Errore sconosciuto");
       setStatus("error");
     }
   };
@@ -323,9 +323,12 @@ export default function AccettaPreventivo() {
                 <Button
                   className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700"
                   onClick={handleSign}
+                  disabled={status === "signing"}
                 >
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  Accetto e firmo il preventivo
+                  {status === "signing"
+                    ? <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    : <CheckCircle className="h-5 w-5 mr-2" />}
+                  {status === "signing" ? "Firma in corso..." : "Accetto e firmo il preventivo"}
                 </Button>
                 <p className="text-xs text-emerald-700 text-center">
                   Cliccando "Accetto" confermi di aver letto integralmente il preventivo e di
@@ -360,9 +363,12 @@ export default function AccettaPreventivo() {
                     variant="outline"
                     className="w-full h-11 text-base border-red-300 text-red-700 hover:bg-red-100"
                     onClick={handleRefuse}
+                    disabled={status === "refusing"}
                   >
-                    <XCircle className="h-5 w-5 mr-2" />
-                    Rifiuto il preventivo
+                    {status === "refusing"
+                      ? <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      : <XCircle className="h-5 w-5 mr-2" />}
+                    {status === "refusing" ? "Rifiuto in corso..." : "Rifiuto il preventivo"}
                   </Button>
                 </CardContent>
               </Card>

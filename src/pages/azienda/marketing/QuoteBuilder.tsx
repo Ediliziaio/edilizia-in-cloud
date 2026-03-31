@@ -2292,8 +2292,8 @@ export default function QuoteBuilder() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((it, idx) => (
-                      <TableRow key={idx}>
+                    {items.map((it) => (
+                      <TableRow key={it.id}>
                         <TableCell>
                           {it.name || "—"}
                           {it.is_optional && (
