@@ -48,7 +48,12 @@ import {
   FileSignature,
   Loader2,
   FileText,
+  Download,
+  TrendingUp,
+  Clock,
+  Target,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function Preventivi() {
   const { effectiveCompany, user } = useAuth();
@@ -210,7 +215,7 @@ export default function Preventivi() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("status, total")
+        .select("status, total, sent_at, signed_at, expires_at, created_at")
         .eq("company_id", companyId!);
       if (error) throw error;
       return data || [];
@@ -221,9 +226,61 @@ export default function Preventivi() {
   const bozze = kpiRows.filter((q: any) => q.status === "bozza").length;
   const inviate = kpiRows.filter((q: any) => q.status === "inviata").length;
   const accettate = kpiRows.filter((q: any) => q.status === "accettata").length;
+  const rifiutate = kpiRows.filter((q: any) => q.status === "rifiutata").length;
   const valoreTotale = kpiRows
     .filter((q: any) => q.status === "accettata")
     .reduce((sum: number, q: any) => sum + (q.total || 0), 0);
+
+  // KPI avanzati
+  const pipeline = kpiRows
+    .filter((q: any) => q.status === "inviata")
+    .reduce((sum: number, q: any) => sum + (q.total || 0), 0);
+
+  const decisioni = accettate + rifiutate;
+  const tassoConversione = decisioni > 0 ? Math.round((accettate / decisioni) * 100) : null;
+
+  const conRisposta = kpiRows.filter(
+    (q: any) => q.status === "accettata" && q.sent_at && q.signed_at
+  );
+  const tempoMedioMs = conRisposta.length > 0
+    ? conRisposta.reduce((sum: number, q: any) => {
+        return sum + (new Date(q.signed_at).getTime() - new Date(q.sent_at).getTime());
+      }, 0) / conRisposta.length
+    : null;
+  const tempoMedioGiorni = tempoMedioMs !== null
+    ? Math.round(tempoMedioMs / (1000 * 60 * 60 * 24))
+    : null;
+
+  const nonBozze = kpiRows.filter((q: any) => q.status !== "bozza");
+  const valoremedioOfferta = nonBozze.length > 0
+    ? nonBozze.reduce((s: number, q: any) => s + (q.total || 0), 0) / nonBozze.length
+    : 0;
+
+  // Export Excel
+  const handleExportExcel = () => {
+    const exportRows = filtered.map((q: any) => {
+      const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
+      return {
+        Numero: q.quote_number || "",
+        Cliente: q.client_name || "",
+        Titolo: q.title || "",
+        Stato: sc.label,
+        "Totale (€)": q.total || 0,
+        Data: q.created_at ? format(new Date(q.created_at), "dd/MM/yyyy", { locale: it }) : "",
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    // Auto-fit columns
+    const colWidths = Object.keys(exportRows[0] || {}).map((k) => ({
+      wch: Math.max(k.length, ...exportRows.map((r: any) => String(r[k] ?? "").length)) + 2,
+    }));
+    ws["!cols"] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Preventivi");
+    XLSX.writeFile(wb, `preventivi_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
 
   return (
     <div className="space-y-6">
@@ -232,13 +289,21 @@ export default function Preventivi() {
           <h1 className="text-2xl font-bold tracking-tight">Preventivi</h1>
           <p className="text-muted-foreground">Gestisci le offerte commerciali</p>
         </div>
-        <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Preventivo
-        </Button>
+        <div className="flex gap-2">
+          {filtered.length > 0 && (
+            <Button variant="outline" onClick={handleExportExcel}>
+              <Download className="h-4 w-4 mr-2" />
+              Esporta Excel
+            </Button>
+          )}
+          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Preventivo
+          </Button>
+        </div>
       </div>
 
-      {/* KPI strip */}
+      {/* KPI strip — base */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -262,6 +327,66 @@ export default function Preventivi() {
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Valore Accettate</p>
             <p className="text-2xl font-bold">{formatCurrency(valoreTotale)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPI avanzati */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Target className="h-4 w-4 text-[#1E3A5F]" />
+              <p className="text-sm text-muted-foreground">Tasso conversione</p>
+            </div>
+            <p className="text-2xl font-bold">
+              {tassoConversione !== null ? `${tassoConversione}%` : "—"}
+            </p>
+            {decisioni > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {accettate} / {decisioni} con risposta
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="h-4 w-4 text-[#1E3A5F]" />
+              <p className="text-sm text-muted-foreground">Pipeline attiva</p>
+            </div>
+            <p className="text-2xl font-bold">{formatCurrency(pipeline)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {inviate} offert{inviate === 1 ? "a" : "e"} in attesa
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="h-4 w-4 text-[#1E3A5F]" />
+              <p className="text-sm text-muted-foreground">Valore medio offerta</p>
+            </div>
+            <p className="text-2xl font-bold">{formatCurrency(valoremedioOfferta)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="h-4 w-4 text-[#1E3A5F]" />
+              <p className="text-sm text-muted-foreground">Tempo medio firma</p>
+            </div>
+            <p className="text-2xl font-bold">
+              {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
+            </p>
+            {conRisposta.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
