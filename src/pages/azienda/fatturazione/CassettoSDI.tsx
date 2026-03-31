@@ -158,7 +158,7 @@ export default function CassettoSDI() {
           <p className="text-sm text-muted-foreground">Monitoraggio trasmissioni al Sistema di Interscambio</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={String(anno)} onValueChange={(v) => setAnno(parseInt(v))}>
+          <Select value={String(anno)} onValueChange={(v) => setAnno(Number(v))}>
             <SelectTrigger className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
