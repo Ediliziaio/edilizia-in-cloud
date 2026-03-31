@@ -3,7 +3,7 @@ import { navigateToSubdomain } from "@/utils/subdomainNav";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
+import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -415,6 +416,207 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
   );
 }
 
+// ─── Tipi struttura dati sidebar impostazioni ────────────────────────────────
+interface SettingsNavItem {
+  to: string;
+  label: string;
+  icon: React.ReactNode;
+  visible: boolean;
+}
+interface SettingsNavGroup {
+  label: string;
+  items: SettingsNavItem[];
+}
+
+/** Costruisce i 9 gruppi della sidebar impostazioni in base ai permessi */
+function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): SettingsNavGroup[] {
+  return [
+    {
+      label: "La mia azienda",
+      items: [
+        { to: "/azienda/impostazioni/profilo",   label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
+        { to: "/azienda/impostazioni/sedi",       label: "Sedi",             icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/branding",   label: "White-Label",      icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
+      ],
+    },
+    {
+      label: "Cantieri & Costi",
+      items: [
+        { to: "/azienda/impostazioni/stati-ordine",        label: "Stati ordine",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/automazioni-finanza", label: "Automazioni finanza", icon: <RefreshCw className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsOrders },
+      ],
+    },
+    {
+      label: "Preventivi & Listino",
+      items: [
+        { to: "/azienda/impostazioni/listino",              label: "Listino prodotti",    icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/tariffe",              label: "Tariffe aziendali",   icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/materiali-preventivi",label: "Materiali preventivi",icon: <FileStack className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canEditSettingsCustomization },
+      ],
+    },
+    {
+      label: "CRM & Vendite",
+      items: [
+        { to: "/azienda/impostazioni/tag",                 label: "Tag",                  icon: <Tag className="h-4 w-4" />,              visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/campi-personalizzati",label: "Campi personalizzati", icon: <SlidersHorizontal className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/sequenze",            label: "Sequenze",             icon: <GitBranch className="h-4 w-4" />,         visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/form-builder",        label: "Form & UTM",           icon: <FileText className="h-4 w-4" />,          visible: isAdmin || permissions.canEditSettingsCustomization },
+        { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",            icon: <Truck className="h-4 w-4" />,             visible: isAdmin || permissions.canViewSettingsOrders },
+      ],
+    },
+    {
+      label: "Marketing",
+      items: [
+        { to: "/azienda/impostazioni/calendari",  label: "Calendari marketing", icon: <CalendarDays className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin },
+      ],
+    },
+    {
+      label: "Persone & Accessi",
+      items: [
+        { to: "/azienda/impostazioni/utenti",    label: "Utenti",       icon: <Users className="h-4 w-4" />,    visible: isAdmin || permissions.canViewUsers },
+        { to: "/azienda/impostazioni/venditori", label: "Venditori",    icon: <UserCheck className="h-4 w-4" />,visible: isAdmin || permissions.canViewSettingsPeople },
+        { to: "/azienda/impostazioni/staff",     label: "Staff / Operai",icon: <HardHat className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPeople },
+        { to: "/azienda/impostazioni/team",      label: "Team",          icon: <Users className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsPeople },
+      ],
+    },
+    {
+      label: "Sicurezza & Privacy",
+      items: [
+        { to: "/azienda/impostazioni/sicurezza",           label: "Cambio password",    icon: <Key className="h-4 w-4" />,      visible: true },
+        { to: "/azienda/impostazioni/privacy",             label: "Privacy & GDPR",     icon: <Shield className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsSecurity },
+        { to: "/azienda/impostazioni/security-dashboard",  label: "Security dashboard", icon: <Shield className="h-4 w-4" />,   visible: isAdmin },
+        { to: "/azienda/impostazioni/attivita",            label: "Registro attività",  icon: <ScrollText className="h-4 w-4" />,visible: isAdmin },
+      ],
+    },
+    {
+      label: "Integrazioni & API",
+      items: [
+        { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin },
+        { to: "/azienda/impostazioni/crediti",        label: "Crediti & Saldo",icon: <Wallet className="h-4 w-4" />, visible: isAdmin },
+        { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin },
+        { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin },
+        { to: "/azienda/impostazioni/numeri-telefono",label: "Numeri Virtuali",icon: <Phone className="h-4 w-4" />,  visible: isAdmin },
+      ],
+    },
+    {
+      label: "Abbonamento",
+      items: [
+        { to: "/azienda/impostazioni/abbonamento",        label: "Piano abbonamento",         icon: <Wallet className="h-4 w-4" />,   visible: isAdmin },
+        { to: "/azienda/impostazioni/fatturazione",       label: "Fatturazione",              icon: <FileText className="h-4 w-4" />, visible: isAdmin },
+        { to: "/azienda/impostazioni/fatturazione-nativa",label: "Fatturazione elettronica",  icon: <FileText className="h-4 w-4" />, visible: isAdmin },
+      ],
+    },
+  ];
+}
+
+/** Sidebar impostazioni: 9 gruppi + barra di ricerca fuzzy */
+const SettingsSidebarContent = memo(function SettingsSidebarContent({
+  isAdmin,
+  permissions,
+  navigate,
+}: {
+  isAdmin: boolean;
+  permissions: Permissions;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  const [query, setQuery] = useState("");
+
+  const allGroups = useMemo(
+    () => buildSettingsGroups(isAdmin, permissions),
+    [isAdmin, permissions]
+  );
+
+  // Filtra gruppi per ricerca: se query vuota mostra tutto, altrimenti filtra per label
+  const filteredGroups = useMemo<SettingsNavGroup[]>(() => {
+    const visibleGroups = allGroups.map(g => ({
+      ...g,
+      items: g.items.filter(item => item.visible),
+    })).filter(g => g.items.length > 0);
+
+    if (!query.trim()) return visibleGroups;
+
+    const q = query.trim().toLowerCase();
+    return visibleGroups
+      .map(g => ({
+        ...g,
+        items: g.items.filter(
+          item =>
+            item.label.toLowerCase().includes(q) ||
+            g.label.toLowerCase().includes(q)
+        ),
+      }))
+      .filter(g => g.items.length > 0);
+  }, [allGroups, query]);
+
+  const navLinkClass =
+    "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";
+  const navLinkActive =
+    "bg-muted text-foreground font-semibold border-l-primary";
+
+  return (
+    <>
+      {/* Bottone Torna indietro */}
+      <div className="px-3 pt-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
+          onClick={() => navigate("/azienda")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Torna indietro
+        </Button>
+        <h2 className="text-lg font-semibold px-3 mb-3">Impostazioni</h2>
+
+        {/* Barra di ricerca fuzzy */}
+        <div className="relative mb-2">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Cerca impostazioni…"
+            className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
+            aria-label="Cerca nelle impostazioni"
+          />
+        </div>
+      </div>
+
+      {/* Gruppi filtrati */}
+      {filteredGroups.map(group => (
+        <SidebarGroup key={group.label}>
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {group.items.map(item => (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.to} className={navLinkClass} activeClassName={navLinkActive}>
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+
+      {/* Empty state ricerca */}
+      {filteredGroups.length === 0 && (
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          <Search className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          Nessun risultato per <strong>"{query}"</strong>
+        </div>
+      )}
+    </>
+  );
+});
+
 const CompanySidebar = memo(function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
@@ -558,329 +760,11 @@ const CompanySidebar = memo(function CompanySidebar() {
       </div>
       <SidebarContent>
         {isSettingsRoute ? (
-          <>
-            <div className="px-3 pt-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
-                onClick={() => navigate("/azienda")}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Torna indietro
-              </Button>
-              <h2 className="text-lg font-semibold px-3 mb-4">Impostazioni</h2>
-            </div>
-
-            {(isAdmin || permissions.canViewSettingsProfile) && (
-              <SidebarGroup>
-                <SidebarGroupLabel>La mia azienda</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Building2 className="h-4 w-4" /><span>Profilo aziendale</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {(isAdmin || permissions.canViewSettingsOrders) && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Gestione ordini</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/listino" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Package className="h-4 w-4" /><span>Listino Prodotti</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/tariffe" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Wrench className="h-4 w-4" /><span>Tariffe Aziendali</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/margini" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <TrendingUp className="h-4 w-4" /><span>Preventivi &amp; Margini</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <ListOrdered className="h-4 w-4" /><span>Stati ordine</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Truck className="h-4 w-4" /><span>Fornitori</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/sedi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <MapPin className="h-4 w-4" /><span>Sedi</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/categorie-costi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <FolderOpen className="h-4 w-4" /><span>Categorie costi</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/automazioni-finanza" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <RefreshCw className="h-4 w-4" /><span>Automazioni Finanza</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {(isAdmin || permissions.canViewSettingsCustomization) && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Marketing e Vendita</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/tag" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Tag className="h-4 w-4" /><span>Tag</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/campi-personalizzati" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <SlidersHorizontal className="h-4 w-4" /><span>Campi personalizzati</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/sequenze" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <GitBranch className="h-4 w-4" /><span>Sequenze</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/calendari" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <CalendarDays className="h-4 w-4" /><span>Calendari</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/materiali-preventivi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <FileStack className="h-4 w-4" /><span>Materiali Preventivi</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    {(isAdmin || permissions.canEditSettingsCustomization) && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/template-preventivi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                            <Paintbrush className="h-4 w-4" /><span>Template Offerte</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {(isAdmin || permissions.canEditSettingsCustomization) && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/form-builder" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                            <FileText className="h-4 w-4" /><span>Form & UTM</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {(isAdmin || permissions.canViewUsers) && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Utenti</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/utenti" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Users className="h-4 w-4" /><span>Utenti</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {(isAdmin || permissions.canViewSettingsPeople) && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Team</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/venditori" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <UserCheck className="h-4 w-4" /><span>Venditori</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/staff" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <HardHat className="h-4 w-4" /><span>Staff / Operai</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/team" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Users className="h-4 w-4" /><span>Team</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Sicurezza e Privacy</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/azienda/impostazioni/sicurezza" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                        <Key className="h-4 w-4" /><span>Cambio password</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {(isAdmin || permissions.canViewSettingsSecurity) && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Shield className="h-4 w-4" /><span>Privacy & GDPR</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
-                  {isAdmin && (
-                    <>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/security-dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                            <Shield className="h-4 w-4" /><span>Security Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                          <NavLink to="/azienda/impostazioni/attivita" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                            <ScrollText className="h-4 w-4" /><span>Registro attività</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            {isAdmin && (
-              <SidebarGroup>
-                <SidebarGroupLabel>Integrazioni & Crediti</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/integrazioni" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Plug className="h-4 w-4" /><span>Integrazioni</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/lead-forms" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <FormInput className="h-4 w-4" /><span>Lead Facebook</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/crediti" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Wallet className="h-4 w-4" /><span>Crediti & Saldo</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/api" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Key className="h-4 w-4" /><span>API Platform</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/webhook" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Globe className="h-4 w-4" /><span>Webhook</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/numeri-telefono" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Phone className="h-4 w-4" /><span>Numeri Virtuali</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/branding" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Paintbrush className="h-4 w-4" /><span>White-Label</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/abbonamento" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <Wallet className="h-4 w-4" /><span>Abbonamento</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/azienda/impostazioni/fatturazione" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
-                          <FileText className="h-4 w-4" /><span>Fatturazione</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-          </>
+          <SettingsSidebarContent
+            isAdmin={isAdmin}
+            permissions={permissions}
+            navigate={navigate}
+          />
         ) : (
           <>
             {/* Cruscotto — standalone items */}
