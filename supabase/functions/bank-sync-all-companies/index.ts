@@ -1,29 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep, computeAmountEur } from "../_shared/goCardless.ts";
-
-/** Build a deterministic external_transaction_id fallback when provider doesn't supply one */
-function buildDeterministicTxId(
-  accountId: string,
-  tx: any,
-): string {
-  const parts = [
-    accountId,
-    tx.bookingDate || tx.valueDate || "nodate",
-    tx.transactionAmount?.amount || "0",
-    tx.transactionAmount?.currency || "EUR",
-    tx.creditorName || tx.debtorName || "",
-    (tx.remittanceInformationUnstructured || "").slice(0, 60),
-  ];
-  const str = parts.join("|");
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const chr = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + chr;
-    hash |= 0;
-  }
-  return `${accountId}_${tx.bookingDate || "nodate"}_${Math.abs(hash).toString(36)}`;
-}
+import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep, computeAmountEur, buildDeterministicTxId } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

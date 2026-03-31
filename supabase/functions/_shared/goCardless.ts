@@ -108,3 +108,22 @@ export function computeAmountEur(amount: number, currency: string): number | nul
   if (currency === 'EUR') return amount;
   return null; // TODO: integrare API tassi cambio per CHF/GBP/USD
 }
+
+/** Genera un ID transazione deterministico quando il provider non ne fornisce uno */
+export function buildDeterministicTxId(accountId: string, tx: Record<string, unknown>): string {
+  const parts = [
+    accountId,
+    (tx.bookingDate as string) || (tx.valueDate as string) || 'nodate',
+    (tx.transactionAmount as Record<string, string>)?.amount || '0',
+    (tx.transactionAmount as Record<string, string>)?.currency || 'EUR',
+    (tx.creditorName as string) || (tx.debtorName as string) || '',
+    ((tx.remittanceInformationUnstructured as string) || '').slice(0, 60),
+  ];
+  const str = parts.join('|');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `${accountId}_${(tx.bookingDate as string) || 'nodate'}_${Math.abs(hash).toString(36)}`;
+}
