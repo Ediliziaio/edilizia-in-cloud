@@ -453,7 +453,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ),
             ]);
           } catch {
-            userData = { profile: null, role: null, company: null };
+            // Background re-validation timed out or threw (DB cold-start / network error).
+            // The JWT is still valid and the fast-path cache-hit above already committed
+            // the correct role into state (if a cache entry existed).
+            // Mirror the TOKEN_REFRESHED slow-path: do NOT wipe role/profile/company.
+            // The next TOKEN_REFRESHED cycle will retry fetchUserData automatically.
+            // Setting userData = { role: null } here was the root cause of the sidebar
+            // blanking to only "Attività" after a 12 s DB timeout mid-session.
+            logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: background fetchUserData failed — keeping existing state");
+            return;
           }
 
           // Another auth event fired while we were fetching — bail out.
