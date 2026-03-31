@@ -16,6 +16,7 @@ import {
   calcolaMargine,
   semaforo,
   calcolaTotaliPreventivo,
+  round2,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro } from "@/hooks/usePreventivoCosti";
 import { Button } from "@/components/ui/button";
@@ -2289,7 +2290,7 @@ export default function QuoteBuilder() {
 
             {/* Admin cost block */}
             {isAdmin && totaliPro.costo_totale > 0 && (
-              <div className="border rounded-lg p-4 bg-blue-50/50 space-y-2 text-sm">
+              <div className="border rounded-lg p-4 bg-blue-50/50 space-y-3 text-sm">
                 <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-900">
                   <TrendingUp className="h-4 w-4" />
                   Analisi costi (solo admin)
@@ -2311,13 +2312,43 @@ export default function QuoteBuilder() {
                   <span className="font-medium">Margine netto</span>
                   <span className="text-right font-medium flex justify-end gap-2">
                     {formatCurrency(
-                      totaliPro.subtotale -
-                        totaliPro.costo_totale -
-                        totaliPro.overhead_totale
+                      round2(totaliPro.subtotale_netto - totaliPro.costo_totale - totaliPro.overhead_totale)
                     )}
                     <MargineSemaforo pct={totaliPro.margine_totale_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
                   </span>
                 </div>
+
+                {/* Margine per categoria */}
+                {(() => {
+                  const CATS = ["prodotto", "posa", "trasporto", "smaltimento", "nolo"] as const;
+                  const catRows = CATS.flatMap((cat) => {
+                    const catItems = items.filter((i) => i.item_category === cat && !i.is_optional);
+                    if (catItems.length === 0) return [];
+                    const ricavo = round2(catItems.reduce((s, i) => s + i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100), 0) * (1 - discountPercent / 100));
+                    const costo = round2(catItems.reduce((s, i) => s + (i.prezzo_acquisto ?? 0) * i.quantity, 0));
+                    const overhead = round2(costo * ((impostazioni.overhead_percentuale ?? 0) / 100));
+                    const margine = round2(ricavo - costo - overhead);
+                    const margine_pct = ricavo > 0 ? round2((margine / ricavo) * 100) : 0;
+                    const labels: Record<string, string> = { prodotto: "Prodotti", posa: "Posa", trasporto: "Trasporto", smaltimento: "Smaltimento", nolo: "Nolo" };
+                    return [{ cat, label: labels[cat], ricavo, margine, margine_pct }];
+                  });
+                  if (catRows.length < 2) return null;
+                  return (
+                    <div className="border-t pt-2 space-y-1">
+                      <p className="text-xs font-medium text-blue-800">Margine per categoria</p>
+                      {catRows.map(({ cat, label, ricavo, margine, margine_pct }) => (
+                        <div key={cat} className="grid grid-cols-3 gap-x-2 text-xs">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="text-right">{formatCurrency(ricavo)}</span>
+                          <span className="text-right">
+                            <MargineSemaforo pct={margine_pct} sogliaMin={impostazioni.margine_minimo_percentuale ?? 15} target={impostazioni.margine_target_percentuale ?? 25} />
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {tipoLavoro &&
                   (() => {
                     const catData = categorie.find(

@@ -55,6 +55,14 @@ export interface PreventivoImpostazioni {
 
 // ─── Pure functions ───────────────────────────────────────────────────────────
 
+/**
+ * Arrotondamento sicuro a 2 decimali senza errori floating-point.
+ * Usa Math.round(v * 100) / 100 invece di toFixed per evitare drift cumulativi.
+ */
+export function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
 export function calcolaMargine(
   pv: number,
   pa: number,
@@ -120,25 +128,32 @@ export function calcolaTotaliPreventivo(
   }
 
   // subtotale_netto = ricavo reale dopo sconto globale preventivo
-  const subtotale_netto = subtotale * (1 - discount_global_pct / 100);
+  const subtotale_netto = round2(subtotale * (1 - discount_global_pct / 100));
 
-  const overhead_totale = costo_totale * (overhead_pct / 100);
+  const overhead_totale = round2(costo_totale * (overhead_pct / 100));
   const vatFactor = 1 - discount_global_pct / 100;
-  const vatAmount = Object.values(iva_breakdown).reduce((s, v) => s + v, 0) * vatFactor;
-  const totale = subtotale_netto + vatAmount;
+  const vatAmount = round2(
+    Object.values(iva_breakdown).reduce((s, v) => s + v, 0) * vatFactor
+  );
+  // Aggiusta iva_breakdown per riflettere il fattore sconto globale
+  const iva_breakdown_netto: Record<string, number> = {};
+  for (const [k, v] of Object.entries(iva_breakdown)) {
+    iva_breakdown_netto[k] = round2(v * vatFactor);
+  }
+  const totale = round2(subtotale_netto + vatAmount);
 
   // Il margine è calcolato sul ricavo netto effettivo (post-sconto globale)
   const margine_totale_pct =
     subtotale_netto > 0
-      ? ((subtotale_netto - costo_totale - overhead_totale) / subtotale_netto) * 100
+      ? round2(((subtotale_netto - costo_totale - overhead_totale) / subtotale_netto) * 100)
       : 0;
 
   return {
-    subtotale,
+    subtotale: round2(subtotale),
     subtotale_netto,
-    iva_breakdown,
+    iva_breakdown: iva_breakdown_netto,
     totale,
-    costo_totale,
+    costo_totale: round2(costo_totale),
     overhead_totale,
     margine_totale_pct,
   };
