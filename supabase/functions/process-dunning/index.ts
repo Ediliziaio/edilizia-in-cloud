@@ -88,15 +88,40 @@ function buildTrialEmail(company: any, daysLeft: number): string {
   `;
 }
 
-async function hasRecentDunningEmail(companyId: string, emailType: string): Promise<boolean> {
+/**
+ * Returns true if a 'sent' attempt already exists for this (company, dunningDay).
+ * Prevents duplicate emails across cron runs.
+ */
+async function hasAlreadySent(companyId: string, dunningDay: string): Promise<boolean> {
   const { data } = await supabase
-    .from("subscription_logs")
+    .from("dunning_attempts")
     .select("id")
     .eq("company_id", companyId)
-    .eq("event_type", emailType)
-    .gte("created_at", new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()) // deduplicate within 2 days
+    .eq("dunning_day", dunningDay)
+    .eq("status", "sent")
     .limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Log a dunning send attempt to dunning_attempts table.
+ * status='sent' → email delivered successfully
+ * status='failed' → send failed, includes error_message
+ * status='skipped' → dedup: already sent
+ */
+async function logDunningAttempt(
+  companyId: string,
+  dunningDay: string,
+  status: "sent" | "failed" | "skipped",
+  errorMessage?: string
+) {
+  await supabase.from("dunning_attempts").insert({
+    company_id: companyId,
+    dunning_day: dunningDay,
+    sent_at: status === "sent" ? new Date().toISOString() : null,
+    status,
+    error_message: errorMessage ?? null,
+  });
 }
 
 async function logDunningEvent(companyId: string, eventType: string, notes: string) {
@@ -166,7 +191,8 @@ Deno.serve(async (req) => {
           daysExpired === 7 ? "dunning_day7" : null;
 
         if (!emailType) continue;
-        if (await hasRecentDunningEmail(company.id, emailType)) continue;
+        // Dedup: skip if already sent (uses dunning_attempts table)
+        if (await hasAlreadySent(company.id, emailType)) continue;
 
         if (providerSettings && company.email) {
           const html = buildExpiredEmail(company, daysExpired);
@@ -175,13 +201,21 @@ Deno.serve(async (req) => {
             dunning_day3: "Rinnova il tuo abbonamento — accesso a rischio",
             dunning_day7: "⚠️ Ultimo avviso: account verrà sospeso tra 7 giorni",
           };
-          await sendEmail(providerSettings, {
-            from: providerSettings.fromAddress,
-            to: [company.email],
-            subject: subjects[emailType],
-            html,
-          });
-          results.emails_sent++;
+          try {
+            await sendEmail(providerSettings, {
+              from: providerSettings.fromAddress,
+              to: [company.email],
+              subject: subjects[emailType],
+              html,
+            });
+            await logDunningAttempt(company.id, emailType, "sent");
+            results.emails_sent++;
+          } catch (emailErr) {
+            const errMsg = (emailErr as Error).message;
+            console.error(`[dunning] Email send failed for company ${company.id} (${emailType}):`, errMsg);
+            await logDunningAttempt(company.id, emailType, "failed", errMsg);
+            results.errors++;
+          }
         }
 
         await logDunningEvent(company.id, emailType, `Email dunning inviata (giorno ${daysExpired})`);
@@ -207,17 +241,26 @@ Deno.serve(async (req) => {
         results.processed++;
 
         const emailType = daysLeft <= 0 ? "trial_expired_email" : "trial_expiring_3d";
-        if (await hasRecentDunningEmail(company.id, emailType)) continue;
+        // Dedup: skip if already sent
+        if (await hasAlreadySent(company.id, emailType)) continue;
 
         if (providerSettings && company.email) {
           const html = buildTrialEmail(company, daysLeft);
-          await sendEmail(providerSettings, {
-            from: providerSettings.fromAddress,
-            to: [company.email],
-            subject: daysLeft <= 0 ? "Il tuo periodo di prova è terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
-            html,
-          });
-          results.emails_sent++;
+          try {
+            await sendEmail(providerSettings, {
+              from: providerSettings.fromAddress,
+              to: [company.email],
+              subject: daysLeft <= 0 ? "Il tuo periodo di prova è terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
+              html,
+            });
+            await logDunningAttempt(company.id, emailType, "sent");
+            results.emails_sent++;
+          } catch (emailErr) {
+            const errMsg = (emailErr as Error).message;
+            console.error(`[dunning] Trial email send failed for company ${company.id} (${emailType}):`, errMsg);
+            await logDunningAttempt(company.id, emailType, "failed", errMsg);
+            results.errors++;
+          }
         }
 
         await logDunningEvent(company.id, emailType, `Email trial ${daysLeft <= 0 ? "scaduto" : `scade tra ${daysLeft} giorni`} inviata`);
