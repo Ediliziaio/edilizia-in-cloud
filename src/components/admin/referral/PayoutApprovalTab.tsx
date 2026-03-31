@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Check, X, Download } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Loader2, Check, X, Download, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -19,6 +20,8 @@ export function PayoutApprovalTab() {
   const queryClient = useQueryClient();
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [approveConfirmId, setApproveConfirmId] = useState<string | null>(null);
+  const [approveConfirmData, setApproveConfirmData] = useState<{ referrerName: string; amount: number } | null>(null);
 
   const { data: pendingPayouts = [], isLoading } = useQuery({
     queryKey: ["admin-pending-payouts"],
@@ -214,7 +217,15 @@ export function PayoutApprovalTab() {
                     <TableCell>{statusBadge(p.status)}</TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="outline" onClick={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setApproveConfirmId(p.id);
+                            setApproveConfirmData({ referrerName: p.referrer?.name ?? "—", amount: p.amount });
+                          }}
+                          disabled={approveMutation.isPending}
+                        >
                           <Check className="h-3.5 w-3.5 mr-1" /> Approva
                         </Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setRejectId(p.id)}>
@@ -323,6 +334,49 @@ export function PayoutApprovalTab() {
           </Button>
         </DialogContent>
       </Dialog>
+
+      {/* Approve confirmation dialog — double confirmation required (P3 governance) */}
+      <AlertDialog
+        open={!!approveConfirmId}
+        onOpenChange={(open) => { if (!open) { setApproveConfirmId(null); setApproveConfirmData(null); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Conferma Approvazione Payout
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Stai per approvare un payout a <strong>{approveConfirmData?.referrerName}</strong>.</p>
+              <p>
+                Importo:{" "}
+                <strong className="text-foreground">
+                  {approveConfirmData ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(approveConfirmData.amount) : "—"}
+                </strong>
+              </p>
+              <p className="text-destructive font-medium">
+                Questa azione richiede una seconda conferma. L&apos;operazione verrà registrata nell&apos;audit log.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (approveConfirmId) {
+                  approveMutation.mutate(approveConfirmId);
+                  setApproveConfirmId(null);
+                  setApproveConfirmData(null);
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Check className="h-4 w-4 mr-1" />
+              Sì, Approva Payout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
