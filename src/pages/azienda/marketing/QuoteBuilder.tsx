@@ -1091,6 +1091,9 @@ export default function QuoteBuilder() {
   const [autosaveFailed, setAutosaveFailed] = useState(false);
 
   const autosaveDraft = useCallback(async () => {
+    // Guard: non sovrascrivere preventivi già inviati/accettati/rifiutati/scaduti
+    const STATI_BLOCCATI = ['inviata', 'accettata', 'rifiutata', 'scaduta'];
+    if (STATI_BLOCCATI.includes((existingQuote as any)?.status || '')) return;
     if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
     const hash = JSON.stringify({ clientName, itemsLen: items.length, discountPercent });
     if (hash === lastSavedHashRef.current) return;
