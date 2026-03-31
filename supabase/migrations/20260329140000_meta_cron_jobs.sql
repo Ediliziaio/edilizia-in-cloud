@@ -1,5 +1,9 @@
 -- Migration: meta cron jobs
 -- Schedula i job pg_cron per meta-process-leads, meta-health-check e meta-token-refresh
+--
+-- NOTA DEPLOY: prima di eseguire questa migration in un nuovo ambiente,
+-- configura: SELECT set_config('app.supabase_url', 'https://TUO-PROGETTO.supabase.co', false);
+-- oppure tramite Vault: ALTER DATABASE postgres SET app.supabase_url = 'https://TUO-PROGETTO.supabase.co';
 
 -- ================================================================
 -- Rimuovi job esistenti se presenti (idempotente)
@@ -25,7 +29,7 @@ SELECT cron.schedule(
   '*/2 * * * *',
   $$
   SELECT net.http_post(
-    url:='https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/meta-process-leads',
+    url:=current_setting('app.supabase_url', true) || '/functions/v1/meta-process-leads',
     headers:='{"Content-Type":"application/json","x-cron-secret":"13035e8e9570855959a5bf9c0803d117554d8162cf63e46b"}'::jsonb,
     body:='{}'::jsonb
   ) AS request_id;
@@ -40,7 +44,7 @@ SELECT cron.schedule(
   '0 6 * * *',
   $$
   SELECT net.http_post(
-    url:='https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/meta-health-check',
+    url:=current_setting('app.supabase_url', true) || '/functions/v1/meta-health-check',
     headers:='{"Content-Type":"application/json","x-cron-secret":"13035e8e9570855959a5bf9c0803d117554d8162cf63e46b"}'::jsonb,
     body:='{}'::jsonb
   ) AS request_id;
@@ -55,7 +59,7 @@ SELECT cron.schedule(
   '0 3 * * *',
   $$
   SELECT net.http_post(
-    url:='https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/meta-token-refresh',
+    url:=current_setting('app.supabase_url', true) || '/functions/v1/meta-token-refresh',
     headers:='{"Content-Type":"application/json","x-cron-secret":"13035e8e9570855959a5bf9c0803d117554d8162cf63e46b"}'::jsonb,
     body:='{}'::jsonb
   ) AS request_id;

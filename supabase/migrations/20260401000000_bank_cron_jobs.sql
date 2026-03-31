@@ -1,5 +1,9 @@
 -- FIX 1 — P1: Configurare cron job bancari
 -- Richiede le estensioni pg_cron e pg_net (attivabili da Supabase Dashboard > Extensions)
+--
+-- NOTA DEPLOY: prima di eseguire questa migration in un nuovo ambiente,
+-- configura: SELECT set_config('app.supabase_url', 'https://TUO-PROGETTO.supabase.co', false);
+-- oppure tramite Vault: ALTER DATABASE postgres SET app.supabase_url = 'https://TUO-PROGETTO.supabase.co';
 
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
@@ -23,7 +27,7 @@ SELECT cron.schedule(
   '0 3 * * *',
   $$
     SELECT net.http_post(
-      url     := 'https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/bank-sync-all-companies',
+      url     := current_setting('app.supabase_url', true) || '/functions/v1/bank-sync-all-companies',
       headers := '{"Content-Type":"application/json","x-cron-secret":"INTERNAL_CRON_SECRET_PLACEHOLDER"}'::jsonb,
       body    := '{}'::jsonb
     );
@@ -36,7 +40,7 @@ SELECT cron.schedule(
   '0 8 * * *',
   $$
     SELECT net.http_post(
-      url     := 'https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/bank-check-expiry',
+      url     := current_setting('app.supabase_url', true) || '/functions/v1/bank-check-expiry',
       headers := '{"Content-Type":"application/json","x-cron-secret":"INTERNAL_CRON_SECRET_PLACEHOLDER"}'::jsonb,
       body    := '{}'::jsonb
     );
@@ -49,7 +53,7 @@ SELECT cron.schedule(
   '0 4 * * *',
   $$
     SELECT net.http_post(
-      url     := 'https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/bank-auto-reconcile',
+      url     := current_setting('app.supabase_url', true) || '/functions/v1/bank-auto-reconcile',
       headers := '{"Content-Type":"application/json","x-cron-secret":"INTERNAL_CRON_SECRET_PLACEHOLDER"}'::jsonb,
       body    := '{}'::jsonb
     );
