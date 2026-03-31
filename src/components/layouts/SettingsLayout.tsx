@@ -30,6 +30,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   venditori:              { title: "Venditori",                description: "Gestisci l'elenco dei venditori" },
   staff:                  { title: "Staff / Operai",           description: "Gestisci lo staff operativo e gli operai" },
   team:                   { title: "Team",                     description: "Organizza i team di lavoro" },
+  "sicurezza-privacy":    { title: "Sicurezza & Privacy",       description: "Password, privacy GDPR, dashboard sicurezza e registro attività" },
   sicurezza:              { title: "Cambio password",          description: "Aggiorna le credenziali di accesso" },
   privacy:                { title: "Privacy & GDPR",           description: "Gestisci le preferenze privacy e la conformità GDPR" },
   "security-dashboard":   { title: "Security dashboard",      description: "Monitora gli accessi e gli eventi di sicurezza" },

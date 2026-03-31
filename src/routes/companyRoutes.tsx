@@ -20,6 +20,7 @@ const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"
 const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
 const SettingsTeams = lazy(() => import("@/pages/azienda/settings/SettingsTeams"));
 const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
+const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
 const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
 const SettingsActivityLog = lazy(() => import("@/pages/azienda/settings/SettingsActivityLog"));
@@ -268,15 +269,18 @@ export function companyRoutes() {
           <Route path="staff" element={<Navigate to="/azienda/impostazioni/persone?tab=staff" replace />} />
           <Route path="sedi" element={<SettingsSedi />} />
           <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
-          <Route path="sicurezza" element={<SettingsSecurity />} />
-          <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
-          <Route path="attivita" element={<SettingsActivityLog />} />
+          {/* IMP4: Sicurezza & Privacy — pagina unica con 4 tab */}
+          <Route path="sicurezza-privacy" element={<SettingsSecurityHub />} />
+          {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}
+          <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=password" replace />} />
+          <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
+          <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
           <Route path="integrazioni" element={<SettingsIntegrations />} />
           <Route path="lead-forms" element={<FacebookFormsPage />} />
           <Route path="crediti" element={<SettingsCredits />} />
           <Route path="api" element={<SettingsApiKeys />} />
           <Route path="webhook" element={<SettingsWebhooks />} />
-          <Route path="privacy" element={<SettingsPrivacy />} />
+          <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={<SettingsBranding />} />
           <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
           <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />

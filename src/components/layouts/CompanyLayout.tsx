@@ -484,10 +484,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
     {
       label: "Sicurezza & Privacy",
       items: [
-        { to: "/azienda/impostazioni/sicurezza",           label: "Cambio password",    icon: <Key className="h-4 w-4" />,      visible: true },
-        { to: "/azienda/impostazioni/privacy",             label: "Privacy & GDPR",     icon: <Shield className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsSecurity },
-        { to: "/azienda/impostazioni/security-dashboard",  label: "Security dashboard", icon: <Shield className="h-4 w-4" />,   visible: isAdmin },
-        { to: "/azienda/impostazioni/attivita",            label: "Registro attività",  icon: <ScrollText className="h-4 w-4" />,visible: isAdmin },
+        // IMP4: voce unica → pagina con 4 tab (password/privacy/dashboard/attivita)
+        { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & Privacy", icon: <Shield className="h-4 w-4" />, visible: true },
       ],
     },
     {
