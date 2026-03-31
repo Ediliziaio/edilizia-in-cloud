@@ -25,6 +25,7 @@ const CATEGORIES = [
   { value: "Bancario", icon: "Landmark" },
   { value: "Clienti", icon: "TrendingUp" },
   { value: "Entrata", icon: "ArrowDownLeft" },
+  { value: "Non categorizzata", icon: "HelpCircle" },
 ];
 
 interface Props {
