@@ -2,6 +2,7 @@ import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_sha
 import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
+import { generateMatrix } from "https://deno.land/x/qrcode@v0.2.0/mod.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -336,29 +337,62 @@ Deno.serve(async (req) => {
       if (quote.title) { page.drawText(quote.title, { x: contentX, y, size: 11, font, color: grayC }); y -= 14; }
       if (t.cover_tagline) { page.drawText(t.cover_tagline, { x: contentX, y, size: 10, font: fontItalic, color: primaryC }); y -= 16; }
     } else {
-      // Classic (default)
-      page.drawRectangle({ x: 0, y: pageHeight - 8, width: pageWidth, height: 8, color: primaryC });
-      y = pageHeight - 30;
-      y = drawLogo(page, y);
-      page.drawText(company?.name || "Azienda", { x: margin, y, size: 20, font: fontBold, color: textC });
-      y -= 25;
-      if (company?.address) { page.drawText(company.address, { x: margin, y, size: 9, font, color: grayC }); y -= 14; }
-      if (company?.email) { page.drawText(company.email, { x: margin, y, size: 9, font, color: grayC }); y -= 14; }
-      if (company?.phone) { page.drawText(company.phone, { x: margin, y, size: 9, font, color: grayC }); y -= 14; }
-      if (company?.vat_number) { page.drawText(`P.IVA: ${company.vat_number}`, { x: margin, y, size: 9, font, color: grayC }); y -= 14; }
-      y -= 20;
-      page.drawText("OFFERTA / PREVENTIVO", { x: margin, y, size: 16, font: fontBold, color: primaryC }); y -= 25;
+      // Classic (default) — header band + logo + company info a sinistra, dati offerta a destra
+      const headerH = 90;
+      page.drawRectangle({ x: 0, y: pageHeight - headerH, width: pageWidth, height: headerH, color: primaryC });
+      // Logo in header
+      let hy = pageHeight - 20;
+      if (logoEmbed && t.show_logo) {
+        const maxH = t.logo_size === "small" ? 25 : t.logo_size === "large" ? 55 : 40;
+        const scale = Math.min(maxH / logoEmbed.height, 140 / logoEmbed.width);
+        const w = logoEmbed.width * scale;
+        const h = logoEmbed.height * scale;
+        page.drawImage(logoEmbed, { x: margin, y: pageHeight - headerH + (headerH - h) / 2, width: w, height: h });
+        hy -= h;
+      }
+      // Company name in header right
+      const compNameX = pageWidth - margin - Math.min((company?.name || "").length * 7, 200);
+      page.drawText(company?.name || "Azienda", { x: Math.max(compNameX, pageWidth / 2), y: pageHeight - 35, size: 13, font: fontBold, color: headerTextC, maxWidth: 220 });
+      if (company?.vat_number) {
+        page.drawText(`P.IVA ${company.vat_number}`, { x: Math.max(compNameX, pageWidth / 2), y: pageHeight - 52, size: 8, font, color: rgb(0.85, 0.85, 0.85), maxWidth: 220 });
+      }
+      y = pageHeight - headerH - 25;
+
+      // Company details (left column) + Quote info (right column)
+      const col1X = margin;
+      const col2X = pageWidth / 2 + 20;
+
+      // Left: company contact details
+      let yl = y;
+      page.drawText("Emittente", { x: col1X, y: yl, size: 8, font: fontBold, color: grayC }); yl -= 14;
+      if (company?.address) { page.drawText(company.address, { x: col1X, y: yl, size: 9, font, color: textC, maxWidth: contentWidth / 2 - 10 }); yl -= 13; }
+      if (company?.email) { page.drawText(company.email, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
+      if (company?.phone) { page.drawText(company.phone, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
+
+      // Right: quote identifiers
+      let yr = y;
+      page.drawText("Offerta commerciale", { x: col2X, y: yr, size: 8, font: fontBold, color: grayC }); yr -= 14;
       if (t.show_quote_number) {
-        page.drawText(`N. ${quote.quote_number}`, { x: margin, y, size: 12, font: fontBold, color: textC }); y -= 18;
+        page.drawText(`N. ${quote.quote_number}`, { x: col2X, y: yr, size: 14, font: fontBold, color: primaryC }); yr -= 20;
       }
       const createdDate = new Date(quote.created_at).toLocaleDateString("it-IT");
-      page.drawText(`Data: ${createdDate}`, { x: margin, y, size: 10, font, color: textC }); y -= 14;
+      page.drawText(`Data: ${createdDate}`, { x: col2X, y: yr, size: 9, font, color: textC }); yr -= 13;
       if (t.show_validity_date && quote.expires_at) {
-        page.drawText(`Valida fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`, { x: margin, y, size: 10, font, color: textC }); y -= 14;
+        page.drawText(`Valida fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`, { x: col2X, y: yr, size: 9, font, color: textC }); yr -= 13;
+      }
+
+      y = Math.min(yl, yr) - 20;
+      // Divider
+      page.drawLine({ start: { x: margin, y }, end: { x: pageWidth - margin, y }, thickness: 0.5, color: lightGrayC });
+      y -= 15;
+
+      // Title
+      if (quote.title) {
+        page.drawText("Oggetto:", { x: margin, y, size: 9, font: fontBold, color: grayC }); y -= 14;
+        page.drawText(quote.title, { x: margin, y, size: 12, font: fontBold, color: textC, maxWidth: contentWidth }); y -= 18;
       }
       if (t.cover_tagline) {
-        y -= 10;
-        page.drawText(t.cover_tagline, { x: margin, y, size: 11, font: fontItalic, color: primaryC }); y -= 16;
+        page.drawText(t.cover_tagline, { x: margin, y, size: 10, font: fontItalic, color: primaryC }); y -= 16;
       }
     }
 
@@ -510,8 +544,65 @@ Deno.serve(async (req) => {
       if (Number(quote.discount_percent || 0) > 0) {
         drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${Number(quote.discount_amount || 0).toFixed(2)}`);
       }
-      drawTotal("IVA", `€ ${Number(quote.vat_amount || 0).toFixed(2)}`);
+
+      // ── IVA breakdown per aliquota ─────────────────────────────────
+      const ivaBreakdown: Record<number, number> = {};
+      const discFactor = 1 - Number(quote.discount_percent || 0) / 100;
+      for (const item of items.filter((i: any) => !i.is_optional)) {
+        const rate = Number(item.vat_rate ?? 22);
+        const lineAmt = Number(
+          item.line_total ??
+          (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100))
+        );
+        ivaBreakdown[rate] = (ivaBreakdown[rate] || 0) + lineAmt * (rate / 100);
+      }
+      const ivaRates = Object.keys(ivaBreakdown)
+        .map(Number)
+        .sort((a, b) => a - b);
+      if (ivaRates.length > 1) {
+        // Show per-rate breakdown
+        for (const rate of ivaRates) {
+          const iva = Math.round(ivaBreakdown[rate] * discFactor * 100) / 100;
+          drawTotal(`IVA ${rate}%`, `€ ${iva.toFixed(2)}`);
+        }
+      } else {
+        // Single rate: show total IVA
+        drawTotal("IVA", `€ ${Number(quote.vat_amount || 0).toFixed(2)}`);
+      }
+
       drawTotal("TOTALE", `€ ${Number(quote.total || 0).toFixed(2)}`, true);
+
+      // ── QR firma digitale ──────────────────────────────────────────
+      if (!isPreview && (quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
+        try {
+          const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+          const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
+          const matrix = await generateMatrix(signUrl) as boolean[][];
+          const qrSize = 55;
+          const cellSize = qrSize / matrix.length;
+          const qrX = totX;
+          const qrY = y - 10;
+          // White background
+          page.drawRectangle({ x: qrX - 2, y: qrY - qrSize - 2, width: qrSize + 4, height: qrSize + 4, color: rgb(1, 1, 1) });
+          for (let r = 0; r < matrix.length; r++) {
+            for (let c = 0; c < matrix[r].length; c++) {
+              if (matrix[r][c]) {
+                page.drawRectangle({
+                  x: qrX + c * cellSize,
+                  y: qrY - (r + 1) * cellSize,
+                  width: cellSize,
+                  height: cellSize,
+                  color: rgb(0, 0, 0),
+                });
+              }
+            }
+          }
+          page.drawText("Firma online", { x: qrX, y: qrY - qrSize - 12, size: 7, font, color: grayC });
+          y = qrY - qrSize - 25;
+        } catch (qrErr) {
+          console.warn("QR generation failed:", qrErr);
+        }
+      }
 
       drawWatermark(page);
     }
