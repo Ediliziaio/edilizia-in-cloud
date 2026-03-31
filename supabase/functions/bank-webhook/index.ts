@@ -71,14 +71,14 @@ Deno.serve(async (req) => {
     }
 
     const payload = JSON.parse(rawBody);
+    const eventType: string = payload.type || '';
+    const eventData: Record<string, unknown> = (payload.data as Record<string, unknown>) || {};
     let processedEvents = 0;
 
-    // Evento: nuove transazioni disponibili
-    if (payload.transactions) {
-      for (const event of payload.transactions) {
-        const accountExternalId = event.account_id;
-        if (!accountExternalId) continue;
-
+    // Nuove transazioni disponibili
+    if (eventType === 'ACCOUNT_TRANSACTIONS_CREATED') {
+      const accountExternalId = eventData.account_id as string | undefined;
+      if (accountExternalId) {
         // Trova l'account nel DB
         const { data: account } = await supabase
           .from("bank_accounts")
@@ -87,112 +87,126 @@ Deno.serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
 
-        if (!account) continue;
+        if (account) {
+          // Sync transazioni per questo account
+          try {
+            let token = await getGoCardlessToken();
+            await sleep(500);
 
-        // Sync transazioni per questo account
-        try {
-          let token = await getGoCardlessToken();
-          await sleep(500);
+            // Recupera ultime transazioni (ultimi 7 giorni)
+            const dateFrom = new Date();
+            dateFrom.setDate(dateFrom.getDate() - 7);
+            const dateTo = new Date();
 
-          // Recupera ultime transazioni (ultimi 7 giorni)
-          const dateFrom = new Date();
-          dateFrom.setDate(dateFrom.getDate() - 7);
-          const dateTo = new Date();
+            const { data: txData, token: t2 } = await gcFetch(
+              `/accounts/${accountExternalId}/transactions/?date_from=${dateFrom.toISOString().split("T")[0]}&date_to=${dateTo.toISOString().split("T")[0]}`,
+              token,
+            );
+            token = t2;
 
-          const { data: txData, token: t2 } = await gcFetch(
-            `/accounts/${accountExternalId}/transactions/?date_from=${dateFrom.toISOString().split("T")[0]}&date_to=${dateTo.toISOString().split("T")[0]}`,
-            token,
-          );
-          token = t2;
+            const allTxGroups = [
+              { txs: txData?.transactions?.booked || [], status: "booked" },
+              { txs: txData?.transactions?.pending || [], status: "pending" },
+            ];
 
-          const allTxGroups = [
-            { txs: txData?.transactions?.booked || [], status: "booked" },
-            { txs: txData?.transactions?.pending || [], status: "pending" },
-          ];
+            for (const group of allTxGroups) {
+              for (const tx of group.txs) {
+                const amount = parseFloat(tx.transactionAmount?.amount || "0");
+                const txType = amount >= 0 ? "credit" : "debit";
+                const desc = tx.remittanceInformationUnstructured || tx.remittanceInformationUnstructuredArray?.join(" ") || "";
+                const { category, icon } = categorizeTransaction(desc, tx.creditorName || "", amount);
 
-          for (const group of allTxGroups) {
-            for (const tx of group.txs) {
-              const amount = parseFloat(tx.transactionAmount?.amount || "0");
-              const txType = amount >= 0 ? "credit" : "debit";
-              const desc = tx.remittanceInformationUnstructured || tx.remittanceInformationUnstructuredArray?.join(" ") || "";
-              const { category, icon } = categorizeTransaction(desc, tx.creditorName || "", amount);
+                const externalTxId = tx.transactionId
+                  || tx.internalTransactionId
+                  || buildDeterministicTxId(accountExternalId, tx);
 
-              const externalTxId = tx.transactionId
-                || tx.internalTransactionId
-                || buildDeterministicTxId(accountExternalId, tx);
+                const currency = tx.transactionAmount?.currency || "EUR";
+                const amount_eur = computeAmountEur(amount, currency);
 
-              const currency = tx.transactionAmount?.currency || "EUR";
-              const amount_eur = computeAmountEur(amount, currency);
-
-              await supabase.from("bank_transactions").upsert({
-                company_id: account.company_id,
-                account_id: account.id,
-                external_transaction_id: externalTxId,
-                booking_date: tx.bookingDate || null,
-                value_date: tx.valueDate || null,
-                amount,
-                currency,
-                amount_eur,
-                description: desc,
-                creditor_name: tx.creditorName || null,
-                debtor_name: tx.debtorName || null,
-                creditor_iban: tx.creditorAccount?.iban || null,
-                debtor_iban: tx.debtorAccount?.iban || null,
-                transaction_type: txType,
-                status: group.status,
-                category,
-                category_icon: icon,
-                reference: tx.endToEndId || null,
-                metadata: tx,
-              }, { onConflict: "company_id,external_transaction_id" });
+                await supabase.from("bank_transactions").upsert({
+                  company_id: account.company_id,
+                  account_id: account.id,
+                  external_transaction_id: externalTxId,
+                  booking_date: tx.bookingDate || null,
+                  value_date: tx.valueDate || null,
+                  amount,
+                  currency,
+                  amount_eur,
+                  description: desc,
+                  creditor_name: tx.creditorName || null,
+                  debtor_name: tx.debtorName || null,
+                  creditor_iban: tx.creditorAccount?.iban || null,
+                  debtor_iban: tx.debtorAccount?.iban || null,
+                  transaction_type: txType,
+                  status: group.status,
+                  category,
+                  category_icon: icon,
+                  reference: tx.endToEndId || null,
+                  metadata: tx,
+                }, { onConflict: "company_id,external_transaction_id" });
+              }
             }
+
+            // Aggiorna saldi
+            const { data: balResult } = await gcFetch(`/accounts/${accountExternalId}/balances/`, token);
+            const balances = balResult?.balances || [];
+            const available = balances.find((b: any) => b.balanceType === "interimAvailable");
+            const booked = balances.find((b: any) => b.balanceType === "closingBooked" || b.balanceType === "interimBooked");
+
+            await supabase.from("bank_accounts").update({
+              current_balance: booked ? parseFloat(booked.balanceAmount.amount) : undefined,
+              available_balance: available ? parseFloat(available.balanceAmount.amount) : undefined,
+              balance_updated_at: new Date().toISOString(),
+            }).eq("id", account.id);
+
+            processedEvents++;
+          } catch (syncErr: any) {
+            console.error(`Webhook sync error for account ${accountExternalId}:`, syncErr);
           }
-
-          // Aggiorna saldi
-          const { data: balResult } = await gcFetch(`/accounts/${accountExternalId}/balances/`, token);
-          const balances = balResult?.balances || [];
-          const available = balances.find((b: any) => b.balanceType === "interimAvailable");
-          const booked = balances.find((b: any) => b.balanceType === "closingBooked" || b.balanceType === "interimBooked");
-
-          await supabase.from("bank_accounts").update({
-            current_balance: booked ? parseFloat(booked.balanceAmount.amount) : undefined,
-            available_balance: available ? parseFloat(available.balanceAmount.amount) : undefined,
-            balance_updated_at: new Date().toISOString(),
-          }).eq("id", account.id);
-
-          processedEvents++;
-        } catch (syncErr: any) {
-          console.error(`Webhook sync error for account ${accountExternalId}:`, syncErr);
         }
       }
     }
 
-    // Evento: stato account cambiato
-    if (payload.accounts_status_updated) {
-      for (const event of payload.accounts_status_updated) {
-        const { account_id, status: newStatus } = event;
-        if (!account_id) continue;
-
+    // Stato account cambiato
+    if (eventType === 'ACCOUNT_STATUS_CHANGED') {
+      const accountExternalId = eventData.account_id as string | undefined;
+      const newStatus = eventData.status as string | undefined;
+      if (accountExternalId && newStatus) {
         const { data: account } = await supabase
           .from("bank_accounts")
           .select("id, connection_id")
-          .eq("external_account_id", account_id)
+          .eq("external_account_id", accountExternalId)
           .maybeSingle();
 
-        if (!account) continue;
-
-        if (newStatus === "REVOKED" || newStatus === "SUSPENDED") {
-          await supabase
-            .from("bank_connections")
-            .update({
-              status: newStatus === "REVOKED" ? "disconnected" : "expired",
-              error_message: `Account ${newStatus.toLowerCase()} da GoCardless`,
-            })
-            .eq("id", account.connection_id);
+        if (account) {
+          if (newStatus === "REVOKED" || newStatus === "SUSPENDED") {
+            await supabase
+              .from("bank_connections")
+              .update({
+                status: newStatus === "REVOKED" ? "disconnected" : "expired",
+                error_message: `Account ${newStatus.toLowerCase()} da GoCardless`,
+              })
+              .eq("id", account.connection_id);
+          }
+          processedEvents++;
         }
+      }
+    }
 
+    // Requisition revocata o scaduta
+    if (eventType === 'REQUISITION_REVOKED' || eventType === 'REQUISITION_EXPIRED') {
+      const requisitionId = (eventData.id || eventData.requisition_id) as string | undefined;
+      if (requisitionId) {
+        await supabase
+          .from('bank_connections')
+          .update({ status: 'disconnected', error_message: 'Revocato da GoCardless' })
+          .eq('requisition_id', requisitionId);
         processedEvents++;
       }
+    }
+
+    if (processedEvents === 0) {
+      console.log('Unhandled webhook type:', eventType, JSON.stringify(eventData).slice(0, 200));
     }
 
     // Rispondi entro 5s (requisito GoCardless)
