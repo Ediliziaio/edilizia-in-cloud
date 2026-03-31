@@ -14,14 +14,18 @@ async function logStripeEvent(
   status = "processed",
   errorMessage: string | null = null
 ) {
-  await supabase.from("stripe_events_log").insert({
-    stripe_event_id: eventId,
-    event_type: eventType,
-    company_id: companyId,
-    payload,
-    status,
-    error_message: errorMessage,
-  });
+  // Upsert: update if exists (e.g. from 'processing' → 'processed'/'error'), insert if new
+  await supabase.from("stripe_events_log").upsert(
+    {
+      stripe_event_id: eventId,
+      event_type: eventType,
+      company_id: companyId,
+      payload,
+      status,
+      error_message: errorMessage,
+    },
+    { onConflict: "stripe_event_id" }
+  );
 }
 
 async function getCompanyByStripeCustomer(
@@ -428,16 +432,18 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // ── Idempotency check ──
+    // ── Idempotency check: skip only if already successfully processed ──
+    // Events with status='error' are allowed to retry
     const { data: existing } = await supabase
       .from("stripe_events_log")
-      .select("id")
+      .select("id, status")
       .eq("stripe_event_id", event.id)
+      .eq("status", "processed")
       .maybeSingle();
 
     if (existing) {
       console.log(`[STRIPE] Event ${event.id} already processed, skipping`);
-      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+      return new Response(JSON.stringify({ received: true, already_processed: true }), {
         headers: secureHeaders,
       });
     }
@@ -445,6 +451,9 @@ Deno.serve(async (req) => {
     // Extract company_id for logging
     const obj = event.data?.object || {};
     const companyId = obj.metadata?.company_id || null;
+
+    // Mark event as 'processing' before executing handler (prevents duplicate processing)
+    await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processing");
 
     try {
       switch (event.type) {

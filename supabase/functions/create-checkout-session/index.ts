@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -130,24 +131,13 @@ Deno.serve(async (req) => {
         priceEur = billingConfig.monthlyFeeEur;
       }
 
-      let stripeCustomerId = company.stripe_customer_id;
-      if (!stripeCustomerId) {
-        const customerRes = await fetch("https://api.stripe.com/v1/customers", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${stripeSecretKey}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({ name: company.name, email: company.email, "metadata[company_id]": company.id }),
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        const customer = await customerRes.json();
-        if (customer.error) {
-          return new Response(JSON.stringify({ error: customer.error.message }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        stripeCustomerId = customer.id;
-        await supabaseAdmin.from("companies").update({ stripe_customer_id: stripeCustomerId }).eq("id", company_id);
       }
 
       const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
@@ -159,7 +149,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          customer: stripeCustomerId!,
+          customer: stripeCustomerId,
           mode: "subscription",
           "line_items[0][price_data][currency]": "eur",
           "line_items[0][price_data][unit_amount]": String(Math.round(priceEur * 100)),
@@ -230,31 +220,13 @@ Deno.serve(async (req) => {
       }
 
       // Create or get Stripe customer
-      let stripeCustomerId = company.stripe_customer_id;
-      if (!stripeCustomerId) {
-        const customerRes = await fetch("https://api.stripe.com/v1/customers", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${stripeSecretKey}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            name: company.name,
-            email: company.email,
-            "metadata[company_id]": company.id,
-          }),
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        const customer = await customerRes.json();
-        if (customer.error) {
-          return new Response(JSON.stringify({ error: customer.error.message }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        stripeCustomerId = customer.id;
-        await supabaseAdmin
-          .from("companies")
-          .update({ stripe_customer_id: stripeCustomerId })
-          .eq("id", company_id);
       }
 
       // Build app URL from supabaseUrl
@@ -268,7 +240,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          customer: stripeCustomerId!,
+          customer: stripeCustomerId,
           mode: "payment",
           "payment_method_types[0]": "card",
           "line_items[0][price_data][currency]": "eur",
@@ -339,31 +311,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      let stripeCustomerId = company.stripe_customer_id;
-      if (!stripeCustomerId) {
-        const customerRes = await fetch("https://api.stripe.com/v1/customers", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${stripeSecretKey}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            name: company.name,
-            email: company.email,
-            "metadata[company_id]": company.id,
-          }),
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        const customer = await customerRes.json();
-        if (customer.error) {
-          return new Response(JSON.stringify({ error: customer.error.message }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        stripeCustomerId = customer.id;
-        await supabaseAdmin
-          .from("companies")
-          .update({ stripe_customer_id: stripeCustomerId })
-          .eq("id", company_id);
       }
 
       const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
@@ -375,7 +329,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          customer: stripeCustomerId!,
+          customer: stripeCustomerId,
           mode: "payment",
           "payment_method_types[0]": "card",
           "line_items[0][price_data][currency]": "eur",
@@ -467,34 +421,13 @@ Deno.serve(async (req) => {
     }
 
     // Create or get Stripe customer
-    let stripeCustomerId = company.stripe_customer_id;
-
-    if (!stripeCustomerId) {
-      const customerRes = await fetch("https://api.stripe.com/v1/customers", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${stripeSecretKey}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          name: company.name,
-          email: company.email,
-          "metadata[company_id]": company.id,
-        }),
+    let stripeCustomerId: string;
+    try {
+      stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: (err as Error).message }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      const customer = await customerRes.json();
-      if (customer.error) {
-        return new Response(JSON.stringify({ error: customer.error.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      stripeCustomerId = customer.id;
-
-      await supabaseAdmin
-        .from("companies")
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq("id", company_id);
     }
 
     const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
@@ -507,8 +440,10 @@ Deno.serve(async (req) => {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        customer: stripeCustomerId!,
+        customer: stripeCustomerId,
         mode: "subscription",
+        "payment_method_types[0]": "card",
+        "payment_method_types[1]": "sepa_debit",
         "line_items[0][price]": stripePriceId,
         "line_items[0][quantity]": "1",
         success_url: `${appUrl}/admin/aziende/${company_id}?payment=success`,
