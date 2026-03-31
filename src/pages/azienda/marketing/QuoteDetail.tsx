@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
+  MessageCircle, Copy, Link,
 } from "lucide-react";
 
 export default function QuoteDetail() {
@@ -31,7 +32,7 @@ export default function QuoteDetail() {
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
-  const { sendForSignature } = useSignatureActions(id);
+  const { sendForSignature, openWhatsApp, copySignatureLink } = useSignatureActions(id);
 
   const handleGeneratePdf = async () => {
     setGenerating(true);
@@ -153,6 +154,29 @@ export default function QuoteDetail() {
               <Send className="h-4 w-4 mr-2" />
               {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
             </Button>
+          )}
+
+          {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}
+          {quote.status === "inviata" && (quote as any).signature_token && (
+            <>
+              <Button
+                variant="outline"
+                className="gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10"
+                aria-label="Invia link firma via WhatsApp"
+                onClick={() => openWhatsApp(quote as any)}
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Copia link firma negli appunti"
+                onClick={() => copySignatureLink(quote as any)}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>

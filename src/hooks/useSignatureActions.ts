@@ -10,6 +10,12 @@ export interface SendSignatureParams {
   expiresDays: number;
 }
 
+/** Costruisce l'URL pubblico di firma dato il token */
+export function buildSignatureUrl(quoteId: string, token: string): string {
+  const base = window.location.origin;
+  return `${base}/accetta-preventivo/${quoteId}?token=${encodeURIComponent(token)}`;
+}
+
 export function useSignatureActions(quoteId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -42,5 +48,54 @@ export function useSignatureActions(quoteId: string | undefined) {
     },
   });
 
-  return { sendForSignature };
+  /**
+   * Apre WhatsApp con un messaggio pre-compilato contenente il link di firma.
+   * Richiede che il preventivo abbia già un signature_token (status "inviata").
+   */
+  function openWhatsApp(quote: {
+    id: string;
+    quote_number: string;
+    client_name?: string | null;
+    client_phone?: string | null;
+    signature_token?: string | null;
+    firma_digitale_abilitata?: boolean | null;
+  }) {
+    if (!quote.signature_token) {
+      toast.error("Invia prima il preventivo per email per generare il link di firma");
+      return;
+    }
+    const signUrl = buildSignatureUrl(quote.id, quote.signature_token);
+    const nomeCliente = quote.client_name || "Cliente";
+    const msg = `Buongiorno ${nomeCliente},\n\nLe inviamo l'offerta commerciale ${quote.quote_number} da visionare e firmare online al seguente link:\n\n${signUrl}\n\nRimanendo a disposizione per qualsiasi informazione.\n\nCordiali saluti`;
+    const encoded = encodeURIComponent(msg);
+    // Normalize phone: remove spaces, dashes; keep leading +
+    const rawPhone = (quote.client_phone || "").replace(/[\s\-()]/g, "");
+    const phone = rawPhone.startsWith("+") ? rawPhone.slice(1) : rawPhone;
+    const waUrl = phone
+      ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+      : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  }
+
+  /**
+   * Copia il link di firma negli appunti.
+   */
+  async function copySignatureLink(quote: {
+    id: string;
+    signature_token?: string | null;
+  }) {
+    if (!quote.signature_token) {
+      toast.error("Nessun link di firma disponibile. Invia prima il preventivo.");
+      return;
+    }
+    const url = buildSignatureUrl(quote.id, quote.signature_token);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link di firma copiato negli appunti");
+    } catch {
+      toast.error("Impossibile copiare il link. Controlla i permessi del browser.");
+    }
+  }
+
+  return { sendForSignature, openWhatsApp, copySignatureLink };
 }
