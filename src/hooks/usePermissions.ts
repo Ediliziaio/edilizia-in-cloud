@@ -241,6 +241,14 @@ export function usePermissions(): Permissions {
     };
   }
 
-  // Default: no permissions
+  // Safety net: user is authenticated but role is temporarily null.
+  // This can happen if a TOKEN_REFRESHED fetch previously failed and left role unresolved.
+  // Returning isLoading:true prevents filterNavItems from blanking the sidebar
+  // until the next successful auth resolution.
+  if (user) {
+    return { ...NO_PERMISSIONS, isLoading: true };
+  }
+
+  // Default: no permissions (unauthenticated)
   return NO_PERMISSIONS;
 }

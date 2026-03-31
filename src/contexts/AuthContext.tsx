@@ -516,7 +516,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ),
               ]);
             } catch {
-              userData = { profile: null, role: null, company: null };
+              // fetchUserData failed during TOKEN_REFRESHED retry (timeout or network error).
+              // The user's session JWT is still valid — do NOT wipe role/company from state.
+              // Keep the existing auth state intact; the next token refresh will retry.
+              // Blanking role here causes the sidebar to disappear until the page is reloaded.
+              logger.warn("[auth] TOKEN_REFRESHED: fetchUserData retry failed — keeping existing state");
+              return;
             }
             if (myGen !== authGenRef.current) return;
             resolvedRoleRef.current = userData.role;
