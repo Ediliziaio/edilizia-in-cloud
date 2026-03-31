@@ -1,10 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (authError || !caller) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     if (!userId) {
       return new Response(JSON.stringify({ error: "userId richiesto" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (!isSuperAdmin && !isCompanyAdmin) {
       return new Response(JSON.stringify({ error: "Solo gli amministratori possono eliminare utenti" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       if (!callerProfile || !targetProfile || callerProfile.company_id !== targetProfile.company_id) {
         return new Response(JSON.stringify({ error: "Non autorizzato: azienda diversa" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
     }
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     if (userId === caller.id) {
       return new Response(JSON.stringify({ error: "Non puoi eliminare te stesso" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       console.error("Error deleting profile:", profileDeleteError);
       return new Response(JSON.stringify({ error: "Errore eliminazione profilo: " + profileDeleteError.message }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -126,18 +126,18 @@ Deno.serve(async (req) => {
       console.error("Error deleting auth user:", deleteAuthError);
       return new Response(JSON.stringify({ error: "Errore eliminazione account: " + deleteAuthError.message }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error: any) {
     console.error("delete-company-user error:", error);
     return new Response(JSON.stringify({ error: error.message || "Errore interno" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

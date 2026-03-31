@@ -1,11 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 // meta-health-check does not use META_APP_ID/SECRET directly (only checks DB state)
 // No getMetaCredentials import needed here
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Protezione cron: accetta CRON_SECRET header o Bearer JWT

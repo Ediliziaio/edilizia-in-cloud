@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
@@ -16,7 +16,7 @@ function verifyCronOrAuth(req: Request): void {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   try {
     verifyCronOrAuth(req);

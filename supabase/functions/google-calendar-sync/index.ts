@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
-import { corsHeaders, secureHeaders, jsonResponse as json, errorResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders, jsonResponse as json, errorResponse } from "../_shared/headers.ts";
 
 function getSupabaseAdmin() {
   return createClient(
@@ -754,7 +754,7 @@ async function cronFullSync(): Promise<Response> {
 // ---- MAIN ----
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 const TABLE_MAP: Record<string, string> = {
   email:     "email_credits",
@@ -22,7 +22,7 @@ const SERVICE_LABELS: Record<string, string> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -186,6 +186,6 @@ Deno.serve(async (req) => {
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }

@@ -14,7 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 // How many hours after campaign completion to re-send to non-openers
 const DEFAULT_RESEND_DELAY_HOURS = 24;
@@ -24,7 +24,7 @@ const BATCH_SIZE = 50;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Auth: cron secret required
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   if (!cronSecret || reqCronSecret !== cronSecret) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     if (!campaigns || campaigns.length === 0) {
       return new Response(
         JSON.stringify({ success: true, processed: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     if (!settings.apiKey) {
       return new Response(
         JSON.stringify({ error: "No API key for marketing stream" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -216,12 +216,12 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, processed: campaigns.length, totalResent, results }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

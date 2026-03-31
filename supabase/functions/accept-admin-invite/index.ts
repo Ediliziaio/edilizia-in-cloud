@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (inviteErr || !invite) {
       return new Response(
         JSON.stringify({ error: "Invito non valido o scaduto" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       if (!password || password.length < 8) {
         return new Response(
           JSON.stringify({ error: "Password obbligatoria (minimo 8 caratteri)" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -103,12 +103,12 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: true, had_existing_account: hadExistingAccount }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

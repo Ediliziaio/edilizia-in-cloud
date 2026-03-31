@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
-import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 /**
  * Item 18: Branded reset-password email.
@@ -12,7 +12,7 @@ import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts"
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {

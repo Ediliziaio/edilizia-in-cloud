@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 /** Verify that the caller is either a cron job (with x-cron-secret) or an authenticated user. */
 function verifyCronOrAuth(req: Request): void {
@@ -18,7 +18,7 @@ function verifyCronOrAuth(req: Request): void {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   const supabase = createClient(

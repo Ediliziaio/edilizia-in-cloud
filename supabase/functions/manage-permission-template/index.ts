@@ -1,9 +1,9 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (!companyId) {
       return new Response(JSON.stringify({ error: "No company found" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
       return new Response(JSON.stringify({ templates: data }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       if (!name || !permissions) {
         return new Response(JSON.stringify({ error: "name and permissions required" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ template: data }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
       if (!template_id) {
         return new Response(JSON.stringify({ error: "template_id required" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       if (!existing || existing.is_system_default || existing.company_id !== companyId) {
         return new Response(JSON.stringify({ error: "Cannot edit this template" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       return new Response(JSON.stringify({ template: data }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       if (!existing || existing.is_system_default || existing.company_id !== companyId) {
         return new Response(JSON.stringify({ error: "Cannot delete this template" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
       if (!template_id || !target_user_id) {
         return new Response(JSON.stringify({ error: "template_id and target_user_id required" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       if (!template) {
         return new Response(JSON.stringify({ error: "Template not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       if (!targetProfile || targetProfile.company_id !== companyId) {
         return new Response(JSON.stringify({ error: "User not in your company" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -209,20 +209,20 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("manage-permission-template error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

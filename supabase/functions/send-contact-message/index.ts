@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 
 /** Send WhatsApp message via Cloud API */
@@ -72,7 +72,7 @@ async function sendWhatsApp(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
     const userId = claimsData.claims.sub;
@@ -105,21 +105,21 @@ Deno.serve(async (req) => {
     if (!contact_id || !channel || !content) {
       return new Response(
         JSON.stringify({ error: "Parametri mancanti: contact_id, channel, content" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
     if (!["whatsapp", "email", "sms"].includes(channel)) {
       return new Response(
         JSON.stringify({ error: "Canale non valido" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
     if (content.length > 5000) {
       return new Response(
         JSON.stringify({ error: "Messaggio troppo lungo (max 5000 caratteri)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     if (contactError || !contact) {
       return new Response(
         JSON.stringify({ error: "Contatto non trovato" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -146,19 +146,19 @@ Deno.serve(async (req) => {
     if (channel === "email" && (contact.optout_email || contact.unsubscribed)) {
       return new Response(
         JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni email" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
     if (channel === "whatsapp" && contact.optout_whatsapp) {
       return new Response(
         JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni WhatsApp" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
     if (channel === "sms" && contact.optout_sms) {
       return new Response(
         JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni SMS" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     if (!isSuperAdmin && profile?.company_id !== contact.company_id) {
       return new Response(
         JSON.stringify({ error: "Non autorizzato per questo contatto" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -187,14 +187,14 @@ Deno.serve(async (req) => {
       if (!emailBilling.isEnabled) {
         return new Response(
           JSON.stringify({ error: "Servizio email disabilitato per questa azienda" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
       if (!contact.email) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un indirizzo email" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
       if (!settings.apiKey) {
         return new Response(
           JSON.stringify({ error: "API Key del provider email non configurata" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -230,14 +230,14 @@ Deno.serve(async (req) => {
       if (!waBilling.isEnabled) {
         return new Response(
           JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
       if (!contact.phone) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
       if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
         return new Response(
           JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
       if (!contact.phone) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -337,13 +337,13 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: status !== "failed", status, error: errorDetail }),
       {
         status: status === "failed" ? 502 : 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       }
     );
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

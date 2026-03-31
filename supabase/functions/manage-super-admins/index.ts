@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 async function logAudit(
   supabaseAdmin: any,
@@ -23,7 +23,7 @@ async function logAudit(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   const startTime = Date.now();
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       const { data: userData, error: userError } = await callerClient.auth.getUser();
       if (userError || !userData?.user?.id) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       callerId = userData.user.id;
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
     if (!callerRole) {
       return new Response(JSON.stringify({ error: "Forbidden: not a super admin" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       const userIds = roles?.map((r) => r.user_id) || [];
       if (userIds.length === 0) {
         return new Response(JSON.stringify({ admins: [] }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
       }));
 
       return new Response(JSON.stringify({ admins }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -151,12 +151,12 @@ Deno.serve(async (req) => {
       const { email, password, firstName, lastName } = body;
       if (!email || !password) {
         return new Response(JSON.stringify({ error: "Email e password obbligatori" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (password.length < 8) {
         return new Response(JSON.stringify({ error: "La password deve avere almeno 8 caratteri" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true, userId }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -202,17 +202,17 @@ Deno.serve(async (req) => {
       const { userId, newPassword } = body;
       if (!userId) {
         return new Response(JSON.stringify({ error: "userId obbligatorio" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (userId === callerId) {
         return new Response(JSON.stringify({ error: "Non puoi resettare la tua password da qui. Usa il tab Profilo." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (!newPassword || newPassword.length < 8) {
         return new Response(JSON.stringify({ error: "La password deve avere almeno 8 caratteri" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
       const { userId } = body;
       if (!userId) {
         return new Response(JSON.stringify({ error: "userId obbligatorio" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
       if (error) throw new Error(error.message);
 
       return new Response(JSON.stringify({ permissions: data }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -257,12 +257,12 @@ Deno.serve(async (req) => {
       const { userId, permissions } = body;
       if (!userId || !permissions) {
         return new Response(JSON.stringify({ error: "userId e permissions obbligatori" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (userId === callerId) {
         return new Response(JSON.stringify({ error: "Non puoi modificare i tuoi stessi permessi" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -320,12 +320,12 @@ Deno.serve(async (req) => {
       const { userId } = body;
       if (!userId) {
         return new Response(JSON.stringify({ error: "userId obbligatorio" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (userId === callerId) {
         return new Response(JSON.stringify({ error: "Non puoi eliminare te stesso" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
 
       if ((count || 0) <= 1) {
         return new Response(JSON.stringify({ error: "Impossibile eliminare l'ultimo super admin" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -355,7 +355,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
       const { companyId } = body;
       if (!companyId) {
         return new Response(JSON.stringify({ error: "companyId obbligatorio" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
 
       if (!company) {
         return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -394,7 +394,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
         company_name: companyName || companyId,
       });
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
         totalUsers: profiles.count || 0,
         totalOrders: orders.count || 0,
       }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ settings: result }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -466,7 +466,7 @@ Deno.serve(async (req) => {
       const { settings: newSettings } = body;
       if (!newSettings || typeof newSettings !== "object") {
         return new Response(JSON.stringify({ error: "settings object required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -509,17 +509,17 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true, updated: updates.length }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ error: "Azione non valida" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error) {
     statusCode = 500;
     return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } finally {
     await recordMetric({

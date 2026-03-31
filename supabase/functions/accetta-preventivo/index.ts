@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 /** Verifica firma HMAC-SHA256 del token preventivo (SEC-014) */
 async function verifyToken(payloadB64: string, sigHex: string, secret: string): Promise<boolean> {
@@ -20,7 +20,7 @@ async function verifyToken(payloadB64: string, sigHex: string, secret: string): 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -32,13 +32,13 @@ Deno.serve(async (req) => {
 
     if (!documento_id || !token || !action) {
       return new Response(JSON.stringify({ error: "Parametri mancanti" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (!["accetta", "rifiuta"].includes(action)) {
       return new Response(JSON.stringify({ error: "Azione non valida" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
         if (!valid) {
           console.error("accetta-preventivo: firma token non valida");
           return new Response(JSON.stringify({ error: "Token non valido" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
         payload = JSON.parse(atob(payloadB64));
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
         if (Deno.env.get("PREVENTIVO_TOKEN_SECRET")) {
           console.error("accetta-preventivo: token legacy rifiutato (secret configurato)");
           return new Response(JSON.stringify({ error: "Token non valido" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
         console.warn("accetta-preventivo: token legacy non firmato accettato (PREVENTIVO_TOKEN_SECRET non configurato)");
@@ -72,19 +72,19 @@ Deno.serve(async (req) => {
       }
     } catch {
       return new Response(JSON.stringify({ error: "Token non valido" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (payload.doc_id !== documento_id) {
       return new Response(JSON.stringify({ error: "Token non corrisponde al documento" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (Date.now() > payload.exp) {
       return new Response(JSON.stringify({ error: "Link scaduto" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
 
     if (updateErr) {
       return new Response(JSON.stringify({ error: "Errore nell'aggiornamento" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -115,12 +115,12 @@ Deno.serve(async (req) => {
     });
 
     return new Response(JSON.stringify({ success: true, stato: newStato }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return new Response(JSON.stringify({ error: message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

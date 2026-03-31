@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -30,7 +30,7 @@ async function handleStart(userId: string, companyId: string): Promise<Response>
   if (!clientId) {
     return new Response(JSON.stringify({ error: "Google Calendar non configurato. Contatta l'amministratore." }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -49,7 +49,7 @@ async function handleStart(userId: string, companyId: string): Promise<Response>
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   return new Response(JSON.stringify({ url }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
@@ -189,7 +189,7 @@ async function handleDisconnect(userId: string, companyId: string): Promise<Resp
   await admin.from("google_calendar_connections").delete().eq("company_id", companyId).eq("user_id", userId);
 
   return new Response(JSON.stringify({ success: true }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
@@ -207,7 +207,7 @@ async function handleRefresh(userId: string, companyId: string): Promise<Respons
   if (!conn?.refresh_token_encrypted) {
     return new Response(JSON.stringify({ error: "No refresh token" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -234,7 +234,7 @@ async function handleRefresh(userId: string, companyId: string): Promise<Respons
       .eq("id", conn.id);
     return new Response(JSON.stringify({ error: "Refresh failed" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -252,7 +252,7 @@ async function handleRefresh(userId: string, companyId: string): Promise<Respons
     .eq("id", conn.id);
 
   return new Response(JSON.stringify({ success: true }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
@@ -270,7 +270,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
   if (!conn) {
     return new Response(JSON.stringify({ error: "Not connected" }), {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -301,7 +301,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
     console.error("Google Calendar list failed:", errText);
     return new Response(JSON.stringify({ error: "Failed to fetch calendars" }), {
       status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -315,7 +315,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
   }));
 
   return new Response(JSON.stringify({ calendars }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
@@ -341,7 +341,7 @@ function buildCallbackHtml(status: string, error?: string): Response {
     window.close();
   </script><p>${status === "success" ? "Connesso! Puoi chiudere questa finestra." : "Errore: " + (error || "sconosciuto")}</p></body></html>`;
   return new Response(html, {
-    headers: { ...corsHeaders, "Content-Type": "text/html" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "text/html" },
   });
 }
 
@@ -349,7 +349,7 @@ function buildCallbackHtml(status: string, error?: string): Response {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
       if (url.searchParams.has("code") || url.searchParams.has("error")) {
         return handleCallback(req);
       }
-      return new Response("OK", { headers: corsHeaders });
+      return new Response("OK", { headers: getCorsHeaders(req) });
     }
 
     // All other actions are POST with JWT
@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -381,7 +381,7 @@ Deno.serve(async (req) => {
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
     if (!companyId) {
       return new Response(JSON.stringify({ error: "companyId required" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -403,7 +403,7 @@ Deno.serve(async (req) => {
     if (!profile || profile.company_id !== companyId) {
       return new Response(JSON.stringify({ error: "Company mismatch" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -419,14 +419,14 @@ Deno.serve(async (req) => {
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
     }
   } catch (e) {
     console.error("google-calendar-auth error:", e);
     return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

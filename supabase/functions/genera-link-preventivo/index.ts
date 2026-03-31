@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 /** Genera firma HMAC-SHA256 per il payload del token (SEC-014) */
 async function signToken(payloadB64: string, secret: string): Promise<string> {
@@ -14,7 +14,7 @@ async function signToken(payloadB64: string, secret: string): Promise<string> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Verifica JWT: solo utenti autenticati possono generare link (SEC-014)
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
   } catch (authErr) {
     if (authErr instanceof Response) return authErr;
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     const { documento_id } = await req.json();
     if (!documento_id) {
       return new Response(JSON.stringify({ error: "documento_id richiesto" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -48,13 +48,13 @@ Deno.serve(async (req) => {
 
     if (fetchErr || !doc) {
       return new Response(JSON.stringify({ error: "Documento non trovato" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (doc.tipo !== "preventivo") {
       return new Response(JSON.stringify({ error: "Solo i preventivi possono generare link di accettazione" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -73,12 +73,12 @@ Deno.serve(async (req) => {
     const publicUrl = `${req.headers.get("origin") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com"}/preventivo/${documento_id}?token=${encodeURIComponent(token)}`;
 
     return new Response(JSON.stringify({ url: publicUrl, token }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return new Response(JSON.stringify({ error: message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

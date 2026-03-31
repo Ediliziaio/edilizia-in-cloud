@@ -1,9 +1,9 @@
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     if (!email) {
       return new Response(
         JSON.stringify({ error: "Email is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ allowed: false, reason: "unknown_email" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ allowed: false, reason: "account_locked", locked_until: profile.locked_until }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
 
           return new Response(
             JSON.stringify({ allowed: false, reason: "ip_not_allowed" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
           );
         }
       }
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({ allowed: false, reason: "account_locked", locked_until: lockUntil }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -141,13 +141,13 @@ Deno.serve(async (req) => {
     // All checks passed
     return new Response(
       JSON.stringify({ allowed: true }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("check-login-security error:", err);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 async function hashIP(ip: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -19,13 +19,13 @@ function detectDeviceType(ua: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     if (!form_id || !formData) {
       return new Response(
         JSON.stringify({ error: "form_id and data required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -59,21 +59,21 @@ Deno.serve(async (req) => {
     if (formError || !form) {
       return new Response(
         JSON.stringify({ error: "Form not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
     if (!form.is_published) {
       return new Response(
         JSON.stringify({ error: "Form not published" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
     if (form.is_active === false) {
       return new Response(
         JSON.stringify({ error: "Form is inactive" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       if (field.required && !formData[fieldKey]) {
         return new Response(
           JSON.stringify({ error: `Campo obbligatorio: ${field.label || field.name}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
       console.error("Submission insert error:", subError);
       return new Response(
         JSON.stringify({ error: "Failed to save submission" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -266,13 +266,13 @@ Deno.serve(async (req) => {
         success_title: successTitle,
         success_message: successMessage,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("Form submit error:", e);
     return new Response(
       JSON.stringify({ error: "Internal error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

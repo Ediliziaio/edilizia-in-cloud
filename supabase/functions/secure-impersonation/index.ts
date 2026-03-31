@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAnon.auth.getUser();
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const isSuperAdmin = roles?.some((r: any) => r.role === "super_admin");
     if (!isSuperAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden: super_admin only" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -55,8 +55,29 @@ Deno.serve(async (req) => {
       case "start": {
         if (!companyId) {
           return new Response(JSON.stringify({ error: "companyId required" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
+        }
+
+        // ── Rate limit: max 10 impersonations per hour per admin ──
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { count: recentCount } = await supabaseAdmin
+          .from("active_impersonations")
+          .select("id", { count: "exact", head: true })
+          .eq("admin_user_id", user.id)
+          .gte("created_at", oneHourAgo);
+
+        if ((recentCount ?? 0) >= 10) {
+          // Log rate limit event to audit_log
+          await supabaseAdmin.from("audit_log").insert({
+            user_id: user.id,
+            action: "impersonation_rate_limited",
+            metadata: { company_id: companyId, count: recentCount },
+          }).catch(() => {});
+          return new Response(
+            JSON.stringify({ error: "Rate limit: massimo 10 impersonazioni per ora" }),
+            { status: 429, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+          );
         }
 
         // Verify company exists
@@ -68,7 +89,7 @@ Deno.serve(async (req) => {
 
         if (companyError || !company) {
           return new Response(JSON.stringify({ error: "Company not found" }), {
-            status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -99,7 +120,7 @@ Deno.serve(async (req) => {
 
         if (insertError) {
           return new Response(JSON.stringify({ error: "Failed to create impersonation" }), {
-            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -119,14 +140,14 @@ Deno.serve(async (req) => {
           companyName: company.name,
           expiresAt,
         }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
       case "validate": {
         if (!impersonationToken) {
           return new Response(JSON.stringify({ valid: false }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -141,7 +162,7 @@ Deno.serve(async (req) => {
 
         if (!imp) {
           return new Response(JSON.stringify({ valid: false }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -151,7 +172,7 @@ Deno.serve(async (req) => {
           company: imp.companies,
           expiresAt: imp.expires_at,
         }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -172,7 +193,7 @@ Deno.serve(async (req) => {
         });
 
         return new Response(JSON.stringify({ success: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -185,18 +206,18 @@ Deno.serve(async (req) => {
           .select("id");
 
         return new Response(JSON.stringify({ cleaned: deleted?.length || 0 }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
       default:
         return new Response(JSON.stringify({ error: "Invalid action" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
     }
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

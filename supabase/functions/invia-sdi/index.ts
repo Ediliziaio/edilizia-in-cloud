@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 function escXml(s: string | null | undefined): string {
   if (!s) return "";
@@ -228,7 +228,7 @@ ${riepilogo.map((r: any) => `      <DatiRiepilogo>
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -238,45 +238,45 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: getCorsHeaders(req) });
     }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claims, error: authErr } = await supabase.auth.getClaims(token);
     if (authErr || !claims?.claims) {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: getCorsHeaders(req) });
     }
     const userId = claims.claims.sub;
 
     const { documento_id } = await req.json();
     if (!documento_id) {
-      return new Response(JSON.stringify({ error: "documento_id obbligatorio" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "documento_id obbligatorio" }), { status: 400, headers: getCorsHeaders(req) });
     }
 
     // Load document
     const { data: doc, error: docErr } = await supabase
       .from("documenti_fiscali").select("*").eq("id", documento_id).single();
     if (docErr || !doc) {
-      return new Response(JSON.stringify({ error: "Documento non trovato" }), { status: 404, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Documento non trovato" }), { status: 404, headers: getCorsHeaders(req) });
     }
 
     // Verify user belongs to this company
     try {
       await verifyCompanyAccess(supabase, userId, doc.company_id);
     } catch {
-      return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: getCorsHeaders(req) });
     }
 
     // Verify stato
     if (doc.stato !== "emessa") {
-      return new Response(JSON.stringify({ error: "Il documento deve essere in stato 'emessa' per inviare a SDI" }), { status: 422, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Il documento deve essere in stato 'emessa' per inviare a SDI" }), { status: 422, headers: getCorsHeaders(req) });
     }
 
     // Load azienda
     const { data: azienda } = await supabase
       .from("anagrafica_azienda").select("*").eq("company_id", doc.company_id).single();
     if (!azienda) {
-      return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: getCorsHeaders(req) });
     }
 
     // Validate mandatory fiscal data before generating XML
@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
     if (validationErrors.length > 0) {
       return new Response(
         JSON.stringify({ error: "Dati fiscali non validi", details: validationErrors }),
-        { status: 422, headers: corsHeaders }
+        { status: 422, headers: getCorsHeaders(req) }
       );
     }
 
@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
     if (progErr || !progressivoData) {
       return new Response(
         JSON.stringify({ error: "Impossibile generare ProgressivoInvio", details: progErr?.message }),
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: getCorsHeaders(req) }
       );
     }
     const progressivoInvio = progressivoData as string;
@@ -498,7 +498,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ success: false, errors: sdiErrors }), {
         status: 422,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -527,10 +527,10 @@ Deno.serve(async (req) => {
     });
 
     return new Response(JSON.stringify({ success: true, sdi_id: sdiId, xml_url: xmlPath }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("invia-sdi error:", e);
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: getCorsHeaders(req) });
   }
 });

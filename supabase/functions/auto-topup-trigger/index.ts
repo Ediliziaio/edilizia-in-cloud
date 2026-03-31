@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 interface WalletConfig {
@@ -31,7 +31,7 @@ async function sendLowBalanceAlert(supabase: ReturnType<typeof createClient>, co
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Cron/internal auth: require x-cron-secret or valid JWT

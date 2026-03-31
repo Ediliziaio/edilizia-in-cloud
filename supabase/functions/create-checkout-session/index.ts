@@ -1,13 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (!stripeSecretKey) {
       return new Response(
         JSON.stringify({ error: "Stripe non configurato. Aggiungi STRIPE_SECRET_KEY nei secrets." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       if (userError || !userData?.user?.id) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       userId = userData.user.id;
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     if (!company_id) {
       return new Response(JSON.stringify({ error: "company_id è obbligatorio" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!roleData) {
           return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
       }
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
       if (!company) {
         return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, free: true, message: "Servizio AI attivato gratuitamente" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
       if (billingConfig.monthlyFeeEur != null) {
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
         stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
       } catch (err) {
         return new Response(JSON.stringify({ error: (err as Error).message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -166,12 +166,12 @@ Deno.serve(async (req) => {
       const session = await sessionRes.json();
       if (session.error) {
         return new Response(JSON.stringify({ error: session.error.message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       return new Response(
         JSON.stringify({ url: session.url, session_id: session.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       const amountEur = body.amount_eur;
       if (!amountEur || amountEur < 5) {
         return new Response(JSON.stringify({ error: "Importo minimo: €5" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!roleData) {
           return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
       }
@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
 
       if (!company) {
         return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
         stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
       } catch (err) {
         return new Response(JSON.stringify({ error: (err as Error).message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -259,13 +259,13 @@ Deno.serve(async (req) => {
 
       if (session.error) {
         return new Response(JSON.stringify({ error: session.error.message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
       return new Response(
         JSON.stringify({ url: session.url, session_id: session.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
       const amountEur = body.amount_eur;
       if (!amountEur || amountEur < 5) {
         return new Response(JSON.stringify({ error: "Importo minimo: €5" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!roleData) {
           return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
       }
@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
 
       if (!company) {
         return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -316,7 +316,7 @@ Deno.serve(async (req) => {
         stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
       } catch (err) {
         return new Response(JSON.stringify({ error: (err as Error).message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -348,13 +348,13 @@ Deno.serve(async (req) => {
 
       if (session.error) {
         return new Response(JSON.stringify({ error: session.error.message }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
       return new Response(
         JSON.stringify({ url: session.url, session_id: session.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -372,14 +372,14 @@ Deno.serve(async (req) => {
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Solo i super admin possono eseguire questa azione" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (!plan_id) {
       return new Response(JSON.stringify({ error: "plan_id è obbligatorio" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -393,7 +393,7 @@ Deno.serve(async (req) => {
     if (companyError || !company) {
       return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
     if (planError || !plan) {
       return new Response(JSON.stringify({ error: "Piano non trovato" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
     if (!stripePriceId) {
       return new Response(
         JSON.stringify({ error: `Nessun prezzo Stripe configurato per questo piano (${priceField})` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
       stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
     } catch (err) {
       return new Response(JSON.stringify({ error: (err as Error).message }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -457,18 +457,18 @@ Deno.serve(async (req) => {
     if (session.error) {
       return new Response(JSON.stringify({ error: session.error.message }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     return new Response(
       JSON.stringify({ url: session.url, session_id: session.id }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 /**
@@ -16,7 +16,7 @@ const GIORNI_PREAVVISO = [3, 1]; // invia reminder a 3 e 1 giorno dalla scadenza
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Auth cron: richiede secret header
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     console.error("quote-expiry-reminder: accesso non autorizzato");
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     console.error("quote-expiry-reminder error:", e);
     return new Response(
       JSON.stringify({ error: "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

@@ -1,18 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter } from "../_shared/billingAdapter.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID     = Deno.env.get("FIC_CLIENT_ID") || "";
 const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET") || "";
 const FIC_REDIRECT_URI  = Deno.env.get("FIC_REDIRECT_URI") || "";
 
-const CORS = {
-  ...corsHeaders,
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-};
-
 Deno.serve(async (req) => {
+  const CORS = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   const url = new URL(req.url);

@@ -1,12 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     if (!company_id || !integration_id) {
       return new Response(JSON.stringify({ error: "company_id and integration_id required" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     if (!creds) {
       return new Response(JSON.stringify({ error: "No credentials found" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
         if (!page_asset_id) {
           return new Response(JSON.stringify({ error: "page_asset_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
         if (!pageAsset) {
           return new Response(JSON.stringify({ error: "Page asset not found" }), {
             status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         if (!form_id) {
           return new Response(JSON.stringify({ error: "form_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
         if (!lead_id) {
           return new Response(JSON.stringify({ error: "lead_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
         if (!bfFormId) {
           return new Response(JSON.stringify({ error: "form_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
         if (!ad_account_id) {
           return new Response(JSON.stringify({ error: "ad_account_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -382,7 +382,7 @@ Deno.serve(async (req) => {
         if (!statusAccId) {
           return new Response(JSON.stringify({ error: "ad_account_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
         if (!testFormId) {
           return new Response(JSON.stringify({ error: "form_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
         if (!page_asset_id) {
           return new Response(JSON.stringify({ error: "page_asset_id required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -469,7 +469,7 @@ Deno.serve(async (req) => {
         if (!pageAsset) {
           return new Response(JSON.stringify({ error: "Page asset not found" }), {
             status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
         if (!pageTokens?.[fbPageId]) {
           return new Response(JSON.stringify({ error: "Page token not found. Riconnetti Meta." }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
         }
 
@@ -521,19 +521,19 @@ Deno.serve(async (req) => {
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
     }
 
     return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("meta-api-proxy error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

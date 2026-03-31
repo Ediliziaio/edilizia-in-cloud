@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 interface CreateSalespersonUserRequest {
   salesperson_id: string;
@@ -13,7 +13,7 @@ interface CreateSalespersonUserRequest {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         is_manual_password: isManualPassword,
         message: `Account creato per ${salesperson.first_name} ${salesperson.last_name}`,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     console.error("Error:", error);
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
         success: false,
         error: error instanceof Error ? error.message : "Errore sconosciuto",
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 400 }
     );
   }
 });

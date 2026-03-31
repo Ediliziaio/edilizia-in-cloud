@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, errorResponse } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 /**
@@ -26,7 +26,7 @@ const CSV_HEADERS = ["azienda", "piva", "servizio", "tipo", "data", "importo_eur
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
     if (format === "json") {
       return new Response(JSON.stringify({ month, rows }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
 
     return new Response(csv, {
       headers: {
-        ...corsHeaders,
+        ...getCorsHeaders(req),
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="export-financials-${month}.csv"`,
       },

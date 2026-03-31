@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -25,7 +25,7 @@ async function signPayload(secret: string, payload: string): Promise<string> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Verifica JWT (SEC-013)
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
   } catch (authErr) {
     if (authErr instanceof Response) return authErr;
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -53,12 +53,12 @@ Deno.serve(async (req) => {
         parsedUrl = new URL(test_url);
       } catch {
         return new Response(JSON.stringify({ error: "test_url non è un URL valido" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       if (parsedUrl.protocol !== "https:") {
         return new Response(JSON.stringify({ error: "test_url deve usare HTTPS" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       const hostname = parsedUrl.hostname.toLowerCase();
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         hostname.endsWith(".internal");
       if (isInternal) {
         return new Response(JSON.stringify({ error: "test_url non può puntare a indirizzi interni" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
       targetUrl = test_url;
@@ -88,14 +88,14 @@ Deno.serve(async (req) => {
       if (wErr || !webhook) {
         return new Response(
           JSON.stringify({ error: "Webhook not found" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
       if (!webhook.is_active && !is_test) {
         return new Response(
           JSON.stringify({ error: "Webhook inactive" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -162,12 +162,12 @@ Deno.serve(async (req) => {
         response_body: responseBody?.slice(0, 500),
         duration_ms: durationMs,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err) {
     return new Response(
       JSON.stringify({ error: String(err) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

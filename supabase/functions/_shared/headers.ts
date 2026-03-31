@@ -54,6 +54,9 @@ export const secureHeaders: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
 /** Helper: restituisce una risposta JSON di errore con header di sicurezza. */

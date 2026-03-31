@@ -1,19 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter } from "../_shared/billingAdapter.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-const CORS = {
-  ...corsHeaders,
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const cors = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, OPTIONS" };
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const json = (data: unknown, status = 200) =>
-    new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   // Fix #4: Declare variables outside try for error logging access
   let companyId: string | null = null;

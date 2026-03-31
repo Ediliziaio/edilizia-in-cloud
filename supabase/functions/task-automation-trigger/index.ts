@@ -1,10 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   // Protezione DB webhook: solo chiamate interne con INTERNAL_CRON_SECRET (SEC-013)
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     console.error("task-automation-trigger: accesso non autorizzato");
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     if (!triggerType) {
       return new Response(
         JSON.stringify({ skipped: true, reason: "no matching trigger" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "company_id not found in record" }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         }
       );
     }
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     if (rulesErr || !rules?.length) {
       return new Response(
         JSON.stringify({ executed: 0, trigger: triggerType }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -279,12 +279,12 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ executed: results.length, trigger: triggerType, results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

@@ -1,11 +1,11 @@
 // DEPRECATED: This function has been replaced by initiate-outbound-call
 // All requests are forwarded to the new endpoint.
 
-import { corsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   return new Response(responseBody, {
     status: forwarded.status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(req),
       "Content-Type": forwarded.headers.get("Content-Type") ?? "application/json",
       "X-Deprecated": "Use initiate-outbound-call instead",
     },

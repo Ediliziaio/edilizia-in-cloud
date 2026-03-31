@@ -1,15 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
-
-const localCorsHeaders = {
-  ...corsHeaders,
-  "Access-Control-Allow-Headers": corsHeaders["Access-Control-Allow-Headers"] + ", x-bootstrap-key",
-};
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -25,7 +20,7 @@ Deno.serve(async (req) => {
           error: "Bootstrap key not configured. Please configure SUPER_ADMIN_BOOTSTRAP_KEY secret.",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 500,
         }
       );
@@ -40,7 +35,7 @@ Deno.serve(async (req) => {
           error: "Unauthorized: Invalid or missing bootstrap key",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 401,
         }
       );
@@ -70,7 +65,7 @@ Deno.serve(async (req) => {
           error: "Super admin already exists. This function can only be used for initial setup.",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -86,7 +81,7 @@ Deno.serve(async (req) => {
           error: "Email and password are required",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -100,7 +95,7 @@ Deno.serve(async (req) => {
           error: "Password must be at least 8 characters long",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -117,7 +112,7 @@ Deno.serve(async (req) => {
           error: "A user with this email already exists",
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           status: 400,
         }
       );
@@ -177,7 +172,7 @@ Deno.serve(async (req) => {
         email,
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         status: 200,
       }
     );
@@ -188,7 +183,7 @@ Deno.serve(async (req) => {
         error: (error as Error).message,
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         status: 400,
       }
     );

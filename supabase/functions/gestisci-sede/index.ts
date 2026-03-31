@@ -1,9 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/headers.ts'
+import { corsHeaders, getCorsHeaders } from '../_shared/headers.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     if (!action || !company_id) {
       return new Response(
         JSON.stringify({ error: 'action e company_id richiesti' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
             error:   'LIMITE_PIANO',
             message: 'Upgrade a Pro per aggiungere più sedi'
           }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per aggiornamento' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per disattivazione' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per eliminazione' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -133,20 +133,20 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     return new Response(
       JSON.stringify({ error: `Azione non riconosciuta: ${action}` }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
 
   } catch (err) {
     console.error('[gestisci-sede] unexpected error:', err)
     return new Response(
       JSON.stringify({ error: 'Errore interno del server' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

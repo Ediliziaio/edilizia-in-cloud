@@ -3,11 +3,11 @@ import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     if (!campaignId) {
       return new Response(
         JSON.stringify({ error: "Parametro mancante: campaignId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (campError || !campaign) {
       return new Response(
         JSON.stringify({ error: "Campagna non trovata" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       if (!callerProfile || callerProfile.company_id !== campaign.company_id) {
         return new Response(
           JSON.stringify({ error: "Non autorizzato: accesso negato a questa campagna" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     if (campaign.status === "sent" || campaign.status === "sending") {
       return new Response(
         JSON.stringify({ error: "Campagna già inviata o in fase di invio" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(
         JSON.stringify({ error: "API Key del provider email marketing non configurata" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(
         JSON.stringify({ error: "Errore nel recupero dei contatti: " + contactsError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
       await adminClient.from("email_campaigns").update({ status: "failed", failed_count: 0, sent_count: 0 }).eq("id", campaignId);
       return new Response(
         JSON.stringify({ error: "Nessun destinatario trovato", sent: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(
         JSON.stringify({ error: "Servizio email disabilitato per questa azienda" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
         return new Response(
           JSON.stringify({ error: "Crediti insufficienti: " + creditError.message }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 402, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -367,12 +367,12 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, sent: sentCount, failed: failedCount, total: recipients.length }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });
