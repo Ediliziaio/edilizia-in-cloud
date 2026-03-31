@@ -17,6 +17,7 @@ import {
 import { CompanyConversionCard } from "./CompanyConversionCard";
 import { Progress } from "@/components/ui/progress";
 import { useCompanyHealthScore } from "@/hooks/useHealthScores";
+import { HealthScoreBadge } from "./HealthScoreBadge";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
 import { cn } from "@/lib/utils";
 
@@ -269,19 +270,7 @@ export function CompanyOverviewTab({
                 <Activity className="h-4 w-4 text-primary" />
                 Health Score
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "text-lg font-bold px-3 py-0.5 rounded-full",
-                  serverHealth.health === "healthy" ? "bg-green-500/10 text-green-600" :
-                  serverHealth.health === "at_risk" ? "bg-yellow-500/10 text-yellow-600" :
-                  "bg-red-500/10 text-red-600"
-                )}>
-                  {serverHealth.score}/100
-                </div>
-                <Badge variant={serverHealth.health === "healthy" ? "default" : serverHealth.health === "at_risk" ? "secondary" : "destructive"}>
-                  {serverHealth.health === "healthy" ? "Sano" : serverHealth.health === "at_risk" ? "A Rischio" : "Critico"}
-                </Badge>
-              </div>
+              <HealthScoreBadge companyId={companyId!} healthScore={serverHealth} />
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
