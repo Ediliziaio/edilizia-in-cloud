@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
 import { formatCurrencyCompact } from "@/lib/formatters";
+import { toast } from "sonner";
 
 const formatEur = (val: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
@@ -24,6 +25,13 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
   const [cashFlow, setCashFlow] = useState<any[]>([]);
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (companyId) loadData();
@@ -31,28 +39,47 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
 
   async function loadData() {
     setLoading(true);
-    const [summaryRes, cashFlowRes, txRes] = await Promise.all([
-      supabase.rpc("get_treasury_summary", { p_company_id: companyId }),
-      supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6 }),
-      supabase
-        .from("bank_transactions")
-        .select("id, booking_date, description, amount, transaction_type, category")
-        .eq("company_id", companyId)
-        .order("booking_date", { ascending: false })
-        .limit(5),
-    ]);
+    setError(null);
+    try {
+      const [summaryRes, cashFlowRes, txRes] = await Promise.all([
+        supabase.rpc("get_treasury_summary", { p_company_id: companyId }),
+        supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6 }),
+        supabase
+          .from("bank_transactions")
+          .select("id, booking_date, description, amount, transaction_type, category")
+          .eq("company_id", companyId)
+          .order("booking_date", { ascending: false })
+          .limit(5),
+      ]);
 
-    if (summaryRes.data && summaryRes.data.length > 0) {
-      setSummary(summaryRes.data[0]);
+      if (!isMountedRef.current) return;
+
+      if (summaryRes.error) {
+        toast.error("Errore nel caricamento del saldo. Riprova tra qualche secondo.");
+        setError(summaryRes.error.message);
+      } else if (summaryRes.data && summaryRes.data.length > 0) {
+        setSummary(summaryRes.data[0]);
+      }
+
+      if (cashFlowRes.error) {
+        toast.error("Problema temporaneo. Riprova tra qualche secondo.");
+      } else {
+        setCashFlow(
+          (cashFlowRes.data || []).map((row: any) => ({
+            ...row,
+            label: monthLabels[row.month?.split("-")[1]] || row.month,
+          }))
+        );
+      }
+
+      setRecentTxs(txRes.data || []);
+    } catch (e: any) {
+      if (!isMountedRef.current) return;
+      toast.error("Problema temporaneo. Riprova tra qualche secondo.");
+      setError(e.message || "Errore sconosciuto");
+    } finally {
+      if (isMountedRef.current) setLoading(false);
     }
-    setCashFlow(
-      (cashFlowRes.data || []).map((row: any) => ({
-        ...row,
-        label: monthLabels[row.month?.split("-")[1]] || row.month,
-      }))
-    );
-    setRecentTxs(txRes.data || []);
-    setLoading(false);
   }
 
   if (loading) {
