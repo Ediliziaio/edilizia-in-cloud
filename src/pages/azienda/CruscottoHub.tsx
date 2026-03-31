@@ -45,13 +45,26 @@ const DASHBOARDS = [
 export default function CruscottoHub() {
   const permissions = usePermissions();
 
-  // During loading keep rendering the hub (avoids flicker/premature redirect)
-  const visibleDashboards = permissions.isLoading
-    ? DASHBOARDS
-    : DASHBOARDS.filter((d) => permissions[d.permKey]);
+  if (permissions.isLoading) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-6">
+          <div className="h-7 w-32 bg-muted rounded animate-pulse" />
+          <div className="h-4 w-48 bg-muted rounded animate-pulse mt-2" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-36 rounded-xl border bg-muted/40 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const visibleDashboards = DASHBOARDS.filter((d) => permissions[d.permKey]);
 
   // 0 dashboard — messaggio di accesso negato
-  if (!permissions.isLoading && visibleDashboards.length === 0) {
+  if (visibleDashboards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center px-4">
         <LayoutGrid className="h-10 w-10 text-muted-foreground/40" />
@@ -63,7 +76,7 @@ export default function CruscottoHub() {
   }
 
   // 1 dashboard — redirect diretto, nessun hub intermedio
-  if (!permissions.isLoading && visibleDashboards.length === 1) {
+  if (visibleDashboards.length === 1) {
     return <Navigate to={visibleDashboards[0].url} replace />;
   }
 

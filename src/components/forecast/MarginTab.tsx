@@ -445,7 +445,7 @@ export function MarginTab() {
           </h2>
           <div className="space-y-3">
             {alerts.map((alert, i) => (
-              <Card key={i} className={alert.severity === "error" ? "border-red-200 dark:border-red-900" : "border-amber-200 dark:border-amber-900"}>
+              <Card key={alert.text ?? i} className={alert.severity === "error" ? "border-red-200 dark:border-red-900" : "border-amber-200 dark:border-amber-900"}>
                 <CardContent className="p-4 flex items-start gap-3">
                   <div className={alert.severity === "error" ? "text-red-600" : "text-amber-600"}>
                     {alert.icon}

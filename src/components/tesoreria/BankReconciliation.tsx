@@ -114,34 +114,44 @@ export default function BankReconciliation({ companyId }: Props) {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [txRes, invRes, recRes] = await Promise.all([
-      supabase
-        .from("bank_transactions")
-        .select("*, bank_accounts(display_name, account_name)")
-        .eq("company_id", companyId)
-        .is("linked_invoice_id", null)
-        .eq("transaction_type", "credit")
-        .order("booking_date", { ascending: false })
-        .limit(200),
-      supabase
-        .from("invoices")
-        .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date")
-        .eq("company_id", companyId)
-        .in("status", ["issued", "sent", "delivered", "overdue"])
-        .order("due_date", { ascending: true })
-        .limit(200),
-      supabase
-        .from("bank_reconciliations")
-        .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total)")
-        .eq("company_id", companyId)
-        .is("unmatched_at", null)
-        .order("matched_at", { ascending: false })
-        .limit(100),
-    ]);
-    setTransactions(txRes.data || []);
-    setInvoices(invRes.data || []);
-    setReconciliations(recRes.data || []);
-    setLoading(false);
+    try {
+      const [txRes, invRes, recRes] = await Promise.all([
+        supabase
+          .from("bank_transactions")
+          .select("*, bank_accounts(display_name, account_name)")
+          .eq("company_id", companyId)
+          .is("linked_invoice_id", null)
+          .eq("transaction_type", "credit")
+          .order("booking_date", { ascending: false })
+          .limit(200),
+        supabase
+          .from("invoices")
+          .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date")
+          .eq("company_id", companyId)
+          .in("status", ["issued", "sent", "delivered", "overdue"])
+          .order("due_date", { ascending: true })
+          .limit(200),
+        supabase
+          .from("bank_reconciliations")
+          .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total)")
+          .eq("company_id", companyId)
+          .is("unmatched_at", null)
+          .order("matched_at", { ascending: false })
+          .limit(100),
+      ]);
+      if (txRes.error) throw txRes.error;
+      if (invRes.error) throw invRes.error;
+      if (recRes.error) throw recRes.error;
+      setTransactions(txRes.data || []);
+      setInvoices(invRes.data || []);
+      setReconciliations(recRes.data || []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[BankReconciliation] Errore caricamento dati:', msg);
+      toast.error('Errore nel caricamento dei dati bancari. Riprova.');
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => { if (companyId) loadData(); }, [companyId, loadData]);

@@ -58,6 +58,7 @@ export function SedeIncidenceChart({ sedi, metric, title }: Props) {
             dataKey="value"
           >
             {chartData.map((entry, index) => (
+              /* Safe: static color array, no item state */
               <Cell key={index} fill={entry.color} />
             ))}
           </Pie>

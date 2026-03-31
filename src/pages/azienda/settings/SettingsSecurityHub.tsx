@@ -9,7 +9,7 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Key, Shield, Activity, ScrollText } from "lucide-react";
+import { Key, Shield, Activity, ScrollText, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -32,6 +32,15 @@ export default function SettingsSecurityHub() {
 
   const isAdmin = role === "company_admin" || role === "super_admin";
   const canViewPrivacy = isAdmin || permissions.canViewSettingsSecurity;
+
+  if (permissions.isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Caricamento...
+      </div>
+    );
+  }
 
   const tabParam = searchParams.get("tab");
   const resolveDefaultTab = (): SecurityTab => {

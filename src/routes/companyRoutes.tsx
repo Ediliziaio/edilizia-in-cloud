@@ -56,7 +56,6 @@ const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
-const Tasks = lazy(() => import("@/pages/azienda/Tasks"));
 const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
@@ -100,8 +99,6 @@ const MarketingOpportunities = lazy(() => import("@/pages/azienda/marketing/Mark
 const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
 const MarketingAutomations = lazy(() => import("@/pages/azienda/marketing/MarketingAutomations"));
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
-const AIAgentsModule = lazy(() => import("@/modules/ai-agents"));
-const InternalAIAgentsModule = lazy(() => import("@/modules/ai-agents-internal"));
 const MarketingContactDetail = lazy(() => import("@/pages/azienda/marketing/MarketingContactDetail"));
 const MarketingTasks = lazy(() => import("@/pages/azienda/marketing/MarketingTasks"));
 const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketing"));

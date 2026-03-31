@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Palmtree, Clock, RotateCcw, Plus, X, Check, Ban, AlertCircle, Loader2,

@@ -882,7 +882,7 @@ export default function MarketingContacts() {
           {/* Desktop: Export + Import */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="hidden sm:flex" disabled={exporting}>
+              <Button variant="outline" className="hidden sm:flex" disabled={exporting || isLoading}>
                 <Download className="h-4 w-4 mr-2" />
                 {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
                 <ChevronDown className="h-3 w-3 ml-1" />
@@ -1052,26 +1052,32 @@ export default function MarketingContacts() {
 
           {/* Desktop: table */}
           <div className="hidden sm:block">
-          <ContactsTable
-            contacts={contacts}
-            totalCount={totalCount}
-            selectedIds={selectedIds}
-            onToggleSelect={handleToggleSelect}
-            onToggleAll={handleToggleAll}
-            onEdit={handleEdit}
-            onDelete={(ids) => deleteMutation.mutate(ids)}
-            page={page}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
-            bulkActions={<div className="flex items-center gap-2"><AddToListDropdown selectedIds={selectedIds} /><BulkEnrollAutomationDropdown selectedIds={selectedIds} /></div>}
-            visibleColumns={visibleColumns}
-            customFields={contactCustomFields}
-            customFieldValues={customFieldValues}
-          />
+          {isLoading ? (
+            <div className="flex justify-center items-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <ContactsTable
+              contacts={contacts}
+              totalCount={totalCount}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onToggleAll={handleToggleAll}
+              onEdit={handleEdit}
+              onDelete={(ids) => deleteMutation.mutate(ids)}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
+              bulkActions={<div className="flex items-center gap-2"><AddToListDropdown selectedIds={selectedIds} /><BulkEnrollAutomationDropdown selectedIds={selectedIds} /></div>}
+              visibleColumns={visibleColumns}
+              customFields={contactCustomFields}
+              customFieldValues={customFieldValues}
+            />
+          )}
           </div>
         </>
       ) : null}

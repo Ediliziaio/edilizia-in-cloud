@@ -155,7 +155,7 @@ function DocumentiFiscaliListInner() {
     [tipoFilter, statoFilterArr, search, dataDa, dataA, page, isTrash]
   );
 
-  const { data, isLoading } = useDocumentiFiscali(filters);
+  const { data, isLoading, isError } = useDocumentiFiscali(filters);
   const { data: counts } = useDocumentCounts();
   const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
 
@@ -527,7 +527,12 @@ function DocumentiFiscaliListInner() {
       )}
 
       {/* ── Table ──────────────────────────────────────── */}
-      {isLoading ? (
+      {isError ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <p className="text-sm text-muted-foreground">Errore nel caricamento dei documenti. Riprova.</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Riprova</Button>
+        </div>
+      ) : isLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>

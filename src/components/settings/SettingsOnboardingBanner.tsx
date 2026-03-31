@@ -11,17 +11,20 @@ import { CheckCircle2, ChevronRight, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 
 export function SettingsOnboardingBanner() {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin" || role === "super_admin";
   const { steps, completedCount, totalCount, allDone, nextStep } = useOnboardingProgress();
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem("settings_onboarding_dismissed") === "1"; } catch { return false; }
   });
 
-  // Nascosto se completato o se l'utente ha chiuso il banner
-  if (allDone || dismissed) return null;
+  // Nascosto se non admin, completato o se l'utente ha chiuso il banner
+  if (!isAdmin || allDone || dismissed) return null;
 
   const progressPct = (completedCount / totalCount) * 100;
 

@@ -54,6 +54,7 @@ export function AdminRevenueBySector({ data }: Props) {
               />
               <Bar dataKey="mrr" radius={[0, 4, 4, 0]}>
                 {data.map((_, index) => (
+                  /* Safe: static color array, no item state */
                   <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Bar>

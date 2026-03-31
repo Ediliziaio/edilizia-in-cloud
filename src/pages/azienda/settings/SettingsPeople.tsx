@@ -9,7 +9,7 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Users, UserCheck, HardHat, UsersRound } from "lucide-react";
+import { Users, UserCheck, HardHat, UsersRound, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
@@ -34,6 +34,23 @@ export default function SettingsPeople() {
   const isAdmin = role === "company_admin" || role === "super_admin";
   const canViewUsers = isAdmin || permissions.canViewUsers;
   const canViewPeople = isAdmin || permissions.canViewSettingsPeople;
+
+  if (permissions.isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Caricamento permessi...
+      </div>
+    );
+  }
+
+  if (!canViewUsers && !canViewPeople) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-center">
+        <p className="text-sm text-muted-foreground">Non hai accesso a questa sezione.</p>
+      </div>
+    );
+  }
 
   // Determina il tab attivo dall'URL, con fallback al primo tab accessibile
   const tabParam = searchParams.get("tab");

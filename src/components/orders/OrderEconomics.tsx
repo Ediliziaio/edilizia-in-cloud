@@ -254,8 +254,8 @@ export function OrderEconomics({
           <h4 className="text-sm font-medium text-muted-foreground mb-2">COSTI ARTICOLI</h4>
           {itemCostBreakdowns.length > 0 ? (
             <div className="space-y-2">
-              {itemCostBreakdowns.map((item, index) => (
-                <div key={index} className="flex justify-between items-start text-sm gap-2">
+              {itemCostBreakdowns.map((item) => (
+                <div key={item.name} className="flex justify-between items-start text-sm gap-2">
                   <span className="text-muted-foreground min-w-0 truncate flex-1">
                     {item.name} <span className="text-xs">({item.vatRate}%)</span>
                   </span>
@@ -296,8 +296,8 @@ export function OrderEconomics({
                   <span>{formatCurrency(totalEmployeeCosts)}</span>
                 </div>
               )}
-              {teamCostBreakdowns.map((team, index) => (
-                <div key={index} className="flex justify-between items-start text-sm gap-2">
+              {teamCostBreakdowns.map((team) => (
+                <div key={team.name} className="flex justify-between items-start text-sm gap-2">
                   <span className="text-muted-foreground min-w-0 truncate flex-1">
                     {team.name} <span className="text-xs">({team.vatRate}%)</span>
                   </span>

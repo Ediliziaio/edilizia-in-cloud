@@ -65,51 +65,71 @@ export default function TransactionsFeed({ companyId }: Props) {
   }, [companyId, page, search, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo]);
 
   async function loadAccounts() {
-    const { data } = await supabase
-      .from("bank_accounts")
-      .select("id, display_name, account_name, iban")
-      .eq("company_id", companyId)
-      .eq("is_active", true);
-    setAccounts(data || []);
+    try {
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select("id, display_name, account_name, iban")
+        .eq("company_id", companyId)
+        .eq("is_active", true);
+      if (error) {
+        console.error('[TransactionsFeed] Errore caricamento conti:', error.message);
+        toast.error('Errore nel caricamento dei conti bancari. Riprova.');
+        return;
+      }
+      setAccounts(data || []);
+    } catch (err) {
+      console.error('[TransactionsFeed] Errore imprevisto caricamento conti:', err);
+      toast.error('Errore imprevisto. Riprova tra qualche secondo.');
+    }
   }
 
   async function loadTransactions() {
     setLoading(true);
-    let query = supabase
-      .from("bank_transactions")
-      .select("*, bank_accounts(display_name, account_name)", { count: "exact" })
-      .eq("company_id", companyId)
-      .order("booking_date", { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    try {
+      let query = supabase
+        .from("bank_transactions")
+        .select("*, bank_accounts(display_name, account_name)", { count: "exact" })
+        .eq("company_id", companyId)
+        .order("booking_date", { ascending: false })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-    if (search) {
-      query = query.or(`description.ilike.%${search}%,creditor_name.ilike.%${search}%,debtor_name.ilike.%${search}%`);
+      if (search) {
+        query = query.or(`description.ilike.%${search}%,creditor_name.ilike.%${search}%,debtor_name.ilike.%${search}%`);
+      }
+      if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
+      if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
+      if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
+      if (dateFrom) query = query.gte("booking_date", dateFrom);
+      if (dateTo) query = query.lte("booking_date", dateTo);
+
+      const { data, error, count } = await query;
+      if (error) {
+        console.error('[TransactionsFeed] Errore caricamento transazioni:', error.message);
+        toast.error('Errore nel caricamento delle transazioni. Riprova.');
+        return;
+      }
+      setTransactions(data || []);
+      setTotalCount(count || 0);
+
+      // Load linked invoices
+      const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
+      if (linkedIds.length > 0) {
+        const { data: invData } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, client_company_name")
+          .in("id", linkedIds);
+        const map: Record<string, any> = {};
+        (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
+        setInvoiceMap(map);
+      } else {
+        setInvoiceMap({});
+      }
+    } catch (err) {
+      console.error('[TransactionsFeed] Errore imprevisto:', err);
+      toast.error('Errore imprevisto. Riprova tra qualche secondo.');
+    } finally {
+      setLoading(false);
     }
-    if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
-    if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
-    if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-    if (dateFrom) query = query.gte("booking_date", dateFrom);
-    if (dateTo) query = query.lte("booking_date", dateTo);
-
-    const { data, count } = await query;
-    setTransactions(data || []);
-    setTotalCount(count || 0);
-
-    // Load linked invoices
-    const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
-    if (linkedIds.length > 0) {
-      const { data: invData } = await supabase
-        .from("invoices")
-        .select("id, invoice_number, client_company_name")
-        .in("id", linkedIds);
-      const map: Record<string, any> = {};
-      (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
-      setInvoiceMap(map);
-    } else {
-      setInvoiceMap({});
-    }
-
-    setLoading(false);
   }
 
   function resetFilters() {

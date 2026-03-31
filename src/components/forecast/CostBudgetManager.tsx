@@ -238,6 +238,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
                   <Bar dataKey="Budget" fill="hsl(var(--muted-foreground))" radius={[3, 3, 0, 0]} barSize={16} opacity={0.4} />
                   <Bar dataKey="Effettivo" radius={[3, 3, 0, 0]} barSize={16}>
                     {chartData.map((entry, index) => (
+                      /* Safe: static color array, no item state */
                       <Cell key={index} fill={entry.overBudget ? "hsl(0 84% 60%)" : "hsl(142 76% 36%)"} />
                     ))}
                   </Bar>
