@@ -12,6 +12,7 @@ import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
+import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,6 +118,19 @@ export default function QuoteDetail() {
     },
   });
 
+  const { data: versionCount = 0 } = useQuery<number>({
+    queryKey: ["quote_versions_count", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { count, error } = await (supabase as any)
+        .from("quote_versions")
+        .select("id", { count: "exact", head: true })
+        .eq("quote_id", id!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -219,6 +233,14 @@ export default function QuoteDetail() {
           <TabsTrigger value="cliente">Cliente</TabsTrigger>
           <TabsTrigger value="documenti">Documenti ({attachments.length})</TabsTrigger>
           <TabsTrigger value="attivita">Attività</TabsTrigger>
+          <TabsTrigger value="versioni" className="gap-1.5">
+            Versioni
+            {versionCount > 0 && (
+              <Badge variant="secondary" className="px-1.5 py-0 text-xs leading-tight">
+                {versionCount}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-6 mt-4">
@@ -406,6 +428,10 @@ export default function QuoteDetail() {
             refusedReason={quote.refused_reason}
             expiresAt={quote.expires_at}
           />
+        </TabsContent>
+
+        <TabsContent value="versioni" className="mt-4">
+          <VersioniPreventivo quoteId={id!} />
         </TabsContent>
       </Tabs>
 
