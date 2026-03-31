@@ -2,7 +2,7 @@ import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_sha
 import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
-import { generateMatrix } from "https://deno.land/x/qrcode@v0.2.0/mod.ts";
+import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -577,16 +577,19 @@ Deno.serve(async (req) => {
         try {
           const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
-          const matrix = await generateMatrix(signUrl) as boolean[][];
+          const qr = qrcode(0, "M");
+          qr.addData(signUrl);
+          qr.make();
+          const count = qr.getModuleCount();
           const qrSize = 55;
-          const cellSize = qrSize / matrix.length;
+          const cellSize = qrSize / count;
           const qrX = totX;
           const qrY = y - 10;
           // White background
           page.drawRectangle({ x: qrX - 2, y: qrY - qrSize - 2, width: qrSize + 4, height: qrSize + 4, color: rgb(1, 1, 1) });
-          for (let r = 0; r < matrix.length; r++) {
-            for (let c = 0; c < matrix[r].length; c++) {
-              if (matrix[r][c]) {
+          for (let r = 0; r < count; r++) {
+            for (let c = 0; c < count; c++) {
+              if (qr.isDark(r, c)) {
                 page.drawRectangle({
                   x: qrX + c * cellSize,
                   y: qrY - (r + 1) * cellSize,
