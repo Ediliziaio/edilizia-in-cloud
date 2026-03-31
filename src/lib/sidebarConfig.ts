@@ -88,7 +88,7 @@ export const macroAreas: MacroArea[] = [
     title: "Cruscotto",
     icon: LayoutGrid,
     items: [
-      { title: "Cruscotto Aziendale", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
+      { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
     ],
   },
@@ -100,7 +100,6 @@ export const macroAreas: MacroArea[] = [
     icon: HardHat,
     items: [
       // ─── Operativo ───
-      { title: "Dashboard", url: "/azienda", icon: Home, permissionKey: "canViewDashboard" },
       { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
@@ -158,7 +157,6 @@ export const macroAreas: MacroArea[] = [
     title: "Marketing & Vendita",
     icon: Megaphone,
     items: [
-      { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard" },
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },

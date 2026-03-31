@@ -734,7 +734,17 @@ const CompanySidebar = memo(function CompanySidebar() {
       });
     }
     return items.filter((item) => {
-      if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+      // Special case: the Cruscotto hub is visible if the user has at least one of the
+      // three dashboard permissions (the hub itself handles the redirect/card logic).
+      if (item.url === "/azienda/cruscotto") {
+        if (
+          !permissions.canViewCruscotto &&
+          !permissions.canViewDashboard &&
+          !permissions.canViewMarketingDashboard
+        ) {
+          return false;
+        }
+      } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
       }
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {

@@ -8,6 +8,7 @@ import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
+const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
@@ -157,7 +158,8 @@ export function companyRoutes() {
       >
         <Route index element={<CompanyDashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />
-        <Route path="cruscotto" element={<CruscottoAziendale />} />
+        <Route path="cruscotto" element={<CruscottoHub />} />
+        <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
         <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
         <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
