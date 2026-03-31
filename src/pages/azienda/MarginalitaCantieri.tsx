@@ -4,6 +4,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
+import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
+import { SedeMargineCard } from "@/components/sedi/SedeMargineCard";
+import { useSediAnalytics } from "@/hooks/useSediAnalytics";
+import { useSedeFilter } from "@/store/sedeFilterStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -185,6 +189,15 @@ export default function MarginalitaCantieri() {
     return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso, avgMargineNettoPerc };
   }, [filtered, overheadPct]);
 
+  const { sediSelezionate, periodo } = useSedeFilter();
+  const { data: sediData, isLoading: sediLoading } = useSediAnalytics({
+    da: periodo.da,
+    a:  periodo.a,
+  });
+  const sediVisibili = (sediData?.sedi ?? [])
+    .filter((s) => sediSelezionate.length === 0 || sediSelezionate.includes(s.sede_id))
+    .sort((a, b) => b.margine_pct - a.margine_pct);
+
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
@@ -194,6 +207,33 @@ export default function MarginalitaCantieri() {
           Confronto preventivo vs consuntivo in tempo reale. I costi includono ordini d'acquisto ed errori registrati.
         </p>
       </div>
+
+      {/* ── Performance per Sede ───────────────────────────── */}
+      {(sediVisibili.length > 0 || sediLoading) && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-lg font-semibold text-[#1E3A5F]">Performance per Sede</h2>
+            <SedeFilterBar />
+          </div>
+          {sediLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-48 animate-pulse bg-muted rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sediVisibili.map((sede) => (
+                <SedeMargineCard
+                  key={sede.sede_id}
+                  sede={sede}
+                  totRicavi={sediData!.totali.totRicavi}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── KPI Strip ──────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

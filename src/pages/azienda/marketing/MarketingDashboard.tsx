@@ -18,6 +18,9 @@ import { exportToCSV } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useMetaLeadNotifications } from "@/hooks/useMetaLeadNotifications";
+import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
+import { LeadPerSedeChart } from "@/components/sedi/LeadPerSedeChart";
+import { useSediList } from "@/hooks/useSediAnalytics";
 
 const TAB_ICONS: Record<DashboardTab, React.ElementType> = {
   panoramica: LayoutDashboard,
@@ -27,6 +30,21 @@ const TAB_ICONS: Record<DashboardTab, React.ElementType> = {
   fonti: Radio,
   trend: TrendingUp,
 };
+
+// Componente interno: mostra SedeFilterBar + LeadPerSedeChart solo se ci sono sedi
+function SedeFilterBarMarketing() {
+  const { data: sedi = [] } = useSediList();
+  if (sedi.length === 0) return null;
+  return (
+    <div className="space-y-3 rounded-lg border bg-white p-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="text-sm font-semibold text-[#1E3A5F]">Analytics per Sede</span>
+        <SedeFilterBar />
+      </div>
+      <LeadPerSedeChart />
+    </div>
+  );
+}
 
 export default function MarketingDashboard() {
   const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
@@ -96,6 +114,9 @@ export default function MarketingDashboard() {
 
       {/* Filters */}
       <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />
+
+      {/* ── Filtro Sedi + Lead per Sede ─────────────────────── */}
+      <SedeFilterBarMarketing />
 
       {/* Error State */}
       {error && !isLoading && (

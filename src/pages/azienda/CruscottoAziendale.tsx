@@ -21,6 +21,11 @@ import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScad
 import { BillingKPIWidget } from "@/components/cruscotto/BillingKPIWidget";
 import { ClienteSituazioneWidget } from "@/components/cruscotto/ClienteSituazioneWidget";
 import { MarginalitaWidget } from "@/components/cruscotto/MarginalitaWidget";
+import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
+import { SedeIncidenzaTable } from "@/components/sedi/SedeIncidenzaTable";
+import { SedeIncidenceChart } from "@/components/sedi/SedeIncidenceChart";
+import { useSediAnalytics } from "@/hooks/useSediAnalytics";
+import { useSedeFilter } from "@/store/sedeFilterStore";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -44,6 +49,12 @@ export default function CruscottoAziendale() {
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
   const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
   const isDataEmpty = !hasOrders && !hasLeads && !hasCosts;
+
+  const { sediSelezionate, periodo } = useSedeFilter();
+  const { data: sediData } = useSediAnalytics({ da: periodo.da, a: periodo.a });
+  const sediVisibili = (sediData?.sedi ?? []).filter(
+    (s) => sediSelezionate.length === 0 || sediSelezionate.includes(s.sede_id)
+  );
 
   const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
@@ -91,6 +102,30 @@ export default function CruscottoAziendale() {
             target={companyTargets.monthly_revenue_target}
             label="Target Fatturato Mensile"
           />
+        </SectionErrorBoundary>
+      )}
+
+      {/* ── Multi-Sede: P&L e Incidenza ────────────────────── */}
+      {sediVisibili.length > 0 && (
+        <SectionErrorBoundary sectionName="Analytics per Sede">
+          <div className="space-y-4 rounded-lg border bg-white p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-semibold text-[#1E3A5F]">P&amp;L per Sede</h2>
+              <SedeFilterBar />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1">
+                <SedeIncidenceChart
+                  sedi={sediVisibili}
+                  metric="ricavi"
+                  title="Incidenza Ricavi per Sede"
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <SedeIncidenzaTable />
+              </div>
+            </div>
+          </div>
         </SectionErrorBoundary>
       )}
 

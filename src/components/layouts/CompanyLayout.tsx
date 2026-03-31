@@ -47,6 +47,7 @@ import {
   Globe,
   Phone,
   FormInput,
+  MapPin,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -625,6 +626,13 @@ const CompanySidebar = memo(function CompanySidebar() {
                       <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
                           <Truck className="h-4 w-4" /><span>Fornitori</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/sedi" className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent" activeClassName="bg-muted text-foreground font-semibold border-l-primary">
+                          <MapPin className="h-4 w-4" /><span>Sedi</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

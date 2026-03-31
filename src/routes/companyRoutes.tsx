@@ -17,6 +17,7 @@ const SettingsUsers = lazy(() => import("@/pages/azienda/settings/SettingsUsers"
 const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
 const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/SettingsSalespeople"));
 const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
+const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
 const SettingsTeams = lazy(() => import("@/pages/azienda/settings/SettingsTeams"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
 const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
@@ -261,6 +262,7 @@ export function companyRoutes() {
           <Route path="utenti/:userId" element={<SettingsUserDetail />} />
           <Route path="venditori" element={<SettingsSalespeople />} />
           <Route path="staff" element={<SettingsStaff />} />
+          <Route path="sedi" element={<SettingsSedi />} />
           <Route path="team" element={<SettingsTeams />} />
           <Route path="sicurezza" element={<SettingsSecurity />} />
           <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
