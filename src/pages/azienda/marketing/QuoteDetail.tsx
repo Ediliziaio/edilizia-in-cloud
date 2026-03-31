@@ -48,8 +48,9 @@ export default function QuoteDetail() {
       }
       toast.success("PDF generato con successo");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
-    } catch (e: any) {
-      toast.error("Errore generazione PDF: " + (e.message || "errore"));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "errore";
+      toast.error("Errore generazione PDF: " + msg);
     } finally {
       setGenerating(false);
     }
@@ -65,8 +66,9 @@ export default function QuoteDetail() {
       toast.success("Preventivo convertito in cantiere con successo!");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
       navigate(`/azienda/ordini/${data.order_id}`);
-    } catch (e: any) {
-      const msg = e?.context?.json?.error || e?.message || "Errore durante la conversione";
+    } catch (e: unknown) {
+      const err = e as { context?: { json?: { error?: string } }; message?: string };
+      const msg = err?.context?.json?.error || err?.message || "Errore durante la conversione";
       toast.error("Errore conversione: " + msg);
     } finally {
       setConverting(false);
@@ -122,6 +124,7 @@ export default function QuoteDetail() {
     queryKey: ["quote_versions_count", id],
     enabled: !!id,
     queryFn: async () => {
+      // quote_versions is not in generated types — as any required for this table
       const { count, error } = await (supabase as any)
         .from("quote_versions")
         .select("id", { count: "exact", head: true })
@@ -203,13 +206,13 @@ export default function QuoteDetail() {
           )}
 
           {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}
-          {quote.status === "inviata" && (quote as any).signature_token && (
+          {quote.status === "inviata" && quote.signature_token && (
             <>
               <Button
                 variant="outline"
                 className="gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10"
                 aria-label="Invia link firma via WhatsApp"
-                onClick={() => openWhatsApp(quote as any)}
+                onClick={() => openWhatsApp(quote)}
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
@@ -218,7 +221,7 @@ export default function QuoteDetail() {
                 variant="outline"
                 size="icon"
                 aria-label="Copia link firma negli appunti"
-                onClick={() => copySignatureLink(quote as any)}
+                onClick={() => copySignatureLink(quote)}
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -265,7 +268,7 @@ export default function QuoteDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item: any) => (
+                    {items.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell className="text-muted-foreground max-w-[200px] truncate">
@@ -400,7 +403,7 @@ export default function QuoteDetail() {
                 <p className="text-muted-foreground text-sm">Nessun documento allegato</p>
               ) : (
                 <div className="space-y-2">
-                  {attachments.map((a: any) => (
+                  {attachments.map((a) => (
                     <div key={a.id} className="flex items-center gap-3 p-3 border rounded-lg">
                       <FileText className="h-5 w-5 text-muted-foreground" />
                       <div className="flex-1">

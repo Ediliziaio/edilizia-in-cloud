@@ -9,6 +9,49 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
+
+// ─── Local types ───────────────────────────────────────────────────────────────
+
+/** Shape returned by the quotes list query (partial select) */
+interface QuoteRow {
+  id: string;
+  quote_number: string;
+  client_name: string | null;
+  title: string | null;
+  status: string;
+  total: number | null;
+  created_at: string;
+}
+
+/** Shape returned by the KPI query (partial select) */
+interface QuoteKpiRow {
+  status: string;
+  total: number | null;
+  sent_at: string | null;
+  signed_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+/** Shape of duplicate mutation input (superset of QuoteRow) */
+interface QuoteForDuplicate extends QuoteRow {
+  contact_id?: string | null;
+  client_email?: string | null;
+  client_phone?: string | null;
+  client_company?: string | null;
+  client_address?: string | null;
+  client_fiscal_code?: string | null;
+  client_vat_number?: string | null;
+  description?: string | null;
+  notes?: string | null;
+  internal_notes?: string | null;
+  validity_days?: number | null;
+  discount_percent?: number | null;
+  subtotal?: number | null;
+  discount_amount?: number | null;
+  vat_amount?: number | null;
+  [key: string]: unknown;
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +107,7 @@ export default function Preventivi() {
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [deleteQuote, setDeleteQuote] = useState<any | null>(null);
+  const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const PAGE_SIZE = 50;
 
@@ -91,7 +134,7 @@ export default function Preventivi() {
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       if (statusFilter !== "tutti") {
-        query = query.eq("status", statusFilter as any);
+        query = query.eq("status", statusFilter);
       }
 
       const { data, error, count } = await query;
@@ -120,7 +163,7 @@ export default function Preventivi() {
   });
 
   const duplicateMutation = useMutation({
-    mutationFn: async (quote: any) => {
+    mutationFn: async (quote: QuoteForDuplicate) => {
       // 1. Carica righe originali
       const { data: originalItems, error: itemsErr } = await supabase
         .from("quote_items")
@@ -165,7 +208,7 @@ export default function Preventivi() {
       // 5. Copia righe
       if (originalItems && originalItems.length > 0) {
         const { error: newItemsErr } = await supabase.from("quote_items").insert(
-          originalItems.map(({ id: _id, created_at: _ca, updated_at: _ua, ...item }: any) => ({
+          originalItems.map(({ id: _id, created_at: _ca, updated_at: _ua, ...item }) => ({
             ...item,
             quote_id: newQuote.id,
           }))
@@ -176,7 +219,7 @@ export default function Preventivi() {
       // 6. Copia allegati PDF
       if (originalAttachments && originalAttachments.length > 0) {
         await supabase.from("quote_pdf_attachments").insert(
-          originalAttachments.map((a: any) => ({ ...a, quote_id: newQuote.id }))
+          originalAttachments.map((a) => ({ ...a, quote_id: newQuote.id }))
         );
       }
 
@@ -187,7 +230,7 @@ export default function Preventivi() {
       toast.success("Preventivo duplicato con tutte le righe");
       navigate(`/azienda/marketing/preventivi/${newId}`);
     },
-    onError: (err: any) => toast.error("Errore duplicazione: " + (err.message || "errore")),
+    onError: (err: Error) => toast.error("Errore duplicazione: " + (err.message || "errore")),
   });
 
   // Reset to page 0 when status filter changes
@@ -196,7 +239,7 @@ export default function Preventivi() {
     setCurrentPage(0);
   };
 
-  const filtered = quotes.filter((q: any) => {
+  const filtered = quotes.filter((q: QuoteRow) => {
     if (debouncedSearch) {
       const s = debouncedSearch.toLowerCase();
       return (
@@ -222,43 +265,43 @@ export default function Preventivi() {
     },
     staleTime: 3 * 60 * 1000,
   });
-  const kpiRows = kpiData || [];
-  const bozze = kpiRows.filter((q: any) => q.status === "bozza").length;
-  const inviate = kpiRows.filter((q: any) => q.status === "inviata").length;
-  const accettate = kpiRows.filter((q: any) => q.status === "accettata").length;
-  const rifiutate = kpiRows.filter((q: any) => q.status === "rifiutata").length;
+  const kpiRows: QuoteKpiRow[] = kpiData || [];
+  const bozze = kpiRows.filter((q) => q.status === "bozza").length;
+  const inviate = kpiRows.filter((q) => q.status === "inviata").length;
+  const accettate = kpiRows.filter((q) => q.status === "accettata").length;
+  const rifiutate = kpiRows.filter((q) => q.status === "rifiutata").length;
   const valoreTotale = kpiRows
-    .filter((q: any) => q.status === "accettata")
-    .reduce((sum: number, q: any) => sum + (q.total || 0), 0);
+    .filter((q) => q.status === "accettata")
+    .reduce((sum, q) => sum + (q.total || 0), 0);
 
   // KPI avanzati
   const pipeline = kpiRows
-    .filter((q: any) => q.status === "inviata")
-    .reduce((sum: number, q: any) => sum + (q.total || 0), 0);
+    .filter((q) => q.status === "inviata")
+    .reduce((sum, q) => sum + (q.total || 0), 0);
 
   const decisioni = accettate + rifiutate;
   const tassoConversione = decisioni > 0 ? Math.round((accettate / decisioni) * 100) : null;
 
   const conRisposta = kpiRows.filter(
-    (q: any) => q.status === "accettata" && q.sent_at && q.signed_at
+    (q) => q.status === "accettata" && q.sent_at && q.signed_at
   );
   const tempoMedioMs = conRisposta.length > 0
-    ? conRisposta.reduce((sum: number, q: any) => {
-        return sum + (new Date(q.signed_at).getTime() - new Date(q.sent_at).getTime());
+    ? conRisposta.reduce((sum, q) => {
+        return sum + (new Date(q.signed_at!).getTime() - new Date(q.sent_at!).getTime());
       }, 0) / conRisposta.length
     : null;
   const tempoMedioGiorni = tempoMedioMs !== null
     ? Math.round(tempoMedioMs / (1000 * 60 * 60 * 24))
     : null;
 
-  const nonBozze = kpiRows.filter((q: any) => q.status !== "bozza");
+  const nonBozze = kpiRows.filter((q) => q.status !== "bozza");
   const valoremedioOfferta = nonBozze.length > 0
-    ? nonBozze.reduce((s: number, q: any) => s + (q.total || 0), 0) / nonBozze.length
+    ? nonBozze.reduce((s, q) => s + (q.total || 0), 0) / nonBozze.length
     : 0;
 
   // Export Excel
   const handleExportExcel = () => {
-    const exportRows = filtered.map((q: any) => {
+    const exportRows = filtered.map((q: QuoteRow) => {
       const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
       return {
         Numero: q.quote_number || "",
@@ -273,7 +316,7 @@ export default function Preventivi() {
     const ws = XLSX.utils.json_to_sheet(exportRows);
     // Auto-fit columns
     const colWidths = Object.keys(exportRows[0] || {}).map((k) => ({
-      wch: Math.max(k.length, ...exportRows.map((r: any) => String(r[k] ?? "").length)) + 2,
+      wch: Math.max(k.length, ...exportRows.map((r) => String(r[k as keyof typeof r] ?? "").length)) + 2,
     }));
     ws["!cols"] = colWidths;
 
@@ -443,7 +486,7 @@ export default function Preventivi() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((q: any) => {
+              {filtered.map((q: QuoteRow) => {
                 const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
                 return (
                   <TableRow

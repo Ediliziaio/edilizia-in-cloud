@@ -175,12 +175,40 @@ function SortableItem({
   );
 }
 
+interface ContactOption {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company_name: string | null;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  fiscal_code: string | null;
+  vat_number: string | null;
+}
+
+interface ListinoCategoria {
+  id: string;
+  nome: string;
+  margine_target_percentuale?: number | null;
+}
+
+interface QuotePdfMaterial {
+  id: string;
+  name: string;
+  category: string | null;
+  file_size_bytes: number;
+}
+
 function ContactCombobox({
   contacts,
   value,
   onChange,
 }: {
-  contacts: any[];
+  contacts: ContactOption[];
   value: string | null;
   onChange: (id: string) => void;
 }) {
@@ -238,7 +266,6 @@ function ProductSearchDialog({
   onClose,
   articoli,
   categorie,
-  impostazioni,
   pianoInstallazione,
   calcolaPrezzoProdotto,
   onConfirm,
@@ -246,10 +273,14 @@ function ProductSearchDialog({
   open: boolean;
   onClose: () => void;
   articoli: ArticlePro[];
-  categorie: any[];
-  impostazioni: any;
+  categorie: ListinoCategoria[];
   pianoInstallazione: number;
-  calcolaPrezzoProdotto: any;
+  calcolaPrezzoProdotto: (
+    prodotto: ArticlePro,
+    qty: number,
+    x?: number,
+    y?: number
+  ) => Promise<{ prezzo_vendita: number; prezzo_acquisto: number; trovato_in_griglia?: boolean }>;
   onConfirm: (p: ArticlePro, qty: number, x?: number, y?: number) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -284,7 +315,7 @@ function ProductSearchDialog({
       return;
     }
     calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y)
-      .then((r: any) => setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia }))
+      .then((r) => setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia ?? false }))
       .catch(() => setPreview(null));
   }, [mx, my, qty, pending]);
 
@@ -367,7 +398,7 @@ function ProductSearchDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
-                  {categorie.map((c: any) => (
+                  {categorie.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}
                     </SelectItem>
@@ -708,7 +739,7 @@ export default function QuoteBuilder() {
         .select("material_id")
         .eq("quote_id", id!);
       if (error) throw error;
-      return data.map((a: any) => a.material_id);
+      return data.map((a) => a.material_id);
     },
   });
 
@@ -729,29 +760,30 @@ export default function QuoteBuilder() {
       setNotes(existingQuote.notes || "");
       setInternalNotes(existingQuote.internal_notes || "");
       setDiscountPercent(existingQuote.discount_percent || 0);
-      if ((existingQuote as any).template_id) {
-        setSelectedTemplateId((existingQuote as any).template_id);
+      if (existingQuote.template_id) {
+        setSelectedTemplateId(existingQuote.template_id);
       }
-      // P03 extras
-      setTipoLavoro((existingQuote as any).tipo_lavoro || "");
-      setIndirizzoLavori((existingQuote as any).indirizzo_lavori || "");
-      setPianoInstallazione((existingQuote as any).piano_installazione || 0);
-      setKmCantiere((existingQuote as any).km_cantiere || 0);
-      setPdfPrezziRiga((existingQuote as any).pdf_mostra_prezzi_per_riga ?? true);
-      setPdfSoloTotale((existingQuote as any).pdf_mostra_solo_totale ?? false);
-      setPdfSconti((existingQuote as any).pdf_mostra_sconti ?? false);
-      setPdfImmagini((existingQuote as any).pdf_mostra_immagini ?? true);
-      setPdfSchedeTecniche((existingQuote as any).pdf_includi_schede_tecniche ?? false);
-      setPdfFirma((existingQuote as any).firma_digitale_abilitata ?? true);
+      // P03 extras — these fields are not in the generated types (TODO IMP10: complex type)
+      const q = existingQuote as any;
+      setTipoLavoro(q.tipo_lavoro || "");
+      setIndirizzoLavori(q.indirizzo_lavori || "");
+      setPianoInstallazione(q.piano_installazione || 0);
+      setKmCantiere(q.km_cantiere || 0);
+      setPdfPrezziRiga(q.pdf_mostra_prezzi_per_riga ?? true);
+      setPdfSoloTotale(q.pdf_mostra_solo_totale ?? false);
+      setPdfSconti(q.pdf_mostra_sconti ?? false);
+      setPdfImmagini(q.pdf_mostra_immagini ?? true);
+      setPdfSchedeTecniche(q.pdf_includi_schede_tecniche ?? false);
+      setPdfFirma(q.firma_digitale_abilitata ?? true);
       // Ripristina override layout template salvato
-      setLayoutOverride((existingQuote as any).template_layout_override ?? null);
+      setLayoutOverride(q.template_layout_override ?? null);
     }
   }, [existingQuote]);
 
   useEffect(() => {
     if (existingItems.length > 0) {
       setItems(
-        existingItems.map((i: any) => ({
+        existingItems.map((i) => ({
           id: i.id,
           item_type: i.item_type,
           item_category: i.item_category || "prodotto",
@@ -794,14 +826,14 @@ export default function QuoteBuilder() {
   // Contact selection
   const handleContactSelect = (cId: string) => {
     setContactId(cId);
-    const c = contacts.find((x: any) => x.id === cId);
+    const c = contacts.find((x) => x.id === cId);
     if (c) {
       setClientName(`${c.first_name || ""} ${c.last_name || ""}`.trim());
       setClientEmail(c.email || "");
       setClientPhone(c.phone || "");
       setClientCompany(c.company_name || "");
-      setClientFiscalCode((c as any).fiscal_code || "");
-      setClientVatNumber((c as any).vat_number || "");
+      setClientFiscalCode(c.fiscal_code || "");
+      setClientVatNumber(c.vat_number || "");
       const addressParts = [c.address, c.postal_code, c.city, c.province].filter(Boolean);
       if (addressParts.length > 0) {
         setClientAddress(addressParts.join(", "));
@@ -824,13 +856,11 @@ export default function QuoteBuilder() {
         unit_of_measure: "pz",
         sort_order: items.length,
         // P03 defaults
-        ...(({
-          item_category: "prodotto",
-          prezzo_acquisto: 0,
-          mostra_nel_pdf: true,
-          is_optional: false,
-        } as any)),
-      } as any,
+        item_category: "prodotto" as QuoteItemPro["item_category"],
+        prezzo_acquisto: 0,
+        mostra_nel_pdf: true,
+        is_optional: false,
+      } as QuoteItemPro,
     ]);
   };
 
@@ -847,11 +877,11 @@ export default function QuoteBuilder() {
         discount_percent: 0,
         vat_rate: 22,
         unit_of_measure: "pz",
-        sort_order: (prev as any[]).length,
+        sort_order: prev.length,
         prezzo_acquisto: 0,
         mostra_nel_pdf: true,
         is_optional: false,
-      } as any,
+      } as QuoteItemPro,
     ]);
   };
 
@@ -873,13 +903,13 @@ export default function QuoteBuilder() {
         discount_percent: 0,
         vat_rate: 22,
         unit_of_measure: tariffa.unita,
-        sort_order: (prev as any[]).length,
+        sort_order: prev.length,
         article_template_id: null,
         tariffa_id: tariffa.id,
         prezzo_acquisto,
         mostra_nel_pdf: true,
         is_optional: false,
-      } as any,
+      } as QuoteItemPro,
     ]);
   };
 
@@ -903,14 +933,14 @@ export default function QuoteBuilder() {
           discount_percent: 0,
           vat_rate: 22,
           unit_of_measure: tariffa.unita,
-          sort_order: (prev as any[]).length,
+          sort_order: prev.length,
           article_template_id: null,
           tariffa_id: tariffa.id,
           prezzo_acquisto,
           mostra_nel_pdf: true,
           is_optional: false,
           _parentIdx: parentIdx,
-        } as any,
+        } as QuoteItemPro,
       ]);
     }
     setSmaltimentoAsk(null);
@@ -1084,7 +1114,7 @@ export default function QuoteBuilder() {
     setBundleOpen(false);
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (index: number, field: keyof QuoteItemPro, value: QuoteItemPro[keyof QuoteItemPro]) => {
     setItems(items.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
   };
 
@@ -1116,7 +1146,7 @@ export default function QuoteBuilder() {
   const autosaveDraft = useCallback(async () => {
     // Guard: non sovrascrivere preventivi già inviati/accettati/rifiutati/scaduti
     const STATI_BLOCCATI = ['inviata', 'accettata', 'rifiutata', 'scaduta'];
-    if (STATI_BLOCCATI.includes((existingQuote as any)?.status || '')) return;
+    if (STATI_BLOCCATI.includes(existingQuote?.status || '')) return;
     if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
     const hash = JSON.stringify({ clientName, itemsLen: items.length, discountPercent });
     if (hash === lastSavedHashRef.current) return;
@@ -1203,7 +1233,8 @@ export default function QuoteBuilder() {
     if (!companyId || !user) return;
     setSaving(true);
     try {
-      const quoteData: any = {
+      // TODO IMP10: complex type — quoteData includes P03 fields not in generated types
+      const quoteData: Record<string, unknown> = {
         company_id: companyId,
         status,
         contact_id: contactId,
@@ -1279,13 +1310,13 @@ export default function QuoteBuilder() {
             sort_order: idx,
             article_template_id: it.article_template_id || null,
             // P03
-            item_category: (it as any).item_category || "prodotto",
-            tariffa_id: (it as any).tariffa_id || null,
-            prezzo_acquisto: (it as any).prezzo_acquisto ?? 0,
-            mostra_nel_pdf: (it as any).mostra_nel_pdf ?? true,
-            is_optional: (it as any).is_optional ?? false,
-            misura_x: (it as any).misura_x ?? null,
-            misura_y: (it as any).misura_y ?? null,
+            item_category: it.item_category || "prodotto",
+            tariffa_id: it.tariffa_id || null,
+            prezzo_acquisto: it.prezzo_acquisto ?? 0,
+            mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+            is_optional: it.is_optional ?? false,
+            misura_x: it.misura_x ?? null,
+            misura_y: it.misura_y ?? null,
             // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
           }))
         );
@@ -1314,8 +1345,9 @@ export default function QuoteBuilder() {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
       toast.success(isEdit ? "Preventivo aggiornato" : "Preventivo creato");
       navigate(`/azienda/marketing/preventivi/${quoteId}`);
-    } catch (err: any) {
-      toast.error(err.message || "Errore salvataggio");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Errore salvataggio";
+      toast.error(errMsg);
     } finally {
       setSaving(false);
     }
@@ -1495,7 +1527,7 @@ export default function QuoteBuilder() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Nessuno specificato</SelectItem>
-                    {categorie.map((c: any) => (
+                    {categorie.map((c) => (
                       <SelectItem key={c.id} value={c.nome}>
                         {c.nome}
                       </SelectItem>
@@ -2062,7 +2094,7 @@ export default function QuoteBuilder() {
                       {tipoLavoro &&
                         (() => {
                           const catData = categorie.find(
-                            (c: any) => c.nome === tipoLavoro
+                            (c) => c.nome === tipoLavoro
                           );
                           const target =
                             catData?.margine_target_percentuale ??
@@ -2163,7 +2195,7 @@ export default function QuoteBuilder() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {materials.map((m: any) => (
+                  {materials.map((m) => (
                     <div
                       key={m.id}
                       className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
@@ -2264,7 +2296,7 @@ export default function QuoteBuilder() {
                       <TableRow key={idx}>
                         <TableCell>
                           {it.name || "—"}
-                          {(it as any).is_optional && (
+                          {it.is_optional && (
                             <Badge variant="outline" className="ml-2 text-xs">
                               Opzionale
                             </Badge>
@@ -2381,7 +2413,7 @@ export default function QuoteBuilder() {
                 {tipoLavoro &&
                   (() => {
                     const catData = categorie.find(
-                      (c: any) => c.nome === tipoLavoro
+                      (c) => c.nome === tipoLavoro
                     );
                     const target =
                       catData?.margine_target_percentuale ??
@@ -2406,7 +2438,7 @@ export default function QuoteBuilder() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedMaterials.map((mId) => {
-                    const m = materials.find((x: any) => x.id === mId);
+                    const m = materials.find((x) => x.id === mId);
                     return m ? (
                       <Badge key={mId} variant="secondary">
                         {m.name}
@@ -2533,7 +2565,6 @@ export default function QuoteBuilder() {
         onClose={() => setSearchOpen(false)}
         articoli={articoli}
         categorie={categorie}
-        impostazioni={impostazioni}
         pianoInstallazione={pianoInstallazione}
         calcolaPrezzoProdotto={calcolaPrezzoProdotto}
         onConfirm={addProductFromCatalog}

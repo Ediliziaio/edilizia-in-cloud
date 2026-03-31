@@ -344,11 +344,11 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .eq("company_id", companyId!)
         .order("nome");
       if (!data) return [] as TariffaPro[];
-      return data.map((d: any) => ({
+      return data.map((d: Record<string, unknown>) => ({
         ...d,
         // DB column is prezzo_costo; prezzo_vendita stays as-is
-        prezzo_costo: d.prezzo_costo ?? 0,
-        prezzo_vendita: d.prezzo_vendita ?? 0,
+        prezzo_costo: (d.prezzo_costo as number | null) ?? 0,
+        prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
       })) as TariffaPro[];
     },
     staleTime: 5 * 60 * 1000,
@@ -371,11 +371,11 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .eq("company_id", companyId!)
         .order("name");
       if (!data) return [] as ArticlePro[];
-      return data.map((d: any) => ({
+      return data.map((d) => ({
         ...d,
         prezzo_vendita: d.prezzo_vendita ?? d.unit_price ?? 0,
         prezzo_acquisto_netto: d.prezzo_acquisto_netto ?? d.standard_cost ?? 0,
-        modalita_prezzo: d.modalita_prezzo ?? "pz",
+        modalita_prezzo: (d.modalita_prezzo ?? "pz") as ArticlePro["modalita_prezzo"],
       })) as ArticlePro[];
     },
     staleTime: 5 * 60 * 1000,
@@ -407,13 +407,22 @@ export function usePreventivoCosti(companyId: string | undefined) {
       .select("prezzo_vendita,prezzo_acquisto_netto,valore_x,valore_y")
       .eq("prodotto_id", prodotto_id);
 
+    interface GrigliaRow {
+      prezzo_vendita: number;
+      prezzo_acquisto_netto: number | null;
+      valore_x: number;
+      valore_y: number;
+    }
+
     if (!data || data.length === 0) {
       return { prezzo_vendita: 0, prezzo_acquisto_netto: 0, trovato: false };
     }
 
+    const rows = data as GrigliaRow[];
+
     // Exact match first
-    const exact = data.find(
-      (r: any) => r.valore_x === x && r.valore_y === y
+    const exact = rows.find(
+      (r) => r.valore_x === x && r.valore_y === y
     );
     if (exact) {
       return {
@@ -424,9 +433,9 @@ export function usePreventivoCosti(companyId: string | undefined) {
     }
 
     // Nearest neighbor by Manhattan distance
-    let nearest = data[0];
+    let nearest = rows[0];
     let minDist = Infinity;
-    for (const r of data) {
+    for (const r of rows) {
       const dist = Math.abs(r.valore_x - x) + Math.abs(r.valore_y - y);
       if (dist < minDist) {
         minDist = dist;
