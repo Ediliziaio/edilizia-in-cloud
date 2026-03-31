@@ -25,6 +25,7 @@ interface PlanForm {
   price_monthly: number;
   price_yearly: number;
   max_orders: number;
+  trial_days: number;
   max_users: number;
   max_storage_mb: number;
   features: string[];
@@ -43,6 +44,7 @@ const emptyForm: PlanForm = {
   price_monthly: 0,
   price_yearly: 0,
   max_orders: -1,
+  trial_days: 14,
   max_users: -1,
   max_storage_mb: 500,
   features: [],
@@ -109,6 +111,7 @@ export default function SubscriptionPlans() {
         price_monthly: plan.price_monthly,
         price_yearly: plan.price_yearly,
         max_orders: plan.max_orders,
+        trial_days: plan.trial_days,
         max_users: plan.max_users,
         max_storage_mb: plan.max_storage_mb,
         features: plan.features,
@@ -170,6 +173,7 @@ export default function SubscriptionPlans() {
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
       max_orders: plan.max_orders,
+      trial_days: plan.trial_days ?? 14,
       max_users: plan.max_users,
       max_storage_mb: plan.max_storage_mb,
       features,
@@ -324,6 +328,10 @@ export default function SubscriptionPlans() {
                     <HardDrive className="h-4 w-4 text-muted-foreground" />
                     <span>{plan.max_storage_mb} MB storage</span>
                   </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                    <span>{plan.trial_days ?? 14} giorni trial</span>
+                  </div>
                 </div>
 
                 {/* Included Modules */}
@@ -420,6 +428,14 @@ export default function SubscriptionPlans() {
               <div className="space-y-2">
                 <Label>Max Storage (MB)</Label>
                 <Input type="number" value={form.max_storage_mb} onChange={(e) => setForm({ ...form, max_storage_mb: parseInt(e.target.value) || 500 })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Giorni di Trial</Label>
+                <Input type="number" min="0" max="365" value={form.trial_days} onChange={(e) => setForm({ ...form, trial_days: parseInt(e.target.value) || 0 })} />
+                <p className="text-xs text-muted-foreground">Giorni di prova gratuita per nuove aziende</p>
               </div>
             </div>
 

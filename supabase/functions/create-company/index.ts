@@ -116,6 +116,7 @@ Deno.serve(async (req) => {
       operationalCity,
       operationalProvince,
       operationalPostalCode,
+      planId,
     } = await req.json();
 
     // --- Input Validation ---
@@ -134,6 +135,20 @@ Deno.serve(async (req) => {
     if (String(adminPassword).length < 8) {
       return errorResponse("La password deve avere almeno 8 caratteri");
     }
+
+    // Resolve trial_days from selected plan (default 14 if no plan or field missing)
+    let trialDays = 14;
+    if (planId) {
+      const { data: planData } = await supabaseAdmin
+        .from("subscription_plans")
+        .select("trial_days")
+        .eq("id", planId)
+        .maybeSingle();
+      if (planData?.trial_days != null) {
+        trialDays = planData.trial_days;
+      }
+    }
+    const trialEndsAt = new Date(Date.now() + trialDays * 86400 * 1000).toISOString();
 
     // Create company
     const { data: companyData, error: companyError } = await supabaseAdmin
@@ -158,6 +173,9 @@ Deno.serve(async (req) => {
         operational_city: operationalCity || null,
         operational_province: operationalProvince || null,
         operational_postal_code: operationalPostalCode || null,
+        status: "trial",
+        trial_ends_at: trialEndsAt,
+        subscription_plan_id: planId || null,
       })
       .select()
       .single();
