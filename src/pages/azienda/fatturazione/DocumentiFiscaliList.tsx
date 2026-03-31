@@ -370,6 +370,13 @@ function DocumentiFiscaliListInner() {
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=preventivo")}>Preventivo</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_accompagnatoria")}>Fattura Accompagnatoria (TD24)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_fattura")}>Acconto su fattura (TD02)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_parcella")}>Acconto su parcella (TD03)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_differita_b")}>Fattura differita lett.b (TD25)</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione RC interno (TD16) — Subappalto edile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura_splafonamento")}>Autofattura splafonamento (TD21)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autoconsumo")}>Autoconsumo (TD27)</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura Servizi Estero (TD17)</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione Beni UE (TD18)</DropdownMenuItem>

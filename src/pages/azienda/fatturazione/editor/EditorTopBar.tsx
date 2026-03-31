@@ -40,6 +40,12 @@ const TIPO_LABELS: Record<string, string> = {
   integrazione_servizi_estero: "TD17",
   integrazione_beni_ue: "TD18",
   integrazione_beni_extra_ue: "TD19",
+  acconto_fattura: "Acconto Fattura (TD02)",
+  acconto_parcella: "Acconto Parcella (TD03)",
+  reverse_charge_interno: "RC Interno (TD16)",
+  autofattura_splafonamento: "Autofattura Splafonamento (TD21)",
+  fattura_differita_b: "Fatt. Differita lett.b (TD25)",
+  autoconsumo: "Autoconsumo (TD27)",
 };
 
 const STATO_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -59,13 +65,18 @@ const STATO_CONFIG: Record<string, { label: string; variant: "default" | "second
 // Tipi documento che possono essere inviati al SDI
 const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
   "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
-  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
+  "acconto_fattura", "acconto_parcella", "reverse_charge_interno",
+  "autofattura_splafonamento", "fattura_differita_b", "autoconsumo"];
 
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
   autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
   fattura_accompagnatoria: "TD24", parcella: "TD06",
   integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19",
+  acconto_fattura: "TD02", acconto_parcella: "TD03",
+  reverse_charge_interno: "TD16", autofattura_splafonamento: "TD21",
+  fattura_differita_b: "TD25", autoconsumo: "TD27",
 };
 
 interface Props {
