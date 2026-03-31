@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
   Plus, Pencil, Building2, Receipt, Palette, CreditCard, Percent,
@@ -462,6 +463,15 @@ export default function ImpostazioniFatturazione() {
                     <SelectItem value="manuale">Manuale — Download XML</SelectItem>
                   </SelectContent>
                 </Select>
+                {(current.sdi_provider === 'infocert' || current.sdi_provider === 'poste') && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      L&apos;integrazione con <strong>{current.sdi_provider === 'infocert' ? 'InfoCert LegalInvoice' : 'Poste Italiane'}</strong> non è ancora disponibile.
+                      Usa <strong>Aruba</strong> o <strong>Manuale</strong> per inviare fatture al SDI.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               {current.sdi_provider !== "manuale" && (
