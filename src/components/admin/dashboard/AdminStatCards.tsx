@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Users, ClipboardList, MessageSquare, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Building, Users, ClipboardList, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, Zap } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { AdminDashboardStats } from "@/hooks/useAdminDashboardData";
 
@@ -85,10 +85,40 @@ export function AdminStatCards({ stats, previousStats }: Props) {
         ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
         : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
+    {
+      title: "DAC (ultimi 24h)",
+      value: stats.dac ?? 0,
+      delta: null,
+      icon: Activity,
+      description: "Aziende attive oggi",
+      href: "/admin/aziende",
+      accent: "from-cyan-500/10 to-cyan-500/5 dark:from-cyan-500/20 dark:to-cyan-500/10",
+      iconBg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+    },
+    {
+      title: "WAC (ultimi 7gg)",
+      value: stats.wac ?? 0,
+      delta: null,
+      icon: CalendarDays,
+      description: "Aziende attive questa settimana",
+      href: "/admin/aziende",
+      accent: "from-indigo-500/10 to-indigo-500/5 dark:from-indigo-500/20 dark:to-indigo-500/10",
+      iconBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+    },
+    {
+      title: "Engagement Rate",
+      value: `${stats.engagementRate ?? 0}%`,
+      delta: null,
+      icon: Zap,
+      description: "DAC / aziende attive",
+      href: "/admin/aziende",
+      accent: "from-amber-500/10 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/10",
+      iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
       {statCards.map((stat) => (
         <Card
           key={stat.title}
@@ -105,7 +135,9 @@ export function AdminStatCards({ stats, previousStats }: Props) {
               <DeltaBadge delta={stat.delta} />
             </div>
             <div className="space-y-1">
-              <p className="text-3xl font-bold tracking-tight text-foreground">{stat.value.toLocaleString("it-IT")}</p>
+              <p className="text-3xl font-bold tracking-tight text-foreground">
+                {typeof stat.value === "string" ? stat.value : stat.value.toLocaleString("it-IT")}
+              </p>
               <p className="text-xs font-medium text-muted-foreground">{stat.title}</p>
               <p className="text-[11px] text-muted-foreground/70">{stat.description}</p>
             </div>

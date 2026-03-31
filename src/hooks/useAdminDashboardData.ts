@@ -28,6 +28,10 @@ export interface AdminDashboardStats {
   totalOrdersValue: number;
   totalCustomers: number;
   openSupportConversations: number;
+  // Active companies engagement
+  dac: number;  // Daily Active Companies (last 24h)
+  wac: number;  // Weekly Active Companies (last 7 days)
+  engagementRate: number; // DAC / activeCompanies * 100
 }
 
 export interface AdminMrrStats {
@@ -48,6 +52,9 @@ export function useAdminDashboardData() {
   return useQuery({
     queryKey: queryKeys.admin.dashboard(),
     queryFn: async () => {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
       const [
         companiesRes,
         ordersAggRes,
@@ -57,6 +64,8 @@ export function useAdminDashboardData() {
         recentOrdersRes,
         recentTicketsRes,
         allCompaniesRes,
+        dacRes,
+        wacRes,
       ] = await Promise.all([
         supabase.from("companies").select("id", { count: "exact", head: true }),
         supabase.rpc("get_total_orders_value"),
@@ -77,6 +86,16 @@ export function useAdminDashboardData() {
         `).order("created_at", { ascending: false }).limit(5),
         // Limit to 500 companies for MRR calculation — sufficient for dashboard approximation
         supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)").limit(500),
+        // DAC: distinct company_ids in audit_log last 24h
+        supabase.from("audit_log").select("company_id", { count: "exact", head: false })
+          .gte("created_at", oneDayAgo)
+          .not("company_id", "is", null)
+          .limit(1000),
+        // WAC: distinct company_ids in audit_log last 7 days
+        supabase.from("audit_log").select("company_id", { count: "exact", head: false })
+          .gte("created_at", sevenDaysAgo)
+          .not("company_id", "is", null)
+          .limit(5000),
       ]);
 
       const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
@@ -87,6 +106,17 @@ export function useAdminDashboardData() {
       const activeCompanies = allCompanies.filter((c) => c.status === "active");
       const trialCompanies = allCompanies.filter((c) => c.status === "trial");
       const expiredCompanies = allCompanies.filter((c) => c.status === "expired");
+
+      // DAC / WAC: count distinct company_ids from audit_log results
+      const dacRows = dacRes.data ?? [];
+      const wacRows = wacRes.data ?? [];
+      const dacSet = new Set(dacRows.map((r: { company_id: string }) => r.company_id).filter(Boolean));
+      const wacSet = new Set(wacRows.map((r: { company_id: string }) => r.company_id).filter(Boolean));
+      const dac = dacSet.size;
+      const wac = wacSet.size;
+      const engagementRate = activeCompanies.length > 0
+        ? Math.round((dac / activeCompanies.length) * 100)
+        : 0;
 
       const mrr = activeCompanies.reduce((sum, c) => {
         const plan = c.subscription_plans as { price_monthly: number } | null;
@@ -170,6 +200,9 @@ export function useAdminDashboardData() {
           totalOrdersValue: totalValue,
           totalCustomers: customersRes.count || 0,
           openSupportConversations: ticketsRes.count || 0,
+          dac,
+          wac,
+          engagementRate,
         } as AdminDashboardStats,
         mrrStats: {
           mrr,
