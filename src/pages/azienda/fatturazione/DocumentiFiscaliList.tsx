@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +33,7 @@ import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
   AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw, FileSpreadsheet,
+  BarChart3, Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -354,6 +355,21 @@ function DocumentiFiscaliListInner() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fatturazione</h1>
           <p className="text-sm text-muted-foreground">Gestisci tutti i tuoi documenti fiscali</p>
+        </div>
+        {/* Link discreti a Report Fiscali e Impostazioni — rimossi dalla sidebar (CLEANUP-2) */}
+        <div className="flex items-center gap-1 mr-3">
+          <Button variant="ghost" size="sm" asChild className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <Link to="/azienda/documenti/report">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Report fiscali</span>
+            </Link>
+          </Button>
+          <Button variant="ghost" size="sm" asChild className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <Link to="/azienda/impostazioni/fatturazione-nativa">
+              <Settings2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Impostazioni</span>
+            </Link>
+          </Button>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
