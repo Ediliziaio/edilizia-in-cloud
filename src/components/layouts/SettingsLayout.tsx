@@ -25,6 +25,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "template-preventivi":  { title: "Template offerte",         description: "Crea e modifica i template per le offerte commerciali" },
   calendari:              { title: "Calendari marketing",      description: "Configura i calendari per le campagne marketing" },
   "lead-forms":           { title: "Lead Facebook",            description: "Connetti e gestisci i form di acquisizione Facebook" },
+  persone:               { title: "Persone & Accessi",         description: "Gestisci utenti, venditori, staff e team" },
   utenti:                 { title: "Utenti",                   description: "Gestisci gli accessi e i ruoli degli utenti" },
   venditori:              { title: "Venditori",                description: "Gestisci l'elenco dei venditori" },
   staff:                  { title: "Staff / Operai",           description: "Gestisci lo staff operativo e gli operai" },

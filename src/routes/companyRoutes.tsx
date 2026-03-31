@@ -19,6 +19,7 @@ const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
 const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
 const SettingsTeams = lazy(() => import("@/pages/azienda/settings/SettingsTeams"));
+const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
 const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
 const SettingsActivityLog = lazy(() => import("@/pages/azienda/settings/SettingsActivityLog"));
@@ -258,12 +259,15 @@ export function companyRoutes() {
           <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
           <Route path="sequenze" element={<SettingsPipelines />} />
           <Route path="calendari" element={<SettingsMarketingCalendars />} />
-          <Route path="utenti" element={<SettingsUsers />} />
+          {/* IMP3: Persone & Accessi — pagina unica con 4 tab */}
+          <Route path="persone" element={<SettingsPeople />} />
+          {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}
+          <Route path="utenti" element={<Navigate to="/azienda/impostazioni/persone?tab=utenti" replace />} />
           <Route path="utenti/:userId" element={<SettingsUserDetail />} />
-          <Route path="venditori" element={<SettingsSalespeople />} />
-          <Route path="staff" element={<SettingsStaff />} />
+          <Route path="venditori" element={<Navigate to="/azienda/impostazioni/persone?tab=venditori" replace />} />
+          <Route path="staff" element={<Navigate to="/azienda/impostazioni/persone?tab=staff" replace />} />
           <Route path="sedi" element={<SettingsSedi />} />
-          <Route path="team" element={<SettingsTeams />} />
+          <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
           <Route path="sicurezza" element={<SettingsSecurity />} />
           <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
           <Route path="attivita" element={<SettingsActivityLog />} />

@@ -477,10 +477,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
     {
       label: "Persone & Accessi",
       items: [
-        { to: "/azienda/impostazioni/utenti",    label: "Utenti",       icon: <Users className="h-4 w-4" />,    visible: isAdmin || permissions.canViewUsers },
-        { to: "/azienda/impostazioni/venditori", label: "Venditori",    icon: <UserCheck className="h-4 w-4" />,visible: isAdmin || permissions.canViewSettingsPeople },
-        { to: "/azienda/impostazioni/staff",     label: "Staff / Operai",icon: <HardHat className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPeople },
-        { to: "/azienda/impostazioni/team",      label: "Team",          icon: <Users className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsPeople },
+        // IMP3: voce unica → pagina con 4 tab (utenti/venditori/staff/team)
+        { to: "/azienda/impostazioni/persone", label: "Persone & Accessi", icon: <Users className="h-4 w-4" />, visible: isAdmin || permissions.canViewUsers || permissions.canViewSettingsPeople },
       ],
     },
     {
