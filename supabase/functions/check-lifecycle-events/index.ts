@@ -125,6 +125,127 @@ Deno.serve(async (req) => {
       if (!error) inserted++;
     }
 
+    // ── Additional lifecycle events with dedup via lifecycle_events_log ──────
+    const allCompanies = await supabase
+      .from("companies")
+      .select("id, name, status, created_at, trial_ends_at, subscription_plan_id")
+      .in("status", ["active", "trial"]);
+
+    if (!allCompanies.error && allCompanies.data) {
+      // Fetch already-sent events to deduplicate
+      const { data: sentEvents } = await supabase
+        .from("lifecycle_events_log")
+        .select("company_id, event, sent_at")
+        .in("company_id", allCompanies.data.map((c) => c.id));
+
+      // Build set of already-sent events (company_id:event)
+      const sentSet = new Set(
+        (sentEvents || []).map((e: any) => `${e.company_id}:${e.event}`)
+      );
+
+      // Get order counts for high_usage check
+      const { data: orderCountData } = await supabase
+        .rpc("get_company_order_stats");
+      const orderCountMap = new Map<string, number>();
+      (orderCountData || []).forEach((r: any) => {
+        orderCountMap.set(r.company_id, Number(r.total_orders || 0));
+      });
+
+      // Get last audit_log for inactive_7d check
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
+      const { data: recentActivity } = await supabase
+        .from("audit_log")
+        .select("company_id, created_at")
+        .gte("created_at", sevenDaysAgo)
+        .not("company_id", "is", null);
+      const activeCompanyIds = new Set((recentActivity || []).map((r: any) => r.company_id));
+
+      const eventsToLog: Array<{ company_id: string; event: string; metadata?: object }> = [];
+
+      for (const company of allCompanies.data) {
+        const createdAt = new Date(company.created_at);
+        const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
+
+        // first_week: 7 days after creation
+        if (daysSinceCreation >= 7 && daysSinceCreation < 14) {
+          const key = `${company.id}:first_week`;
+          if (!sentSet.has(key)) {
+            eventsToLog.push({ company_id: company.id, event: "first_week" });
+            sentSet.add(key);
+          }
+        }
+
+        // first_month: 30 days after creation
+        if (daysSinceCreation >= 30 && daysSinceCreation < 35) {
+          const key = `${company.id}:first_month`;
+          if (!sentSet.has(key)) {
+            eventsToLog.push({ company_id: company.id, event: "first_month" });
+            sentSet.add(key);
+          }
+        }
+
+        // renewal_upcoming: 7 days before trial ends (for trial companies)
+        if (company.status === "trial" && company.trial_ends_at) {
+          const trialEnd = new Date(company.trial_ends_at);
+          const daysToRenewal = Math.ceil((trialEnd.getTime() - now.getTime()) / 86400000);
+          if (daysToRenewal === 7) {
+            const key = `${company.id}:renewal_upcoming`;
+            if (!sentSet.has(key)) {
+              eventsToLog.push({
+                company_id: company.id, event: "renewal_upcoming",
+                metadata: { days_remaining: daysToRenewal },
+              });
+              sentSet.add(key);
+            }
+          }
+        }
+
+        // high_usage: >200 orders
+        const totalOrders = orderCountMap.get(company.id) || 0;
+        if (totalOrders > 200) {
+          const key = `${company.id}:high_usage`;
+          if (!sentSet.has(key)) {
+            eventsToLog.push({
+              company_id: company.id, event: "high_usage",
+              metadata: { total_orders: totalOrders },
+            });
+            sentSet.add(key);
+          }
+        }
+
+        // inactive_7d: no activity in last 7 days (active companies only)
+        if (company.status === "active" && !activeCompanyIds.has(company.id) && daysSinceCreation > 7) {
+          const key = `${company.id}:inactive_7d`;
+          // For inactive_7d, use a weekly cooldown by checking current week
+          const weekKey = `${company.id}:inactive_7d`;
+          const thisWeekSent = (sentEvents || []).some((e: any) => {
+            return e.company_id === company.id &&
+              e.event === "inactive_7d" &&
+              new Date(e.sent_at) > new Date(now.getTime() - 7 * 86400000);
+          });
+          if (!thisWeekSent) {
+            eventsToLog.push({ company_id: company.id, event: "inactive_7d" });
+          }
+        }
+      }
+
+      // Persist new lifecycle events (upsert with dedup index)
+      let lifecycleInserted = 0;
+      for (const ev of eventsToLog) {
+        const { error } = await supabase
+          .from("lifecycle_events_log")
+          .insert({
+            company_id: ev.company_id,
+            event: ev.event,
+            sent_at: now.toISOString(),
+            metadata: ev.metadata || null,
+          });
+        if (!error) lifecycleInserted++;
+      }
+
+      inserted += lifecycleInserted;
+    }
+
     return jsonResponse({
       success: true,
       checked: (trialCompanies?.length || 0) + (activeCompanies?.length || 0),
