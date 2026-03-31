@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 async function logAudit(
   supabaseAdmin: any,
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
         statusCode: 429,
         metadata: { caller_id: callerId },
       });
-      return rateLimitResponse(rl.retryAfterSeconds!, corsHeaders);
+      return rateLimitResponse(rl.retryAfterSeconds!, getCorsHeaders(req));
     }
 
     const { action, ...body } = await req.json();

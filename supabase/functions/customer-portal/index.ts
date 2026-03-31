@@ -1,5 +1,5 @@
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
@@ -8,11 +8,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
     const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     if (!stripeKey) return errorResponse("Stripe non configurato");
 
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
     // Get user's company
     const { data: profile } = await supabaseAdmin

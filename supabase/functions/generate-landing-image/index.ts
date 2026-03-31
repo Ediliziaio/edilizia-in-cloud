@@ -1,4 +1,4 @@
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
@@ -6,9 +6,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
     // Require authenticated user
-    await requireAuth(req, corsHeaders);
+    await requireAuth(req, corsH);
 
     const { prompt } = await req.json();
     if (!prompt) {

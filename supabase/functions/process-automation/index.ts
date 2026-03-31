@@ -3,7 +3,7 @@ import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 
-import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 interface AutomationNode {
   id: string;
@@ -24,9 +24,10 @@ interface AutomationConnection {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceKey);
@@ -49,13 +50,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsH, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("process-automation error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsH, "Content-Type": "application/json" },
     });
   }
 });
@@ -1592,7 +1593,7 @@ async function markQueueItem(supabase: any, id: string, status: string, error?: 
 function jsonResponse(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...secureHeaders },
   });
 }
 

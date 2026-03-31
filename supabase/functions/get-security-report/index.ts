@@ -1,14 +1,15 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    await requireRole(supabaseAdmin, userId, ["company_admin", "super_admin"], corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, userId, ["company_admin", "super_admin"], corsH);
 
     const body = await req.json().catch(() => ({}));
     const { section } = body; // overview, sessions, login_attempts, audit_log, users_security

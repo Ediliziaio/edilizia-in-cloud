@@ -1,13 +1,14 @@
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const body = await req.json();
     const { action } = body;
 

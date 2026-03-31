@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
@@ -9,9 +9,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsH);
 
     const { company_id, new_plan_id } = await req.json();
     if (!company_id || !new_plan_id) {

@@ -1,4 +1,4 @@
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
@@ -9,8 +9,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const {
       quote_id,
       recipient_email,

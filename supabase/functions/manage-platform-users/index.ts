@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
 
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         statusCode: 429,
         metadata: { caller_id: callerId },
       });
-      return rateLimitResponse(rl.retryAfterSeconds!, corsHeaders);
+      return rateLimitResponse(rl.retryAfterSeconds!, getCorsHeaders(req));
     }
 
     const { action, ...body } = await req.json();

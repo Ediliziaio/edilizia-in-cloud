@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 /**
@@ -29,9 +29,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsH);
 
     const url = new URL(req.url);
     const month = url.searchParams.get("month"); // e.g. "2025-03"

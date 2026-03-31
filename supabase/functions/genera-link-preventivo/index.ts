@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 /** Genera firma HMAC-SHA256 per il payload del token (SEC-014) */
 async function signToken(payloadB64: string, secret: string): Promise<string> {
@@ -17,9 +17,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   // Verifica JWT: solo utenti autenticati possono generare link (SEC-014)
   try {
-    await requireAuth(req, corsHeaders);
+    await requireAuth(req, corsH);
   } catch (authErr) {
     if (authErr instanceof Response) return authErr;
     return new Response(JSON.stringify({ error: "Unauthorized" }), {

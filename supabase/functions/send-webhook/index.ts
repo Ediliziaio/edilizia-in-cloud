@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -28,11 +28,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   // Verifica JWT (SEC-013)
   let userId: string;
   let supabaseAdmin: ReturnType<typeof createClient>;
   try {
-    ({ userId, supabaseAdmin } = await requireAuth(req, corsHeaders));
+    ({ userId, supabaseAdmin } = await requireAuth(req, corsH));
   } catch (authErr) {
     if (authErr instanceof Response) return authErr;
     return new Response(JSON.stringify({ error: "Unauthorized" }), {

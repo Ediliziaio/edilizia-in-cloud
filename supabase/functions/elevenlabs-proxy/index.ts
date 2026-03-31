@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
 
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         windowSeconds: 60,
       });
       if (!rl.allowed) {
-        return rateLimitResponse(rl.retryAfterSeconds ?? 60, corsHeaders);
+        return rateLimitResponse(rl.retryAfterSeconds ?? 60, getCorsHeaders(req));
       }
     }
 

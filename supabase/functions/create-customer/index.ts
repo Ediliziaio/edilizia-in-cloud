@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -11,10 +11,11 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
     // --- Authentication & Authorization ---
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    const callerRole = await requireRole(supabaseAdmin, userId, ["super_admin", "company_admin"], corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    const callerRole = await requireRole(supabaseAdmin, userId, ["super_admin", "company_admin"], corsH);
 
     const { first_name, last_name, email, phone, address, company_id, fiscal_code, site_address, notes } = await req.json();
 

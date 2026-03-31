@@ -21,7 +21,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
-import { corsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
 const SUPPORT_PHONE = "+39 0424 123456";
@@ -192,13 +192,14 @@ async function notifySuperAdmin(providerSettings: any, companyId: string, compan
 // ─── Main Handler ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
+  const corsH = getCorsHeaders(req);
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
   const requestCronSecret = req.headers.get("x-cron-secret");
   if (!cronSecret || requestCronSecret !== cronSecret) {
     console.error("process-dunning: accesso non autorizzato");
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
   }
 
   const now = new Date();
@@ -362,12 +363,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ success: true, ...results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsH, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("process-dunning fatal error:", err);
     return new Response(JSON.stringify({ error: String(err), ...results }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsH, "Content-Type": "application/json" },
     });
   }
 });

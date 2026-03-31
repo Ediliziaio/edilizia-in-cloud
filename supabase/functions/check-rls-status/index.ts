@@ -1,4 +1,4 @@
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -7,9 +7,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsH);
 
     // Query pg_class for public tables without RLS
     const { data: tables, error: queryError } = await supabaseAdmin.rpc("get_tables_without_rls");

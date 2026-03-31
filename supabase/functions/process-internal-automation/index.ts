@@ -1,10 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
+
+  const corsH = getCorsHeaders(req);
 
   // Sicurezza: funzione cron — richiede cron secret
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
@@ -13,7 +15,7 @@ Deno.serve(async (req) => {
     console.error("process-internal-automation: accesso non autorizzato");
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   }
 

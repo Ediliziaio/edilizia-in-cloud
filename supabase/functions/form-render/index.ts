@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 function renderField(f: any): string {
   const req = f.required ? "required" : "";
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   if (!slug || !companyId) {
     return new Response("Missing slug or company_id", {
       status: 400,
-      headers: { "Content-Type": "text/plain", ...corsHeaders },
+      headers: { "Content-Type": "text/plain", ...getCorsHeaders(req) },
     });
   }
 
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
   if (error || !form) {
     return new Response("Form not found", {
       status: 404,
-      headers: { "Content-Type": "text/plain", ...corsHeaders },
+      headers: { "Content-Type": "text/plain", ...getCorsHeaders(req) },
     });
   }
 
@@ -253,6 +253,6 @@ Deno.serve(async (req) => {
   });
 
   return new Response(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
+    headers: { "Content-Type": "text/html; charset=utf-8", ...getCorsHeaders(req) },
   });
 });
