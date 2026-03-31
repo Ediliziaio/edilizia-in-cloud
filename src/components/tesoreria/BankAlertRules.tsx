@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Bell, Plus, Trash2, AlertTriangle, Wallet, CreditCard, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ export default function BankAlertRules({ companyId }: Props) {
     rule_type: "balance_below",
     threshold: "",
     days_threshold: "",
-    notify_email: true,
+    notify_email: false,
     notify_inapp: true,
   });
 
@@ -57,7 +58,7 @@ export default function BankAlertRules({ companyId }: Props) {
     const payload: any = {
       company_id: companyId,
       rule_type: newRule.rule_type,
-      notify_email: newRule.notify_email,
+      notify_email: false, // disabilitato: funzionalità email non ancora attiva
       notify_inapp: newRule.notify_inapp,
       is_active: true,
     };
@@ -74,7 +75,7 @@ export default function BankAlertRules({ companyId }: Props) {
     } else {
       toast.success("Alert creato");
       setShowAdd(false);
-      setNewRule({ rule_type: "balance_below", threshold: "", days_threshold: "", notify_email: true, notify_inapp: true });
+      setNewRule({ rule_type: "balance_below", threshold: "", days_threshold: "", notify_email: false, notify_inapp: true });
       loadRules();
     }
   }
@@ -184,10 +185,19 @@ export default function BankAlertRules({ companyId }: Props) {
               )}
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Switch checked={newRule.notify_email} onCheckedChange={(v) => setNewRule({ ...newRule, notify_email: v })} />
-                <Label>Email</Label>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
+                      <Switch disabled={true} checked={false} />
+                      <span className="text-sm text-muted-foreground">Notifica via email (prossimamente)</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>L&apos;invio email sarà disponibile nei prossimi aggiornamenti.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <div className="flex items-center gap-2">
                 <Switch checked={newRule.notify_inapp} onCheckedChange={(v) => setNewRule({ ...newRule, notify_inapp: v })} />
                 <Label>In-app</Label>
