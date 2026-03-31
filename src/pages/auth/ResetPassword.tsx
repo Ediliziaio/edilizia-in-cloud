@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");

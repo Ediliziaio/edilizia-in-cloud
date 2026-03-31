@@ -44,7 +44,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { ADMIN_SETTINGS_NAV } from "@/config/adminSettingsNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

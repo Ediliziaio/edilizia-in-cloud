@@ -2,7 +2,7 @@ import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Gift, LogOut, User, Link2, DollarSign, Wallet, FolderDown, LayoutDashboard } from "lucide-react";

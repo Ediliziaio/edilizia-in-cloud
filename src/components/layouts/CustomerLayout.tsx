@@ -13,7 +13,7 @@ import {
   CalendarDays,
   MessageCircle,
 } from "lucide-react";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
 
 import {

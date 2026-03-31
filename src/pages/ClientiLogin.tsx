@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa";
 

@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { cn } from "@/lib/utils";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa";
 

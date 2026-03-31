@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import logo from "@/assets/edilizia-in-cloud-logo.png";
+import logo from "@/assets/edilizia-in-cloud-logo.webp";
 
 export default function LandingFooter() {
   return (

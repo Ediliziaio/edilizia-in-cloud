@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
-import logo from "@/assets/edilizia-in-cloud-logo.png";
+import logo from "@/assets/edilizia-in-cloud-logo.webp";
 
 const dedicatoItems = [
   { label: "Imprese Costruzione", to: "/per/imprese-costruzione" },
