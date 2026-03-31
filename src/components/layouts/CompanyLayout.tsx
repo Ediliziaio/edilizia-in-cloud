@@ -719,6 +719,20 @@ const CompanySidebar = memo(function CompanySidebar() {
   }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
   const filterNavItems = useCallback((items: NavItem[]) => {
+    // While permissions are loading, skip permission-based filtering to avoid
+    // the sidebar collapsing to only the "Attività" item (the only item without
+    // a permissionKey). Feature/module filters are still applied because they
+    // depend on subscription/feature-flag data that is available immediately.
+    if (permissions.isLoading) {
+      return items.filter((item) => {
+        if (item.featureKey === "billing_external" && billingMode !== "external") return false;
+        if (item.featureKey === "billing_native" && billingMode !== "native") return false;
+        if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) {
+          return false;
+        }
+        return true;
+      });
+    }
     return items.filter((item) => {
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
