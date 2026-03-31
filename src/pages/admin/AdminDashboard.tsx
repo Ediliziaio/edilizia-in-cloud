@@ -15,7 +15,7 @@ import { AdminRecentCompanies } from "@/components/admin/dashboard/AdminRecentCo
 import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentActivity";
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
-import { AdminSystemHealth } from "@/components/admin/dashboard/AdminSystemHealth";
+import { AdminSystemHealth, IntegrationHealthSection } from "@/components/admin/dashboard/AdminSystemHealth";
 import { AdminAddonsSummary } from "@/components/admin/dashboard/AdminAddonsSummary";
 import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAnalysis";
 import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
@@ -132,7 +132,12 @@ export default function AdminDashboard() {
       case "feature-usage":
         return <AdminFeatureUsage />;
       case "system-health":
-        return <AdminSystemHealth />;
+        return (
+          <div className="space-y-4">
+            <AdminSystemHealth />
+            <IntegrationHealthSection />
+          </div>
+        );
       case "recent-companies":
         return <AdminRecentCompanies companies={recentCompanies} />;
       case "recent-activity":

@@ -1,12 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CheckCircle2, AlertTriangle, Loader2, Zap, ShieldAlert, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, CheckCircle2, AlertTriangle, Loader2, Zap, ShieldAlert, Clock, RefreshCw, Wifi, WifiOff, AlertCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { RlsMonitorSection } from "./RlsMonitorSection";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface HealthMetric {
   id: string;
@@ -209,6 +211,150 @@ export function AdminSystemHealth() {
             <div className="text-xs text-muted-foreground text-center">
               {data?.totalCalls} chiamate API · {data?.errorCalls} errori (ultime 24h)
             </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Integration Health Section ──────────────────────────────────────────────
+
+interface IntegrationResult {
+  name: string;
+  status: "healthy" | "degraded" | "down" | "unconfigured";
+  last_seen: string | null;
+  response_ms: number | null;
+  error: string | null;
+}
+
+const INTEGRATION_LABELS: Record<string, string> = {
+  stripe: "Stripe",
+  sendgrid: "SendGrid",
+  elastic_email: "Elastic Email",
+  elevenlabs: "ElevenLabs",
+  telnyx: "Telnyx",
+  gocardless: "GoCardless",
+  meta_whatsapp: "Meta / WhatsApp",
+  google_maps: "Google Maps",
+};
+
+function IntegrationBadge({ integration }: { integration: IntegrationResult }) {
+  const label = INTEGRATION_LABELS[integration.name] ?? integration.name;
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const isDownLong =
+    integration.status === "down" &&
+    integration.last_seen &&
+    new Date(integration.last_seen) < oneHourAgo;
+
+  const statusConfig = {
+    healthy: { color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400", Icon: CheckCircle2 },
+    degraded: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400", Icon: AlertCircle },
+    down: { color: "bg-destructive/10 text-destructive", Icon: WifiOff },
+    unconfigured: { color: "bg-muted text-muted-foreground", Icon: AlertTriangle },
+  };
+
+  const cfg = statusConfig[integration.status] ?? statusConfig.unconfigured;
+  const { Icon } = cfg;
+
+  return (
+    <div className={`rounded-lg border p-3 space-y-1.5 ${isDownLong ? "border-destructive/50 bg-destructive/5" : "border-border/50"}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">{label}</span>
+        <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>
+          <Icon className="h-3 w-3" />
+          {integration.status}
+        </span>
+      </div>
+      {integration.response_ms !== null && (
+        <p className="text-[10px] text-muted-foreground">{integration.response_ms}ms</p>
+      )}
+      {integration.last_seen && (
+        <p className="text-[10px] text-muted-foreground">
+          {formatDistanceToNow(new Date(integration.last_seen), { addSuffix: true, locale: it })}
+        </p>
+      )}
+      {integration.error && (
+        <p className="text-[10px] text-destructive truncate" title={integration.error}>{integration.error}</p>
+      )}
+      {isDownLong && (
+        <Badge variant="destructive" className="text-[9px] h-4">Down &gt;1h</Badge>
+      )}
+    </div>
+  );
+}
+
+export function IntegrationHealthSection() {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, dataUpdatedAt } = useQuery<{ integrations: IntegrationResult[] } | null>({
+    queryKey: ["integration-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("check-api-health");
+      if (error) throw error;
+      return data as { integrations: IntegrationResult[] };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const refresh = useMutation({
+    mutationFn: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["integration-health"] });
+    },
+    onSuccess: () => toast.success("Health check aggiornato"),
+  });
+
+  const integrations = data?.integrations ?? [];
+  const downCount = integrations.filter((i) => i.status === "down").length;
+  const degradedCount = integrations.filter((i) => i.status === "degraded").length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wifi className="h-4 w-4 text-muted-foreground" />
+            Integrazioni
+            {!isLoading && (
+              <Badge
+                variant={downCount > 0 ? "destructive" : degradedCount > 0 ? "secondary" : "default"}
+                className="text-[10px] ml-1"
+              >
+                {downCount > 0 ? `${downCount} DOWN` : degradedCount > 0 ? `${degradedCount} degraded` : "Tutte operative"}
+              </Badge>
+            )}
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            onClick={() => refresh.mutate()}
+            disabled={isLoading || refresh.isPending}
+          >
+            <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+            Test
+          </Button>
+        </div>
+        {dataUpdatedAt > 0 && (
+          <p className="text-[10px] text-muted-foreground">
+            Aggiornato {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: it })}
+          </p>
+        )}
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : integrations.length === 0 ? (
+          <p className="text-xs text-center text-muted-foreground py-4">
+            Nessun dato disponibile. Clicca "Test" per aggiornare.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {integrations.map((integration) => (
+              <IntegrationBadge key={integration.name} integration={integration} />
+            ))}
           </div>
         )}
       </CardContent>
