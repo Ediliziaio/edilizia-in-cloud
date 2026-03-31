@@ -3,13 +3,7 @@
 // Parsea XML FatturaPA, estrae i dati e salva in fatture_ricevute
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-webhook-signature, x-signature",
-};
+import { corsHeaders } from "../_shared/headers.ts";
 
 // ─── XML Parser Helpers (DOMParser, native in Deno) ─────────────
 
