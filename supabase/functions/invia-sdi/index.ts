@@ -47,11 +47,19 @@ function isValidCodiceFiscale(cf: string | null | undefined): boolean {
 }
 
 const TIPO_TO_TD: Record<string, string> = {
-  fattura: "TD01", fattura_pa: "TD01", nota_credito: "TD04", nota_debito: "TD05",
-  autofattura: "TD20", fattura_riepilogativa: "TD24", ddt: "TD24",
-  parcella: "TD06", fattura_accompagnatoria: "TD24",
+  fattura: "TD01", fattura_pa: "TD01",
+  acconto_fattura: "TD02",          // Acconto/anticipo su fattura
+  acconto_parcella: "TD03",         // Acconto/anticipo su parcella
+  nota_credito: "TD04", nota_debito: "TD05",
+  parcella: "TD06",
+  reverse_charge_interno: "TD16",   // Integrazione RC interno (art.17 c.6) — subappalto edile
   integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18",
   integrazione_beni_extra_ue: "TD19",
+  autofattura: "TD20",
+  autofattura_splafonamento: "TD21", // Autofattura per splafonamento
+  fattura_riepilogativa: "TD24", ddt: "TD24", fattura_accompagnatoria: "TD24",
+  fattura_differita_b: "TD25",      // Fattura differita art.21 c.4 lett. b
+  autoconsumo: "TD27",              // Autoconsumo / cessioni gratuite senza rivalsa
 };
 const TIPI_INVERSIONE = ["TD17", "TD18", "TD19"];
 

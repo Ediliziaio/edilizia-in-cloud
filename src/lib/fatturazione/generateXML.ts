@@ -37,17 +37,23 @@ function naturaToXml(n: string): string {
 const TIPO_TO_TD: Record<string, string> = {
   fattura: "TD01",
   fattura_pa: "TD01",
+  acconto_fattura: "TD02",              // Acconto/anticipo su fattura
+  acconto_parcella: "TD03",             // Acconto/anticipo su parcella
   nota_credito: "TD04",
   nota_debito: "TD05",
-  autofattura: "TD20",
-  fattura_riepilogativa: "TD24",
-  ddt: "TD24",
-  fattura_accompagnatoria: "TD24",      // TD24 con DatiTrasporto
   parcella: "TD06",                     // Parcella professionisti (art.21 DPR 633/72)
+  reverse_charge_interno: "TD16",       // Integrazione fattura reverse charge interno (art.17 c.6)
   // Fatture estere / autofatture integrazione
   integrazione_servizi_estero: "TD17",  // Acquisto servizi dall'estero (art.17 c.2)
   integrazione_beni_ue: "TD18",         // Acquisto beni intracomunitari
   integrazione_beni_extra_ue: "TD19",   // Acquisto beni art.17 c.2 (extra-UE)
+  autofattura: "TD20",
+  autofattura_splafonamento: "TD21",    // Autofattura per splafonamento
+  fattura_riepilogativa: "TD24",
+  ddt: "TD24",
+  fattura_accompagnatoria: "TD24",      // TD24 con DatiTrasporto
+  fattura_differita_b: "TD25",          // Fattura differita art.21 c.4 lett. b
+  autoconsumo: "TD27",                  // Autoconsumo o cessioni gratuite senza rivalsa
 };
 
 // Tipi documento che richiedono inversione Cedente/Cessionario

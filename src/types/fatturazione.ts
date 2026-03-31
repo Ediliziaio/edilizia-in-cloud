@@ -187,10 +187,19 @@ export type StatoDocumento =
   | 'rifiutata' | 'scaduta' | 'pagata' | 'parzialmente_pagata' | 'stornata' | 'annullata';
 
 export type TipoDocumento =
-  | 'fattura' | 'fattura_pa' | 'nota_credito' | 'nota_debito'
-  | 'autofattura' | 'fattura_riepilogativa' | 'proforma' | 'preventivo' | 'ddt'
-  | 'parcella' | 'fattura_accompagnatoria'
-  | 'integrazione_servizi_estero' | 'integrazione_beni_ue' | 'integrazione_beni_extra_ue';
+  | 'fattura' | 'fattura_pa'
+  | 'acconto_fattura'            // TD02 — Acconto/anticipo su fattura
+  | 'acconto_parcella'           // TD03 — Acconto/anticipo su parcella
+  | 'nota_credito' | 'nota_debito'
+  | 'parcella'                   // TD06 — Parcella professionisti
+  | 'reverse_charge_interno'     // TD16 — Integrazione RC interno (subappalto edile)
+  | 'integrazione_servizi_estero' | 'integrazione_beni_ue' | 'integrazione_beni_extra_ue'
+  | 'autofattura'
+  | 'autofattura_splafonamento'  // TD21 — Autofattura per splafonamento
+  | 'fattura_riepilogativa' | 'ddt' | 'fattura_accompagnatoria'
+  | 'fattura_differita_b'        // TD25 — Fattura differita art.21 c.4 lett. b
+  | 'autoconsumo'                // TD27 — Autoconsumo / cessioni gratuite senza rivalsa
+  | 'proforma' | 'preventivo';
 
 export interface DocumentoFiscale {
   id: string;
