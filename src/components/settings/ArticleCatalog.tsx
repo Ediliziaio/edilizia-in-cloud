@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import * as XLSX from "xlsx";
 import {
   Plus, Pencil, Trash2, Search, Package, Upload, Download, Copy,
   Image, FileText,
@@ -916,8 +915,8 @@ export function ArticleCatalog() {
   const kpiConMontaggio = articles.filter((a) => a.ha_montaggio && a.montaggio_tipo === "separato").length;
   const kpiInattivi = articles.filter((a) => !a.attivo).length;
 
-  const exportExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const exportExcel = async () => {
+    const ExcelJS = (await import("exceljs")).default;
     const sheet1Data = articles.map((a) => ({
       Nome: a.name,
       SKU: a.sku ?? "",
@@ -927,10 +926,22 @@ export function ArticleCatalog() {
       PrezzoAcquisto: isAdmin ? (a.prezzo_acquisto_netto ?? "") : "",
       Attivo: a.attivo ? "Sì" : "No",
     }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet1Data), "Prodotti");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Prodotti");
+    if (sheet1Data.length > 0) {
+      ws.columns = Object.keys(sheet1Data[0]).map((key) => ({ header: key, key }));
+      ws.addRows(sheet1Data);
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
     const today = new Date().toISOString().split("T")[0];
     const companyName = (effectiveCompany?.name ?? "azienda").replace(/\s+/g, "_");
-    XLSX.writeFile(wb, `listino_${companyName}_${today}.xlsx`);
+    a.download = `listino_${companyName}_${today}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const openNew = () => { setEditingArticle(null); setDialogOpen(true); };

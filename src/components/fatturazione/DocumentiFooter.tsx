@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Download, ChevronDown } from "lucide-react";
-import * as XLSX from "xlsx";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
 interface DocumentiFooterProps {
@@ -18,7 +17,8 @@ interface DocumentiFooterProps {
   totalDocumento: number;
 }
 
-function exportToXLS(documenti: DocumentoFiscale[], filename: string) {
+async function exportToXLS(documenti: DocumentoFiscale[], filename: string) {
+  const ExcelJS = (await import("exceljs")).default;
   const rows = documenti.map((doc) => ({
     Numero: doc.numero,
     Tipo: doc.tipo,
@@ -31,10 +31,20 @@ function exportToXLS(documenti: DocumentoFiscale[], filename: string) {
     Scadenza: doc.data_scadenza ?? "",
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Documenti");
-  XLSX.writeFile(wb, `${filename}.xlsx`);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Documenti");
+  if (rows.length > 0) {
+    ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+    ws.addRows(rows);
+  }
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function DocumentiFooter({

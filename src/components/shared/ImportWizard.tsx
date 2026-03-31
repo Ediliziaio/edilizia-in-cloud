@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo } from "react";
-import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, X } from "lucide-react";
 import { StepIndicator } from "./import-wizard/StepIndicator";
@@ -61,18 +60,32 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
       reader.onerror = () => reject(new Error("Errore lettura file"));
       reader.readAsText(file);
     } else {
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-        if (json.length === 0) return reject(new Error("File vuoto"));
-        const headers = (json[0] as string[]).map(String);
-        const rows = json.slice(1).map((r) => (r as any[]).map((c) => (c != null ? String(c) : "")));
-        resolve({ headers, rows });
-      };
-      reader.onerror = () => reject(new Error("Errore lettura file"));
-      reader.readAsArrayBuffer(file);
+      (async () => {
+        try {
+          const ExcelJS = (await import("exceljs")).default;
+          const wb = new ExcelJS.Workbook();
+          const arrayBuffer = await file.arrayBuffer();
+          await wb.xlsx.load(arrayBuffer);
+          const ws = wb.worksheets[0];
+          if (!ws) return reject(new Error("File vuoto"));
+          const headers: string[] = [];
+          ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => { headers.push(String(cell.value ?? "")); });
+          if (headers.length === 0) return reject(new Error("File vuoto"));
+          const rows: string[][] = [];
+          ws.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+            const r: string[] = [];
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+              while (r.length < colNumber - 1) r.push("");
+              r.push(cell.value != null ? String(cell.value) : "");
+            });
+            rows.push(r);
+          });
+          resolve({ headers, rows });
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error("Errore lettura file"));
+        }
+      })();
     }
   });
 }

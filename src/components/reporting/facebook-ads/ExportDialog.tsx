@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, FileText } from "lucide-react";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
 import type { DateRange } from "@/hooks/useMetaAdsReport";
 
@@ -48,8 +47,13 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
 
   const exportCSV = () => {
     const data = buildData();
-    const ws = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(ws);
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+      headers.join(","),
+      ...data.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+    ];
+    const csv = csvRows.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -58,12 +62,23 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
     onOpenChange(false);
   };
 
-  const exportXLSX = () => {
+  const exportXLSX = async () => {
+    const ExcelJS = (await import("exceljs")).default;
     const data = buildData();
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Facebook Ads");
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Facebook Ads");
+    if (data.length > 0) {
+      ws.columns = Object.keys(data[0]).map((key) => ({ header: key, key }));
+      ws.addRows(data);
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileName}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
     onOpenChange(false);
   };
 

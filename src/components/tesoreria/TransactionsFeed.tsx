@@ -172,13 +172,21 @@ export default function TransactionsFeed({ companyId }: Props) {
 
   async function exportXLSX() {
     try {
-      const xlsx = await import("xlsx");
+      const ExcelJS = (await import("exceljs")).default;
       const rows = getExportRows();
       if (rows.length === 0) return;
-      const ws = xlsx.utils.json_to_sheet(rows);
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "Transazioni");
-      xlsx.writeFile(wb, `transazioni_${new Date().toISOString().split("T")[0]}.xlsx`);
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Transazioni");
+      ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
+      ws.addRows(rows);
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transazioni_${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch {
       toast.error("Libreria XLSX non disponibile, usa l'export CSV");
     }

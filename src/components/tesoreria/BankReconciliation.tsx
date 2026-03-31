@@ -15,7 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -380,19 +379,36 @@ export default function BankReconciliation({ companyId }: Props) {
         "Stato": rec.unmatched_at ? `Scollegata (${format(new Date(rec.unmatched_at), "dd/MM/yyyy")})` : "Attiva",
       }));
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [
-        { wch: 22 }, { wch: 10 }, { wch: 35 }, { wch: 14 },
-        { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 14 },
-        { wch: 25 }, { wch: 16 },
-      ];
+      const colWidths = [22, 10, 35, 14, 18, 16, 25, 14, 25, 16];
 
       if (fmt === "xlsx") {
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Riconciliazioni");
-        XLSX.writeFile(wb, `riconciliazioni-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+        const ExcelJS = (await import("exceljs")).default;
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("Riconciliazioni");
+        if (rows.length > 0) {
+          ws.columns = Object.keys(rows[0]).map((key, i) => ({ header: key, key, width: colWidths[i] ?? 14 }));
+          ws.addRows(rows);
+        }
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `riconciliazioni-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       } else {
-        const csv = XLSX.utils.sheet_to_csv(ws, { FS: ";" });
+        const headers = Object.keys(rows[0] ?? {});
+        const csvRows = [
+          headers.join(";"),
+          ...rows.map((row) => headers.map((h) => {
+            const val = String(row[h as keyof typeof row] ?? "");
+            return val.includes(";") || val.includes('"') || val.includes("\n") ? `"${val.replace(/"/g, '""')}"` : val;
+          }).join(";")),
+        ];
+        const csv = csvRows.join("\n");
         const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");

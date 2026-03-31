@@ -65,8 +65,8 @@ export function DashboardExport({ data }: { data: ExportData }) {
 
   const exportXLSX = useCallback(async () => {
     try {
-      const XLSX = await import("xlsx");
-      const wsData = [
+      const ExcelJS = (await import("exceljs")).default;
+      const wsData: (string | number | null)[][] = [
         ["Dashboard Admin — Report", "", format(new Date(), "dd MMMM yyyy", { locale: it })],
         [],
         ["METRICHE PRINCIPALI"],
@@ -104,11 +104,18 @@ export function DashboardExport({ data }: { data: ExportData }) {
         }
       }
 
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      ws["!cols"] = [{ wch: 25 }, { wch: 18 }, { wch: 20 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
-      XLSX.writeFile(wb, `dashboard-admin-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Dashboard");
+      ws.columns = [{ width: 25 }, { width: 18 }, { width: 20 }];
+      wsData.forEach((row) => ws.addRow(row));
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dashboard-admin-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
       toast.success("Excel esportato con successo");
     } catch {
       toast.error("Errore nell'esportazione Excel");

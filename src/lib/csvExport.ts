@@ -1,7 +1,6 @@
 /**
  * Utility per esportazione CSV/XLSX con supporto UTF-8 BOM e separatore punto e virgola.
  */
-import * as XLSX from "xlsx";
 
 export interface CsvColumn {
   key: string;
@@ -43,25 +42,40 @@ export function downloadFile(content: string, filename: string, mimeType: string
   URL.revokeObjectURL(url);
 }
 
-export function exportToXLSX(
+export async function exportToXLSX(
   rows: Record<string, string>[],
   columns: CsvColumn[],
   filename: string
 ) {
+  const ExcelJS = (await import("exceljs")).default;
   const headerRow = columns.map((c) => c.label);
   const dataRows = rows.map((row) => columns.map((c) => row[c.key] || ""));
-  const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
 
-  // Auto-width columns
-  ws["!cols"] = columns.map((_, i) => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Contatti");
+
+  ws.columns = columns.map((c, i) => {
     const maxLen = Math.max(
       headerRow[i].length,
       ...dataRows.map((r) => (r[i] || "").length)
     );
-    return { wch: Math.min(maxLen + 2, 50) };
+    return { header: c.label, key: c.key, width: Math.min(maxLen + 2, 50) };
   });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Contatti");
-  XLSX.writeFile(wb, filename);
+  dataRows.forEach((row) => {
+    const rowObj: Record<string, string> = {};
+    columns.forEach((c, i) => { rowObj[c.key] = row[i]; });
+    ws.addRow(rowObj);
+  });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

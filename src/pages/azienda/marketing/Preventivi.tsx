@@ -97,7 +97,6 @@ import {
   Clock,
   Target,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 
 export default function Preventivi() {
   const { effectiveCompany, user } = useAuth();
@@ -301,7 +300,8 @@ export default function Preventivi() {
     : 0;
 
   // Export Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const ExcelJS = (await import("exceljs")).default;
     const exportRows = filtered.map((q: QuoteRow) => {
       const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
       return {
@@ -315,16 +315,25 @@ export default function Preventivi() {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    // Auto-fit columns
-    const colWidths = Object.keys(exportRows[0] || {}).map((k) => ({
-      wch: Math.max(k.length, ...exportRows.map((r) => String(r[k as keyof typeof r] ?? "").length)) + 2,
-    }));
-    ws["!cols"] = colWidths;
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Preventivi");
-    XLSX.writeFile(wb, `preventivi_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Preventivi");
+    if (exportRows.length > 0) {
+      const keys = Object.keys(exportRows[0]) as (keyof typeof exportRows[0])[];
+      ws.columns = keys.map((k) => ({
+        header: String(k),
+        key: String(k),
+        width: Math.max(String(k).length, ...exportRows.map((r) => String(r[k] ?? "").length)) + 2,
+      }));
+      ws.addRows(exportRows);
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `preventivi_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
