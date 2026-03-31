@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep } from "../_shared/goCardless.ts";
+import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep, computeAmountEur } from "../_shared/goCardless.ts";
 
 /**
  * bank-webhook: Riceve eventi real-time da GoCardless
@@ -121,6 +121,9 @@ Deno.serve(async (req) => {
                 || tx.internalTransactionId
                 || buildDeterministicTxId(accountExternalId, tx);
 
+              const currency = tx.transactionAmount?.currency || "EUR";
+              const amount_eur = computeAmountEur(amount, currency);
+
               await supabase.from("bank_transactions").upsert({
                 company_id: account.company_id,
                 account_id: account.id,
@@ -128,7 +131,8 @@ Deno.serve(async (req) => {
                 booking_date: tx.bookingDate || null,
                 value_date: tx.valueDate || null,
                 amount,
-                currency: tx.transactionAmount?.currency || "EUR",
+                currency,
+                amount_eur,
                 description: desc,
                 creditor_name: tx.creditorName || null,
                 debtor_name: tx.debtorName || null,

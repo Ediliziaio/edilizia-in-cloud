@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep } from "../_shared/goCardless.ts";
+import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep, computeAmountEur } from "../_shared/goCardless.ts";
 
 /** Build a deterministic external_transaction_id fallback when provider doesn't supply one */
 function buildDeterministicTxId(
@@ -149,6 +149,9 @@ Deno.serve(async (req) => {
                 || tx.internalTransactionId
                 || buildDeterministicTxId(account.external_account_id, tx);
 
+              const currency = tx.transactionAmount?.currency || "EUR";
+              const amount_eur = computeAmountEur(amount, currency);
+
               // Fix 2: remove ignoreDuplicates to allow updates (pending→booked, etc.)
               await supabase.from("bank_transactions").upsert({
                 company_id: companyId,
@@ -157,7 +160,8 @@ Deno.serve(async (req) => {
                 booking_date: tx.bookingDate || null,
                 value_date: tx.valueDate || null,
                 amount,
-                currency: tx.transactionAmount?.currency || "EUR",
+                currency,
+                amount_eur,
                 description: desc,
                 creditor_name: tx.creditorName || null,
                 debtor_name: tx.debtorName || null,

@@ -102,3 +102,9 @@ export function categorizeTransaction(
 
 /** Utility: sleep for ms */
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Calcola amount_eur per la transazione. Per EUR restituisce l'importo stesso, per altre valute null (placeholder per futura integrazione tassi cambio). */
+export function computeAmountEur(amount: number, currency: string): number | null {
+  if (currency === 'EUR') return amount;
+  return null; // TODO: integrare API tassi cambio per CHF/GBP/USD
+}
