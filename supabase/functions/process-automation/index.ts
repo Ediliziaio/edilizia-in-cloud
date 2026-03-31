@@ -82,34 +82,56 @@ async function handleTrigger(supabase: any, body: any) {
     return jsonResponse({ message: "No published flows", enrolled: 0 });
   }
 
+  const flowIds = flows.map((f: any) => f.id);
+
+  // Batch pre-fetch: 3 queries total instead of 3N
+  const [nodesResult, enrollmentsResult, connectionsResult] = await Promise.all([
+    supabase.from("automation_nodes").select("*").in("flow_id", flowIds).eq("node_type", "trigger"),
+    supabase.from("automation_enrollments").select("id, status, flow_id").in("flow_id", flowIds).eq("entity_id", entity_id),
+    supabase.from("automation_connections").select("*").in("flow_id", flowIds),
+  ]);
+
+  // Build lookup maps
+  const nodesByFlow = new Map<string, AutomationNode[]>();
+  for (const node of (nodesResult.data ?? [])) {
+    if (!nodesByFlow.has(node.flow_id)) nodesByFlow.set(node.flow_id, []);
+    nodesByFlow.get(node.flow_id)!.push(node);
+  }
+
+  const enrollmentByFlow = new Map<string, { id: string; status: string }>();
+  for (const e of (enrollmentsResult.data ?? [])) {
+    enrollmentByFlow.set(e.flow_id, e);
+  }
+
+  const connectionsByFlow = new Map<string, AutomationConnection[]>();
+  for (const c of (connectionsResult.data ?? [])) {
+    if (!connectionsByFlow.has(c.flow_id)) connectionsByFlow.set(c.flow_id, []);
+    connectionsByFlow.get(c.flow_id)!.push(c);
+  }
+
+  // Pre-fetch contact data once (per entity_id, not per flow)
+  let enrichedPayload = payload || {};
+  if (entity_id && (entity_type === "contact" || !entity_type)) {
+    const { data: contactData } = await supabase
+      .from("marketing_contacts")
+      .select("*")
+      .eq("id", entity_id)
+      .maybeSingle();
+    if (contactData) {
+      enrichedPayload = { ...contactData, ...enrichedPayload };
+    }
+  }
+
   let enrolled = 0;
 
   for (const flow of flows) {
-    // Get trigger nodes
-    const { data: nodes } = await supabase
-      .from("automation_nodes")
-      .select("*")
-      .eq("flow_id", flow.id)
-      .eq("node_type", "trigger");
-
-    const matchingTrigger = nodes?.find(
+    // Use in-memory lookup instead of per-flow query
+    const nodes = nodesByFlow.get(flow.id) ?? [];
+    const matchingTrigger = nodes.find(
       (n: AutomationNode) => n.config_json?.trigger_event === trigger_event
     );
 
     if (!matchingTrigger) continue;
-
-    // Enrich payload with contact data for filter evaluation
-    let enrichedPayload = payload || {};
-    if (entity_id && (entity_type === "contact" || !entity_type)) {
-      const { data: contactData } = await supabase
-        .from("marketing_contacts")
-        .select("*")
-        .eq("id", entity_id)
-        .maybeSingle();
-      if (contactData) {
-        enrichedPayload = { ...contactData, ...enrichedPayload };
-      }
-    }
 
     // Check if trigger filters match (basic evaluation)
     const filters = matchingTrigger.config_json?.filters;
@@ -120,15 +142,13 @@ async function handleTrigger(supabase: any, body: any) {
     // Check re-enrollment settings (from flow config or trigger config)
     const flowSettings = flow.config_json?.settings || {};
     const allowReEnrollment = flowSettings.enable_reenrollment === true || matchingTrigger.config_json?.allow_re_enrollment === true;
-    const { data: existingEnrollment } = await supabase
-      .from("automation_enrollments")
-      .select("id, status")
-      .eq("flow_id", flow.id)
-      .eq("entity_id", entity_id)
-      .in("status", allowReEnrollment ? ["active"] : ["active", "completed"])
-      .maybeSingle();
 
-    if (existingEnrollment) continue; // Already enrolled or completed (no re-enrollment)
+    // Use in-memory lookup instead of per-flow query
+    const existingEnrollment = enrollmentByFlow.get(flow.id);
+    if (existingEnrollment) {
+      const blockedStatuses = allowReEnrollment ? ["active"] : ["active", "completed"];
+      if (blockedStatuses.includes(existingEnrollment.status)) continue; // Already enrolled or completed (no re-enrollment)
+    }
 
     // Create enrollment
     const { data: enrollment, error: enrollErr } = await supabase
@@ -149,14 +169,12 @@ async function handleTrigger(supabase: any, body: any) {
       continue;
     }
 
-    // Find the first node after the trigger
-    const { data: connections } = await supabase
-      .from("automation_connections")
-      .select("*")
-      .eq("flow_id", flow.id)
-      .eq("from_node_id", matchingTrigger.id);
+    // Find the first node after the trigger (in-memory lookup + filter)
+    const connections = (connectionsByFlow.get(flow.id) ?? []).filter(
+      (c: AutomationConnection) => c.from_node_id === matchingTrigger.id
+    );
 
-    if (connections && connections.length > 0) {
+    if (connections.length > 0) {
       for (const conn of connections) {
         await supabase.from("automation_queue").insert({
           enrollment_id: enrollment.id,
