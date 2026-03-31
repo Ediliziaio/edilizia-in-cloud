@@ -213,7 +213,8 @@ export default function BankReconciliation({ companyId }: Props) {
       setSelectedTx(null);
       loadData();
     } catch (e: any) {
-      toast.error("Errore: " + e.message);
+      console.error('[BankReconciliation] Errore durante la riconciliazione:', e.message);
+      toast.error('Errore durante la riconciliazione. Riprova o contatta il supporto.');
     }
     setMatching(false);
   }
@@ -299,7 +300,13 @@ export default function BankReconciliation({ companyId }: Props) {
       const invId = typeof rec.invoices === "object" ? rec.invoices?.id : rec.invoice_id;
 
       // Get current invoice to recompute paid_amount
-      const { data: inv } = await supabase.from("invoices").select("paid_amount, total, status").eq("id", invId).single();
+      const { data: inv, error: invFetchErr } = await supabase.from("invoices").select("paid_amount, total, status").eq("id", invId).single();
+      if (invFetchErr) {
+        console.error('[BankReconciliation] Errore recupero fattura per scollegamento:', invFetchErr.message);
+        toast.error('Impossibile recuperare i dati della fattura. Riprova.');
+        setUnlinking(false);
+        return;
+      }
       const newPaid = Math.max(0, Number(inv?.paid_amount || 0) - Number(rec.matched_amount || 0));
       const wasFullyPaid = inv?.status === "paid";
 
@@ -329,7 +336,8 @@ export default function BankReconciliation({ companyId }: Props) {
       setUnlinkTarget(null);
       loadData();
     } catch (e: any) {
-      toast.error("Errore: " + e.message);
+      console.error('[BankReconciliation] Errore durante lo scollegamento della riconciliazione:', e.message);
+      toast.error('Errore durante lo scollegamento. Le modifiche sono state annullate. Riprova.');
     }
     setUnlinking(false);
   }
