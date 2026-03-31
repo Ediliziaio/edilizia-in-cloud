@@ -6,20 +6,43 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle, XCircle, FileText, Loader2,
-  AlertTriangle, Building2, Calendar,
+  AlertTriangle, Building2, Calendar, Package,
 } from "lucide-react";
+
+interface QuoteItem {
+  name: string;
+  description?: string | null;
+  quantity: number;
+  unit_of_measure?: string | null;
+  unit_price: number;
+  discount_percent?: number | null;
+  vat_rate?: number | null;
+  line_total?: number | null;
+  item_type?: string | null;
+  sort_order?: number | null;
+}
 
 export default function AccettaPreventivo() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<
-    "loading" | "idle" | "accepted" | "rejected" | "error" | "invalid"
+    "loading" | "idle" | "signing" | "refusing" | "accepted" | "rejected" | "error" | "invalid"
   >("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [quote, setQuote] = useState<any>(null);
+  const [items, setItems] = useState<QuoteItem[]>([]);
+  const [company, setCompany] = useState<any>(null);
+
+  // Firma
+  const [signedByName, setSignedByName] = useState("");
+  const [refuseReason, setRefuseReason] = useState("");
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     if (!id || !token) { setStatus("invalid"); return; }
@@ -34,20 +57,42 @@ export default function AccettaPreventivo() {
           setErrorMsg("Dati del preventivo non disponibili. Contatta il fornitore.");
         } else {
           setQuote(data.quote);
+          setItems((data.items as QuoteItem[]) ?? []);
+          setCompany(data.company ?? null);
           setStatus("idle");
         }
       });
   }, [id, token]);
 
-  const handleAction = async (action: "accetta" | "rifiuta") => {
+  const handleSign = async () => {
+    if (signedByName.trim().length < 2) {
+      setNameError("Inserisci il tuo nome e cognome per firmare (minimo 2 caratteri)");
+      return;
+    }
+    setNameError("");
     setStatus("loading");
     try {
-      const { data, error } = await supabase.functions.invoke("accetta-preventivo", {
-        body: { documento_id: id, token, action },
+      const { data, error } = await supabase.functions.invoke("quote-sign", {
+        body: { token, action: "sign", signed_by_name: signedByName.trim() },
       });
       if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      setStatus(action === "accetta" ? "accepted" : "rejected");
+      if (data?.valid === false) throw new Error(data.reason || "Firma non valida");
+      setStatus("accepted");
+    } catch (err: any) {
+      setErrorMsg(err.message);
+      setStatus("error");
+    }
+  };
+
+  const handleRefuse = async () => {
+    setStatus("loading");
+    try {
+      const { data, error } = await supabase.functions.invoke("quote-sign", {
+        body: { token, action: "refuse", refuse_reason: refuseReason.trim() || null },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.valid === false) throw new Error(data.reason || "Azione non valida");
+      setStatus("rejected");
     } catch (err: any) {
       setErrorMsg(err.message);
       setStatus("error");
@@ -110,10 +155,14 @@ export default function AccettaPreventivo() {
     );
   }
 
-  // idle — mostra i dati del preventivo prima delle azioni
+  // visible items only (exclude section headers without price)
+  const visibleItems = items.filter((i) => i.item_type !== "section");
+
   return (
     <div className="min-h-screen bg-muted/30 p-4">
       <div className="max-w-2xl mx-auto space-y-4">
+
+        {/* Header preventivo */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -127,6 +176,12 @@ export default function AccettaPreventivo() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            {company?.name && (
+              <div className="flex gap-2">
+                <Building2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <span className="font-medium">{company.name}</span>
+              </div>
+            )}
             {quote?.client_name && (
               <div className="flex gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -148,6 +203,55 @@ export default function AccettaPreventivo() {
           </CardContent>
         </Card>
 
+        {/* Righe preventivo — requisito legale: il cliente deve vedere cosa firma */}
+        {visibleItems.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Dettaglio voci
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="divide-y text-sm">
+                {visibleItems.map((item, idx) => {
+                  const lineTotal =
+                    item.line_total ??
+                    item.quantity *
+                      item.unit_price *
+                      (1 - (item.discount_percent || 0) / 100);
+                  return (
+                    <div key={idx} className="py-3 space-y-1">
+                      <div className="flex justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{item.name}</p>
+                          {item.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+                        <p className="font-semibold shrink-0 tabular-nums">
+                          {formatCurrency(lineTotal)}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {item.quantity} {item.unit_of_measure || "pz"} ×{" "}
+                        {formatCurrency(item.unit_price)}
+                        {(item.discount_percent || 0) > 0 &&
+                          ` — sconto ${item.discount_percent}%`}
+                        {(item.vat_rate || 0) > 0 &&
+                          ` (IVA ${item.vat_rate}%)`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Totali */}
         <Card>
           <CardContent className="pt-6 space-y-2 text-sm">
             <div className="flex justify-between">
@@ -171,33 +275,100 @@ export default function AccettaPreventivo() {
           </CardContent>
         </Card>
 
+        {/* Note */}
         {quote?.notes && (
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground font-medium mb-1">Note</p>
-              <p className="text-sm">{quote.notes}</p>
+              <p className="text-sm whitespace-pre-line">{quote.notes}</p>
             </CardContent>
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <Button
-            variant="outline"
-            className="h-14 text-base"
-            onClick={() => handleAction("rifiuta")}
-          >
-            <XCircle className="h-5 w-5 mr-2" /> Rifiuto
-          </Button>
-          <Button
-            className="h-14 text-base"
-            onClick={() => handleAction("accetta")}
-          >
-            <CheckCircle className="h-5 w-5 mr-2" /> Accetto
-          </Button>
-        </div>
-        <p className="text-xs text-center text-muted-foreground">
-          Cliccando "Accetto" confermi di aver letto e accettato il preventivo.
-        </p>
+        {/* Azioni firma */}
+        {status === "idle" && (
+          <>
+            {/* Sezione firma */}
+            <Card className="border-emerald-200 bg-emerald-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-emerald-800">
+                  Firma il preventivo
+                </CardTitle>
+                <p className="text-xs text-emerald-700">
+                  Inserisci il tuo nome e cognome per confermare l'accettazione.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="signed_by_name" className="text-sm">
+                    Nome e Cognome *
+                  </Label>
+                  <Input
+                    id="signed_by_name"
+                    placeholder="Es. Mario Rossi"
+                    value={signedByName}
+                    onChange={(e) => {
+                      setSignedByName(e.target.value);
+                      if (e.target.value.trim().length >= 2) setNameError("");
+                    }}
+                    aria-describedby={nameError ? "name-error" : undefined}
+                    className="bg-white"
+                  />
+                  {nameError && (
+                    <p id="name-error" className="text-xs text-destructive" role="alert">
+                      {nameError}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700"
+                  onClick={handleSign}
+                >
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Accetto e firmo il preventivo
+                </Button>
+                <p className="text-xs text-emerald-700 text-center">
+                  Cliccando "Accetto" confermi di aver letto integralmente il preventivo e di
+                  accettarne le condizioni.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Sezione rifiuto */}
+            {status === "idle" && (
+              <Card className="border-red-200 bg-red-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-red-800">
+                    Rifiuta il preventivo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="refuse_reason" className="text-sm text-red-700">
+                      Motivo del rifiuto (opzionale)
+                    </Label>
+                    <Textarea
+                      id="refuse_reason"
+                      placeholder="Indica il motivo se vuoi comunicarlo al fornitore…"
+                      value={refuseReason}
+                      onChange={(e) => setRefuseReason(e.target.value)}
+                      rows={3}
+                      className="bg-white resize-none"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full h-11 text-base border-red-300 text-red-700 hover:bg-red-100"
+                    onClick={handleRefuse}
+                  >
+                    <XCircle className="h-5 w-5 mr-2" />
+                    Rifiuto il preventivo
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
