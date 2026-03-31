@@ -452,6 +452,8 @@ export interface AnagraficaAzienda {
   sdi_configurato: boolean;
   /** Split payment (scissione pagamenti) per fatture verso PA */
   split_payment_pa: boolean;
+  /** Società con unico socio (SU). Se false o assente → SM (più soci). Usato nel campo XML <SocioUnico> */
+  socio_unico?: boolean;
   created_at: string;
   updated_at: string;
 }

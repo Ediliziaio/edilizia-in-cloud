@@ -189,7 +189,7 @@ export function generateFatturaPAXML(
       if (azienda.capitale_sociale) {
         xml += `
         <CapitaleSociale>${fmtNum(azienda.capitale_sociale)}</CapitaleSociale>
-        <SocioUnico>SM</SocioUnico>`;
+        <SocioUnico>${azienda.socio_unico ? 'SU' : 'SM'}</SocioUnico>`;
       }
       xml += `
         <StatoLiquidazione>LN</StatoLiquidazione>

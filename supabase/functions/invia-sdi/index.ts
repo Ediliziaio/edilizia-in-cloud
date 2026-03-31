@@ -154,7 +154,7 @@ function generateXML(doc: Record<string, any>, azienda: Record<string, any>, pro
         <Provincia>${escXml(azienda.indirizzo_provincia)}</Provincia>
         <Nazione>${escXml(azienda.indirizzo_nazione || "IT")}</Nazione>
       </Sede>
-      ${azienda.codice_rea ? `<IscrizioneREA><Ufficio>${escXml(azienda.indirizzo_provincia)}</Ufficio><NumeroREA>${escXml(azienda.codice_rea)}</NumeroREA>${azienda.capitale_sociale ? `<CapitaleSociale>${fmtNum(azienda.capitale_sociale)}</CapitaleSociale><SocioUnico>SM</SocioUnico>` : ""}<StatoLiquidazione>LN</StatoLiquidazione></IscrizioneREA>` : ""}
+      ${azienda.codice_rea ? `<IscrizioneREA><Ufficio>${escXml(azienda.indirizzo_provincia)}</Ufficio><NumeroREA>${escXml(azienda.codice_rea)}</NumeroREA>${azienda.capitale_sociale ? `<CapitaleSociale>${fmtNum(azienda.capitale_sociale)}</CapitaleSociale><SocioUnico>${azienda.socio_unico ? "SU" : "SM"}</SocioUnico>` : ""}<StatoLiquidazione>LN</StatoLiquidazione></IscrizioneREA>` : ""}
     </CedentePrestatore>
     <CessionarioCommittente>
       <DatiAnagrafici>

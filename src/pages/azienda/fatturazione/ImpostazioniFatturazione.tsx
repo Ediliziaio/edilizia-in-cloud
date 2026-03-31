@@ -908,6 +908,14 @@ export default function ImpostazioniFatturazione() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
+                  <Label>Società con unico socio</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Attiva se sei una S.r.l. unipersonale — genera <strong>SU</strong> invece di <strong>SM</strong> nel campo XML &lt;SocioUnico&gt;</p>
+                </div>
+                <Switch checked={current.socio_unico ?? false} onCheckedChange={(v) => updateField("socio_unico", v)} />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
                   <Label>Bollo virtuale automatico</Label>
                   <p className="text-xs text-muted-foreground mt-0.5">Applica automaticamente € 2,00 per documenti esenti IVA sopra € 77,47</p>
                 </div>
