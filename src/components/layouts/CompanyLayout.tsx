@@ -87,6 +87,7 @@ import { NotificationsPanel } from "@/components/notifications/NotificationsPane
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 
 import { CommandPalette } from "@/components/CommandPalette";
+import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -580,6 +581,9 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
           />
         </div>
       </div>
+
+      {/* IMP5: Banner onboarding progressivo setup azienda */}
+      <SettingsOnboardingBanner />
 
       {/* Gruppi filtrati */}
       {filteredGroups.map(group => (
