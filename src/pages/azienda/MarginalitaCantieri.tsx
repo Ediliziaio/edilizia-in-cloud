@@ -227,7 +227,6 @@ export default function MarginalitaCantieri() {
                 <SedeMargineCard
                   key={sede.sede_id}
                   sede={sede}
-                  totRicavi={sediData!.totali.totRicavi}
                 />
               ))}
             </div>

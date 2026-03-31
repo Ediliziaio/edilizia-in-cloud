@@ -250,6 +250,7 @@ export default function SettingsSedi() {
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                      aria-label={`Imposta ${sede.nome} come sede principale`}
                       onClick={() => setPrincipaleMutation.mutate(sede.id)}
                     >
                       <Star className="h-3 w-3 mr-1" />
@@ -258,12 +259,14 @@ export default function SettingsSedi() {
                   )}
                   <Switch
                     checked={sede.attiva}
+                    aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
                     onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
+                    aria-label={`Modifica sede ${sede.nome}`}
                     onClick={() => openEdit(sede)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -272,6 +275,7 @@ export default function SettingsSedi() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    aria-label={`Elimina sede ${sede.nome}`}
                     onClick={() => setDeleteId(sede.id)}
                   >
                     <Trash2 className="h-4 w-4" />

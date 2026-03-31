@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
       incidenza_margine: totMargine > 0 ? +(s.margine / totMargine * 100).toFixed(2) : 0,
       incidenza_lead:    totLead    > 0 ? +(s.n_lead  / totLead    * 100).toFixed(2) : 0,
       delta_incidenza: +(
-        (totMargine > 0 ? s.margine / totMargine : 0) -
-        (totRicavi  > 0 ? s.ricavi  / totRicavi  : 0)
+        ((totMargine > 0 ? s.margine / totMargine : 0) -
+         (totRicavi  > 0 ? s.ricavi  / totRicavi  : 0))
       * 100).toFixed(2),
       cpl: s.n_lead > 0 ? +(s.spesa_ads / s.n_lead).toFixed(2) : 0,
     }))

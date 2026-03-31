@@ -17,8 +17,7 @@ function getSemaforoColor(margine_pct: number) {
 }
 
 interface Props {
-  sede:      SedeAnalyticsData
-  totRicavi: number
+  sede: SedeAnalyticsData
 }
 
 export function SedeMargineCard({ sede }: Props) {

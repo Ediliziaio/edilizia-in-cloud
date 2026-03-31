@@ -1,4 +1,5 @@
-import { MapPin, X } from 'lucide-react'
+import { MapPin, X, Settings } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -88,8 +89,15 @@ export function SedeFilterBar() {
             </>
           )}
           {attive.length === 0 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">
-              Nessuna sede attiva
+            <div className="px-3 py-2 space-y-2">
+              <p className="text-sm text-muted-foreground">Nessuna sede attiva</p>
+              <Link
+                to="/azienda/impostazioni/sedi"
+                className="flex items-center gap-1.5 text-xs text-[#1E3A5F] hover:underline"
+              >
+                <Settings className="h-3 w-3" />
+                Configura sedi
+              </Link>
             </div>
           )}
         </DropdownMenuContent>
