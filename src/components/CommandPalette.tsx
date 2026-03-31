@@ -5,11 +5,56 @@ import {
   CommandGroup, CommandItem, CommandSeparator,
 } from "@/components/ui/command";
 import {
-  Package, User, UserCircle, MessageSquare, Loader2,
+  Package, User, UserCircle, MessageSquare, Loader2, Settings,
 } from "lucide-react";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
+
+// ─── Tutte le 33 voci impostazioni per la ricerca Command Palette ─────────────
+interface SettingsItem {
+  label: string;
+  path: string;
+}
+
+const SETTINGS_ITEMS: SettingsItem[] = [
+  { label: "Profilo aziendale",         path: "/azienda/impostazioni/profilo" },
+  { label: "Sedi",                       path: "/azienda/impostazioni/sedi" },
+  { label: "White-Label",                path: "/azienda/impostazioni/branding" },
+  { label: "Listino prodotti",           path: "/azienda/impostazioni/listino" },
+  { label: "Tariffe aziendali",          path: "/azienda/impostazioni/tariffe" },
+  { label: "Preventivi & margini",       path: "/azienda/impostazioni/margini" },
+  { label: "Stati ordine",               path: "/azienda/impostazioni/stati-ordine" },
+  { label: "Fornitori",                  path: "/azienda/impostazioni/fornitori" },
+  { label: "Categorie costi",            path: "/azienda/impostazioni/categorie-costi" },
+  { label: "Automazioni finanza",        path: "/azienda/impostazioni/automazioni-finanza" },
+  { label: "Tag",                        path: "/azienda/impostazioni/tag" },
+  { label: "Campi personalizzati",       path: "/azienda/impostazioni/campi-personalizzati" },
+  { label: "Sequenze",                   path: "/azienda/impostazioni/sequenze" },
+  { label: "Form & UTM",                 path: "/azienda/impostazioni/form-builder" },
+  { label: "Materiali preventivi",       path: "/azienda/impostazioni/materiali-preventivi" },
+  { label: "Template offerte",           path: "/azienda/impostazioni/template-preventivi" },
+  { label: "Calendari marketing",        path: "/azienda/impostazioni/calendari" },
+  { label: "Lead Facebook",              path: "/azienda/impostazioni/lead-forms" },
+  { label: "Persone & Accessi",          path: "/azienda/impostazioni/persone" },
+  { label: "Utenti",                     path: "/azienda/impostazioni/persone?tab=utenti" },
+  { label: "Venditori",                  path: "/azienda/impostazioni/persone?tab=venditori" },
+  { label: "Staff / Operai",             path: "/azienda/impostazioni/persone?tab=staff" },
+  { label: "Team",                       path: "/azienda/impostazioni/persone?tab=team" },
+  { label: "Sicurezza & Privacy",        path: "/azienda/impostazioni/sicurezza-privacy" },
+  { label: "Cambio password",            path: "/azienda/impostazioni/sicurezza-privacy?tab=password" },
+  { label: "Privacy & GDPR",             path: "/azienda/impostazioni/sicurezza-privacy?tab=privacy" },
+  { label: "Security dashboard",         path: "/azienda/impostazioni/sicurezza-privacy?tab=dashboard" },
+  { label: "Registro attività",          path: "/azienda/impostazioni/sicurezza-privacy?tab=attivita" },
+  { label: "Integrazioni",               path: "/azienda/impostazioni/integrazioni" },
+  { label: "Crediti & saldo",            path: "/azienda/impostazioni/crediti" },
+  { label: "API platform",               path: "/azienda/impostazioni/api" },
+  { label: "Webhook",                    path: "/azienda/impostazioni/webhook" },
+  { label: "Numeri virtuali",            path: "/azienda/impostazioni/numeri-telefono" },
+  { label: "Piano abbonamento",          path: "/azienda/impostazioni/abbonamento" },
+  { label: "Fatturazione",               path: "/azienda/impostazioni/fatturazione" },
+  { label: "Fatturazione elettronica",   path: "/azienda/impostazioni/fatturazione-nativa" },
+];
 
 const RESULT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Package, User, UserCircle, MessageSquare,
@@ -71,10 +116,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       .filter(group => group.items.length > 0);
   }, [query]);
 
+  const filteredSettingsItems = useMemo(() => {
+    if (query.length < 2) return [];
+    const q = query.toLowerCase();
+    return SETTINGS_ITEMS.filter(item => item.label.toLowerCase().includes(q));
+  }, [query]);
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Cerca ordini, clienti, contatti, ticket..."
+        placeholder="Cerca ordini, clienti, impostazioni..."
         value={query}
         onValueChange={setQuery}
       />
@@ -85,7 +136,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
         )}
 
-        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && (
+        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && (
           <CommandEmpty>Nessun risultato per &quot;{query}&quot;</CommandEmpty>
         )}
 
@@ -115,6 +166,25 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         ))}
 
         {results.length > 0 && query.length >= 2 && <CommandSeparator />}
+
+        {/* Voci Impostazioni */}
+        {filteredSettingsItems.length > 0 && (
+          <>
+            <CommandGroup heading="Impostazioni">
+              {filteredSettingsItems.map((item) => (
+                <CommandItem
+                  key={item.path}
+                  onSelect={() => handleSelect(item.path)}
+                  className="flex items-center gap-3"
+                >
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  <span>{item.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {filteredNavGroups.length > 0 && <CommandSeparator />}
+          </>
+        )}
 
         {filteredNavGroups.map((group) => {
           const GroupIcon = group.icon;
