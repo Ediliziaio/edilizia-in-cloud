@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
-  MessageCircle, Copy, Link,
+  MessageCircle, Copy, Link, HardHat,
 } from "lucide-react";
 
 export default function QuoteDetail() {
@@ -31,6 +31,7 @@ export default function QuoteDetail() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   const { sendForSignature, openWhatsApp, copySignatureLink } = useSignatureActions(id);
 
@@ -50,6 +51,24 @@ export default function QuoteDetail() {
       toast.error("Errore generazione PDF: " + (e.message || "errore"));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleConvertToCantiere = async () => {
+    setConverting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("converti-preventivo-cantiere", {
+        body: { quote_id: id },
+      });
+      if (error) throw error;
+      toast.success("Preventivo convertito in cantiere con successo!");
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
+      navigate(`/azienda/ordini/${data.order_id}`);
+    } catch (e: any) {
+      const msg = e?.context?.json?.error || e?.message || "Errore durante la conversione";
+      toast.error("Errore conversione: " + msg);
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -153,6 +172,19 @@ export default function QuoteDetail() {
             <Button onClick={() => setSendDialogOpen(true)}>
               <Send className="h-4 w-4 mr-2" />
               {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
+            </Button>
+          )}
+
+          {quote.status === "accettata" && (
+            <Button
+              onClick={handleConvertToCantiere}
+              disabled={converting}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {converting
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <HardHat className="h-4 w-4 mr-2" />}
+              {converting ? "Conversione..." : "Converti in Cantiere"}
             </Button>
           )}
 
