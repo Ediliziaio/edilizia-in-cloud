@@ -88,9 +88,12 @@ export function calcolaTotaliPreventivo(
     is_optional?: boolean;
     item_category?: string;
   }>,
-  overhead_pct: number
+  overhead_pct: number,
+  /** Sconto globale sul preventivo (%) — usato per calcolare il margine reale */
+  discount_global_pct = 0
 ): {
   subtotale: number;
+  subtotale_netto: number;
   iva_breakdown: Record<string, number>;
   totale: number;
   costo_totale: number;
@@ -116,16 +119,23 @@ export function calcolaTotaliPreventivo(
     costo_totale += pa;
   }
 
+  // subtotale_netto = ricavo reale dopo sconto globale preventivo
+  const subtotale_netto = subtotale * (1 - discount_global_pct / 100);
+
   const overhead_totale = costo_totale * (overhead_pct / 100);
-  const vatAmount = Object.values(iva_breakdown).reduce((s, v) => s + v, 0);
-  const totale = subtotale + vatAmount;
+  const vatFactor = 1 - discount_global_pct / 100;
+  const vatAmount = Object.values(iva_breakdown).reduce((s, v) => s + v, 0) * vatFactor;
+  const totale = subtotale_netto + vatAmount;
+
+  // Il margine è calcolato sul ricavo netto effettivo (post-sconto globale)
   const margine_totale_pct =
-    subtotale > 0
-      ? ((subtotale - costo_totale - overhead_totale) / subtotale) * 100
+    subtotale_netto > 0
+      ? ((subtotale_netto - costo_totale - overhead_totale) / subtotale_netto) * 100
       : 0;
 
   return {
     subtotale,
+    subtotale_netto,
     iva_breakdown,
     totale,
     costo_totale,

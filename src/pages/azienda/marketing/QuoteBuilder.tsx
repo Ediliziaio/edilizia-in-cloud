@@ -1163,19 +1163,17 @@ export default function QuoteBuilder() {
     if (validateStep(step)) setStep(step + 1);
   };
 
-  // Calculations
+  // Calculations — sconto globale passato a calcolaTotaliPreventivo
+  // in modo che margine_totale_pct sia calcolato sul ricavo netto reale (B2)
   const totaliPro = calcolaTotaliPreventivo(
     items,
-    impostazioni.overhead_percentuale ?? 0
+    impostazioni.overhead_percentuale ?? 0,
+    discountPercent
   );
   const subtotal = totaliPro.subtotale;
   const discountAmt = subtotal * (discountPercent / 100);
-  // VAT must be computed on the discounted taxable base
-  const discountFactor = 1 - discountPercent / 100;
-  const vatAmount =
-    Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) *
-    discountFactor;
-  const total = subtotal - discountAmt + vatAmount;
+  const vatAmount = Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) * (1 - discountPercent / 100);
+  const total = totaliPro.subtotale_netto + vatAmount;
 
   // Save
   const handleSave = async (status: string = "bozza") => {
