@@ -12,6 +12,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { OnboardingGuide } from "@/components/onboarding/OnboardingGuide";
+import { useAuth } from "@/contexts/AuthContext";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
@@ -112,6 +114,13 @@ function DeltaIndicator({ current, previous }: { current: number; previous: numb
 
 export default function CompanyDashboard() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+
+  // Show OnboardingGuide only for companies created within the last 30 days
+  const isNewCompany = effectiveCompany?.created_at
+    ? Date.now() - new Date(effectiveCompany.created_at).getTime() < 30 * 24 * 60 * 60 * 1000
+    : false;
+
   const {
     companyId, filters, updateFilters,
     isLoading, isError,
@@ -275,6 +284,9 @@ export default function CompanyDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Onboarding Guide (new companies ≤ 30 days) */}
+      {isNewCompany && <OnboardingGuide />}
 
       {/* Onboarding Checklist */}
       <OnboardingChecklist />
