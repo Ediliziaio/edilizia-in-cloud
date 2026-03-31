@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
@@ -204,7 +204,7 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
 
   const handleSelectAll = () => {
     setPermissions(prev => {
-      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
+      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
       const allModules = PERMISSION_CATEGORIES.flatMap(c => c.modules);
       allModules.forEach(mod => {
         allTrue[mod.viewKey] = true;

@@ -440,9 +440,10 @@ export function UsersConfig() {
       });
 
       return { temporaryPassword: response.data.temporary_password };
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Errore durante la creazione dell'utente";
       toast.error("Errore", {
-        description: error.message || "Errore durante la creazione dell'utente",
+        description: message,
       });
       throw error;
     } finally {
@@ -657,10 +658,11 @@ export function UsersConfig() {
         if (fnError) throw fnError;
         if (fnData?.error) throw new Error(fnData.error);
         imported++;
-      } catch (err: any) {
-        const reason = err?.message?.includes("esiste già")
+      } catch (err) {
+        const errMessage = err instanceof Error ? err.message : undefined;
+        const reason = errMessage?.includes("esiste già")
           ? "Email già in uso"
-          : err?.message || "Errore sconosciuto";
+          : errMessage || "Errore sconosciuto";
         failedRows.push({ row: i + 2, email, reason });
       }
     }

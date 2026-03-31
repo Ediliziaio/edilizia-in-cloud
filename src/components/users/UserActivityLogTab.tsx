@@ -130,7 +130,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
                     <Badge variant="outline" className={ACTION_COLORS[log.action] || ""}>
                       {ACTION_LABELS[log.action] || log.action}
                     </Badge>
-                    {(log as any).is_impersonated && (
+                    {"is_impersonated" in log && (log as { is_impersonated?: boolean }).is_impersonated && (
                       <Badge variant="outline" className="bg-amber-600/10 text-amber-700 border-amber-600/20 gap-1">
                         <ShieldAlert className="h-3 w-3" /> Via Impersonazione
                       </Badge>

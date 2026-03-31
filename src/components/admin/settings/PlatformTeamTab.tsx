@@ -31,7 +31,7 @@ interface PlatformUser {
   email: string;
   created_at: string;
   roles: string[];
-  permissions: any;
+  permissions: Record<string, boolean>;
 }
 
 const ROLE_STAT_CARDS: { role: "super_admin" | PlatformRole; label: string; colorClass: string }[] = [

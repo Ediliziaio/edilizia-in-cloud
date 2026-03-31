@@ -19,6 +19,23 @@ import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS, syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 
+interface UserDetail {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  company_id: string | null;
+  password_changed_at: string | null;
+  failed_login_count: number;
+  locked_until: string | null;
+  require_2fa: boolean;
+  last_login_at: string | null;
+  last_login_ip: string | null;
+  role: "company_admin" | "company_staff" | "salesperson" | "call_center" | undefined;
+  permissions: StaffPermissions | null;
+}
+
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
   { id: "permissions", label: "Ruoli & Autorizzazioni", icon: Shield },
@@ -37,12 +54,15 @@ export default function SettingsUserDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { role, user: currentUser, isImpersonating } = useAuth();
+  const { role, isLoading: authLoading, user: currentUser, isImpersonating } = useAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = role === "company_admin" || role === "super_admin";
 
+  // Wait for auth to resolve before checking permissions — prevents "Accesso negato"
+  // flash on first render when role is still null (loading state).
   useEffect(() => {
+    if (authLoading) return;
     if (!isAdmin) {
       toast({
         title: "Accesso negato",
@@ -51,7 +71,7 @@ export default function SettingsUserDetail() {
       });
       navigate("/azienda/impostazioni/profilo", { replace: true });
     }
-  }, [isAdmin, navigate, toast]);
+  }, [authLoading, isAdmin, navigate, toast]);
 
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const tabParam = searchParams.get("tab");
@@ -61,9 +81,9 @@ export default function SettingsUserDetail() {
     return "profile";
   });
 
-  const { data: userData, isLoading } = useQuery({
+  const { data: userData, isLoading } = useQuery<UserDetail>({
     queryKey: queryKeys.users.detail(userId),
-    queryFn: async () => {
+    queryFn: async (): Promise<UserDetail> => {
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip")
@@ -149,7 +169,7 @@ export default function SettingsUserDetail() {
           action: "permissions_updated",
           details: {},
           is_impersonated: isImpersonating,
-        } as any);
+        } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
       }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
@@ -193,7 +213,7 @@ export default function SettingsUserDetail() {
       if (newRole !== "company_admin") {
         const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId!).maybeSingle();
         if (!existing) {
-          await supabase.from("staff_permissions").insert({ user_id: userId!, company_id: companyId } as any);
+          await supabase.from("staff_permissions").insert({ user_id: userId!, company_id: companyId } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
         }
       }
 
@@ -201,14 +221,10 @@ export default function SettingsUserDetail() {
       if (newRole === "salesperson") {
         const { data: existingSp } = await supabase.from("salespeople").select("id").eq("user_id", userId!).maybeSingle();
         if (!existingSp) {
-          await supabase.from("salespeople").insert({
-            user_id: userId!,
-            company_id: companyId,
-            first_name: userData?.first_name || "",
-            last_name: userData?.last_name || "",
-            email: userData?.email || "",
-            is_active: true,
-          } as any);
+          // DB schema has more columns than generated types — cast is intentional
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const salespersonPayload = { user_id: userId!, company_id: companyId, first_name: userData?.first_name || "", last_name: userData?.last_name || "", email: userData?.email || "", is_active: true } as any;
+          await supabase.from("salespeople").insert(salespersonPayload);
         }
       }
     },
@@ -217,14 +233,10 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       // Audit log
       if (currentUser && userData?.company_id) {
-        supabase.from("user_audit_log").insert({
-          company_id: userData.company_id,
-          actor_id: currentUser.id,
-          target_user_id: userId!,
-          action: "role_changed",
-          details: { from: userData.role, to: newRole },
-          is_impersonated: isImpersonating,
-        } as any);
+        // is_impersonated is a DB column not present in generated types — cast is intentional
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const auditPayload = { company_id: userData.company_id, actor_id: currentUser.id, target_user_id: userId!, action: "role_changed", details: { from: userData.role, to: newRole }, is_impersonated: isImpersonating } as any;
+        supabase.from("user_audit_log").insert(auditPayload);
       }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
@@ -232,6 +244,15 @@ export default function SettingsUserDetail() {
       toast({ title: "Errore", description: "Impossibile cambiare il ruolo.", variant: "destructive" });
     },
   });
+
+  // While auth is resolving, show a loading state instead of a blank/redirect flash
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!isAdmin) return null;
 
@@ -338,12 +359,12 @@ export default function SettingsUserDetail() {
             <UserSecurityTab
               userId={userId!}
               user={{
-                require_2fa: (userData as any).require_2fa,
-                password_changed_at: (userData as any).password_changed_at,
-                failed_login_count: (userData as any).failed_login_count,
-                locked_until: (userData as any).locked_until,
-                last_login_at: (userData as any).last_login_at,
-                last_login_ip: (userData as any).last_login_ip,
+                require_2fa: userData.require_2fa,
+                password_changed_at: userData.password_changed_at,
+                failed_login_count: userData.failed_login_count,
+                locked_until: userData.locked_until,
+                last_login_at: userData.last_login_at,
+                last_login_ip: userData.last_login_ip,
               }}
             />
           )}

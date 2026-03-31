@@ -91,8 +91,9 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
       } else {
         toast({ title: "Password resettata", description: "Un'email di reset è stata inviata all'utente." });
       }
-    } catch (err: any) {
-      toast({ title: "Errore", description: err.message || "Impossibile resettare la password.", variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossibile resettare la password.";
+      toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setResettingPassword(false);
     }
