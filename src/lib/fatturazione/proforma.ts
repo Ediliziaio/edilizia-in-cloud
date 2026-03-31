@@ -86,7 +86,7 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
   if (createErr) throw createErr;
 
   // Mark original as annullata
-  await supabase
+  const { error: updateErr } = await supabase
     .from("documenti_fiscali" as never)
     .update({
       stato: "annullata",
@@ -94,6 +94,11 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", proformaId);
+
+  if (updateErr) {
+    console.error('[proforma] Errore aggiornamento stato proforma originale:', updateErr.message, updateErr.code);
+    throw new Error(`Impossibile aggiornare lo stato del documento originale: ${updateErr.message}`);
+  }
 
   return newDoc as unknown as DocumentoFiscale;
 }
