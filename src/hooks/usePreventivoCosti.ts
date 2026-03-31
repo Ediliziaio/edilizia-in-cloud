@@ -159,6 +159,163 @@ export function calcolaTotaliPreventivo(
   };
 }
 
+// ─── IMP09: Sconti quantità ───────────────────────────────────────────────────
+
+/**
+ * Calcola lo sconto quantità applicabile a un prodotto dato la quantità e la lista di regole.
+ * Restituisce la percentuale di sconto da applicare (0 se nessuna regola applicabile).
+ */
+export function calcolaScontoQuantita(
+  prodottoId: string | undefined,
+  quantita: number,
+  regole: Array<{ prodotto_id: string | null; da_quantita: number; sconto_pct: number; attivo: boolean }>
+): number {
+  if (!regole || regole.length === 0) return 0;
+
+  // Filtra regole applicabili: specifiche per questo prodotto O globali (prodotto_id null)
+  const applicable = regole.filter(
+    (r) => r.attivo && r.da_quantita <= quantita && (r.prodotto_id === prodottoId || r.prodotto_id === null)
+  );
+  if (applicable.length === 0) return 0;
+
+  // Priorità: regola specifica per prodotto > regola globale
+  // Tra le specifiche/globali: prende quella con da_quantita più alta (scala migliore)
+  const specific = applicable.filter((r) => r.prodotto_id === prodottoId);
+  const toUse = specific.length > 0 ? specific : applicable;
+
+  return Math.max(...toUse.map((r) => r.sconto_pct));
+}
+
+export function useScontiQuantita(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["sconti-quantita", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await (supabase.from("sconti_quantita") as any)
+        .select("*")
+        .eq("company_id", companyId!)
+        .eq("attivo", true)
+        .order("da_quantita");
+      return (data ?? []) as Array<{
+        id: string;
+        company_id: string;
+        prodotto_id: string | null;
+        da_quantita: number;
+        sconto_pct: number;
+        descrizione: string | null;
+        attivo: boolean;
+        created_at: string;
+      }>;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+}
+
+// ─── IMP09: Bundle prodotti ───────────────────────────────────────────────────
+
+/**
+ * Espande un bundle in righe di preventivo (QuoteItemPro).
+ * Applica lo sconto bundle a ogni voce.
+ */
+export function espondiBundle(
+  bundle: { id: string; nome: string; sconto_bundle_pct: number },
+  voci: Array<{
+    prodotto_id?: string | null;
+    tariffa_id?: string | null;
+    quantita: number;
+    sort_order: number;
+    article_templates?: { name: string; unit_price?: number | null; prezzo_vendita?: number; prezzo_acquisto_netto?: number; unit_of_measure?: string | null; vat_rate?: number | null } | null;
+    tariffe_aziendali?: { nome: string; prezzo_vendita?: number; prezzo_costo?: number; unita?: string | null } | null;
+  }>,
+  overhead_pct: number
+): import("@/types/quoteItem").QuoteItemPro[] {
+  return voci.map((voce, idx) => {
+    const isArt = !!voce.prodotto_id && !!voce.article_templates;
+    const name = isArt
+      ? (voce.article_templates?.name ?? "Prodotto")
+      : (voce.tariffe_aziendali?.nome ?? "Servizio");
+    const unitPrice = isArt
+      ? (voce.article_templates?.prezzo_vendita ?? voce.article_templates?.unit_price ?? 0)
+      : (voce.tariffe_aziendali?.prezzo_vendita ?? 0);
+    const prezzoAcquisto = isArt
+      ? (voce.article_templates?.prezzo_acquisto_netto ?? 0)
+      : (voce.tariffe_aziendali?.prezzo_costo ?? 0);
+    const uom = isArt
+      ? (voce.article_templates?.unit_of_measure ?? "pz")
+      : (voce.tariffe_aziendali?.unita ?? "servizio");
+    const vatRate = isArt ? (voce.article_templates?.vat_rate ?? 22) : 22;
+
+    return {
+      id: `bundle-${bundle.id}-${idx}`,
+      name,
+      description: `Bundle: ${bundle.nome}`,
+      quantity: voce.quantita,
+      unit_price: unitPrice,
+      unit_of_measure: uom,
+      discount_percent: bundle.sconto_bundle_pct,
+      vat_rate: vatRate,
+      prezzo_acquisto: prezzoAcquisto,
+      item_category: isArt ? "prodotto" : "posa",
+      item_type: isArt ? "product" : "service",
+      is_optional: false,
+      mostra_nel_pdf: true,
+      sort_order: voce.sort_order ?? idx,
+    } as import("@/types/quoteItem").QuoteItemPro;
+  });
+}
+
+export interface BundleConVoci {
+  id: string;
+  company_id: string;
+  nome: string;
+  descrizione: string | null;
+  sconto_bundle_pct: number;
+  attivo: boolean;
+  created_at: string;
+  bundle_voci: Array<{
+    id: string;
+    bundle_id: string;
+    prodotto_id: string | null;
+    tariffa_id: string | null;
+    quantita: number;
+    sort_order: number;
+    article_templates: {
+      name: string;
+      unit_price?: number | null;
+      prezzo_vendita?: number;
+      prezzo_acquisto_netto?: number;
+      unit_of_measure?: string | null;
+      vat_rate?: number | null;
+    } | null;
+    tariffe_aziendali: {
+      nome: string;
+      prezzo_vendita?: number;
+      prezzo_costo?: number;
+      unita?: string | null;
+    } | null;
+  }>;
+}
+
+export function useBundleProdotti(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["bundle-prodotti", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await (supabase.from("bundle_prodotti") as any)
+        .select(
+          "*, bundle_voci(*, article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, vat_rate), tariffe_aziendali(nome, prezzo_vendita, prezzo_costo, unita))"
+        )
+        .eq("company_id", companyId!)
+        .eq("attivo", true)
+        .order("nome");
+      return (data ?? []) as BundleConVoci[];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePreventivoCosti(companyId: string | undefined) {

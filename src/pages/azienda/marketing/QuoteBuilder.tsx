@@ -17,8 +17,10 @@ import {
   semaforo,
   calcolaTotaliPreventivo,
   round2,
+  espondiBundle,
 } from "@/hooks/usePreventivoCosti";
-import type { ArticlePro, TariffaPro } from "@/hooks/usePreventivoCosti";
+import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
+import BundleSelector from "@/components/marketing/preventivi/BundleSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -584,6 +586,9 @@ export default function QuoteBuilder() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [smaltimentoAsk, setSmaltimentoAsk] = useState<{ parentIdx: number } | null>(null);
 
+  // IMP09: Bundle dialog
+  const [bundleOpen, setBundleOpen] = useState(false);
+
   // Step 2: Documents + PDF settings
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
   const [pdfPrezziRiga, setPdfPrezziRiga] = useState(true);
@@ -1060,6 +1065,23 @@ export default function QuoteBuilder() {
     setItems(newItems);
     if (impostazioni.chiedi_smaltimento) setSmaltimentoAsk({ parentIdx: prodIdx });
     setSearchOpen(false);
+  };
+
+  // IMP09: Add bundle items
+  const handleSelectBundle = (bundle: BundleConVoci, voci: BundleConVoci["bundle_voci"]) => {
+    const newItems = espondiBundle(
+      bundle,
+      voci,
+      impostazioni.overhead_percentuale ?? 0
+    );
+    setItems((prev) => {
+      const base = [...(prev as typeof prev)];
+      newItems.forEach((item, idx) => {
+        base.push({ ...item, sort_order: base.length + idx });
+      });
+      return base;
+    });
+    setBundleOpen(false);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -1557,6 +1579,13 @@ export default function QuoteBuilder() {
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => setSearchOpen(true)} size="sm">
                       <Plus className="h-4 w-4 mr-1" /> Dal listino
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBundleOpen(true)}
+                    >
+                      <Layers className="h-4 w-4 mr-1" /> Bundle
                     </Button>
                     <Button
                       variant="outline"
@@ -2533,6 +2562,21 @@ export default function QuoteBuilder() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* IMP09: Bundle dialog */}
+      <Dialog open={bundleOpen} onOpenChange={setBundleOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aggiungi Bundle</DialogTitle>
+          </DialogHeader>
+          {companyId && (
+            <BundleSelector
+              companyId={companyId}
+              onSelectBundle={handleSelectBundle}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
