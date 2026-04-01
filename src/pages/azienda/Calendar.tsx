@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X } from "lucide-react";
 import { exportAppointmentsIcal } from "@/lib/icalExport";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
@@ -34,6 +34,7 @@ import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 function CalendarInner() {
   const { effectiveCompany } = useAuth();
@@ -396,6 +397,7 @@ function CalendarInner() {
   const [unplannedOpen, setUnplannedOpen] = useState(false);
   const [conflictsOpen, setConflictsOpen] = useState(false);
   const [notifyingConflict, setNotifyingConflict] = useState<string | null>(null);
+  const [mobileLayerOpen, setMobileLayerOpen] = useState(false);
   const unplannedOrders = useMemo(() => {
     return orders.filter(order => !order.expected_date && !order.work_start_date);
   }, [orders]);
@@ -478,51 +480,153 @@ function CalendarInner() {
             </CollapsibleTrigger>
           </Collapsible>
 
-          {isGoogleConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={syncing}
-              className="hidden sm:flex"
-              onClick={async () => {
-                setSyncing(true);
-                await pullBusySlots();
-                queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
-                setSyncing(false);
-              }}
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-1.5", syncing && "animate-spin")} />
-              Sync
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden sm:flex gap-1.5"
-            onClick={() => exportAppointmentsIcal(filteredAppointments, scheduledOrders)}
-          >
-            <Download className="h-4 w-4" />
-            iCal
+          <Button variant="outline" size="sm" onClick={goToToday} className="gap-1.5">
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">Oggi</span>
           </Button>
-          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
+
+          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)} className="gap-1.5">
             <Plus className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Appuntamento</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={goToToday}>
-            <CalendarDays className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Oggi</span>
-          </Button>
-          <Button
-            variant={layerPanelOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setLayerPanelOpen(!layerPanelOpen)}
-            className="hidden sm:flex gap-1.5"
-          >
-            <Eye className="h-4 w-4" />
-            Layer
-          </Button>
+
+          {/* Secondary actions dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => isMobile ? setMobileLayerOpen(true) : setLayerPanelOpen(!layerPanelOpen)}
+                className="gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                {layerPanelOpen && !isMobile ? "Nascondi Layer" : "Mostra Layer"}
+              </DropdownMenuItem>
+              {isGoogleConnected && (
+                <DropdownMenuItem
+                  disabled={syncing}
+                  onSelect={async () => {
+                    setSyncing(true);
+                    await pullBusySlots();
+                    queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
+                    setSyncing(false);
+                  }}
+                  className="gap-2"
+                >
+                  <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+                  Sync Google Calendar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => exportAppointmentsIcal(filteredAppointments, scheduledOrders)}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Esporta iCal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {/* Filtri attivi come chip */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap gap-1.5">
+          {statusFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+              Stato: {statuses.find(s => s.id === statusFilter)?.name ?? statusFilter}
+              <button onClick={() => setStatusFilter("all")} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {customerFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+              Cliente: {uniqueCustomers.find(c => c.id === customerFilter)?.last_name ?? customerFilter}
+              <button onClick={() => setCustomerFilter("all")} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {employeeFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+              Operaio: {companyEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
+              <button onClick={() => setEmployeeFilter("all")} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {externalTeamFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+              Squadra: {externalTeams.find(t => t.id === externalTeamFilter)?.name ?? externalTeamFilter}
+              <button onClick={() => setExternalTeamFilter("all")} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {assignedToFilter !== "all" && (
+            <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+              Assegnato: {assignableUsers.find(u => u.id === assignedToFilter)?.last_name ?? assignedToFilter}
+              <button onClick={() => setAssignedToFilter("all")} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          <button onClick={resetFilters} className="text-xs text-muted-foreground hover:text-foreground underline">
+            Resetta tutti
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Layer Sheet */}
+      {isMobile && (
+        <Sheet open={mobileLayerOpen} onOpenChange={setMobileLayerOpen}>
+          <SheetContent side="bottom" className="h-[80vh]">
+            <SheetHeader>
+              <SheetTitle>Gestisci visualizzazione</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 overflow-y-auto">
+              <CalendarLayerPanel
+                employees={companyEmployees}
+                externalTeams={externalTeams}
+                visibleEmployees={effectiveVisibleEmployees}
+                visibleTeams={effectiveVisibleTeams}
+                showPosa={showPosa}
+                showLavoro={showLavoro}
+                showAppuntamento={showAppuntamento}
+                showMerce={showMerce}
+                showGoogleBusy={showGoogleBusy}
+                showLeaves={showLeaves}
+                onToggleEmployee={(id) => {
+                  const next = new Set(effectiveVisibleEmployees);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  setVisibleEmployeeIds(next);
+                }}
+                onToggleTeam={(id) => {
+                  const next = new Set(effectiveVisibleTeams);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  setVisibleTeamIds(next);
+                }}
+                onToggleAllEmployees={(v) => {
+                  setVisibleEmployeeIds(v ? new Set(companyEmployees.map(e => e.id)) : new Set());
+                }}
+                onToggleAllTeams={(v) => {
+                  setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
+                }}
+                onTogglePosa={(v) => setLayer("showPosa", v)}
+                onToggleLavoro={(v) => setLayer("showLavoro", v)}
+                onToggleAppuntamento={(v) => setLayer("showAppuntamento", v)}
+                onToggleMerce={(v) => setLayer("showMerce", v)}
+                onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
+                onToggleLeaves={(v) => setLayer("showLeaves", v)}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Pannello filtri collassabile */}
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>

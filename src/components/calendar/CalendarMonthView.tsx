@@ -308,33 +308,6 @@ export function CalendarMonthView({
         </div>
       </TooltipProvider>
 
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center"><Hammer className="h-2.5 w-2.5 text-white" /></div>
-          <span className="text-muted-foreground">Data Posa Prevista</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-amber-500 flex items-center justify-center"><Package className="h-2.5 w-2.5 text-white" /></div>
-          <span className="text-muted-foreground">Arrivo Merce</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="text-muted-foreground">Rischio logistico</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-green-500 flex items-center justify-center"><Wrench className="h-2.5 w-2.5 text-white" /></div>
-          <span className="text-muted-foreground">Lavori in corso</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-indigo-500 flex items-center justify-center"><CalendarClock className="h-2.5 w-2.5 text-white" /></div>
-          <span className="text-muted-foreground">Appuntamenti</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border border-dashed border-muted-foreground/40 bg-muted/60" />
-          <span className="text-muted-foreground">Google Calendar (occupato)</span>
-        </div>
-      </div>
-
       {editingOrder && (
         <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} />
       )}

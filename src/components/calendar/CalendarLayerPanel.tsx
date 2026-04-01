@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree } from "lucide-react";
+import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -221,6 +221,43 @@ export function CalendarLayerPanel({
           </div>
         </div>
       </ScrollArea>
+
+      {/* Legenda colori */}
+      <div className="pt-2 border-t border-border/50 space-y-1">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">Legenda</p>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-blue-500 flex items-center justify-center shrink-0">
+            <Hammer className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Data Posa Prevista</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-orange-500 flex items-center justify-center shrink-0">
+            <Package className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Arrivo Merce</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-green-500 flex items-center justify-center shrink-0">
+            <Wrench className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Lavori in corso</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-indigo-500 flex items-center justify-center shrink-0">
+            <CalendarClock className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Appuntamenti</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+          <span className="text-[10px] text-muted-foreground">Rischio logistico</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60 shrink-0" />
+          <span className="text-[10px] text-muted-foreground">Google Calendar</span>
+        </div>
+      </div>
     </div>
   );
 }
