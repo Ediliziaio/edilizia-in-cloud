@@ -282,6 +282,33 @@ Deno.serve(async (req) => {
         xml_content: xmlBody.slice(0, 5000),
       });
 
+      // ── Notifica in-app agli admin dell'azienda ──
+      try {
+        const { data: adminRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("company_id", azienda.company_id)
+          .in("role", ["company_admin", "admin"]);
+
+        if (adminRoles && adminRoles.length > 0) {
+          await supabase.from("notifications").insert(
+            adminRoles.map((r: any) => ({
+              company_id: azienda.company_id,
+              user_id: r.user_id,
+              type: "fattura_ricevuta",
+              title: "Nuova fattura passiva ricevuta",
+              body: `Fattura ${parsed.numero_fattura} da ${parsed.cedente_ragione_sociale} — €${parsed.totale_documento.toFixed(2)}`,
+              entity_type: "fattura_ricevuta",
+              entity_id: inserted?.id,
+              action_url: "/azienda/fatturazione/ricevute",
+            }))
+          );
+        }
+      } catch (notifErr) {
+        // Notifica non critica — logga ma non bloccare
+        console.warn("Notifica fattura ricevuta fallita:", notifErr);
+      }
+
       return new Response(
         JSON.stringify({ success: true, id: inserted?.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

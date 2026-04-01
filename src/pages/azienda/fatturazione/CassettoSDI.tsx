@@ -65,12 +65,14 @@ export default function CassettoSDI() {
     queryKey: ["cassetto-sdi", companyId, anno],
     enabled: !!companyId,
     queryFn: async () => {
+      // Filtro anno: usa .eq("anno") come primario + fallback su data_emissione per
+      // documenti in cui anno non è stato popolato correttamente all'insert (P1-05)
       const { data, error } = await supabase
         .from("documenti_fiscali" as never)
         .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
-        .eq("anno", anno)
+        .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
         .in("stato", ["inviata_sdi", "consegnata", "accettata", "rifiutata"])
         .order("data_emissione", { ascending: false });
 

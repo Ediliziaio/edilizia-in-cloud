@@ -80,6 +80,7 @@ export default function RegistroIVA() {
         .select("id, numero_fattura, data_fattura, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
         .eq("company_id", companyId!)
         .eq("anno", anno)
+        .is("deleted_at", null)
         .not("stato", "eq", "rifiutata")
         .order("data_fattura", { ascending: true });
       if (error) throw error;

@@ -420,12 +420,27 @@ Deno.serve(async (req) => {
       }
 
       if (!firmatoP7m && firmaProvider === "manuale") {
-        // Modalità manuale: l'XML non firmato viene salvato, l'utente dovrà:
-        // 1. Scaricare l'XML
-        // 2. Firmarlo con il proprio software di firma
-        // 3. Ricaricare il .p7m
-        // Per ora procediamo con l'invio del XML non firmato (Aruba B2B/PA può firmare per conto)
-        console.warn("Fattura PA senza firma digitale - invio XML non firmato");
+        // Modalità manuale: l'XML non firmato è stato salvato in storage.
+        // Per le fatture PA la firma è OBBLIGATORIA — blocchiamo l'invio con istruzioni chiare.
+        return new Response(
+          JSON.stringify({
+            error: "Fattura PA richiede firma digitale. Scaricare l'XML, firmarlo con software certificato (es. Aruba Sign, Namirial, DiKe), e ricaricare il file .p7m tramite l'apposita funzione.",
+            action: "download_and_sign",
+            xml_url: xmlPath,
+          }),
+          { status: 422, headers: getCorsHeaders(req) }
+        );
+      }
+
+      // Se Aruba Sign è configurato ma la firma non è riuscita, blocca anche in quel caso
+      if (!firmatoP7m) {
+        return new Response(
+          JSON.stringify({
+            error: "Firma digitale per fattura PA non riuscita. Verificare la configurazione Aruba Sign o procedere con firma manuale.",
+            action: "check_aruba_sign_config",
+          }),
+          { status: 422, headers: getCorsHeaders(req) }
+        );
       }
     }
 
