@@ -122,7 +122,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
             <Palette className="h-4 w-4 mr-2" />
             Progettazione custom
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { setOpen(false); toast.info("Funzionalità in arrivo"); }}>
+          <DropdownMenuItem onClick={() => { setOpen(false); navigate("/azienda/marketing/email?tab=modelli"); }}>
             <LayoutTemplate className="h-4 w-4 mr-2" />
             Modelli di email marketing
           </DropdownMenuItem>

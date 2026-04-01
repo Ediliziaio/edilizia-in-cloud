@@ -90,11 +90,6 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     }
   };
 
-  const handleComingSoon = (label: string) => (e: React.MouseEvent) => {
-    stopProp(e);
-    toast.info(`${label}: funzionalità in arrivo`);
-  };
-
   const handleDeleteClick = (e: React.MouseEvent) => {
     stopProp(e);
     setConfirmDelete(true);
