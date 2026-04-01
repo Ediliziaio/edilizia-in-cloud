@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   format,
   startOfMonth,
@@ -26,8 +27,9 @@ import {
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface CalendarEvent {
   type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave";
@@ -48,6 +50,7 @@ interface CalendarMonthViewProps {
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
   hiddenEventTypes?: Set<string>;
+  warehouseInfo?: Map<string, CalendarWarehouseInfo>;
 }
 
 export function CalendarMonthView({
@@ -59,12 +62,14 @@ export function CalendarMonthView({
   onDateChange,
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
+  warehouseInfo,
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>();
+  const [warehouseDrawer, setWarehouseDrawer] = useState<CalendarWarehouseInfo | null>(null);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -259,12 +264,20 @@ export function CalendarMonthView({
                     if (!event.order) return null;
                     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
                     const initials = getEmployeeInitials(event.order);
+                    const whInfo = event.type === "merce" && warehouseInfo ? warehouseInfo.get(event.order.id) : undefined;
 
                     return (
                       <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditingOrder(event.order!); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (event.type === "merce" && whInfo) {
+                                setWarehouseDrawer(whInfo);
+                              } else {
+                                setEditingOrder(event.order!);
+                              }
+                            }}
                             className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
                             style={{ backgroundColor: event.color }}
                           >
@@ -304,7 +317,22 @@ export function CalendarMonthView({
                                 {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
                               </div>
                             )}
-                            <p className="text-xs text-primary mt-1">Clicca per modificare le date</p>
+                            {event.type === "merce" && whInfo && (
+                              <div className="mt-1 space-y-1 border-t pt-1">
+                                <div className="flex gap-3 text-xs">
+                                  <span className="text-green-600 font-medium">✅ {whInfo.readyCount} pronti</span>
+                                  <span className="text-amber-600 font-medium">⏳ {whInfo.pendingCount} in attesa</span>
+                                </div>
+                                {whInfo.items.slice(0, 3).map(item => (
+                                  <div key={item.id} className="flex items-center justify-between text-xs">
+                                    <span className="truncate">{item.name}</span>
+                                    <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>{item.status}</span>
+                                  </div>
+                                ))}
+                                <p className="text-xs text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); setWarehouseDrawer(whInfo); }}>Vedi dettaglio →</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-primary mt-1">{event.type === "merce" && whInfo ? "Clicca per i dettagli magazzino" : "Clicca per modificare le date"}</p>
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -343,6 +371,43 @@ export function CalendarMonthView({
         showOrderSelect={true}
         hideMarketingFields={true}
       />
+
+      {/* Warehouse mini-drawer */}
+      {warehouseDrawer && (
+        <Sheet open={!!warehouseDrawer} onOpenChange={(open) => !open && setWarehouseDrawer(null)}>
+          <SheetContent side="right" className="w-full sm:max-w-sm">
+            <SheetHeader>
+              <SheetTitle className="text-sm">
+                {warehouseDrawer.orderCode ? `${warehouseDrawer.orderCode} · ` : ""}
+                {warehouseDrawer.customerName}
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-3">
+              <div className="flex gap-4 text-sm">
+                <span className="text-green-600 font-medium">✅ {warehouseDrawer.readyCount} pronti</span>
+                <span className="text-amber-600 font-medium">⏳ {warehouseDrawer.pendingCount} in attesa</span>
+              </div>
+              <div className="space-y-1">
+                {warehouseDrawer.items.map(item => (
+                  <div key={item.id} className="flex items-center justify-between text-xs border rounded px-2 py-1">
+                    <span className="truncate">{item.name}</span>
+                    <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Link
+                to={`/azienda/ordini/${warehouseDrawer.orderId}`}
+                className="block w-full text-center text-xs text-primary hover:underline mt-2"
+                onClick={() => setWarehouseDrawer(null)}
+              >
+                Vai all'ordine completo →
+              </Link>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </Card>
   );
 }

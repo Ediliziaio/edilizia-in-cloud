@@ -29,7 +29,7 @@ import {
 import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X } from "lucide-react";
 import { exportAppointmentsIcal } from "@/lib/icalExport";
 import { cn } from "@/lib/utils";
-import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
+import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot, CalendarWarehouseInfo } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -282,6 +282,23 @@ function CalendarInner() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Warehouse items for enriched "Arrivo Merce" events
+  const { data: warehouseItems = [] } = useQuery({
+    queryKey: ["calendar-warehouse-items", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("id, name, status, order_id")
+        .eq("order.company_id", effectiveCompany.id)
+        .not("order_id", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
@@ -297,6 +314,32 @@ function CalendarInner() {
       `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
     );
   }, [orders]);
+
+  // Build warehouse info map: orderId → CalendarWarehouseInfo
+  const warehouseInfoByOrderId = useMemo(() => {
+    const map = new Map<string, CalendarWarehouseInfo>();
+    for (const item of warehouseItems) {
+      if (!item.order_id) continue;
+      const order = orders.find(o => o.id === item.order_id);
+      if (!order) continue;
+      const existing = map.get(item.order_id) ?? {
+        orderId: item.order_id,
+        orderCode: order.order_code,
+        customerName: `${order.customer.first_name} ${order.customer.last_name}`,
+        readyCount: 0,
+        pendingCount: 0,
+        items: [],
+      };
+      const isReady = item.status === "in_magazzino" || item.status === "installato";
+      if (isReady) existing.readyCount++;
+      else existing.pendingCount++;
+      if (existing.items.length < 10) {
+        existing.items.push({ id: item.id, name: item.name, status: item.status ?? "" });
+      }
+      map.set(item.order_id, existing);
+    }
+    return map;
+  }, [warehouseItems, orders]);
 
   const goToToday = () => {
     setCurrentDate(new Date());
@@ -757,6 +800,7 @@ function CalendarInner() {
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
+              warehouseInfo={warehouseInfoByOrderId}
             />
           ) : view === "week" ? (
             <CalendarWeekView
@@ -768,6 +812,7 @@ function CalendarInner() {
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
+              warehouseInfo={warehouseInfoByOrderId}
             />
           ) : view === "day" ? (
             <CalendarDayView
@@ -779,6 +824,7 @@ function CalendarInner() {
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
+              warehouseInfo={warehouseInfoByOrderId}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView

@@ -65,6 +65,15 @@ export interface ApprovedLeave {
   employee: { id: string; first_name: string; last_name: string } | null;
 }
 
+export interface CalendarWarehouseInfo {
+  orderId: string;
+  orderCode: string | null;
+  customerName: string;
+  readyCount: number;
+  pendingCount: number;
+  items: Array<{ id: string; name: string; status: string }>;
+}
+
 export interface CalendarAppointment {
   id: string;
   title: string;

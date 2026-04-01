@@ -32,6 +32,7 @@ interface CalendarDayViewProps {
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
   hiddenEventTypes?: Set<string>;
+  warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
 }
 
 export function CalendarDayView({
