@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { AlertTriangle, CalendarDays, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, MapPin, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,11 @@ export interface AppointmentData {
   contact_id?: string | null;
   status?: string;
   reminder_minutes?: number | null;
+  formatted_address?: string | null;
+  address_city?: string | null;
+  address_province?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface AppointmentDialogProps {
@@ -68,6 +73,12 @@ const APPOINTMENT_TYPES = [
   { value: "cliente",                label: "Appuntamento Cliente",     group: "Altro" },
   { value: "generico",               label: "Generico",                 group: "Altro" },
 ];
+
+// Tipi che mostrano la sezione Luogo (sopralluoghi e associazione ordini)
+const SOPRALLUOGO_TYPES = new Set([
+  'sopralluogo_preventivo', 'rilievo_tecnico', 'misurazione', 'verifica_cantiere',
+  'posa_prova', 'collaudo', 'consegna', 'assistenza', 'ispezione', 'sopralluogo',
+]);
 
 // Tipi che richiedono un tecnico assegnato
 const REQUIRES_TECHNICIAN = new Set([
@@ -106,6 +117,9 @@ export function AppointmentDialog({
   const [contactId, setContactId] = useState("");
   const [status, setStatus] = useState("confermato");
   const [reminderMinutes, setReminderMinutes] = useState<string>("none");
+  const [formattedAddress, setFormattedAddress] = useState<string>("");
+  const [addressCity, setAddressCity] = useState<string>("");
+  const [addressProvince, setAddressProvince] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -121,6 +135,9 @@ export function AppointmentDialog({
       setContactId(appointment.contact_id || "");
       setStatus(appointment.status || "confermato");
       setReminderMinutes(appointment.reminder_minutes != null ? String(appointment.reminder_minutes) : "none");
+      setFormattedAddress(appointment.formatted_address || "");
+      setAddressCity(appointment.address_city || "");
+      setAddressProvince(appointment.address_province || "");
     } else {
       setTitle("");
       setDescription("");
@@ -133,6 +150,9 @@ export function AppointmentDialog({
       setContactId("");
       setStatus("confermato");
       setReminderMinutes("none");
+      setFormattedAddress("");
+      setAddressCity("");
+      setAddressProvince("");
     }
   }, [appointment, open, defaultOrderId, onlyAssigned, user?.id, defaultDate, defaultTime]);
 
@@ -235,6 +255,9 @@ export function AppointmentDialog({
         status: status,
         reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes) : null,
         reminder_sent: false,
+        formatted_address: formattedAddress.trim() || null,
+        address_city: addressCity.trim() || null,
+        address_province: addressProvince.trim() || null,
       };
 
       if (isEditing && appointment?.id) {
@@ -380,6 +403,33 @@ export function AppointmentDialog({
               </Select>
             </div>
           )}
+
+          {SOPRALLUOGO_TYPES.has(appointmentType) && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <MapPin className="h-4 w-4" />
+                Luogo
+              </Label>
+              <Input
+                value={formattedAddress}
+                onChange={(e) => setFormattedAddress(e.target.value)}
+                placeholder="Indirizzo completo"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  value={addressCity}
+                  onChange={(e) => setAddressCity(e.target.value)}
+                  placeholder="Città"
+                />
+                <Input
+                  value={addressProvince}
+                  onChange={(e) => setAddressProvince(e.target.value)}
+                  placeholder="Provincia"
+                />
+              </div>
+            </div>
+          )}
+
           <div className={hideMarketingFields ? "" : "grid grid-cols-2 gap-4"}>
             {!hideMarketingFields && (
               <div className="space-y-2">

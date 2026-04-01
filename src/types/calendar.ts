@@ -86,6 +86,10 @@ export interface CalendarAppointment {
     description: string;
   } | null;
   status?: string;
+  formatted_address?: string | null;
+  address_city?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   assigned_profile?: {
     first_name: string;
     last_name: string;

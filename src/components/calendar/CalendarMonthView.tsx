@@ -16,7 +16,7 @@ import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, MapPin, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -219,6 +219,18 @@ export function CalendarMonthView({
                             {apt.appointment_time && <p className="text-xs">Ore: {apt.appointment_time.slice(0, 5)}</p>}
                             {apt.description && <p className="text-xs text-muted-foreground">{apt.description}</p>}
                             {apt.assigned_profile && <p className="text-xs flex items-center gap-1"><Users className="h-3 w-3" />Assegnato a: {apt.assigned_profile.first_name} {apt.assigned_profile.last_name}</p>}
+                            {apt.formatted_address && (
+                              <a
+                                href={apt.lat && apt.lng ? `https://www.google.com/maps/search/?api=1&query=${apt.lat},${apt.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(apt.formatted_address)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MapPin className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{apt.formatted_address}</span>
+                              </a>
+                            )}
                             {isSynced && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3 w-3" />Sincronizzato con Google</p>}
                             <p className="text-xs text-primary mt-1">Clicca per modificare</p>
                           </TooltipContent>
