@@ -48,6 +48,7 @@ import {
   installmentsToLegacyColumns,
 } from "@/lib/orderUtils";
 import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
+import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 
 function CreateOrderInner() {
   const navigate = useNavigate();
@@ -82,6 +83,7 @@ function CreateOrderInner() {
     description,
     internal_notes: internalNotes,
     assigned_to: assignedTo,
+    destination_warehouse_id: destinationWarehouseId,
   } = watch();
   const paymentType = _paymentTypeRaw as PaymentType;
 
@@ -311,6 +313,7 @@ function CreateOrderInner() {
         financing_cost: fCost,
         has_building_bonus: values.has_building_bonus,
         assigned_to: values.assigned_to || null,
+        destination_warehouse_id: values.destination_warehouse_id || null,
       };
 
       const itemsPayload = orderItems.map((item, index) => ({
@@ -681,6 +684,17 @@ function CreateOrderInner() {
                 onChange={(val) => setValue("assigned_to", val)}
                 disabled={onlyAssigned}
               />
+
+              {/* Magazzino destinazione materiali */}
+              <div className="space-y-2">
+                <Label>Magazzino Destinazione Materiali</Label>
+                <WarehouseSelect
+                  value={destinationWarehouseId}
+                  onChange={(id) => setValue("destination_warehouse_id", id)}
+                  nullable
+                  placeholder="Magazzino predefinito"
+                />
+              </div>
             </CardContent>
           </Card>
 

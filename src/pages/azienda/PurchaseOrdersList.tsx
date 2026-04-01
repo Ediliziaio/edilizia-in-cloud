@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Package, Plus, Loader2, Search, Truck } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -42,6 +43,7 @@ export default function PurchaseOrdersList() {
   const [newOpen, setNewOpen] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState("");
   const [newDelivery, setNewDelivery] = useState("");
+  const [newWarehouseId, setNewWarehouseId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = orders;
@@ -78,12 +80,13 @@ export default function PurchaseOrdersList() {
   const handleCreate = () => {
     if (!newSupplierId) return;
     create.mutate(
-      { supplier_id: newSupplierId, expected_delivery_date: newDelivery || undefined },
+      { supplier_id: newSupplierId, expected_delivery_date: newDelivery || undefined, delivery_warehouse_id: newWarehouseId },
       {
         onSuccess: (data: any) => {
           setNewOpen(false);
           setNewSupplierId("");
           setNewDelivery("");
+          setNewWarehouseId(null);
           navigate(`/azienda/ordini-acquisto/${data.id}`);
         },
       }
@@ -234,6 +237,15 @@ export default function PurchaseOrdersList() {
             <div className="space-y-2">
               <Label>Data consegna prevista (opzionale)</Label>
               <Input type="date" value={newDelivery} onChange={(e) => setNewDelivery(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Magazzino di destinazione (opzionale)</Label>
+              <WarehouseSelect
+                value={newWarehouseId}
+                onChange={setNewWarehouseId}
+                nullable
+                placeholder="Magazzino predefinito"
+              />
             </div>
           </div>
           <DialogFooter>

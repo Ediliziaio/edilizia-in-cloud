@@ -24,6 +24,7 @@ export interface PurchaseOrder {
   attachment_url: string | null;
   supplier_reference: string | null;
   delivery_address: string | null;
+  delivery_warehouse_id: string | null;
   sent_at: string | null;
   confirmed_at: string | null;
   created_by: string | null;
@@ -78,7 +79,7 @@ export function usePurchaseOrders() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (params: { supplier_id: string; notes?: string; expected_delivery_date?: string }) => {
+    mutationFn: async (params: { supplier_id: string; notes?: string; expected_delivery_date?: string; delivery_warehouse_id?: string | null }) => {
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -87,6 +88,7 @@ export function usePurchaseOrders() {
           supplier_id: params.supplier_id,
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
+          delivery_warehouse_id: params.delivery_warehouse_id || null,
           created_by: user?.id,
         } as any)
         .select()
