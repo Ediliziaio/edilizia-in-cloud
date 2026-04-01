@@ -9,6 +9,7 @@ import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
+import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
@@ -147,6 +148,7 @@ export default function Scadenzario() {
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
               <TabsTrigger value="pagate">Pagate</TabsTrigger>
+              <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2">
@@ -246,27 +248,32 @@ export default function Scadenzario() {
         )}
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+      {/* Adempimenti Fiscali tab */}
+      {tab === "adempimenti" ? (
+        <AdempimentiFiscali />
       ) : (
-        <>
-          <ScadenzarioTable
-            scadenze={filtered}
-            onMarkPaid={(s) => setPayDialog(s)}
-            onCancel={(id) => cancel.mutate(id)}
-          />
-          <TablePagination
-            currentPage={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={totalCount}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-          />
-        </>
+        /* Table */
+        isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            <ScadenzarioTable
+              scadenze={filtered}
+              onMarkPaid={(s) => setPayDialog(s)}
+              onCancel={(id) => cancel.mutate(id)}
+            />
+            <TablePagination
+              currentPage={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            />
+          </>
+        )
       )}
 
       {/* Dialogs */}
