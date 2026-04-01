@@ -1,26 +1,31 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, getCorsHeaders } from '../_shared/headers.ts'
+import { getCorsHeaders } from '../_shared/headers.ts'
+import { requireAuth } from '../_shared/auth.ts'
+import { verifyCompanyAccess } from '../_shared/companyAuth.ts'
 
 Deno.serve(async (req) => {
+  const corsH = getCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req) })
+    return new Response('ok', { headers: corsH })
   }
 
   try {
+    // ── AUTH: verifica JWT e appartenenza all'azienda ─────────
+    const { userId, supabaseAdmin: supabase } = await requireAuth(req, corsH)
+
     const body = await req.json()
     const { action, company_id, sede_id, ...payload } = body
 
     if (!action || !company_id) {
       return new Response(
         JSON.stringify({ error: 'action e company_id richiesti' }),
-        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
       )
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    // Verifica che l'utente autenticato appartenga alla company richiesta
+    await verifyCompanyAccess(supabase, userId, company_id)
 
     // ── CREA SEDE ────────────────────────────────────────────
     if (action === 'crea') {
@@ -45,7 +50,7 @@ Deno.serve(async (req) => {
             error:   'LIMITE_PIANO',
             message: 'Upgrade a Pro per aggiungere più sedi'
           }),
-          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...corsH, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -59,7 +64,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -68,7 +73,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per aggiornamento' }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -91,7 +96,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -100,7 +105,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per disattivazione' }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -112,7 +117,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -121,7 +126,7 @@ Deno.serve(async (req) => {
       if (!sede_id) {
         return new Response(
           JSON.stringify({ error: 'sede_id richiesto per eliminazione' }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -133,20 +138,22 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
       )
     }
 
     return new Response(
       JSON.stringify({ error: `Azione non riconosciuta: ${action}` }),
-      { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
     )
 
   } catch (err) {
+    // requireAuth / verifyCompanyAccess lanciano Response direttamente
+    if (err instanceof Response) return err
     console.error('[gestisci-sede] unexpected error:', err)
     return new Response(
       JSON.stringify({ error: 'Errore interno del server' }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsH, 'Content-Type': 'application/json' } }
     )
   }
 })
