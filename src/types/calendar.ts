@@ -54,6 +54,17 @@ export interface GoogleBusySlot {
   google_calendar_id: string | null;
 }
 
+export interface ApprovedLeave {
+  id: string;
+  employee_id: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number | null;
+  total_hours: number | null;
+  employee: { id: string; first_name: string; last_name: string } | null;
+}
+
 export interface CalendarAppointment {
   id: string;
   title: string;

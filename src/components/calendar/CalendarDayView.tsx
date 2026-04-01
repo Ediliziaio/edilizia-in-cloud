@@ -18,21 +18,10 @@ import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
+import { toast } from "sonner";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
-
-interface ApprovedLeave {
-  id: string;
-  employee_id: string;
-  type: string;
-  start_date: string;
-  end_date: string;
-  total_days: number | null;
-  total_hours: number | null;
-  employee: { id: string; first_name: string; last_name: string } | null;
-}
 
 interface CalendarDayViewProps {
   orders: CalendarOrder[];
@@ -114,13 +103,13 @@ export function CalendarDayView({
     setEditingAppointment({
       id: undefined,
       title: "",
-      appointment_type: "appuntamento_cliente",
+      description: null,
+      appointment_type: "generico",
       appointment_date: dateStr,
       appointment_time: time,
-      duration_minutes: 60,
-      notes: "",
-      technician_id: null,
-      calendar_id: null,
+      assigned_to: null,
+      order_id: null,
+      is_completed: false,
     });
     setAppointmentDialogOpen(true);
   };

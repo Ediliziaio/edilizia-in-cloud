@@ -22,22 +22,11 @@ import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointment
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
+import { toast } from "sonner";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-
-interface ApprovedLeave {
-  id: string;
-  employee_id: string;
-  type: string;
-  start_date: string;
-  end_date: string;
-  total_days: number | null;
-  total_hours: number | null;
-  employee: { id: string; first_name: string; last_name: string } | null;
-}
 
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
@@ -192,9 +181,9 @@ export function CalendarWeekView({
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       }
-      toast({ title: "Evento spostato" });
+      toast("Evento spostato");
     } catch (e: any) {
-      toast({ title: "Errore", description: e.message, variant: "destructive" });
+      toast.error(`Errore: ${e.message}`);
     }
     setPendingDrop(null);
   };

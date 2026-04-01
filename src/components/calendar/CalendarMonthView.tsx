@@ -26,19 +26,8 @@ import {
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
-
-interface ApprovedLeave {
-  id: string;
-  employee_id: string;
-  type: string;
-  start_date: string;
-  end_date: string;
-  total_days: number | null;
-  total_hours: number | null;
-  employee: { id: string; first_name: string; last_name: string } | null;
-}
 
 interface CalendarEvent {
   type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave";

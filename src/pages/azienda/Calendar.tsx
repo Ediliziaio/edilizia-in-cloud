@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, Cale
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function CalendarInner() {
   const { effectiveCompany } = useAuth();
@@ -801,32 +803,25 @@ function CalendarInner() {
                     <p className="font-medium text-sm">{conflict.employeeName}</p>
                     <p className="text-xs text-muted-foreground">{conflict.date}</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs shrink-0"
-                    disabled={notifyingConflict === `${conflict.employeeId}-${conflict.date}`}
-                    onClick={async () => {
-                      setNotifyingConflict(`${conflict.employeeId}-${conflict.date}`);
-                      try {
-                        const eventList = conflict.events.map(e => `• ${e.label}`).join("\n");
-                        await supabase.functions.invoke("send-test-email", {
-                          body: {
-                            to: `${conflict.employeeName.toLowerCase().replace(/\s+/g, ".")}@placeholder.local`,
-                            subject: `⚠️ Conflitto calendario: ${conflict.date}`,
-                            html: `<p>Ciao ${conflict.employeeName},</p><p>Sei assegnato a più eventi il <strong>${conflict.date}</strong>:</p><pre>${eventList}</pre><p>Verifica il calendario.</p>`,
-                          },
-                        });
-                        toast({ title: "Notifica inviata", description: `Email inviata per ${conflict.employeeName}` });
-                      } catch {
-                        toast({ title: "Errore invio notifica", variant: "destructive" });
-                      } finally {
-                        setNotifyingConflict(null);
-                      }
-                    }}
-                  >
-                    Notifica
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-xs shrink-0"
+                            disabled
+                          >
+                            Notifica
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Configura le email dei dipendenti per attivare le notifiche</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 <div className="space-y-1">
                   {conflict.events.map((evt, ei) => (
