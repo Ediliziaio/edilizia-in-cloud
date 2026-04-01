@@ -22,12 +22,12 @@ Deno.serve(async (req) => {
       return errorResponse("Non autorizzato", 401);
     }
     const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authErr } = await supabase.auth.getClaims(token);
-    if (authErr || !claims?.claims?.sub) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user?.id) {
       return errorResponse("Token non valido", 401);
     }
 
-    const userId = claims.claims.sub;
+    const userId = user.id;
 
     // Verify caller belongs to the company (or is super_admin)
     const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);

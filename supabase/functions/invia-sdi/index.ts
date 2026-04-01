@@ -242,11 +242,11 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authErr } = await supabase.auth.getClaims(token);
-    if (authErr || !claims?.claims) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: getCorsHeaders(req) });
     }
-    const userId = claims.claims.sub;
+    const userId = user.id;
 
     const { documento_id } = await req.json();
     if (!documento_id) {
@@ -269,7 +269,10 @@ Deno.serve(async (req) => {
 
     // Verify stato
     if (doc.stato !== "emessa") {
-      return new Response(JSON.stringify({ error: "Il documento deve essere in stato 'emessa' per inviare a SDI" }), { status: 422, headers: getCorsHeaders(req) });
+      const statoMsg = doc.stato === "bozza"
+        ? "Il documento è in stato 'bozza'. Azione: aprire il documento e cliccare 'Emetti' prima di inviare all'SDI."
+        : `Il documento deve essere in stato 'emessa' per inviare a SDI (stato attuale: '${doc.stato}').`;
+      return new Response(JSON.stringify({ error: statoMsg }), { status: 422, headers: getCorsHeaders(req) });
     }
 
     // Load azienda
@@ -437,7 +440,12 @@ Deno.serve(async (req) => {
       // Docs: https://fatturazioneelettronica.aruba.it/apidoc/docs.html
       // Endpoint corretto: /services/invoice/upload (XML in Base64 dentro JSON)
       // Per file già firmati (.p7m): /services/invoice/uploadSigned
-      const arubaBaseUrl = "https://ws.fatturazioneelettronica.aruba.it";
+      // PRODUZIONE: https://ws.fatturazioneelettronica.aruba.it
+      // SANDBOX:    https://fatturazionetest.aruba.it
+      const isSandbox = Deno.env.get("ARUBA_SANDBOX") === "true" || azienda.sdi_sandbox === true;
+      const arubaBaseUrl = isSandbox
+        ? "https://fatturazionetest.aruba.it"
+        : "https://ws.fatturazioneelettronica.aruba.it";
       const uploadEndpoint = firmatoP7m
         ? `${arubaBaseUrl}/services/invoice/uploadSigned`
         : `${arubaBaseUrl}/services/invoice/upload`;

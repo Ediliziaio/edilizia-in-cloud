@@ -784,12 +784,12 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
+    const { data: { user }, error: claimsErr } = await supabase.auth.getUser(token);
+    if (claimsErr || !user) {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const userId = claimsData.claims.sub as string;
+    const userId = user.id;
     const { companyId, appointmentId } = body;
 
     if (!companyId) return json({ error: "companyId required" }, 400);

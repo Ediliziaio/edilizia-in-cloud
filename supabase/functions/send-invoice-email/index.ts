@@ -119,9 +119,9 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
-    const userId = claimsData.claims.sub as string;
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) return json({ error: "Unauthorized" }, 401);
+    const userId = user.id;
 
     const { invoice_id, to_email, subject, message } = await req.json();
     if (!invoice_id || !to_email) return json({ error: "invoice_id and to_email required" }, 400);
