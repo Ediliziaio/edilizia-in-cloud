@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle, Copy, Check } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Info } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,6 +22,9 @@ export default function FacebookFormsPage() {
   const companyId = (effectiveCompany as any)?.id;
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // M10 — App Review checklist
+  const [reviewDismissed, setReviewDismissed] = useState(false);
+  const [reviewChecked, setReviewChecked] = useState<Record<string, boolean>>({});
 
   const handleCopyId = (id: string) => {
     navigator.clipboard.writeText(id);
@@ -161,6 +166,74 @@ export default function FacebookFormsPage() {
           </p>
         </div>
       </div>
+
+      {/* M10 — Meta App Review Banner */}
+      {!reviewDismissed && (() => {
+        const CHECKLIST = [
+          { id: "privacy_policy", label: "Privacy Policy pubblica raggiungibile da URL", required: true },
+          { id: "lead_ads_tos", label: "Accettazione Lead Ads Terms of Service in Business Manager", required: true },
+          { id: "dati_campi", label: "Campi del modulo configurati correttamente (nome, email, tel)", required: true },
+          { id: "webhook_url", label: "Webhook URL verificato in Meta Developer Console", required: true },
+          { id: "test_lead", label: "Test lead inviato e ricevuto con successo", required: false },
+          { id: "cta_form", label: "CTA del modulo chiara e conforme alle policy Meta", required: false },
+          { id: "disclaimer", label: "Disclaimer GDPR presente nel modulo lead", required: true },
+        ];
+        const checkedCount = Object.values(reviewChecked).filter(Boolean).length;
+        const requiredChecklist = CHECKLIST.filter((c) => c.required);
+        const allRequiredDone = requiredChecklist.every((c) => reviewChecked[c.id]);
+        return (
+          <Alert className="border-blue-200 bg-blue-50">
+            <ShieldCheck className="h-4 w-4 text-blue-600" aria-hidden="true" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1">
+                <AlertTitle className="text-blue-800">Meta App Review — Checklist</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <p className="text-xs text-blue-700 mb-3">
+                    Per evitare blocchi all'app in fase di review Meta, verifica questi requisiti prima di andare in produzione.
+                  </p>
+                  <div className="space-y-2">
+                    {CHECKLIST.map((item) => (
+                      <div key={item.id} className="flex items-start gap-2">
+                        <Checkbox
+                          id={`review-${item.id}`}
+                          checked={!!reviewChecked[item.id]}
+                          onCheckedChange={(v) => setReviewChecked((prev) => ({ ...prev, [item.id]: !!v }))}
+                          className="mt-0.5 shrink-0"
+                        />
+                        <label htmlFor={`review-${item.id}`} className="text-xs text-blue-800 cursor-pointer leading-relaxed">
+                          {item.label}
+                          {item.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-blue-200">
+                    <div className="text-xs text-blue-700">
+                      {checkedCount}/{CHECKLIST.length} completati
+                      {allRequiredDone && (
+                        <span className="ml-2 text-green-700 font-medium">✓ Tutti i requisiti richiesti soddisfatti</span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href="https://developers.facebook.com/docs/graph-api/overview/access-levels"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        Guida Meta <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800" onClick={() => setReviewDismissed(true)}>
+                        Chiudi
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        );
+      })()}
 
       <Card>
         <CardHeader>
