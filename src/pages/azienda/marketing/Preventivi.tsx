@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import AnalisiPreventivi from "./AnalisiPreventivi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -96,13 +97,20 @@ import {
   TrendingUp,
   Clock,
   Target,
+  BrainCircuit,
 } from "lucide-react";
 
 export default function Preventivi() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth() as any;
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "lista";
+  const isAdmin = role === "company_admin" || role === "super_admin";
+  const handleTabChange = (tab: string) => {
+    setSearchParams(tab === "lista" ? {} : { tab });
+  };
 
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
@@ -338,6 +346,37 @@ export default function Preventivi() {
 
   return (
     <div className="space-y-6">
+      {/* ─── Tab navigation ─────────────────────────────────────────── */}
+      <div className="border-b mb-2">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => handleTabChange("lista")}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "lista"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Lista Preventivi
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => handleTabChange("analisi")}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === "analisi"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <BrainCircuit className="h-4 w-4" />
+              Analisi AI
+            </button>
+          )}
+        </nav>
+      </div>
+
+      {activeTab === "lista" && (
+        <>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Preventivi</h1>
@@ -614,6 +653,10 @@ export default function Preventivi() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </>
+      )}
+
+      {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
     </div>
   );
 }

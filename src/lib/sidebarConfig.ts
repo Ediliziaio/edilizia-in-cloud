@@ -166,7 +166,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewMarketingOpportunities" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
-      { title: "Analisi AI Preventivi", url: "/azienda/marketing/analisi-preventivi", icon: BrainCircuit, permissionKey: "canViewMarketingReports" },
     ],
   },
 

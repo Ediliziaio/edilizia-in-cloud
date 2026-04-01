@@ -237,7 +237,7 @@ export function companyRoutes() {
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
-        <Route path="marketing/analisi-preventivi" element={<AnalisiPreventivi />} />
+        <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
         <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
