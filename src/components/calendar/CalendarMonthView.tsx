@@ -28,6 +28,8 @@ import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo } from "@/types/calendar";
+import { WeatherBadge } from "./WeatherBadge";
+import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -51,6 +53,7 @@ interface CalendarMonthViewProps {
   syncedAppointmentIds?: Set<string>;
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, CalendarWarehouseInfo>;
+  weatherForecast?: Map<string, WeatherDay>;
 }
 
 export function CalendarMonthView({
@@ -63,6 +66,7 @@ export function CalendarMonthView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
   warehouseInfo,
+  weatherForecast,
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -169,14 +173,20 @@ export function CalendarMonthView({
                   !isCurrentMonth && "bg-muted/50"
                 )}
               >
-                <div
-                  className={cn(
-                    "text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full",
-                    isToday && "bg-primary text-primary-foreground",
-                    !isCurrentMonth && "text-muted-foreground"
-                  )}
-                >
-                  {format(day, "d")}
+                <div className="flex items-center justify-between mb-1">
+                  <div
+                    className={cn(
+                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
+                      isToday && "bg-primary text-primary-foreground",
+                      !isCurrentMonth && "text-muted-foreground"
+                    )}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  {weatherForecast && (() => {
+                    const w = weatherForecast.get(format(day, "yyyy-MM-dd"));
+                    return w ? <span className="text-[10px] leading-none">{weatherCodeToEmoji(w.code)}</span> : null;
+                  })()}
                 </div>
 
                 <div className="space-y-1">

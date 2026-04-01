@@ -24,6 +24,8 @@ import { AppointmentDialog, type AppointmentData } from "@/components/appointmen
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
+import { WeatherBadge } from "./WeatherBadge";
+import type { WeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -38,6 +40,7 @@ interface CalendarWeekViewProps {
   syncedAppointmentIds?: Set<string>;
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
+  weatherForecast?: Map<string, WeatherDay>;
 }
 
 // ── Draggable wrapper ──
@@ -69,6 +72,7 @@ export function CalendarWeekView({
   onDateChange,
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
+  weatherForecast,
 }: CalendarWeekViewProps) {
   const queryClient = useQueryClient();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -300,6 +304,10 @@ export function CalendarWeekView({
             >
               <div>{WEEK_DAYS_IT_FULL[i]}</div>
               <div className="text-lg font-bold">{format(day, "d")}</div>
+              {weatherForecast && (() => {
+                const w = weatherForecast.get(format(day, "yyyy-MM-dd"));
+                return w ? <WeatherBadge weather={w} size="sm" showTemp /> : null;
+              })()}
             </div>
           ))}
 

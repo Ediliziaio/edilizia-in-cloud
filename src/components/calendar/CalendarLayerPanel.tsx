@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle } from "lucide-react";
+import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -38,6 +38,8 @@ interface CalendarLayerPanelProps {
   onToggleMerce: (v: boolean) => void;
   onToggleGoogleBusy: (v: boolean) => void;
   onToggleLeaves: (v: boolean) => void;
+  showWeather: boolean;
+  onToggleWeather: (v: boolean) => void;
 }
 
 export function CalendarLayerPanel({
@@ -61,6 +63,8 @@ export function CalendarLayerPanel({
   onToggleMerce,
   onToggleGoogleBusy,
   onToggleLeaves,
+  showWeather,
+  onToggleWeather,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
 
@@ -217,6 +221,17 @@ export function CalendarLayerPanel({
               icon={<CalendarClock className="h-3 w-3 text-muted-foreground" />}
               label="Google Calendar"
               colorDot="bg-muted-foreground"
+            />
+          </div>
+
+          {/* Meteo */}
+          <div className="pt-1">
+            <LayerCheckbox
+              checked={showWeather}
+              onCheckedChange={onToggleWeather}
+              icon={<Cloud className="h-3 w-3 text-sky-500" />}
+              label="Previsioni Meteo"
+              colorDot="bg-sky-500"
             />
           </div>
         </div>

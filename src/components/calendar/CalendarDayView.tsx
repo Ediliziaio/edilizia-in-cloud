@@ -20,6 +20,8 @@ import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
+import { WeatherBadge } from "./WeatherBadge";
+import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 
@@ -33,6 +35,7 @@ interface CalendarDayViewProps {
   syncedAppointmentIds?: Set<string>;
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
+  weatherForecast?: Map<string, WeatherDay>;
 }
 
 export function CalendarDayView({
@@ -44,6 +47,7 @@ export function CalendarDayView({
   onDateChange,
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
+  weatherForecast,
 }: CalendarDayViewProps) {
   const queryClient = useQueryClient();
   const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -132,6 +136,33 @@ export function CalendarDayView({
           <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
+
+      {/* Weather card */}
+      {weatherForecast && (() => {
+        const w = weatherForecast.get(dateStr);
+        if (!w) return null;
+        const isHeavyRain = w.precip > 20;
+        const isRainy = w.precip > 5;
+        return (
+          <div className={cn(
+            "mb-3 flex items-center gap-3 p-2 rounded-lg border text-sm",
+            isHeavyRain ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" :
+            isRainy ? "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800" :
+            "bg-sky-50 border-sky-200 dark:bg-sky-900/20 dark:border-sky-800"
+          )}>
+            <span className="text-2xl">{weatherCodeToEmoji(w.code)}</span>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{w.minTemp}° – {w.maxTemp}°C</span>
+                {w.precip > 0 && <span className="text-xs text-blue-600">{w.precip}mm</span>}
+              </div>
+              <p className={cn("text-xs", isHeavyRain ? "text-red-600 font-medium" : isRainy ? "text-orange-600" : "text-green-600")}>
+                {isHeavyRain ? "⚠️ Lavori esterni sconsigliati" : isRainy ? "⚠️ Rischio pioggia" : "✓ Ideale per lavori esterni"}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* All-day events */}
       {allDayEvents.length > 0 && (

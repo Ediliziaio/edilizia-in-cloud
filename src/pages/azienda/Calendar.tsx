@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
@@ -64,11 +65,12 @@ function CalendarInner() {
     showMerce: savedPrefs.showMerce ?? true,
     showGoogleBusy: savedPrefs.showGoogleBusy ?? true,
     showLeaves: savedPrefs.showLeaves ?? true,
+    showWeather: savedPrefs.showWeather ?? true,
   });
   const setLayer = useCallback((layer: keyof typeof layerVisibility, v: boolean) => {
     setLayerVisibility(prev => ({ ...prev, [layer]: v }));
   }, []);
-  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves } = layerVisibility;
+  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showWeather } = layerVisibility;
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
@@ -91,6 +93,9 @@ function CalendarInner() {
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds]);
+
+  // Weather forecast (Milan default)
+  const { data: weatherForecast } = useWeatherForecast();
 
   // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
@@ -643,6 +648,7 @@ function CalendarInner() {
                 showMerce={showMerce}
                 showGoogleBusy={showGoogleBusy}
                 showLeaves={showLeaves}
+                showWeather={showWeather}
                 onToggleEmployee={(id) => {
                   const next = new Set(effectiveVisibleEmployees);
                   next.has(id) ? next.delete(id) : next.add(id);
@@ -665,6 +671,7 @@ function CalendarInner() {
                 onToggleMerce={(v) => setLayer("showMerce", v)}
                 onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
                 onToggleLeaves={(v) => setLayer("showLeaves", v)}
+                onToggleWeather={(v) => setLayer("showWeather", v)}
               />
             </div>
           </SheetContent>
@@ -801,6 +808,7 @@ function CalendarInner() {
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
+              weatherForecast={showWeather ? weatherForecast : undefined}
             />
           ) : view === "week" ? (
             <CalendarWeekView
@@ -813,6 +821,7 @@ function CalendarInner() {
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
+              weatherForecast={showWeather ? weatherForecast : undefined}
             />
           ) : view === "day" ? (
             <CalendarDayView
@@ -825,6 +834,7 @@ function CalendarInner() {
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
+              weatherForecast={showWeather ? weatherForecast : undefined}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
@@ -856,6 +866,7 @@ function CalendarInner() {
             showMerce={showMerce}
             showGoogleBusy={showGoogleBusy}
             showLeaves={showLeaves}
+            showWeather={showWeather}
             onToggleEmployee={(id) => {
               const next = new Set(effectiveVisibleEmployees);
               next.has(id) ? next.delete(id) : next.add(id);
@@ -878,6 +889,7 @@ function CalendarInner() {
             onToggleMerce={(v) => setLayer("showMerce", v)}
             onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
             onToggleLeaves={(v) => setLayer("showLeaves", v)}
+            onToggleWeather={(v) => setLayer("showWeather", v)}
           />
         )}
       </div>
