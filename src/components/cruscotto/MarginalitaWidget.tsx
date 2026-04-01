@@ -40,7 +40,7 @@ export function MarginalitaWidget() {
     queryKey: ["marginalita-widget", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("v_ordine_marginalita" as any)
+        .from("v_ordine_marginalita")
         .select("id, order_code, description, preventivo_totale, consuntivo, margine, margine_perc")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })

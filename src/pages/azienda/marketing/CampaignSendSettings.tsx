@@ -122,7 +122,7 @@ export default function CampaignSendSettings() {
     enabled: !!company?.id,
     queryFn: async () => {
       const { data } = await (supabase
-        .from("email_credits" as any)
+        .from("email_credits")
         .select("balance_eur, total_spent_eur") as any)
         .eq("company_id", company!.id)
         .maybeSingle();

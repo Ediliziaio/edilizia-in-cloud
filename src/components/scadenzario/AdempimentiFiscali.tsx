@@ -114,7 +114,7 @@ export default function AdempimentiFiscali() {
     queryKey: ["adempimenti-fiscali", companyId, filterYear],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("adempimenti_fiscali" as any)
+        .from("adempimenti_fiscali")
         .select("*")
         .eq("company_id", companyId!)
         .gte("scadenza", `${filterYear}-01-01`)
@@ -130,7 +130,7 @@ export default function AdempimentiFiscali() {
     mutationFn: async () => {
       if (!form.titolo.trim()) throw new Error("Titolo obbligatorio");
       if (!form.scadenza) throw new Error("Scadenza obbligatoria");
-      const { error } = await supabase.from("adempimenti_fiscali" as any).insert({
+      const { error } = await supabase.from("adempimenti_fiscali").insert({
         company_id: companyId,
         titolo: form.titolo.trim(),
         descrizione: form.descrizione.trim() || null,
@@ -156,7 +156,7 @@ export default function AdempimentiFiscali() {
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const { error } = await supabase
-        .from("adempimenti_fiscali" as any)
+        .from("adempimenti_fiscali")
         .update({ stato })
         .eq("id", id);
       if (error) throw new Error(error.message);

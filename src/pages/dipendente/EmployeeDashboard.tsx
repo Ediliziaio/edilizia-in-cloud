@@ -124,7 +124,7 @@ export default function EmployeeDashboard() {
     queryKey: ["my-cedolini", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("cedolini" as any)
+        .from("cedolini")
         .select("id, mese, anno, lordo, netto, stato")
         .eq("employee_id", user!.id)
         .order("anno", { ascending: false })

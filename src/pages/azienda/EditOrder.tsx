@@ -453,7 +453,7 @@ function EditOrderInner() {
       if (error) throw error;
 
       // Upsert installments: delete old, insert new
-      await supabase.from("order_installments" as any).delete().eq("order_id", id!);
+      await supabase.from("order_installments").delete().eq("order_id", id!);
       if (installmentsForSave.length > 0) {
         const instRows = installmentsForSave.map(i => ({
           order_id: id!,
@@ -465,7 +465,7 @@ function EditOrderInner() {
           paid_date: i.paid_date || null,
           expected_date: i.expected_date || null,
         }));
-        await supabase.from("order_installments" as any).insert(instRows);
+        await supabase.from("order_installments").insert(instRows);
       }
 
       // Handle order items (same logic as before)

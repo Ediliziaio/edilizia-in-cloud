@@ -37,7 +37,7 @@ export function useAdminSidebarBadges() {
           .eq("key", "maintenance_mode")
           .maybeSingle(),
         supabase
-          .from("platform_announcements" as any)
+          .from("platform_announcements")
           .select("id", { count: "exact", head: true })
           .eq("is_active", false),
       ]);

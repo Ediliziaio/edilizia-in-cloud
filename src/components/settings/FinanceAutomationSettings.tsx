@@ -34,7 +34,7 @@ export function FinanceAutomationSettings() {
     queryKey: queryKeys.scadenzaPrefs.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("scadenza_alert_prefs" as any)
+        .from("scadenza_alert_prefs")
         .select("*")
         .eq("company_id", companyId!)
         .maybeSingle();

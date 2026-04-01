@@ -143,7 +143,7 @@ export default function MarginalitaCantieri() {
     queryKey: ["marginalita-cantieri", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("v_ordine_marginalita" as any)
+        .from("v_ordine_marginalita")
         .select("*")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })

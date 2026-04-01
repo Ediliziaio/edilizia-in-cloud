@@ -25,14 +25,14 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
     queryKey,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("task_comments" as any)
+        .from("task_comments")
         .select("*, profile:profiles!task_comments_user_id_fkey(first_name, last_name)")
         .eq("task_id", taskId)
         .order("created_at", { ascending: true });
       if (error) {
         // Fallback without join if FK name doesn't match
         const { data: d2, error: e2 } = await supabase
-          .from("task_comments" as any)
+          .from("task_comments")
           .select("*")
           .eq("task_id", taskId)
           .order("created_at", { ascending: true });
@@ -46,7 +46,7 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
   const addMutation = useMutation({
     mutationFn: async (text: string) => {
       if (!user) throw new Error("Non autenticato");
-      const { error } = await supabase.from("task_comments" as any).insert({
+      const { error } = await supabase.from("task_comments").insert({
         task_id: taskId,
         user_id: user.id,
         content: text,
@@ -62,7 +62,7 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("task_comments" as any).delete().eq("id", id);
+      const { error } = await supabase.from("task_comments").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),

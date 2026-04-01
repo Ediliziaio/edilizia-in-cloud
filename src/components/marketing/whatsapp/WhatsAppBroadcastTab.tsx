@@ -20,7 +20,7 @@ function BroadcastFailureDetails({ broadcastId }: { broadcastId: string }) {
     queryKey: ["broadcast-failed-recipients", broadcastId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("whatsapp_broadcast_recipients" as any)
+        .from("whatsapp_broadcast_recipients")
         .select("id, phone, contact_name, status, error_message")
         .eq("broadcast_id", broadcastId)
         .eq("status", "failed")
@@ -69,7 +69,7 @@ export function WhatsAppBroadcastTab() {
     queryKey: ["whatsapp-broadcasts", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("whatsapp_broadcasts" as any)
+        .from("whatsapp_broadcasts")
         .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })

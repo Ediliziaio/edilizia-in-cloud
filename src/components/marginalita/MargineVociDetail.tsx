@@ -74,7 +74,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
     queryKey: ["margine-voci-detail", row?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("order_items" as any)
+        .from("order_items")
         .select("id, name, quantity, unit_price, purchase_price, standard_cost, status, position")
         .eq("order_id", row!.id)
         .order("position");

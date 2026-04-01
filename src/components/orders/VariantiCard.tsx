@@ -75,7 +75,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
     queryKey: ["varianti-cliente", orderId],
     queryFn: async () => {
       let q = supabase
-        .from("varianti_cliente" as any)
+        .from("varianti_cliente")
         .select("*")
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
@@ -93,7 +93,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
     mutationFn: async () => {
       if (!form.titolo.trim()) throw new Error("Titolo obbligatorio");
       if (!form.importo) throw new Error("Importo obbligatorio");
-      const { error } = await supabase.from("varianti_cliente" as any).insert({
+      const { error } = await supabase.from("varianti_cliente").insert({
         company_id: companyId,
         order_id: orderId,
         titolo: form.titolo.trim(),
@@ -117,7 +117,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const { error } = await supabase
-        .from("varianti_cliente" as any)
+        .from("varianti_cliente")
         .update({ stato })
         .eq("id", id);
       if (error) throw new Error(error.message);
@@ -129,7 +129,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("varianti_cliente" as any)
+        .from("varianti_cliente")
         .delete()
         .eq("id", id);
       if (error) throw new Error(error.message);

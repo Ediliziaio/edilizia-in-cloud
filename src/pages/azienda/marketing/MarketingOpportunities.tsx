@@ -108,7 +108,7 @@ function MarketingOpportunitiesContent() {
     queryFn: async () => {
       if (!companyId || !selectedPipelineId) return [];
       const { data, error } = await supabase
-        .from("marketing_opportunity_lists" as any)
+        .from("marketing_opportunity_lists")
         .select("*")
         .eq("company_id", companyId)
         .eq("pipeline_id", selectedPipelineId)
@@ -122,7 +122,7 @@ function MarketingOpportunitiesContent() {
   const createListMutation = useMutation({
     mutationFn: async (listData: { name: string; description: string }) => {
       if (!companyId || !selectedPipelineId) throw new Error("Missing IDs");
-      const { error } = await supabase.from("marketing_opportunity_lists" as any).insert({
+      const { error } = await supabase.from("marketing_opportunity_lists").insert({
         company_id: companyId,
         pipeline_id: selectedPipelineId,
         name: listData.name,
@@ -140,7 +140,7 @@ function MarketingOpportunitiesContent() {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
-      const { error } = await supabase.from("marketing_opportunity_lists" as any).delete().eq("id", listId);
+      const { error } = await supabase.from("marketing_opportunity_lists").delete().eq("id", listId);
       if (error) throw error;
     },
     onSuccess: () => {

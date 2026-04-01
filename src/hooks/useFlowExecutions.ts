@@ -19,7 +19,7 @@ export function useFlowExecutions(flowId: string | null | undefined, limit = 5) 
     queryFn: async () => {
       if (!flowId) return [];
       const { data, error } = await supabase
-        .from("flow_execution_runs" as any)
+        .from("flow_execution_runs")
         .select("id, flow_id, status, started_at, ended_at, duration_ms, nodes_executed, error_message, trigger_type")
         .eq("flow_id", flowId)
         .order("started_at", { ascending: false })

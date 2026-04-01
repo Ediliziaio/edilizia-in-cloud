@@ -434,7 +434,7 @@ function OrderDetailInner() {
       if (installment.id) {
         // Installment already in DB — update directly (trigger syncs legacy cols)
         const { error } = await supabase
-          .from("order_installments" as any)
+          .from("order_installments")
           .update({ is_paid: paid, paid_date: paid ? today : null })
           .eq("id", installment.id);
         if (error) throw error;

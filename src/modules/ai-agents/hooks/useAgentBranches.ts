@@ -49,7 +49,7 @@ export function useAgentBranches(agentId?: string) {
     enabled: !!agentId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_agent_branches" as any)
+        .from("ai_agent_branches")
         .select("*")
         .eq("agent_id", agentId!)
         .order("is_main", { ascending: false })
@@ -65,7 +65,7 @@ export function useCreateBranch(agentId?: string) {
   return useMutation({
     mutationFn: async (input: BranchInsert) => {
       const { data, error } = await supabase
-        .from("ai_agent_branches" as any)
+        .from("ai_agent_branches")
         .insert(input as any)
         .select("*")
         .single();
@@ -85,7 +85,7 @@ export function useUpdateBranch(agentId?: string) {
   return useMutation({
     mutationFn: async ({ id, ...update }: BranchUpdate & { id: string }) => {
       const { error } = await supabase
-        .from("ai_agent_branches" as any)
+        .from("ai_agent_branches")
         .update({ ...update, updated_at: new Date().toISOString() } as any)
         .eq("id", id);
       if (error) throw error;
@@ -101,7 +101,7 @@ export function useUpdateTrafficSplit(agentId?: string) {
     mutationFn: async (splits: { id: string; traffic_percent: number }[]) => {
       for (const s of splits) {
         const { error } = await supabase
-          .from("ai_agent_branches" as any)
+          .from("ai_agent_branches")
           .update({ traffic_percent: s.traffic_percent, updated_at: new Date().toISOString() } as any)
           .eq("id", s.id);
         if (error) throw error;
@@ -120,7 +120,7 @@ export function useDeleteBranch(agentId?: string) {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("ai_agent_branches" as any)
+        .from("ai_agent_branches")
         .delete()
         .eq("id", id);
       if (error) throw error;

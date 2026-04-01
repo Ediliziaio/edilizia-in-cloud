@@ -95,7 +95,7 @@ export default function CantiereDashboard() {
     queryKey: ["cantiere-dashboard", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("v_ordine_marginalita" as any)
+        .from("v_ordine_marginalita")
         .select("*")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
@@ -112,7 +112,7 @@ export default function CantiereDashboard() {
     queryKey: ["orders-dashboard-status", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("orders" as any)
+        .from("orders")
         .select("id, status, total_amount, work_start_date, work_end_date")
         .eq("company_id", companyId!)
         .limit(500);

@@ -128,8 +128,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
         p_account_label: params.accountLabel || "banca",
       });
       if (error) throw error;
-      const result = data as any;
-      if (result?.error) throw new Error(result.error);
+      const result = data as Record<string, unknown> | null;
+      if (result?.error) throw new Error(String(result.error));
       return result;
     },
     onSuccess: () => {

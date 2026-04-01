@@ -44,7 +44,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     queryKey,
     queryFn: async () => {
       let query = supabase
-        .from("marketing_documents" as any)
+        .from("marketing_documents")
         .select("*")
         .eq("contact_id", contactId)
         .order("created_at", { ascending: false });
@@ -67,7 +67,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
         .upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await supabase.from("marketing_documents" as any).insert({
+      const { error: dbError } = await supabase.from("marketing_documents").insert({
         contact_id: contactId,
         opportunity_id: linkToOpportunity ? opportunityId : null,
         company_id: companyId,
@@ -104,7 +104,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     mutationFn: async (doc: any) => {
       const filePath = getStoragePath(doc.file_url);
       await supabase.storage.from("marketing-attachments").remove([filePath]);
-      const { error } = await supabase.from("marketing_documents" as any).delete().eq("id", doc.id);
+      const { error } = await supabase.from("marketing_documents").delete().eq("id", doc.id);
       if (error) throw error;
     },
     onSuccess: () => {

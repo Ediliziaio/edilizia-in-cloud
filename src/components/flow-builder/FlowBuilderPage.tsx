@@ -684,7 +684,7 @@ export function FlowBuilderPage() {
     // If flow was auto-created but user never added any nodes, delete it silently
     if (flowId && builder.nodes.length === 0) {
       try {
-        await supabase.from("automation_flows" as any).delete().eq("id", flowId);
+        await supabase.from("automation_flows").delete().eq("id", flowId);
       } catch { /* silently ignore */ }
     }
     navigate(backUrl);

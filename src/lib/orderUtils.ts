@@ -297,7 +297,7 @@ export async function deleteOrderCascading(orderId: string): Promise<void> {
     supabase.from("order_errors").delete().eq("order_id", orderId),
     supabase.from("tasks").delete().eq("order_id", orderId),
     supabase.from("appointments").delete().eq("order_id", orderId),
-    supabase.from("order_installments" as any).delete().eq("order_id", orderId),
+    supabase.from("order_installments").delete().eq("order_id", orderId),
   ]);
   const { error } = await supabase.from("orders").delete().eq("id", orderId);
   if (error) throw error;

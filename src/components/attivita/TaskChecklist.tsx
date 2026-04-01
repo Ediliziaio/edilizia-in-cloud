@@ -22,7 +22,7 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
     queryKey,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("task_checklist_items" as any)
+        .from("task_checklist_items")
         .select("*")
         .eq("task_id", taskId)
         .order("position", { ascending: true });
@@ -33,7 +33,7 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
 
   const addMutation = useMutation({
     mutationFn: async (title: string) => {
-      const { error } = await supabase.from("task_checklist_items" as any).insert({
+      const { error } = await supabase.from("task_checklist_items").insert({
         task_id: taskId,
         title,
         position: items.length,
@@ -50,7 +50,7 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_completed }: { id: string; is_completed: boolean }) => {
       const { error } = await supabase
-        .from("task_checklist_items" as any)
+        .from("task_checklist_items")
         .update({ is_completed } as any)
         .eq("id", id);
       if (error) throw error;
@@ -60,7 +60,7 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("task_checklist_items" as any).delete().eq("id", id);
+      const { error } = await supabase.from("task_checklist_items").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),

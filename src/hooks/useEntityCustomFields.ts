@@ -37,7 +37,7 @@ export function useEntityFieldValues(entityType: string, entityId: string | null
     queryKey: queryKeys.entityCustomFieldValues.byEntity(entityType, entityId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("entity_custom_field_values" as any)
+        .from("entity_custom_field_values")
         .select("*")
         .eq("entity_type", entityType)
         .eq("entity_id", entityId!);
@@ -67,7 +67,7 @@ export function useUpsertEntityFieldValues() {
         company_id: effectiveCompany.id,
       }));
       const { error } = await supabase
-        .from("entity_custom_field_values" as any)
+        .from("entity_custom_field_values")
         .upsert(rows, { onConflict: "entity_type,entity_id,field_id" });
       if (error) throw error;
     },
