@@ -21,7 +21,7 @@ interface CSData {
 export default function AdminCSDashboard() {
   const { permissions } = useSuperAdminPermissions();
 
-  if (!permissions.can_impersonate) return <AccessDenied />;
+  if (!permissions.impersonation) return <AccessDenied />;
 
   const { data, isLoading } = useQuery<CSData>({
     queryKey: ['admin-cs-dashboard'],
