@@ -21,6 +21,7 @@ import { AdminAddonsSummary } from "@/components/admin/dashboard/AdminAddonsSumm
 import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAnalysis";
 import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
+import { AdminChurnAlerts } from "@/components/admin/dashboard/AdminChurnAlerts";
 import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
 import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
@@ -205,6 +206,9 @@ export default function AdminDashboard() {
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Churn Risk Alerts */}
+      <AdminChurnAlerts />
     </div>
   );
 }

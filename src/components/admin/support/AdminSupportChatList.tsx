@@ -54,6 +54,32 @@ interface ConversationSummary {
   agingHours: number;
 }
 
+interface SLAConversation {
+  created_at: string;
+  status: string;
+  first_response_at?: string | null;
+}
+
+function getSLAStatus(conversation: SLAConversation): {
+  label: string;
+  variant: 'default' | 'secondary' | 'destructive' | 'outline';
+} {
+  const ageHours = (Date.now() - new Date(conversation.created_at).getTime()) / 3600000;
+  if (conversation.status === 'risolto') return { label: 'Risolto', variant: 'secondary' };
+  if (conversation.first_response_at) {
+    const respHours =
+      (new Date(conversation.first_response_at).getTime() -
+        new Date(conversation.created_at).getTime()) /
+      3600000;
+    return respHours <= 4
+      ? { label: 'SLA ✓', variant: 'default' }
+      : { label: 'SLA ✗', variant: 'destructive' };
+  }
+  if (ageHours > 4) return { label: `${Math.round(ageHours)}h senza risposta`, variant: 'destructive' };
+  if (ageHours > 2) return { label: 'SLA a rischio', variant: 'secondary' };
+  return { label: `${Math.round(ageHours)}h`, variant: 'outline' };
+}
+
 const statusColors: Record<string, string> = {
   open: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
   in_progress: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800",
@@ -408,6 +434,21 @@ export function AdminSupportChatList() {
                       </Badge>
                     )}
                     {getAgingBadge(conv.agingHours, conv.unansweredByAdmin)}
+                    {(() => {
+                      const slaData: SLAConversation = {
+                        created_at: new Date(
+                          new Date(conv.lastMessageDate).getTime() - conv.agingHours * 3600000
+                        ).toISOString(),
+                        status: conv.status === 'resolved' || conv.status === 'closed' ? 'risolto' : conv.status,
+                        first_response_at: conv.unansweredByAdmin ? null : conv.lastMessageDate,
+                      };
+                      const sla = getSLAStatus(slaData);
+                      return (
+                        <Badge variant={sla.variant} className="text-[10px]">
+                          {sla.label}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                   <p className="text-sm text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
                 </div>

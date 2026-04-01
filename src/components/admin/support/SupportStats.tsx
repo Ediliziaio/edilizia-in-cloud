@@ -12,6 +12,7 @@ interface ConversationSummary {
   status: string;
   priority: string;
   resolvedAt: string | null;
+  agingHours: number;
 }
 
 interface SupportMessage {
@@ -64,6 +65,34 @@ export function SupportStats({ conversations, totalMessagesToday, messages }: Su
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   }, [messages]);
 
+  const slaViolations = (conversations ?? []).filter(
+    (c) =>
+      c.status !== 'risolto' &&
+      c.status !== 'resolved' &&
+      c.status !== 'closed' &&
+      c.agingHours > 4 &&
+      c.unansweredByAdmin
+  ).length;
+
+  const avgResponseHours = useMemo(() => {
+    const grouped = new Map<string, SupportMessage[]>();
+    for (const msg of messages) {
+      if (!grouped.has(msg.company_id)) grouped.set(msg.company_id, []);
+      grouped.get(msg.company_id)!.push(msg);
+    }
+    const times: number[] = [];
+    for (const msgs of grouped.values()) {
+      const sorted = [...msgs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (sorted[i].sender_role !== 'super_admin' && sorted[i + 1].sender_role === 'super_admin') {
+          times.push((new Date(sorted[i + 1].created_at).getTime() - new Date(sorted[i].created_at).getTime()) / 3600000);
+        }
+      }
+    }
+    if (times.length === 0) return 0;
+    return times.reduce((a, b) => a + b, 0) / times.length;
+  }, [messages]);
+
   const stats = [
     {
       label: "Aperte",
@@ -92,20 +121,38 @@ export function SupportStats({ conversations, totalMessagesToday, messages }: Su
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {stats.map((stat) => (
-        <Card key={stat.label}>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-2 rounded-lg bg-muted">
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-            </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <Card key={stat.label}>
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-muted">
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stat.value}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Card className={slaViolations > 0 ? 'border-destructive' : ''}>
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Violazioni SLA</p>
+            <p className={`text-xl font-bold ${slaViolations > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+              {slaViolations}
+            </p>
           </CardContent>
         </Card>
-      ))}
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Tempo medio risposta</p>
+            <p className="text-xl font-bold">{avgResponseHours.toFixed(1)}h</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -54,6 +54,8 @@ const AdminQuoteDetail = lazy(() => import("@/pages/admin/marketing/AdminQuoteDe
 const AdminRevenueDashboard = lazy(() => import("@/pages/admin/AdminRevenueDashboard"));
 const PromoCodes = lazy(() => import("@/pages/admin/PromoCodes"));
 const AdminInvoiceHistory = lazy(() => import("@/pages/admin/AdminInvoiceHistory"));
+const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig"));
+const AdminCSDashboard = lazy(() => import("@/pages/admin/AdminCSDashboard"));
 
 export function adminRoutes() {
   return (
@@ -170,6 +172,8 @@ export function adminRoutes() {
         <Route path="revenue" element={<AdminRevenueDashboard />} />
         <Route path="promo-codes" element={<PromoCodes />} />
         <Route path="fatture" element={<AdminInvoiceHistory />} />
+        <Route path="dunning" element={<AdminDunningConfig />} />
+        <Route path="cs-dashboard" element={<AdminCSDashboard />} />
       </Route>
     </>
   );

@@ -38,6 +38,8 @@ import {
   LineChart,
   Ticket,
   FileText,
+  Settings2,
+  TrendingUp,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
@@ -115,6 +117,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Revenue", url: "/admin/revenue", icon: LineChart, permission: "billing_read", subcategory: "sa_piattaforma" },
   { title: "Codici Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_piattaforma" },
   { title: "Storico Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_piattaforma" },
+  { title: "Dunning Config", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_piattaforma" },
+  { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_piattaforma" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [
