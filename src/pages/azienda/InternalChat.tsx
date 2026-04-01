@@ -253,6 +253,9 @@ export default function InternalChat() {
   const [luciaTyping, setLuciaTyping] = useState(false);
   const [msgSearch, setMsgSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
@@ -283,6 +286,33 @@ export default function InternalChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  // Typing indicator via Supabase Presence
+  useEffect(() => {
+    if (!selectedChannelId || !userId) return;
+    const ch = supabase.channel(`typing-${selectedChannelId}`, {
+      config: { presence: { key: userId } },
+    });
+    ch.on("presence", { event: "sync" }, () => {
+      const state = ch.presenceState<{ typing: boolean; name: string }>();
+      const typers = Object.entries(state)
+        .filter(([uid, data]) => uid !== userId && (data as Array<{ typing: boolean; name: string }>)[0]?.typing)
+        .map(([, data]) => (data as Array<{ typing: boolean; name: string }>)[0]?.name ?? "Qualcuno");
+      setTypingUsers(typers);
+    }).subscribe();
+    presenceRef.current = ch;
+    return () => { supabase.removeChannel(ch); setTypingUsers([]); };
+  }, [selectedChannelId, userId]);
+
+  const broadcastTyping = useCallback(() => {
+    if (!presenceRef.current || !userId) return;
+    const profile = profileMap.get(userId);
+    presenceRef.current.track({ typing: true, name: profile ? `${profile.first_name}` : "Qualcuno" });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      presenceRef.current?.track({ typing: false, name: "" });
+    }, 3000);
+  }, [userId, profileMap]);
 
   // Parse @mentions from message content → returns array of user IDs
   const parseMentions = useCallback((content: string): string[] => {
@@ -801,11 +831,21 @@ export default function InternalChat() {
                     Chiedi a Lucia informazioni su ordini, task, clienti, KPI e molto altro
                   </p>
                 )}
+                {typingUsers.length > 0 && !isLuciaChannel && (
+                  <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <span className="inline-flex gap-0.5">
+                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </span>
+                    <span>{typingUsers.join(", ")} {typingUsers.length === 1 ? "sta" : "stanno"} scrivendo…</span>
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Input
                     placeholder={isLuciaChannel ? "Chiedi qualcosa a Lucia..." : `Scrivi in #${selectedChannel.name}...`}
                     value={newMsg}
-                    onChange={(e) => setNewMsg(e.target.value)}
+                    onChange={(e) => { setNewMsg(e.target.value); if (!isLuciaChannel) broadcastTyping(); }}
                     onKeyDown={handleKeyDown}
                     disabled={luciaTyping}
                     className={`flex-1 ${isLuciaChannel ? "border-violet-200 dark:border-violet-800 focus-visible:ring-violet-500" : ""}`}
