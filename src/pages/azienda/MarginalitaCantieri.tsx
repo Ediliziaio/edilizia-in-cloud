@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import MargineVociDetail from "@/components/marginalita/MargineVociDetail";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
@@ -136,6 +137,7 @@ export default function MarginalitaCantieri() {
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
   const [overheadPct, setOverheadPct] = useState(20);
+  const [drillRow, setDrillRow] = useState<MarginalitaRow | null>(null);
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["marginalita-cantieri", companyId],
@@ -366,15 +368,16 @@ export default function MarginalitaCantieri() {
                   const margineNettoAbs = row.preventivo_totale * (margineNetto / 100);
                   const overheadAllocato = row.preventivo_totale * (overheadPct / 100);
                   return (
-                    <TableRow key={row.id} className="group">
+                    <TableRow
+                      key={row.id}
+                      className="group cursor-pointer hover:bg-primary/5 transition-colors"
+                      onClick={() => setDrillRow(row)}
+                    >
                       <TableCell>
-                        <Link
-                          to={`/azienda/ordini/${row.id}`}
-                          className="flex items-center gap-1 hover:text-primary font-medium"
-                        >
+                        <div className="flex items-center gap-1 font-medium text-primary">
                           {row.order_code ? `#${row.order_code}` : "–"}
                           <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </Link>
+                        </div>
                         <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
@@ -475,6 +478,13 @@ export default function MarginalitaCantieri() {
           ))
         )}
       </div>
+
+      {/* Drill-down sheet */}
+      <MargineVociDetail
+        open={!!drillRow}
+        onClose={() => setDrillRow(null)}
+        row={drillRow}
+      />
     </div>
   );
 }
