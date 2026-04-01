@@ -66,14 +66,12 @@ ALTER TABLE public.warehouse_transfer_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "company_warehouse_transfers" ON public.warehouse_transfers;
 CREATE POLICY "company_warehouse_transfers" ON public.warehouse_transfers
   FOR ALL TO authenticated
-  USING (company_id IN (
-    SELECT id FROM public.companies WHERE id = public.get_user_company_id()
-  ));
+  USING (company_id = public.get_user_company_id(auth.uid()));
 
 DROP POLICY IF EXISTS "company_warehouse_transfer_items" ON public.warehouse_transfer_items;
 CREATE POLICY "company_warehouse_transfer_items" ON public.warehouse_transfer_items
   FOR ALL TO authenticated
   USING (transfer_id IN (
     SELECT id FROM public.warehouse_transfers
-    WHERE company_id = public.get_user_company_id()
+    WHERE company_id = public.get_user_company_id(auth.uid())
   ));

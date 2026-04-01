@@ -55,6 +55,4 @@ ALTER TABLE public.warehouses ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "company_warehouses" ON public.warehouses;
 CREATE POLICY "company_warehouses" ON public.warehouses
   FOR ALL TO authenticated
-  USING (company_id IN (
-    SELECT id FROM public.companies WHERE id = public.get_user_company_id()
-  ));
+  USING (company_id = public.get_user_company_id(auth.uid()));

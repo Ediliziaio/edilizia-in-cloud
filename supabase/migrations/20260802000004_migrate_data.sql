@@ -21,6 +21,11 @@ WHERE NOT EXISTS (
 );
 
 -- 2. Assegna warehouse_stock orfano al magazzino default della stessa company
+--    Disabilita i trigger di automazione (hanno bug con array) durante la migration
+ALTER TABLE public.warehouse_stock DISABLE TRIGGER ia_warehouse_stock;
+ALTER TABLE public.warehouse_stock DISABLE TRIGGER internal_auto_warehouse_stock;
+ALTER TABLE public.warehouse_stock DISABLE TRIGGER trg_internal_auto_stock_events;
+
 UPDATE public.warehouse_stock ws
 SET warehouse_id = (
   SELECT w.id FROM public.warehouses w
@@ -28,6 +33,10 @@ SET warehouse_id = (
   LIMIT 1
 )
 WHERE ws.warehouse_id IS NULL;
+
+ALTER TABLE public.warehouse_stock ENABLE TRIGGER trg_internal_auto_stock_events;
+ALTER TABLE public.warehouse_stock ENABLE TRIGGER internal_auto_warehouse_stock;
+ALTER TABLE public.warehouse_stock ENABLE TRIGGER ia_warehouse_stock;
 
 -- 3. Assegna warehouse_movements orfani al magazzino del loro stock_item
 UPDATE public.warehouse_movements wm
