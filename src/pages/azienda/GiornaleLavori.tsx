@@ -656,6 +656,16 @@ export default function GiornaleLavori() {
           onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
         />
       )}
+
+      {/* Mobile FAB — fixed above bottom nav */}
+      <button
+        onClick={openNew}
+        className="md:hidden fixed bottom-20 right-4 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+        aria-label="Nuovo report giornaliero"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <Plus className="h-7 w-7" aria-hidden="true" />
+      </button>
     </div>
   );
 }

@@ -110,7 +110,7 @@ export default function TimbraturaKiosk() {
         : undefined,
     });
 
-    if ("vibrate" in navigator) navigator.vibrate(200);
+    if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
   };
 
   const hoursStr = `${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m`;
@@ -172,15 +172,15 @@ export default function TimbraturaKiosk() {
                 )}
               </div>
               <Button
-                className="w-full h-16 text-lg"
+                className="w-full h-24 md:h-16 text-xl md:text-lg"
                 size="lg"
                 onClick={() => handleTimbra("entrata")}
                 disabled={timbraMutation.isPending}
               >
                 {timbraMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  <Loader2 className="h-6 w-6 mr-2 animate-spin" />
                 ) : (
-                  <LogIn className="h-5 w-5 mr-2" />
+                  <LogIn className="h-6 w-6 mr-2" />
                 )}
                 Timbra Entrata
               </Button>
@@ -207,20 +207,20 @@ export default function TimbraturaKiosk() {
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="destructive"
-                  className="h-14"
+                  className="h-20 md:h-14 text-base md:text-sm"
                   onClick={() => handleTimbra("uscita")}
                   disabled={timbraMutation.isPending}
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
+                  <LogOut className="h-5 w-5 mr-2" />
                   Timbra Uscita
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-14"
+                  className="h-20 md:h-14 text-base md:text-sm"
                   onClick={() => handleTimbra("pausa_inizio")}
                   disabled={timbraMutation.isPending}
                 >
-                  <Coffee className="h-4 w-4 mr-2" />
+                  <Coffee className="h-5 w-5 mr-2" />
                   Inizia Pausa
                 </Button>
               </div>
@@ -243,11 +243,11 @@ export default function TimbraturaKiosk() {
                 </p>
               </div>
               <Button
-                className="w-full h-14"
+                className="w-full h-20 md:h-14 text-base md:text-sm"
                 onClick={() => handleTimbra("pausa_fine")}
                 disabled={timbraMutation.isPending}
               >
-                <Play className="h-4 w-4 mr-2" />
+                <Play className="h-5 w-5 mr-2" />
                 Fine Pausa — Riprendi
               </Button>
             </>
