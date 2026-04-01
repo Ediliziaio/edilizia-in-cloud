@@ -381,6 +381,66 @@ async function handleSubscriptionUpdated(
   }
 }
 
+// ─── Referral Attribution ─────────────────────────────────
+
+async function handleReferralAttribution(
+  supabase: ReturnType<typeof createClient>,
+  stripeCustomerId: string
+) {
+  try {
+    // Recupera la company con referred_by
+    const { data: company } = await supabase
+      .from('companies')
+      .select('id, referred_by, name')
+      .eq('stripe_customer_id', stripeCustomerId)
+      .maybeSingle();
+
+    if (!company?.referred_by) return; // Nessun referral da attribuire
+
+    // Verifica che non esista già in referral_companies
+    const { data: existing } = await supabase
+      .from('referral_companies')
+      .select('id')
+      .eq('referrer_id', company.referred_by)
+      .eq('company_id', company.id)
+      .maybeSingle();
+
+    if (existing) return; // Già attribuito
+
+    // Inserisci il referral
+    await supabase.from('referral_companies').insert({
+      referrer_id: company.referred_by,
+      company_id:  company.id,
+      referred_at: new Date().toISOString(),
+      is_active:   true,
+    });
+
+    // Aggiorna conversion_rate del referrer
+    await supabase.rpc('update_referrer_stats', { p_referrer_id: company.referred_by });
+
+    // Notifica il partner della conversione
+    await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-partner-notification`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-cron-secret': Deno.env.get('CRON_SECRET') || '',
+        },
+        body: JSON.stringify({
+          type:        'conversion',
+          referrer_id: company.referred_by,
+          data:        { company_name: company.name || 'Nuova azienda' },
+        }),
+      }
+    ).catch((e) => console.error('[stripe-webhook] Referral notification error:', e));
+
+    console.log(`[stripe-webhook] Referral attribuito: company=${company.id} → referrer=${company.referred_by}`);
+  } catch (err) {
+    console.error('[stripe-webhook] handleReferralAttribution error:', err);
+  }
+}
+
 // ─── Main Handler ──────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -468,6 +528,11 @@ Deno.serve(async (req) => {
           break;
         case "customer.subscription.deleted":
           await handleSubscriptionDeleted(supabase, obj);
+          break;
+        case "customer.subscription.created":
+          // Attribuisce il referral al primo abbonamento attivo
+          await handleReferralAttribution(supabase, obj.customer);
+          await handleSubscriptionUpdated(supabase, obj);
           break;
         case "customer.subscription.updated":
           await handleSubscriptionUpdated(supabase, obj);

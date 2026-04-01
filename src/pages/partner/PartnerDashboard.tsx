@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { PartnerOnboardingModal } from "./PartnerOnboardingModal";
 export default function PartnerDashboard() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: referrer, isLoading: loadingReferrer } = useQuery({
     queryKey: ["my-referrer", user?.id],
@@ -31,6 +32,37 @@ export default function PartnerDashboard() {
       return data;
     },
   });
+
+  // ── Realtime: notifica nuova conversione ─────────────────
+  useEffect(() => {
+    if (!referrer?.id) return;
+    const channel = supabase
+      .channel(`referral-conversions-${referrer.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event:  'INSERT',
+          schema: 'public',
+          table:  'referral_companies',
+          filter: `referrer_id=eq.${referrer.id}`,
+        },
+        async (payload) => {
+          const { data: company } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', (payload.new as any).company_id)
+            .single();
+          toast.success(
+            `🎉 Nuova conversione! ${company?.name || "Un'azienda"} ha attivato il piano.`,
+            { duration: 8000 }
+          );
+          queryClient.invalidateQueries({ queryKey: ['my-referral-companies'] });
+          queryClient.invalidateQueries({ queryKey: ['my-referrer'] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [referrer?.id, queryClient]);
 
   const { data: referredCompanies = [] } = useQuery({
     queryKey: ["my-referral-companies", referrer?.id],
