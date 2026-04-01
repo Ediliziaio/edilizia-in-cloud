@@ -2,9 +2,13 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, Settings2, ClipboardList, ShoppingCart, AlertTriangle, PieChart } from "lucide-react";
+import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
+import GlobalErrors from "@/pages/azienda/GlobalErrors";
+import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -1112,9 +1116,65 @@ function OrdersListInner() {
 }
 
 export default function OrdersList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "ordini";
+  const permissions = usePermissions();
+  const handleTabChange = (tab: string) => {
+    setSearchParams(tab === "ordini" ? {} : { tab });
+  };
+
+  const tabs = [
+    { id: "ordini", label: "Ordini", icon: ClipboardList, show: true },
+    { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewForecast },
+    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
+    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewOrders },
+  ].filter((t) => t.show);
+
   return (
-    <ErrorBoundary title="Errore nella lista ordini">
-      <OrdersListInner />
-    </ErrorBoundary>
+    <div className="space-y-6">
+      {/* ─── Tab navigation ─────────────────────────────────────────── */}
+      <div className="border-b">
+        <nav className="-mb-px flex gap-6 overflow-x-auto">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => handleTabChange(t.id)}
+              className={`pb-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                activeTab === t.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <t.icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {activeTab === "ordini" && (
+        <ErrorBoundary title="Errore nella lista ordini">
+          <OrdersListInner />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "acquisto" && (
+        <div className="[&>div:first-child>div:first-child]:hidden">
+          <PurchaseOrdersList />
+        </div>
+      )}
+
+      {activeTab === "anomalie" && (
+        <div className="[&>div:first-child>div:first-child]:hidden">
+          <GlobalErrors />
+        </div>
+      )}
+
+      {activeTab === "marginalita" && (
+        <div className="[&>div:first-child>div:first-child]:hidden">
+          <MarginalitaCantieri />
+        </div>
+      )}
+    </div>
   );
 }

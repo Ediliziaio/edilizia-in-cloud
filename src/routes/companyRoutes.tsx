@@ -174,7 +174,7 @@ export function companyRoutes() {
         <Route path="costi" element={<CompanyCosts />} />
         
         <Route path="attivita" element={<UnifiedTasks />} />
-        <Route path="errori" element={<GlobalErrors />} />
+        <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
         <Route path="personale" element={<PersonalePage />} />
@@ -202,11 +202,11 @@ export function companyRoutes() {
         <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
         
         <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><PrimaNota /></ErrorBoundary>} />
-        <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
+        <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
         <Route path="sicurezza-cantiere" element={<SicurezzaCantiere />} />
         <Route path="giornale-lavori" element={<GiornaleLavori />} />
-        <Route path="marginalita" element={<MarginalitaCantieri />} />
+        <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
 
