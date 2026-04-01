@@ -1,11 +1,7 @@
 -- pg_cron: daily execution of check-scheduled-triggers at 07:00 UTC
 -- BLOCCO D — Step 3
-
--- Ensure pg_cron extension is available
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
--- Grant usage to postgres role (required on Supabase)
-GRANT USAGE ON SCHEMA cron TO postgres;
+-- Note: pg_cron extension and cron schema grant are managed by Supabase platform.
+-- This migration only schedules (or re-schedules) the daily job.
 
 DO $$
 BEGIN
@@ -16,13 +12,14 @@ BEGIN
 END $$;
 
 -- Schedule: every day at 07:00 UTC
+-- Uses pg_net (available on Supabase) to call the edge function
 SELECT cron.schedule(
   'check-scheduled-triggers-daily',
   '0 7 * * *',
   $$
     SELECT
       net.http_post(
-        url := current_setting('app.supabase_url') || '/functions/v1/check-scheduled-triggers',
+        url := current_setting('app.supabase_url', true) || '/functions/v1/check-scheduled-triggers',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
           'x-cron-secret', current_setting('app.cron_secret', true)
