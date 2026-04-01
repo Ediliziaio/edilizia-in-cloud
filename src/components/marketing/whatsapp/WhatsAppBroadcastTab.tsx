@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
+import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronRight, AlertCircle, BarChart2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -335,6 +335,77 @@ export function WhatsAppBroadcastTab() {
 
       {/* Sidebar info */}
       <div className="space-y-4">
+        {/* M7 — Stats card */}
+        {broadcasts && broadcasts.length > 0 && (() => {
+          const totalBroadcasts = broadcasts.length;
+          const totalSent = broadcasts.reduce((s: number, b: any) => s + (b.sent_count || 0), 0);
+          const totalFailed = broadcasts.reduce((s: number, b: any) => s + (b.failed_count || 0), 0);
+          const totalContacts = broadcasts.reduce((s: number, b: any) => s + (b.total_contacts || 0), 0);
+          const deliveryRate = totalContacts > 0 ? Math.round((totalSent / totalContacts) * 100) : 0;
+          return (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart2 className="h-4 w-4" aria-hidden="true" /> Statistiche Totali
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2.5 pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted/50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold">{totalBroadcasts}</p>
+                    <p className="text-[10px] text-muted-foreground">Broadcast</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold">{totalSent.toLocaleString("it-IT")}</p>
+                    <p className="text-[10px] text-muted-foreground">Messaggi inviati</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Tasso consegna</span>
+                    <span className="font-medium text-emerald-600">{deliveryRate}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${deliveryRate}%` }} />
+                  </div>
+                </div>
+                {totalFailed > 0 && (
+                  <p className="text-xs text-destructive">{totalFailed} messaggi falliti in totale</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* M7 — Message preview card */}
+        {messageText && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Eye className="h-4 w-4" aria-hidden="true" /> Anteprima live
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="bg-[#e5ddd5] rounded-lg p-3">
+                <div className="bg-white rounded-lg p-2.5 text-xs shadow-sm max-w-[200px] ml-auto">
+                  <p className="whitespace-pre-wrap text-[11px] leading-relaxed">
+                    {messageText
+                      .replace(/\{\{nome\}\}/g, "Mario")
+                      .replace(/\{\{cognome\}\}/g, "Rossi")
+                      .replace(/\{\{email\}\}/g, "mario@email.com")
+                      .replace(/\{\{telefono\}\}/g, "+39 333 1234567")
+                      .replace(/\{\{azienda\}\}/g, "Rossi Costruzioni")}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground text-right mt-1">14:30 ✓✓</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+                Anteprima con dati di esempio
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
