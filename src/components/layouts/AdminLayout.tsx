@@ -35,6 +35,7 @@ import {
   Zap,
   MessageCircle,
   Briefcase,
+  LineChart,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
@@ -109,6 +110,7 @@ const allNavItems: AdminNavItem[] = [
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
   { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies", subcategory: "sa_piattaforma" },
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_programmi" },
+  { title: "Revenue", url: "/admin/revenue", icon: LineChart, permission: "billing_read", subcategory: "sa_piattaforma" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [
