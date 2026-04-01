@@ -17,6 +17,7 @@ import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardH
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 
 const STATUS_COLORS: Record<string, string> = {
   bozza: "bg-muted text-muted-foreground",
@@ -45,6 +46,8 @@ export default function SicurezzaCantiere() {
   const [costiSicurezza, setCostiSicurezza] = useState("0");
   const [expandedPos, setExpandedPos] = useState<string | null>(null);
   const [expandedDuvri, setExpandedDuvri] = useState<string | null>(null);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
+  const [printTitle, setPrintTitle] = useState("");
 
   // M3 — verbali, subappaltatori, scadenzario
   const [verbaleDialogOpen, setVerbaleDialogOpen] = useState(false);
@@ -264,6 +267,35 @@ export default function SicurezzaCantiere() {
     },
   });
 
+  const buildDocHtml = (doc: any, tipo: "POS" | "DUVRI") => {
+    const contenuto = doc.contenuto_generato || "Nessun contenuto disponibile.";
+    const orderLabel = orders.find((o: any) => o.id === doc.order_id)?.description ?? doc.order_id ?? "";
+    return `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>${tipo} — ${orderLabel}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #111; line-height: 1.6; }
+    h1 { font-size: 1.5rem; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    .meta { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; font-size: 0.875rem; color: #555; }
+    .meta span { display: flex; gap: 4px; }
+    .content { white-space: pre-wrap; margin-top: 24px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <h1>D.Lgs 81/08 — ${tipo}</h1>
+  <div class="meta">
+    <span><strong>Ordine:</strong> ${orderLabel}</span>
+    <span><strong>Stato:</strong> ${doc.status ?? "—"}</span>
+    <span><strong>Generato:</strong> ${doc.created_at ? new Date(doc.created_at).toLocaleDateString("it-IT") : "—"}</span>
+  </div>
+  <div class="content">${contenuto.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+</body>
+</html>`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -421,7 +453,7 @@ export default function SicurezzaCantiere() {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs"
-                        onClick={() => toast.info("Esportazione PDF in arrivo!")}
+                        onClick={() => { setPrintTitle(`POS — ${doc.id}`); setPrintHtml(buildDocHtml(doc, "POS")); }}
                       >
                         <Download className="h-3 w-3 mr-1" /> PDF
                       </Button>
@@ -532,7 +564,7 @@ export default function SicurezzaCantiere() {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs"
-                        onClick={() => toast.info("Esportazione PDF in arrivo!")}
+                        onClick={() => { setPrintTitle(`DUVRI — ${doc.id}`); setPrintHtml(buildDocHtml(doc, "DUVRI")); }}
                       >
                         <Download className="h-3 w-3 mr-1" /> PDF
                       </Button>
@@ -964,6 +996,15 @@ export default function SicurezzaCantiere() {
         </DialogContent>
       </Dialog>
 
+      {printHtml && (
+        <PrintPreviewModal
+          htmlContent={printHtml}
+          fileName={printTitle}
+          title={printTitle}
+          open={!!printHtml}
+          onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
+        />
+      )}
     </div>
   );
 }

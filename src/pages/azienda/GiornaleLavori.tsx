@@ -18,6 +18,7 @@ import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snow
 import { format } from "date-fns";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 
 const METEO_OPTIONS = [
   { value: "soleggiato", label: "Soleggiato", icon: Sun, color: "text-yellow-500" },
@@ -41,6 +42,7 @@ export default function GiornaleLavori() {
 
   const [selectedOrderId, setSelectedOrderId] = useState(searchParams.get("ordine") || "");
   const [isExporting, setIsExporting] = useState(false);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -279,11 +281,7 @@ export default function GiornaleLavori() {
         throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
       }
       if (!data?.html) throw new Error("Nessun contenuto generato");
-      const blob = new Blob([data.html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if (w) w.onload = () => w.print();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      setPrintHtml(data.html);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
     } finally {
@@ -648,6 +646,16 @@ export default function GiornaleLavori() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {printHtml && (
+        <PrintPreviewModal
+          htmlContent={printHtml}
+          fileName="giornale-lavori"
+          title="Giornale dei Lavori"
+          open={!!printHtml}
+          onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
+        />
+      )}
     </div>
   );
 }

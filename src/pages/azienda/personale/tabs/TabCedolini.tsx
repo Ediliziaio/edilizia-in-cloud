@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Download, Loader2, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -65,6 +66,8 @@ export function TabCedolini() {
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
   const [isExporting, setIsExporting] = useState(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
+  const [printTitle, setPrintTitle] = useState("");
 
   const { data: cedolini = [], isLoading } = useQuery({
     queryKey: ["cedolini", companyId, filterYear],
@@ -136,11 +139,9 @@ export function TabCedolini() {
         throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
       }
       if (!data?.html) throw new Error("Nessun contenuto generato");
-      const blob = new Blob([data.html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if (w) w.onload = () => w.print();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      const mese = MESI[(cedolino.mese ?? 1) - 1] ?? "";
+      setPrintTitle(`Cedolino ${mese} ${cedolino.anno ?? ""}`);
+      setPrintHtml(data.html);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
     } finally {
@@ -328,6 +329,16 @@ export function TabCedolini() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {printHtml && (
+        <PrintPreviewModal
+          htmlContent={printHtml}
+          fileName={printTitle}
+          title={printTitle}
+          open={!!printHtml}
+          onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
+        />
+      )}
     </div>
   );
 }

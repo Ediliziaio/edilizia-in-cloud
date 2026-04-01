@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, FileBarChart2, Loader2, Download, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 
 interface SalVoce {
   id: string;
@@ -79,6 +80,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
   const [voci, setVoci] = useState<VoceForm[]>([emptyVoce()]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
+  const [printTitle, setPrintTitle] = useState("");
 
   const { data: salList = [], isLoading } = useQuery<SalRecord[]>({
     queryKey: ["sal-records", orderId],
@@ -172,11 +175,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
         throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
       }
       if (!data?.html) throw new Error("Nessun contenuto generato");
-      const blob = new Blob([data.html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if (w) w.onload = () => w.print();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      setPrintTitle(`SAL n. ${sal.numero_sal}`);
+      setPrintHtml(data.html);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
     } finally {
@@ -461,6 +461,16 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {printHtml && (
+        <PrintPreviewModal
+          htmlContent={printHtml}
+          fileName={printTitle}
+          title={printTitle}
+          open={!!printHtml}
+          onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
+        />
+      )}
     </div>
   );
 }
