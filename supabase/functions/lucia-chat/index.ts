@@ -351,6 +351,8 @@ Deno.serve(async (req: Request) => {
     company_id: string;
     channel_id: string;
     user_permissions?: Record<string, boolean>;
+    thinking_enabled?: boolean;
+    thinking_budget?: number;
   };
 
   try {
@@ -359,7 +361,7 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Body JSON non valido", 400);
   }
 
-  const { message, user_id, company_id, channel_id, user_permissions = {} } = body;
+  const { message, user_id, company_id, channel_id, user_permissions = {}, thinking_enabled = false, thinking_budget = 8000 } = body;
 
   if (!message?.trim() || !user_id || !company_id || !channel_id) {
     return errorResponse("Parametri mancanti: message, user_id, company_id, channel_id", 400);
@@ -422,19 +424,33 @@ Deno.serve(async (req: Request) => {
     while (iterations < MAX_ITERATIONS) {
       iterations++;
 
+      // Build request payload — when thinking_enabled, add extended thinking params
+      // Note: thinking is incompatible with tool_use on some models; disable tools when thinking
+      const thinkingPayload = thinking_enabled
+        ? {
+            thinking: { type: "enabled", budget_tokens: Math.min(Math.max(thinking_budget, 1000), 32000) },
+            max_tokens: Math.max(1024, thinking_budget + 1024),
+            // Disable tools during extended thinking (API constraint)
+            tools: undefined,
+          }
+        : {
+            max_tokens: 1024,
+            tools: LUCIA_TOOLS,
+          };
+
       const claudeRes = await fetch(CLAUDE_API_URL, {
         method: "POST",
         headers: {
           "x-api-key": anthropicKey,
           "anthropic-version": "2023-06-01",
+          ...(thinking_enabled ? { "anthropic-beta": "interleaved-thinking-2025-05-14" } : {}),
           "content-type": "application/json",
         },
         body: JSON.stringify({
           model: CLAUDE_MODEL,
-          max_tokens: 1024,
           system: systemPrompt,
-          tools: LUCIA_TOOLS,
           messages: loopMessages,
+          ...thinkingPayload,
         }),
       });
 
@@ -451,11 +467,12 @@ Deno.serve(async (req: Request) => {
       loopMessages.push({ role: "assistant", content: claudeData.content });
 
       if (stopReason === "end_turn") {
-        // Extract text response
+        // Extract text response (skip thinking blocks — they are internal reasoning)
         for (const block of claudeData.content) {
           if (block.type === "text") {
             finalText += block.text;
           }
+          // block.type === "thinking" is intentionally ignored (not sent to user)
         }
         break;
       }

@@ -1,18 +1,19 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, AlertTriangle, Loader2, Eraser, PenTool } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Loader2, PenTool } from "lucide-react";
 
 export default function SignaturePage() {
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<"loading" | "ready" | "signing" | "signed" | "expired" | "error">("loading");
   const [orderInfo, setOrderInfo] = useState<{ order_code: string; description: string } | null>(null);
   const [signerName, setSignerName] = useState("");
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDrawingRef = useRef(false);
-  const [hasDrawn, setHasDrawn] = useState(false);
+  const [typedSignature, setTypedSignature] = useState("");
+  const [consent, setConsent] = useState(false);
 
   useEffect(() => {
     if (!token) { setStatus("error"); return; }
@@ -35,57 +36,16 @@ export default function SignaturePage() {
     const order = data.order as any;
     setOrderInfo({ order_code: order?.order_code || "", description: order?.description || "" });
     setSignerName(data.signer_name || "");
+    setTypedSignature(data.signer_name || "");
     setStatus("ready");
   };
 
-  // Canvas drawing handlers
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    if ("touches" in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    isDrawingRef.current = true;
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  };
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawingRef.current) return;
-    e.preventDefault();
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const pos = getPos(e);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#1a1a1a";
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    setHasDrawn(true);
-  };
-
-  const endDraw = () => { isDrawingRef.current = false; };
-
-  const clearCanvas = () => {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-    setHasDrawn(false);
-  };
-
   const submitSignature = async () => {
-    if (!hasDrawn || !token) return;
+    if (!typedSignature.trim() || !token || !consent) return;
     setStatus("signing");
 
-    const signatureData = canvasRef.current?.toDataURL("image/png");
+    // Store the typed name as signature data (text-based)
+    const signatureData = `data:text/plain;base64,${btoa(unescape(encodeURIComponent(typedSignature.trim())))}`;
 
     const { error } = await supabase
       .from("signature_requests")
@@ -162,12 +122,14 @@ export default function SignaturePage() {
     );
   }
 
+  const canSubmit = typedSignature.trim().length >= 2 && consent;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="max-w-lg w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <PenTool className="h-5 w-5" />
+            <PenTool className="h-5 w-5" aria-hidden="true" />
             Firma documento
           </CardTitle>
           {orderInfo && (
@@ -176,47 +138,73 @@ export default function SignaturePage() {
             </p>
           )}
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {signerName && (
             <p className="text-sm">
               Firmatario: <span className="font-medium">{signerName}</span>
             </p>
           )}
 
-          <div className="border rounded-lg bg-white p-1">
-            <canvas
-              ref={canvasRef}
-              width={460}
-              height={200}
-              className="w-full cursor-crosshair touch-none"
-              onMouseDown={startDraw}
-              onMouseMove={draw}
-              onMouseUp={endDraw}
-              onMouseLeave={endDraw}
-              onTouchStart={startDraw}
-              onTouchMove={draw}
-              onTouchEnd={endDraw}
+          {/* Typed signature input */}
+          <div className="space-y-2">
+            <Label htmlFor="typed-signature">
+              Scrivi il tuo nome e cognome per firmare *
+            </Label>
+            <Input
+              id="typed-signature"
+              value={typedSignature}
+              onChange={(e) => setTypedSignature(e.target.value)}
+              placeholder="Nome Cognome"
+              className="text-lg"
+              aria-describedby="signature-hint"
+              autoComplete="name"
             />
+            <p id="signature-hint" className="text-xs text-muted-foreground">
+              Inserisci il tuo nome completo come firma elettronica del documento.
+            </p>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Button variant="outline" size="sm" onClick={clearCanvas}>
-              <Eraser className="h-4 w-4 mr-1" /> Cancella
-            </Button>
-            <Button
-              onClick={submitSignature}
-              disabled={!hasDrawn || status === "signing"}
-            >
-              {status === "signing" ? (
-                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
-              ) : (
-                "Conferma firma"
-              )}
-            </Button>
+          {/* Signature preview */}
+          {typedSignature.trim() && (
+            <div className="border rounded-lg bg-white p-4 min-h-[80px] flex items-center justify-center">
+              <span
+                style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", fontSize: "1.8rem", color: "#1a1a1a" }}
+                aria-label={`Anteprima firma: ${typedSignature}`}
+              >
+                {typedSignature}
+              </span>
+            </div>
+          )}
+
+          {/* Consent checkbox */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border">
+            <input
+              type="checkbox"
+              id="consent"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border shrink-0"
+              aria-describedby="consent-label"
+            />
+            <label id="consent-label" htmlFor="consent" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
+              Confermo di aver letto e accettato i termini del documento e di apporre la mia firma elettronica ai sensi dell'art. 21 del D.Lgs. 82/2005 (CAD).
+            </label>
           </div>
+
+          <Button
+            onClick={submitSignature}
+            disabled={!canSubmit || status === "signing"}
+            className="w-full"
+          >
+            {status === "signing" ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" aria-hidden="true" /> Salvataggio...</>
+            ) : (
+              "Conferma firma"
+            )}
+          </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            Firmando, confermi di aver letto e accettato i termini del documento.
+            La firma verrà registrata insieme alla data, all'ora e all'indirizzo IP del dispositivo.
           </p>
         </CardContent>
       </Card>

@@ -85,6 +85,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
+import { useCompanyOnboarding } from "@/hooks/useCompanyOnboarding";
 
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
@@ -373,6 +374,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
+  const { data: onboarding } = useCompanyOnboarding();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
 
   return (
@@ -381,8 +383,10 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
         <SidebarMenu>
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
+            const isOnboardingItem = item.url === "/azienda/onboarding";
             const badgeCount = isTaskItem ? (taskCounts?.total ?? 0) : 0;
             const badgeVariant = isTaskItem && taskCounts?.overdue ? "destructive" : isTaskItem && taskCounts?.dueToday ? "warning" : "secondary";
+            const onboardingPct = onboarding?.pct ?? 100;
 
             return (
               <SidebarMenuItem key={item.url}>
@@ -404,6 +408,15 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                         )}
                       >
                         {badgeCount}
+                      </Badge>
+                    )}
+                    {isOnboardingItem && onboarding && onboardingPct < 100 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold bg-orange-100 text-orange-800 border-orange-200"
+                        aria-label={`Setup completato al ${onboardingPct}%`}
+                      >
+                        {onboardingPct}%
                       </Badge>
                     )}
                   </NavLink>
