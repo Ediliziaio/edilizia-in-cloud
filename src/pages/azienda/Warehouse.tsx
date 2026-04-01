@@ -48,6 +48,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
+import { StockAlertBanner } from "@/components/warehouse/StockAlertBanner";
 import BlockedOrdersPanel from "@/components/warehouse/BlockedOrdersPanel";
 import LowStockAlertsPanel from "@/components/warehouse/LowStockAlertsPanel";
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
@@ -262,7 +263,8 @@ export default function Warehouse() {
       )}
 
       {/* Alerts */}
-      <div className="print:hidden">
+      <div className="print:hidden space-y-3">
+        <StockAlertBanner companyId={effectiveCompany.id} />
         <WarehouseAlerts items={items} />
       </div>
 
