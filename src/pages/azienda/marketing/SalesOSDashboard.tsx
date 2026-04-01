@@ -542,9 +542,9 @@ export default function SalesOSDashboard() {
 
   if (!companyId)
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Caricamento dati azienda...</span>
+      <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Target className="h-8 w-8 opacity-40" />
+        <span>Seleziona un'azienda per visualizzare Sales OS.</span>
       </div>
     );
 
