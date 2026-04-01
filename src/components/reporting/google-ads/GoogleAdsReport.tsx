@@ -12,14 +12,11 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface GoogleAdsStat {
-  campaign_name: string;
+  campaign_name: string | null;
   impressions: number;
   clicks: number;
-  cost: number;
+  spend: number;
   conversions: number;
-  ctr: number;
-  cpc: number;
-  status: string;
   date: string;
 }
 
@@ -59,7 +56,7 @@ function KPICard({
 
 export default function GoogleAdsReport() {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
 
   // Check if Google Ads integration exists
@@ -78,21 +75,22 @@ export default function GoogleAdsReport() {
     enabled: !!companyId,
   });
 
-  // Fetch Google Ads stats if connected
+  // Fetch Google Ads stats if connected (solo quando integrazione attiva)
   const { data: stats = [], isLoading: statsLoading } = useQuery({
-    queryKey: ["google-ads-stats", companyId, integration?.id],
+    queryKey: ["google-ads-stats", companyId],
     queryFn: async () => {
-      if (!companyId || !integration?.id) return [];
-      const { data } = await supabase
-        .from("google_ads_stats" as any)
-        .select("*")
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("google_ads_stats")
+        .select("campaign_name, impressions, clicks, spend, conversions, date")
         .eq("company_id", companyId)
-        .eq("integration_id", integration.id)
         .order("date", { ascending: false })
-        .limit(100);
+        .limit(200);
+      if (error) throw error;
       return (data || []) as GoogleAdsStat[];
     },
-    enabled: !!companyId && !!integration?.id,
+    enabled: !!companyId && !!integration,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLoading = integrationLoading || statsLoading;
@@ -136,24 +134,24 @@ export default function GoogleAdsReport() {
   // Compute aggregate KPIs
   const totalImpressions = stats.reduce((s, r) => s + (r.impressions ?? 0), 0);
   const totalClicks = stats.reduce((s, r) => s + (r.clicks ?? 0), 0);
-  const totalCost = stats.reduce((s, r) => s + (r.cost ?? 0), 0);
+  const totalSpend = stats.reduce((s, r) => s + (r.spend ?? 0), 0);
   const totalConversions = stats.reduce((s, r) => s + (r.conversions ?? 0), 0);
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const avgCpc = totalClicks > 0 ? totalCost / totalClicks : 0;
+  const avgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
   // Aggregate per campaign
-  const byCampaign: Record<string, { impressions: number; clicks: number; cost: number; conversions: number; status: string }> = {};
+  const byCampaign: Record<string, { impressions: number; clicks: number; spend: number; conversions: number }> = {};
   for (const s of stats) {
     if (!s.campaign_name) continue;
     if (!byCampaign[s.campaign_name]) {
-      byCampaign[s.campaign_name] = { impressions: 0, clicks: 0, cost: 0, conversions: 0, status: s.status ?? "" };
+      byCampaign[s.campaign_name] = { impressions: 0, clicks: 0, spend: 0, conversions: 0 };
     }
     byCampaign[s.campaign_name].impressions += s.impressions ?? 0;
     byCampaign[s.campaign_name].clicks += s.clicks ?? 0;
-    byCampaign[s.campaign_name].cost += s.cost ?? 0;
+    byCampaign[s.campaign_name].spend += s.spend ?? 0;
     byCampaign[s.campaign_name].conversions += s.conversions ?? 0;
   }
-  const campaigns = Object.entries(byCampaign).sort((a, b) => b[1].cost - a[1].cost);
+  const campaigns = Object.entries(byCampaign).sort((a, b) => b[1].spend - a[1].spend);
 
   return (
     <div className="space-y-6">
@@ -177,7 +175,7 @@ export default function GoogleAdsReport() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <KPICard label="Impressioni" value={totalImpressions.toLocaleString("it-IT")} icon={Eye} isLoading={isLoading} />
         <KPICard label="Click" value={totalClicks.toLocaleString("it-IT")} icon={MousePointerClick} colorClass="text-primary" isLoading={isLoading} />
-        <KPICard label="Spesa totale" value={formatCurrency(totalCost)} icon={Euro} colorClass="text-amber-600" isLoading={isLoading} />
+        <KPICard label="Spesa totale" value={formatCurrency(totalSpend)} icon={Euro} colorClass="text-amber-600" isLoading={isLoading} />
         <KPICard label="Conversioni" value={totalConversions.toLocaleString("it-IT")} icon={TrendingUp} colorClass="text-green-600" isLoading={isLoading} />
         <KPICard label="CTR medio" value={`${avgCtr.toFixed(2)}%`} icon={BarChart2} isLoading={isLoading} />
         <KPICard label="CPC medio" value={formatCurrency(avgCpc)} icon={MousePointerClick} isLoading={isLoading} />
@@ -205,7 +203,6 @@ export default function GoogleAdsReport() {
                       <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">CTR</th>
                       <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Spesa</th>
                       <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Conversioni</th>
-                      <th className="text-center px-4 py-2 text-xs text-muted-foreground font-medium">Stato</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -217,13 +214,8 @@ export default function GoogleAdsReport() {
                           <td className="px-4 py-2.5 text-right">{data.impressions.toLocaleString("it-IT")}</td>
                           <td className="px-4 py-2.5 text-right">{data.clicks.toLocaleString("it-IT")}</td>
                           <td className="px-4 py-2.5 text-right">{ctr.toFixed(2)}%</td>
-                          <td className="px-4 py-2.5 text-right font-semibold">{formatCurrency(data.cost)}</td>
-                          <td className="px-4 py-2.5 text-right text-green-600 font-semibold">{data.conversions}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <Badge className={cn("text-xs border-0", data.status === "ENABLED" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground")}>
-                              {data.status === "ENABLED" ? "Attiva" : data.status ?? "—"}
-                            </Badge>
-                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold">{formatCurrency(data.spend)}</td>
+                          <td className="px-4 py-2.5 text-right text-green-600 font-semibold">{data.conversions.toLocaleString("it-IT")}</td>
                         </tr>
                       );
                     })}

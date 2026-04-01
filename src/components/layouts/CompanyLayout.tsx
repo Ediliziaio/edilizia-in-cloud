@@ -89,6 +89,7 @@ import { useCompanyOnboarding } from "@/hooks/useCompanyOnboarding";
 
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -1039,7 +1040,9 @@ export function CompanyLayout() {
           <OfflineBanner />
           <LifecycleNotificationsBanner />
           <main className="flex-1 p-3 md:p-6 bg-muted/30">
-            <Outlet />
+            <ErrorBoundary title="Errore nel caricamento della pagina">
+              <Outlet />
+            </ErrorBoundary>
           </main>
           {!effectiveBrand.hidePoweredBy && (
             <footer className="hidden md:block text-center py-2 text-xs text-muted-foreground border-t bg-background">

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -51,6 +51,120 @@ export type Database = {
             columns: ["target_company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      adempimenti_fiscali: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          id: string
+          importo_stimato: number | null
+          note: string | null
+          ricorrente: boolean
+          ricorrenza_mesi: number | null
+          scadenza: string
+          stato: string
+          tipo: string
+          titolo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          importo_stimato?: number | null
+          note?: string | null
+          ricorrente?: boolean
+          ricorrenza_mesi?: number | null
+          scadenza: string
+          stato?: string
+          tipo?: string
+          titolo: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          importo_stimato?: number | null
+          note?: string | null
+          ricorrente?: boolean
+          ricorrenza_mesi?: number | null
+          scadenza?: string
+          stato?: string
+          tipo?: string
+          titolo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adempimenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      adempimenti_sicurezza: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          note: string | null
+          order_id: string | null
+          scadenza_data: string | null
+          stato: string
+          tipo: string
+          titolo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          scadenza_data?: string | null
+          stato?: string
+          tipo?: string
+          titolo: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          scadenza_data?: string | null
+          stato?: string
+          tipo?: string
+          titolo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adempimenti_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "adempimenti_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "adempimenti_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -390,6 +504,8 @@ export type Database = {
           id: string
           messages_count: number
           metadata: Json | null
+          sentiment: string | null
+          sentiment_score: number | null
           started_at: string
           status: string
           summary: string | null
@@ -407,6 +523,8 @@ export type Database = {
           id?: string
           messages_count?: number
           metadata?: Json | null
+          sentiment?: string | null
+          sentiment_score?: number | null
           started_at?: string
           status?: string
           summary?: string | null
@@ -424,6 +542,8 @@ export type Database = {
           id?: string
           messages_count?: number
           metadata?: Json | null
+          sentiment?: string | null
+          sentiment_score?: number | null
           started_at?: string
           status?: string
           summary?: string | null
@@ -668,6 +788,48 @@ export type Database = {
           },
         ]
       }
+      ai_agent_pricing: {
+        Row: {
+          cost_billed_per_unit: number
+          cost_real_per_unit: number
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          markup_multiplier: number
+          model_tier: string
+          provider: string
+          unit_label: string
+          updated_at: string
+        }
+        Insert: {
+          cost_billed_per_unit?: number
+          cost_real_per_unit?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          model_tier?: string
+          provider?: string
+          unit_label?: string
+          updated_at?: string
+        }
+        Update: {
+          cost_billed_per_unit?: number
+          cost_real_per_unit?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          model_tier?: string
+          provider?: string
+          unit_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_agent_templates: {
         Row: {
           agent_type: string
@@ -776,6 +938,8 @@ export type Database = {
       ai_agents: {
         Row: {
           auto_end_on_silence: boolean | null
+          backup_llm: string
+          business_hours_enabled: boolean | null
           company_id: string
           conversation_timeout: number | null
           created_at: string
@@ -784,19 +948,27 @@ export type Database = {
           elevenlabs_agent_id: string | null
           error_message: string | null
           first_message: string
+          giorni_attivi: number[] | null
           id: string
           is_interruptible: boolean
           language: string
           llm_model: string
           max_duration: number | null
           name: string
+          orario_apertura: string | null
+          orario_chiusura: string | null
           rate_limit_enabled: boolean | null
           rate_limit_per_minute: number | null
           require_auth: boolean | null
           send_confirmation_after_booking: boolean
           silence_timeout: number | null
+          sms_postcall_enabled: boolean | null
+          sms_postcall_template: string | null
+          sms_postcall_trigger: string | null
           status: string
           system_prompt: string
+          thinking_budget_tokens: number
+          thinking_enabled: boolean
           tools_config: Json | null
           tts_model: string | null
           updated_at: string
@@ -804,6 +976,8 @@ export type Database = {
         }
         Insert: {
           auto_end_on_silence?: boolean | null
+          backup_llm?: string
+          business_hours_enabled?: boolean | null
           company_id: string
           conversation_timeout?: number | null
           created_at?: string
@@ -812,19 +986,27 @@ export type Database = {
           elevenlabs_agent_id?: string | null
           error_message?: string | null
           first_message?: string
+          giorni_attivi?: number[] | null
           id?: string
           is_interruptible?: boolean
           language?: string
           llm_model?: string
           max_duration?: number | null
           name: string
+          orario_apertura?: string | null
+          orario_chiusura?: string | null
           rate_limit_enabled?: boolean | null
           rate_limit_per_minute?: number | null
           require_auth?: boolean | null
           send_confirmation_after_booking?: boolean
           silence_timeout?: number | null
+          sms_postcall_enabled?: boolean | null
+          sms_postcall_template?: string | null
+          sms_postcall_trigger?: string | null
           status?: string
           system_prompt?: string
+          thinking_budget_tokens?: number
+          thinking_enabled?: boolean
           tools_config?: Json | null
           tts_model?: string | null
           updated_at?: string
@@ -832,6 +1014,8 @@ export type Database = {
         }
         Update: {
           auto_end_on_silence?: boolean | null
+          backup_llm?: string
+          business_hours_enabled?: boolean | null
           company_id?: string
           conversation_timeout?: number | null
           created_at?: string
@@ -840,19 +1024,27 @@ export type Database = {
           elevenlabs_agent_id?: string | null
           error_message?: string | null
           first_message?: string
+          giorni_attivi?: number[] | null
           id?: string
           is_interruptible?: boolean
           language?: string
           llm_model?: string
           max_duration?: number | null
           name?: string
+          orario_apertura?: string | null
+          orario_chiusura?: string | null
           rate_limit_enabled?: boolean | null
           rate_limit_per_minute?: number | null
           require_auth?: boolean | null
           send_confirmation_after_booking?: boolean
           silence_timeout?: number | null
+          sms_postcall_enabled?: boolean | null
+          sms_postcall_template?: string | null
+          sms_postcall_trigger?: string | null
           status?: string
           system_prompt?: string
+          thinking_budget_tokens?: number
+          thinking_enabled?: boolean
           tools_config?: Json | null
           tts_model?: string | null
           updated_at?: string
@@ -2029,8 +2221,15 @@ export type Database = {
           reset_numeratore_annuale: boolean | null
           sdi_api_key: string | null
           sdi_configurato: boolean | null
+          sdi_firma_api_key: string | null
+          sdi_firma_provider: string | null
+          sdi_firma_username: string | null
+          sdi_progressivo_anno: number
+          sdi_progressivo_invio: number
           sdi_provider: string | null
           sito_web: string | null
+          socio_unico: boolean
+          split_payment_pa: boolean
           telefono: string | null
           ultimo_numero_ddt: number | null
           ultimo_numero_fattura: number | null
@@ -2077,8 +2276,15 @@ export type Database = {
           reset_numeratore_annuale?: boolean | null
           sdi_api_key?: string | null
           sdi_configurato?: boolean | null
+          sdi_firma_api_key?: string | null
+          sdi_firma_provider?: string | null
+          sdi_firma_username?: string | null
+          sdi_progressivo_anno?: number
+          sdi_progressivo_invio?: number
           sdi_provider?: string | null
           sito_web?: string | null
+          socio_unico?: boolean
+          split_payment_pa?: boolean
           telefono?: string | null
           ultimo_numero_ddt?: number | null
           ultimo_numero_fattura?: number | null
@@ -2125,8 +2331,15 @@ export type Database = {
           reset_numeratore_annuale?: boolean | null
           sdi_api_key?: string | null
           sdi_configurato?: boolean | null
+          sdi_firma_api_key?: string | null
+          sdi_firma_provider?: string | null
+          sdi_firma_username?: string | null
+          sdi_progressivo_anno?: number
+          sdi_progressivo_invio?: number
           sdi_provider?: string | null
           sito_web?: string | null
+          socio_unico?: boolean
+          split_payment_pa?: boolean
           telefono?: string | null
           ultimo_numero_ddt?: number | null
           ultimo_numero_fattura?: number | null
@@ -2692,17 +2905,44 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       article_templates: {
         Row: {
+          attivo: boolean | null
+          categoria_id: string | null
           category: string | null
           company_id: string
           created_at: string
+          custom_field_values: Json | null
           description: string | null
+          griglia_descrizione: string | null
+          griglia_unita_x: string | null
+          griglia_unita_y: string | null
+          ha_montaggio: boolean | null
           id: string
+          immagine_url: string | null
+          marca: string | null
+          margine_minimo_percentuale: number | null
+          modalita_prezzo: string
+          modello: string | null
+          montaggio_tariffa_id: string | null
+          montaggio_tipo: string | null
           name: string
+          note_interne: string | null
+          pdf_scheda_url: string | null
+          prezzo_acquisto_netto: number | null
+          prezzo_vendita: number | null
+          sconto_max_cliente_percentuale: number | null
           sku: string | null
+          sort_order: number | null
           standard_cost: number | null
           supplier_id: string | null
           unit_of_measure: string | null
@@ -2710,13 +2950,33 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          attivo?: boolean | null
+          categoria_id?: string | null
           category?: string | null
           company_id: string
           created_at?: string
+          custom_field_values?: Json | null
           description?: string | null
+          griglia_descrizione?: string | null
+          griglia_unita_x?: string | null
+          griglia_unita_y?: string | null
+          ha_montaggio?: boolean | null
           id?: string
+          immagine_url?: string | null
+          marca?: string | null
+          margine_minimo_percentuale?: number | null
+          modalita_prezzo?: string
+          modello?: string | null
+          montaggio_tariffa_id?: string | null
+          montaggio_tipo?: string | null
           name: string
+          note_interne?: string | null
+          pdf_scheda_url?: string | null
+          prezzo_acquisto_netto?: number | null
+          prezzo_vendita?: number | null
+          sconto_max_cliente_percentuale?: number | null
           sku?: string | null
+          sort_order?: number | null
           standard_cost?: number | null
           supplier_id?: string | null
           unit_of_measure?: string | null
@@ -2724,13 +2984,33 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          attivo?: boolean | null
+          categoria_id?: string | null
           category?: string | null
           company_id?: string
           created_at?: string
+          custom_field_values?: Json | null
           description?: string | null
+          griglia_descrizione?: string | null
+          griglia_unita_x?: string | null
+          griglia_unita_y?: string | null
+          ha_montaggio?: boolean | null
           id?: string
+          immagine_url?: string | null
+          marca?: string | null
+          margine_minimo_percentuale?: number | null
+          modalita_prezzo?: string
+          modello?: string | null
+          montaggio_tariffa_id?: string | null
+          montaggio_tipo?: string | null
           name?: string
+          note_interne?: string | null
+          pdf_scheda_url?: string | null
+          prezzo_acquisto_netto?: number | null
+          prezzo_vendita?: number | null
+          sconto_max_cliente_percentuale?: number | null
           sku?: string | null
+          sort_order?: number | null
           standard_cost?: number | null
           supplier_id?: string | null
           unit_of_measure?: string | null
@@ -2750,6 +3030,13 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_at_montaggio_tariffa"
+            columns: ["montaggio_tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
             referencedColumns: ["id"]
           },
         ]
@@ -2809,94 +3096,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attivita_venditori: {
-        Row: {
-          cliente_id: string | null
-          company_id: string
-          created_at: string | null
-          data_attivita: string
-          durata_minuti: number | null
-          esito: string | null
-          id: string
-          note: string | null
-          order_id: string | null
-          quote_id: string | null
-          salesperson_id: string
-          tipo: string | null
-        }
-        Insert: {
-          cliente_id?: string | null
-          company_id: string
-          created_at?: string | null
-          data_attivita?: string
-          durata_minuti?: number | null
-          esito?: string | null
-          id?: string
-          note?: string | null
-          order_id?: string | null
-          quote_id?: string | null
-          salesperson_id: string
-          tipo?: string | null
-        }
-        Update: {
-          cliente_id?: string | null
-          company_id?: string
-          created_at?: string | null
-          data_attivita?: string
-          durata_minuti?: number | null
-          esito?: string | null
-          id?: string
-          note?: string | null
-          order_id?: string | null
-          quote_id?: string | null
-          salesperson_id?: string
-          tipo?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attivita_venditori_cliente_id_fkey"
-            columns: ["cliente_id"]
-            isOneToOne: false
-            referencedRelation: "anagrafiche_native"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attivita_venditori_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attivita_venditori_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attivita_venditori_quote_id_fkey"
-            columns: ["quote_id"]
-            isOneToOne: false
-            referencedRelation: "quotes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attivita_venditori_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
-          },
-          {
-            foreignKeyName: "attivita_venditori_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
         ]
@@ -3858,6 +4057,53 @@ export type Database = {
           },
         ]
       }
+      bank_alert_rules: {
+        Row: {
+          company_id: string
+          created_at: string
+          days_threshold: number | null
+          id: string
+          is_active: boolean
+          notify_email: boolean | null
+          notify_inapp: boolean | null
+          rule_type: string
+          threshold: number | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          days_threshold?: number | null
+          id?: string
+          is_active?: boolean
+          notify_email?: boolean | null
+          notify_inapp?: boolean | null
+          rule_type: string
+          threshold?: number | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          days_threshold?: number | null
+          id?: string
+          is_active?: boolean
+          notify_email?: boolean | null
+          notify_inapp?: boolean | null
+          rule_type?: string
+          threshold?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_alert_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_categorization_rules: {
         Row: {
           auto_apply: boolean
@@ -4025,6 +4271,7 @@ export type Database = {
           matched_by: string | null
           notes: string | null
           transaction_id: string
+          unmatch_reason: string | null
           unmatched_at: string | null
         }
         Insert: {
@@ -4039,6 +4286,7 @@ export type Database = {
           matched_by?: string | null
           notes?: string | null
           transaction_id: string
+          unmatch_reason?: string | null
           unmatched_at?: string | null
         }
         Update: {
@@ -4053,6 +4301,7 @@ export type Database = {
           matched_by?: string | null
           notes?: string | null
           transaction_id?: string
+          unmatch_reason?: string | null
           unmatched_at?: string | null
         }
         Relationships: [
@@ -4140,6 +4389,7 @@ export type Database = {
         Row: {
           account_id: string
           amount: number
+          amount_eur: number | null
           booking_date: string | null
           category: string | null
           category_icon: string | null
@@ -4167,6 +4417,7 @@ export type Database = {
         Insert: {
           account_id: string
           amount: number
+          amount_eur?: number | null
           booking_date?: string | null
           category?: string | null
           category_icon?: string | null
@@ -4194,6 +4445,7 @@ export type Database = {
         Update: {
           account_id?: string
           amount?: number
+          amount_eur?: number | null
           booking_date?: string | null
           category?: string | null
           category_icon?: string | null
@@ -4366,6 +4618,93 @@ export type Database = {
           },
         ]
       }
+      bundle_prodotti: {
+        Row: {
+          attivo: boolean | null
+          company_id: string
+          created_at: string | null
+          descrizione: string | null
+          id: string
+          nome: string
+          sconto_bundle_pct: number | null
+        }
+        Insert: {
+          attivo?: boolean | null
+          company_id: string
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string
+          nome: string
+          sconto_bundle_pct?: number | null
+        }
+        Update: {
+          attivo?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string
+          nome?: string
+          sconto_bundle_pct?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bundle_prodotti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bundle_voci: {
+        Row: {
+          bundle_id: string
+          id: string
+          prodotto_id: string | null
+          quantita: number
+          sort_order: number | null
+          tariffa_id: string | null
+        }
+        Insert: {
+          bundle_id: string
+          id?: string
+          prodotto_id?: string | null
+          quantita?: number
+          sort_order?: number | null
+          tariffa_id?: string | null
+        }
+        Update: {
+          bundle_id?: string
+          id?: string
+          prodotto_id?: string | null
+          quantita?: number
+          sort_order?: number | null
+          tariffa_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bundle_voci_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "bundle_prodotti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_voci_prodotto_id_fkey"
+            columns: ["prodotto_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_voci_tariffa_id_fkey"
+            columns: ["tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_logs: {
         Row: {
           company_id: string
@@ -4461,6 +4800,168 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_retry_log: {
+        Row: {
+          attempt_number: number
+          attempted_at: string | null
+          campaign_id: string
+          contact_id: string
+          id: string
+          next_retry_at: string | null
+          result: string | null
+        }
+        Insert: {
+          attempt_number?: number
+          attempted_at?: string | null
+          campaign_id: string
+          contact_id: string
+          id?: string
+          next_retry_at?: string | null
+          result?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          attempted_at?: string | null
+          campaign_id?: string
+          contact_id?: string
+          id?: string
+          next_retry_at?: string | null
+          result?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_retry_log_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "internal_outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cedolini: {
+        Row: {
+          anno: number
+          company_id: string
+          contributi_datore: number
+          contributi_dipendente: number
+          created_at: string
+          created_by: string | null
+          employee_id: string | null
+          employee_name: string
+          id: string
+          lordo: number
+          mese: number
+          netto: number | null
+          note: string | null
+          ritenute_irpef: number
+          stato: string
+        }
+        Insert: {
+          anno: number
+          company_id: string
+          contributi_datore?: number
+          contributi_dipendente?: number
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          employee_name: string
+          id?: string
+          lordo?: number
+          mese: number
+          netto?: number | null
+          note?: string | null
+          ritenute_irpef?: number
+          stato?: string
+        }
+        Update: {
+          anno?: number
+          company_id?: string
+          contributi_datore?: number
+          contributi_dipendente?: number
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          employee_name?: string
+          id?: string
+          lordo?: number
+          mese?: number
+          netto?: number | null
+          note?: string | null
+          ritenute_irpef?: number
+          stato?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cedolini_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_notifications: {
+        Row: {
+          channel_id: string
+          company_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_id?: string | null
+          type?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_notifications_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "internal_chat_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_notifications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "internal_chat_messages"
             referencedColumns: ["id"]
           },
         ]
@@ -4873,6 +5374,7 @@ export type Database = {
       company_billing_overrides: {
         Row: {
           company_id: string
+          custom_max_orders: number | null
           custom_notes: string | null
           id: string
           is_enabled: boolean
@@ -4886,6 +5388,7 @@ export type Database = {
         }
         Insert: {
           company_id: string
+          custom_max_orders?: number | null
           custom_notes?: string | null
           id?: string
           is_enabled?: boolean
@@ -4899,6 +5402,7 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          custom_max_orders?: number | null
           custom_notes?: string | null
           id?: string
           is_enabled?: boolean
@@ -5014,6 +5518,7 @@ export type Database = {
       }
       company_costs: {
         Row: {
+          allocations: Json | null
           amount: number
           category: string | null
           company_id: string
@@ -5026,15 +5531,18 @@ export type Database = {
           notes: string | null
           order_id: string | null
           paid_date: string | null
+          payment_method: string | null
           recurrence: string
           recurrence_auto: boolean
           recurrence_end_date: string | null
+          sede_id: string | null
           supplier_id: string | null
           treasury_category_id: string | null
           updated_at: string
           vat_rate: number | null
         }
         Insert: {
+          allocations?: Json | null
           amount?: number
           category?: string | null
           company_id: string
@@ -5047,15 +5555,18 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           paid_date?: string | null
+          payment_method?: string | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          sede_id?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
           updated_at?: string
           vat_rate?: number | null
         }
         Update: {
+          allocations?: Json | null
           amount?: number
           category?: string | null
           company_id?: string
@@ -5068,9 +5579,11 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           paid_date?: string | null
+          payment_method?: string | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          sede_id?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
           updated_at?: string
@@ -5089,6 +5602,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
             referencedColumns: ["id"]
           },
           {
@@ -5323,6 +5850,38 @@ export type Database = {
             columns: ["step_id"]
             isOneToOne: false
             referencedRelation: "onboarding_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_onboarding_progress: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          id: string
+          skipped_at: string | null
+          step_key: string
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          id?: string
+          skipped_at?: string | null
+          step_key: string
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          id?: string
+          skipped_at?: string | null
+          step_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_onboarding_progress_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -5770,6 +6329,60 @@ export type Database = {
           },
         ]
       }
+      ddt_ricezione: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_ricezione: string
+          id: string
+          note: string | null
+          numero_ddt: string
+          purchase_order_id: string
+          quantita_ricevuta: number
+          stato: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_ricezione?: string
+          id?: string
+          note?: string | null
+          numero_ddt: string
+          purchase_order_id: string
+          quantita_ricevuta?: number
+          stato?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_ricezione?: string
+          id?: string
+          note?: string | null
+          numero_ddt?: string
+          purchase_order_id?: string
+          quantita_ricevuta?: number
+          stato?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ddt_ricezione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ddt_ricezione_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documenti_fiscali: {
         Row: {
           allegati: Json | null
@@ -5797,7 +6410,6 @@ export type Database = {
           data_emissione: string
           data_scadenza: string | null
           data_validita: string | null
-          deleted_at: string | null
           ddt_aspetto_beni: string | null
           ddt_causale_trasporto: string | null
           ddt_data_ora_consegna: string | null
@@ -5809,6 +6421,7 @@ export type Database = {
           ddt_peso: string | null
           ddt_porto: string | null
           ddt_vettore: Json | null
+          deleted_at: string | null
           documento_correlato_id: string | null
           iban_pagamento: string | null
           id: string
@@ -5836,13 +6449,14 @@ export type Database = {
           ritenuta_causale: string | null
           ritenuta_importo: number | null
           ritenuta_tipo: string | null
-          salesperson_id: string | null
           scadenze_pagamento: Json | null
           sconto_globale_percentuale: number | null
           sconto_globale_valore: number | null
           sdi_data_consegna: string | null
           sdi_errori: Json | null
+          sdi_file_p7m_url: string | null
           sdi_file_xml_url: string | null
+          sdi_firmato: boolean | null
           sdi_id_trasmissione: string | null
           sdi_notifica_tipo: string | null
           sdi_ricevuta_url: string | null
@@ -5884,7 +6498,6 @@ export type Database = {
           data_emissione?: string
           data_scadenza?: string | null
           data_validita?: string | null
-          deleted_at?: string | null
           ddt_aspetto_beni?: string | null
           ddt_causale_trasporto?: string | null
           ddt_data_ora_consegna?: string | null
@@ -5896,6 +6509,7 @@ export type Database = {
           ddt_peso?: string | null
           ddt_porto?: string | null
           ddt_vettore?: Json | null
+          deleted_at?: string | null
           documento_correlato_id?: string | null
           iban_pagamento?: string | null
           id?: string
@@ -5923,13 +6537,14 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
-          salesperson_id?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
           sdi_data_consegna?: string | null
           sdi_errori?: Json | null
+          sdi_file_p7m_url?: string | null
           sdi_file_xml_url?: string | null
+          sdi_firmato?: boolean | null
           sdi_id_trasmissione?: string | null
           sdi_notifica_tipo?: string | null
           sdi_ricevuta_url?: string | null
@@ -5971,7 +6586,6 @@ export type Database = {
           data_emissione?: string
           data_scadenza?: string | null
           data_validita?: string | null
-          deleted_at?: string | null
           ddt_aspetto_beni?: string | null
           ddt_causale_trasporto?: string | null
           ddt_data_ora_consegna?: string | null
@@ -5983,6 +6597,7 @@ export type Database = {
           ddt_peso?: string | null
           ddt_porto?: string | null
           ddt_vettore?: Json | null
+          deleted_at?: string | null
           documento_correlato_id?: string | null
           iban_pagamento?: string | null
           id?: string
@@ -6010,13 +6625,14 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
-          salesperson_id?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
           sdi_data_consegna?: string | null
           sdi_errori?: Json | null
+          sdi_file_p7m_url?: string | null
           sdi_file_xml_url?: string | null
+          sdi_firmato?: boolean | null
           sdi_id_trasmissione?: string | null
           sdi_notifica_tipo?: string | null
           sdi_ricevuta_url?: string | null
@@ -6083,17 +6699,133 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "documenti_fiscali_salesperson_id_fkey"
-            columns: ["salesperson_id"]
+            foreignKeyName: "documenti_fiscali_ordine_id_fkey"
+            columns: ["ordine_id"]
             isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dunning_attempts: {
+        Row: {
+          company_id: string
+          created_at: string
+          dunning_day: string
+          error_message: string | null
+          id: string
+          next_retry_at: string | null
+          permanently_failed: boolean
+          retry_count: number
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          dunning_day: string
+          error_message?: string | null
+          id?: string
+          next_retry_at?: string | null
+          permanently_failed?: boolean
+          retry_count?: number
+          sent_at?: string | null
+          status: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          dunning_day?: string
+          error_message?: string | null
+          id?: string
+          next_retry_at?: string | null
+          permanently_failed?: boolean
+          retry_count?: number
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      duvri_documents: {
+        Row: {
+          committente_nome: string
+          committente_piva: string | null
+          company_id: string
+          costi_sicurezza: number | null
+          created_at: string
+          created_by: string | null
+          firmato_committente_il: string | null
+          firmato_subappaltatore_il: string | null
+          generated_content: string | null
+          id: string
+          interferenze: Json | null
+          misure_prevenzione: string | null
+          order_id: string
+          status: string
+          subappaltatori: Json | null
+        }
+        Insert: {
+          committente_nome: string
+          committente_piva?: string | null
+          company_id: string
+          costi_sicurezza?: number | null
+          created_at?: string
+          created_by?: string | null
+          firmato_committente_il?: string | null
+          firmato_subappaltatore_il?: string | null
+          generated_content?: string | null
+          id?: string
+          interferenze?: Json | null
+          misure_prevenzione?: string | null
+          order_id: string
+          status?: string
+          subappaltatori?: Json | null
+        }
+        Update: {
+          committente_nome?: string
+          committente_piva?: string | null
+          company_id?: string
+          costi_sicurezza?: number | null
+          created_at?: string
+          created_by?: string | null
+          firmato_committente_il?: string | null
+          firmato_subappaltatore_il?: string | null
+          generated_content?: string | null
+          id?: string
+          interferenze?: Json | null
+          misure_prevenzione?: string | null
+          order_id?: string
+          status?: string
+          subappaltatori?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duvri_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "documenti_fiscali_salesperson_id_fkey"
-            columns: ["salesperson_id"]
+            foreignKeyName: "duvri_documents_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "salespeople"
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duvri_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -6588,6 +7320,61 @@ export type Database = {
           },
         ]
       }
+      email_optin_tokens: {
+        Row: {
+          company_id: string
+          confirmed_at: string | null
+          contact_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          company_id: string
+          confirmed_at?: string | null
+          contact_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          token: string
+        }
+        Update: {
+          company_id?: string
+          confirmed_at?: string | null
+          contact_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_optin_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_optin_tokens_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "email_optin_tokens_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_pricing: {
         Row: {
           cost_billed_per_email: number
@@ -6621,6 +7408,33 @@ export type Database = {
           markup_multiplier?: number
           provider?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      email_suppressions: {
+        Row: {
+          email: string
+          id: string
+          notes: string | null
+          reason: string
+          suppressed_at: string
+          suppressed_by: string | null
+        }
+        Insert: {
+          email: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          suppressed_at?: string
+          suppressed_by?: string | null
+        }
+        Update: {
+          email?: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          suppressed_at?: string
+          suppressed_by?: string | null
         }
         Relationships: []
       }
@@ -6742,6 +7556,7 @@ export type Database = {
           first_name: string
           gross_salary: number
           id: string
+          inps_rate: number | null
           is_active: boolean
           last_name: string
           monthly_hours: number
@@ -6758,6 +7573,7 @@ export type Database = {
           first_name: string
           gross_salary?: number
           id?: string
+          inps_rate?: number | null
           is_active?: boolean
           last_name: string
           monthly_hours?: number
@@ -6774,6 +7590,7 @@ export type Database = {
           first_name?: string
           gross_salary?: number
           id?: string
+          inps_rate?: number | null
           is_active?: boolean
           last_name?: string
           monthly_hours?: number
@@ -6786,6 +7603,186 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_custom_field_values: {
+        Row: {
+          company_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          field_id: string
+          id: string
+          value: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          field_id: string
+          id?: string
+          value?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          field_id?: string
+          id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_custom_field_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_custom_field_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_report_items: {
+        Row: {
+          amount: number
+          bank_transaction_id: string | null
+          category: string | null
+          company_id: string
+          created_at: string
+          currency: string | null
+          description: string
+          expense_date: string
+          id: string
+          notes: string | null
+          receipt_name: string | null
+          receipt_url: string | null
+          report_id: string
+        }
+        Insert: {
+          amount: number
+          bank_transaction_id?: string | null
+          category?: string | null
+          company_id: string
+          created_at?: string
+          currency?: string | null
+          description: string
+          expense_date?: string
+          id?: string
+          notes?: string | null
+          receipt_name?: string | null
+          receipt_url?: string | null
+          report_id: string
+        }
+        Update: {
+          amount?: number
+          bank_transaction_id?: string | null
+          category?: string | null
+          company_id?: string
+          created_at?: string
+          currency?: string | null
+          description?: string
+          expense_date?: string
+          id?: string
+          notes?: string | null
+          receipt_name?: string | null
+          receipt_url?: string | null
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_report_items_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_report_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_report_items_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "expense_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_reports: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          company_id: string
+          created_at: string
+          currency: string | null
+          description: string | null
+          employee_id: string | null
+          employee_name: string | null
+          id: string
+          notes: string | null
+          period_from: string | null
+          period_to: string | null
+          status: string
+          title: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          employee_id?: string | null
+          employee_name?: string | null
+          id?: string
+          notes?: string | null
+          period_from?: string | null
+          period_to?: string | null
+          status?: string
+          title: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id?: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          employee_id?: string | null
+          employee_name?: string | null
+          id?: string
+          notes?: string | null
+          period_from?: string | null
+          period_to?: string | null
+          status?: string
+          title?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_reports_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -6950,7 +7947,151 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fattura_ordine_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      fatture_ricevute: {
+        Row: {
+          cedente_cap: string | null
+          cedente_cf: string | null
+          cedente_comune: string | null
+          cedente_indirizzo: string | null
+          cedente_paese: string | null
+          cedente_piva: string | null
+          cedente_provincia: string | null
+          cedente_ragione_sociale: string
+          company_id: string
+          created_at: string | null
+          data_fattura: string
+          id: string
+          imponibile_totale: number | null
+          iva_totale: number | null
+          note: string | null
+          numero_fattura: string
+          pdf_url: string | null
+          prima_nota_id: string | null
+          riepilogo_iva: Json | null
+          righe: Json | null
+          sdi_id_trasmissione: string | null
+          sdi_progressivo: string | null
+          stato: string
+          tipo_documento: string
+          totale_documento: number | null
+          updated_at: string | null
+          xml_raw: string | null
+          xml_url: string | null
+        }
+        Insert: {
+          cedente_cap?: string | null
+          cedente_cf?: string | null
+          cedente_comune?: string | null
+          cedente_indirizzo?: string | null
+          cedente_paese?: string | null
+          cedente_piva?: string | null
+          cedente_provincia?: string | null
+          cedente_ragione_sociale: string
+          company_id: string
+          created_at?: string | null
+          data_fattura: string
+          id?: string
+          imponibile_totale?: number | null
+          iva_totale?: number | null
+          note?: string | null
+          numero_fattura: string
+          pdf_url?: string | null
+          prima_nota_id?: string | null
+          riepilogo_iva?: Json | null
+          righe?: Json | null
+          sdi_id_trasmissione?: string | null
+          sdi_progressivo?: string | null
+          stato?: string
+          tipo_documento?: string
+          totale_documento?: number | null
+          updated_at?: string | null
+          xml_raw?: string | null
+          xml_url?: string | null
+        }
+        Update: {
+          cedente_cap?: string | null
+          cedente_cf?: string | null
+          cedente_comune?: string | null
+          cedente_indirizzo?: string | null
+          cedente_paese?: string | null
+          cedente_piva?: string | null
+          cedente_provincia?: string | null
+          cedente_ragione_sociale?: string
+          company_id?: string
+          created_at?: string | null
+          data_fattura?: string
+          id?: string
+          imponibile_totale?: number | null
+          iva_totale?: number | null
+          note?: string | null
+          numero_fattura?: string
+          pdf_url?: string | null
+          prima_nota_id?: string | null
+          riepilogo_iva?: Json | null
+          righe?: Json | null
+          sdi_id_trasmissione?: string | null
+          sdi_progressivo?: string | null
+          stato?: string
+          tipo_documento?: string
+          totale_documento?: number | null
+          updated_at?: string | null
+          xml_raw?: string | null
+          xml_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatture_ricevute_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_flags: {
+        Row: {
+          created_at: string
+          default_value: boolean
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_value?: boolean
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          scope?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_value?: boolean
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       flow_execution_runs: {
         Row: {
@@ -7316,6 +8457,192 @@ export type Database = {
           },
         ]
       }
+      giornale_foto: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          giornale_id: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          storage_path: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          giornale_id: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          storage_path: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          giornale_id?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          storage_path?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giornale_foto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giornale_foto_giornale_id_fkey"
+            columns: ["giornale_id"]
+            isOneToOne: false
+            referencedRelation: "giornale_lavori"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giornale_lavori: {
+        Row: {
+          avanzamento_percentuale: number | null
+          company_id: string
+          condizioni_meteo: string | null
+          created_at: string
+          created_by: string | null
+          data_lavori: string
+          firma_capocantiere: string | null
+          firmato_da: string | null
+          firmato_il: string | null
+          id: string
+          latitude: number | null
+          lavorazioni_eseguite: string
+          longitude: number | null
+          materiali_utilizzati: string | null
+          note: string | null
+          order_id: string
+          personale_presente: number | null
+          temperatura: string | null
+        }
+        Insert: {
+          avanzamento_percentuale?: number | null
+          company_id: string
+          condizioni_meteo?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_lavori?: string
+          firma_capocantiere?: string | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          id?: string
+          latitude?: number | null
+          lavorazioni_eseguite: string
+          longitude?: number | null
+          materiali_utilizzati?: string | null
+          note?: string | null
+          order_id: string
+          personale_presente?: number | null
+          temperatura?: string | null
+        }
+        Update: {
+          avanzamento_percentuale?: number | null
+          company_id?: string
+          condizioni_meteo?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_lavori?: string
+          firma_capocantiere?: string | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          id?: string
+          latitude?: number | null
+          lavorazioni_eseguite?: string
+          longitude?: number | null
+          materiali_utilizzati?: string | null
+          note?: string | null
+          order_id?: string
+          personale_presente?: number | null
+          temperatura?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giornale_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giornale_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giornale_lavori_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ads_stats: {
+        Row: {
+          campaign_id: string | null
+          campaign_name: string | null
+          clicks: number
+          company_id: string
+          conversions: number
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          spend: number
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          campaign_name?: string | null
+          clicks?: number
+          company_id: string
+          conversions?: number
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          spend?: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          campaign_name?: string | null
+          clicks?: number
+          company_id?: string
+          conversions?: number
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          spend?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_stats_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_busy_slots: {
         Row: {
           company_id: string
@@ -7587,6 +8914,38 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      health_score_history: {
+        Row: {
+          calculated_at: string
+          company_id: string
+          health: string
+          id: string
+          score: number
+        }
+        Insert: {
+          calculated_at?: string
+          company_id: string
+          health: string
+          id?: string
+          score: number
+        }
+        Update: {
+          calculated_at?: string
+          company_id?: string
+          health?: string
+          id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_score_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hr_festivita: {
         Row: {
@@ -8240,6 +9599,44 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_health_log: {
+        Row: {
+          checked_at: string
+          company_id: string | null
+          error_message: string | null
+          id: string
+          integration_name: string
+          response_ms: number | null
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          company_id?: string | null
+          error_message?: string | null
+          id?: string
+          integration_name: string
+          response_ms?: number | null
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          company_id?: string | null
+          error_message?: string | null
+          id?: string
+          integration_name?: string
+          response_ms?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_health_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -9112,31 +10509,46 @@ export type Database = {
       }
       internal_chat_channels: {
         Row: {
+          channel_emoji: string | null
           company_id: string
           created_at: string
           created_by: string
           description: string | null
+          dm_user_ids: string[] | null
           id: string
+          is_dm: boolean | null
+          is_private: boolean | null
+          is_system: boolean | null
           name: string
           type: string
           updated_at: string
         }
         Insert: {
+          channel_emoji?: string | null
           company_id: string
           created_at?: string
           created_by: string
           description?: string | null
+          dm_user_ids?: string[] | null
           id?: string
+          is_dm?: boolean | null
+          is_private?: boolean | null
+          is_system?: boolean | null
           name?: string
           type?: string
           updated_at?: string
         }
         Update: {
+          channel_emoji?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
           description?: string | null
+          dm_user_ids?: string[] | null
           id?: string
+          is_dm?: boolean | null
+          is_private?: boolean | null
+          is_system?: boolean | null
           name?: string
           type?: string
           updated_at?: string
@@ -9156,8 +10568,10 @@ export type Database = {
           channel_id: string
           company_id: string
           id: string
+          is_muted: boolean | null
           joined_at: string
           last_read_at: string | null
+          notification_pref: string | null
           role: string
           user_id: string
         }
@@ -9165,8 +10579,10 @@ export type Database = {
           channel_id: string
           company_id: string
           id?: string
+          is_muted?: boolean | null
           joined_at?: string
           last_read_at?: string | null
+          notification_pref?: string | null
           role?: string
           user_id: string
         }
@@ -9174,8 +10590,10 @@ export type Database = {
           channel_id?: string
           company_id?: string
           id?: string
+          is_muted?: boolean | null
           joined_at?: string
           last_read_at?: string | null
+          notification_pref?: string | null
           role?: string
           user_id?: string
         }
@@ -9206,6 +10624,10 @@ export type Database = {
           created_at: string
           id: string
           is_edited: boolean
+          is_pinned: boolean | null
+          mentions: string[] | null
+          message_type: string | null
+          reactions: Json | null
           reply_to_id: string | null
           sender_id: string
           updated_at: string
@@ -9219,6 +10641,10 @@ export type Database = {
           created_at?: string
           id?: string
           is_edited?: boolean
+          is_pinned?: boolean | null
+          mentions?: string[] | null
+          message_type?: string | null
+          reactions?: Json | null
           reply_to_id?: string | null
           sender_id: string
           updated_at?: string
@@ -9232,6 +10658,10 @@ export type Database = {
           created_at?: string
           id?: string
           is_edited?: boolean
+          is_pinned?: boolean | null
+          mentions?: string[] | null
+          message_type?: string | null
+          reactions?: Json | null
           reply_to_id?: string | null
           sender_id?: string
           updated_at?: string
@@ -9276,6 +10706,9 @@ export type Database = {
           filter_config: Json | null
           id: string
           name: string
+          retry_delay_minutes: number | null
+          retry_enabled: boolean | null
+          retry_max_attempts: number | null
           scheduled_at: string | null
           started_at: string | null
           status: string
@@ -9297,6 +10730,9 @@ export type Database = {
           filter_config?: Json | null
           id?: string
           name: string
+          retry_delay_minutes?: number | null
+          retry_enabled?: boolean | null
+          retry_max_attempts?: number | null
           scheduled_at?: string | null
           started_at?: string | null
           status?: string
@@ -9318,6 +10754,9 @@ export type Database = {
           filter_config?: Json | null
           id?: string
           name?: string
+          retry_delay_minutes?: number | null
+          retry_enabled?: boolean | null
+          retry_max_attempts?: number | null
           scheduled_at?: string | null
           started_at?: string | null
           status?: string
@@ -9554,6 +10993,7 @@ export type Database = {
           pdf_url: string | null
           progressive_number: number | null
           quote_id: string | null
+          sede_id: string | null
           status: string
           subtotal: number | null
           tax_amount: number | null
@@ -9602,6 +11042,7 @@ export type Database = {
           pdf_url?: string | null
           progressive_number?: number | null
           quote_id?: string | null
+          sede_id?: string | null
           status?: string
           subtotal?: number | null
           tax_amount?: number | null
@@ -9650,6 +11091,7 @@ export type Database = {
           pdf_url?: string | null
           progressive_number?: number | null
           quote_id?: string | null
+          sede_id?: string | null
           status?: string
           subtotal?: number | null
           tax_amount?: number | null
@@ -9690,6 +11132,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
             referencedColumns: ["id"]
           },
         ]
@@ -9882,6 +11338,38 @@ export type Database = {
           },
         ]
       }
+      lifecycle_events_log: {
+        Row: {
+          company_id: string
+          event: string
+          id: string
+          metadata: Json | null
+          sent_at: string
+        }
+        Insert: {
+          company_id: string
+          event: string
+          id?: string
+          metadata?: Json | null
+          sent_at?: string
+        }
+        Update: {
+          company_id?: string
+          event?: string
+          id?: string
+          metadata?: Json | null
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_events_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lifecycle_notifications: {
         Row: {
           company_id: string
@@ -9929,6 +11417,98 @@ export type Database = {
           },
         ]
       }
+      listino_categorie: {
+        Row: {
+          colore: string | null
+          company_id: string
+          created_at: string | null
+          icona: string | null
+          id: string
+          margine_target_percentuale: number | null
+          nome: string
+          sort_order: number | null
+        }
+        Insert: {
+          colore?: string | null
+          company_id: string
+          created_at?: string | null
+          icona?: string | null
+          id?: string
+          margine_target_percentuale?: number | null
+          nome: string
+          sort_order?: number | null
+        }
+        Update: {
+          colore?: string | null
+          company_id?: string
+          created_at?: string | null
+          icona?: string | null
+          id?: string
+          margine_target_percentuale?: number | null
+          nome?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listino_categorie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listino_griglia: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          note: string | null
+          prezzo_acquisto: number | null
+          prezzo_vendita: number
+          prodotto_id: string
+          valore_x: number
+          valore_y: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita: number
+          prodotto_id: string
+          valore_x: number
+          valore_y: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number
+          prodotto_id?: string
+          valore_x?: number
+          valore_y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listino_griglia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_griglia_prodotto_id_fkey"
+            columns: ["prodotto_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_attempts: {
         Row: {
           created_at: string
@@ -9961,6 +11541,41 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      lucia_conversations: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          messages: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lucia_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketing_calendar_availability: {
         Row: {
@@ -10446,6 +12061,7 @@ export type Database = {
           preferred_language: string | null
           province: string | null
           score: number
+          sede_id: string | null
           source: string | null
           source_campaign_id: string | null
           tags: string[]
@@ -10493,6 +12109,7 @@ export type Database = {
           preferred_language?: string | null
           province?: string | null
           score?: number
+          sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
           tags?: string[]
@@ -10540,6 +12157,7 @@ export type Database = {
           preferred_language?: string | null
           province?: string | null
           score?: number
+          sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
           tags?: string[]
@@ -10555,6 +12173,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contacts_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
             referencedColumns: ["id"]
           },
         ]
@@ -11215,6 +12840,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "messaging_daily_reports_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "messaging_daily_reports_source_message_id_fkey"
             columns: ["source_message_id"]
             isOneToOne: false
@@ -11703,78 +13335,91 @@ export type Database = {
           },
         ]
       }
-      obiettivi_venditori: {
+      nps_surveys: {
         Row: {
-          anno: number
           company_id: string
-          created_at: string | null
+          expires_at: string
+          feedback_text: string | null
           id: string
-          mese: number | null
-          note: string | null
-          periodo_tipo: string | null
-          salesperson_id: string
-          target_fatturato: number | null
-          target_nuovi_clienti: number | null
-          target_ordini: number | null
-          target_preventivi: number | null
-          target_win_rate: number | null
-          trimestre: number | null
+          responded_at: string | null
+          score: number | null
+          sent_at: string
+          token: string | null
+          trigger_event: string | null
+          user_id: string
         }
         Insert: {
-          anno: number
           company_id: string
-          created_at?: string | null
+          expires_at?: string
+          feedback_text?: string | null
           id?: string
-          mese?: number | null
-          note?: string | null
-          periodo_tipo?: string | null
-          salesperson_id: string
-          target_fatturato?: number | null
-          target_nuovi_clienti?: number | null
-          target_ordini?: number | null
-          target_preventivi?: number | null
-          target_win_rate?: number | null
-          trimestre?: number | null
+          responded_at?: string | null
+          score?: number | null
+          sent_at?: string
+          token?: string | null
+          trigger_event?: string | null
+          user_id: string
         }
         Update: {
-          anno?: number
           company_id?: string
-          created_at?: string | null
+          expires_at?: string
+          feedback_text?: string | null
           id?: string
-          mese?: number | null
-          note?: string | null
-          periodo_tipo?: string | null
-          salesperson_id?: string
-          target_fatturato?: number | null
-          target_nuovi_clienti?: number | null
-          target_ordini?: number | null
-          target_preventivi?: number | null
-          target_win_rate?: number | null
-          trimestre?: number | null
+          responded_at?: string | null
+          score?: number | null
+          sent_at?: string
+          token?: string | null
+          trigger_event?: string | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "obiettivi_venditori_company_id_fkey"
+            foreignKeyName: "nps_surveys_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "obiettivi_venditori_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
-          },
-          {
-            foreignKeyName: "obiettivi_venditori_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "salespeople"
-            referencedColumns: ["id"]
-          },
         ]
+      }
+      onboarding_guide_steps: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_required: boolean
+          key: string
+          label: string
+          module: string | null
+          order_position: number
+          route: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_required?: boolean
+          key: string
+          label: string
+          module?: string | null
+          order_position?: number
+          route?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_required?: boolean
+          key?: string
+          label?: string
+          module?: string | null
+          order_position?: number
+          route?: string | null
+        }
+        Relationships: []
       }
       onboarding_steps: {
         Row: {
@@ -11921,6 +13566,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_attachments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       order_employees: {
@@ -11975,6 +13627,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_employees_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       order_errors: {
@@ -12020,6 +13679,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_errors_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -12076,6 +13742,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_external_teams_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       order_installments: {
@@ -12121,6 +13794,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -12281,6 +13961,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "order_items_section_id_fkey"
             columns: ["section_id"]
             isOneToOne: false
@@ -12355,11 +14042,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_salespeople_salesperson_id_fkey"
-            columns: ["salesperson_id"]
+            foreignKeyName: "order_salespeople_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "order_salespeople_salesperson_id_fkey"
@@ -12398,6 +14085,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
@@ -12457,10 +14151,16 @@ export type Database = {
           balance_expected_date: string | null
           balance_paid: boolean | null
           balance_paid_date: string | null
+          client_address: string | null
+          client_company: string | null
+          client_email: string | null
+          client_name: string | null
+          client_phone: string | null
           company_id: string
           created_at: string
+          created_by: string | null
           current_status_id: string | null
-          customer_id: string
+          customer_id: string | null
           deposit_2_amount: number | null
           deposit_2_expected_date: string | null
           deposit_2_paid: boolean | null
@@ -12478,9 +14178,15 @@ export type Database = {
           financing_paid_date: string | null
           has_building_bonus: boolean
           id: string
+          indirizzo_lavori: string | null
           internal_notes: string | null
           order_code: string | null
           payment_type: string | null
+          quote_id: string | null
+          quote_number: string | null
+          sede_id: string | null
+          status: string | null
+          tipo_lavoro: string | null
           total_amount: number
           updated_at: string
           vat_rate: number | null
@@ -12494,10 +14200,16 @@ export type Database = {
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          client_address?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
           company_id: string
           created_at?: string
+          created_by?: string | null
           current_status_id?: string | null
-          customer_id: string
+          customer_id?: string | null
           deposit_2_amount?: number | null
           deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
@@ -12515,9 +14227,15 @@ export type Database = {
           financing_paid_date?: string | null
           has_building_bonus?: boolean
           id?: string
+          indirizzo_lavori?: string | null
           internal_notes?: string | null
           order_code?: string | null
           payment_type?: string | null
+          quote_id?: string | null
+          quote_number?: string | null
+          sede_id?: string | null
+          status?: string | null
+          tipo_lavoro?: string | null
           total_amount?: number
           updated_at?: string
           vat_rate?: number | null
@@ -12531,10 +14249,16 @@ export type Database = {
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          client_address?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
           company_id?: string
           created_at?: string
+          created_by?: string | null
           current_status_id?: string | null
-          customer_id?: string
+          customer_id?: string | null
           deposit_2_amount?: number | null
           deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
@@ -12552,9 +14276,15 @@ export type Database = {
           financing_paid_date?: string | null
           has_building_bonus?: boolean
           id?: string
+          indirizzo_lavori?: string | null
           internal_notes?: string | null
           order_code?: string | null
           payment_type?: string | null
+          quote_id?: string | null
+          quote_number?: string | null
+          sede_id?: string | null
+          status?: string | null
+          tipo_lavoro?: string | null
           total_amount?: number
           updated_at?: string
           vat_rate?: number | null
@@ -12591,71 +14321,92 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "orders_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ordini_variazione: {
         Row: {
-          id: string
           company_id: string
-          order_id: string
-          numero_odv: number
-          titolo: string
+          created_at: string
+          created_by: string | null
           descrizione: string
-          motivazione: string | null
-          impatto_economico: number
-          impatto_giorni: number
-          status: string
-          richiesto_da: string | null
-          richiesto_il: string | null
           firma_cliente: string | null
+          firma_token: string | null
           firmato_da: string | null
           firmato_il: string | null
-          firma_token: string | null
+          id: string
+          impatto_economico: number
+          impatto_giorni: number | null
+          motivazione: string | null
           note_interne: string | null
-          created_by: string | null
-          created_at: string
+          numero_odv: number
+          order_id: string
+          richiesto_da: string | null
+          richiesto_il: string | null
+          status: string
+          titolo: string
         }
         Insert: {
-          id?: string
           company_id: string
-          order_id: string
-          numero_odv: number
-          titolo: string
+          created_at?: string
+          created_by?: string | null
           descrizione: string
-          motivazione?: string | null
-          impatto_economico?: number
-          impatto_giorni?: number
-          status?: string
-          richiesto_da?: string | null
-          richiesto_il?: string | null
           firma_cliente?: string | null
+          firma_token?: string | null
           firmato_da?: string | null
           firmato_il?: string | null
-          firma_token?: string | null
+          id?: string
+          impatto_economico?: number
+          impatto_giorni?: number | null
+          motivazione?: string | null
           note_interne?: string | null
-          created_by?: string | null
-          created_at?: string
+          numero_odv: number
+          order_id: string
+          richiesto_da?: string | null
+          richiesto_il?: string | null
+          status?: string
+          titolo: string
         }
         Update: {
-          id?: string
           company_id?: string
-          order_id?: string
-          numero_odv?: number
-          titolo?: string
+          created_at?: string
+          created_by?: string | null
           descrizione?: string
-          motivazione?: string | null
-          impatto_economico?: number
-          impatto_giorni?: number
-          status?: string
-          richiesto_da?: string | null
-          richiesto_il?: string | null
           firma_cliente?: string | null
+          firma_token?: string | null
           firmato_da?: string | null
           firmato_il?: string | null
-          firma_token?: string | null
+          id?: string
+          impatto_economico?: number
+          impatto_giorni?: number | null
+          motivazione?: string | null
           note_interne?: string | null
-          created_by?: string | null
-          created_at?: string
+          numero_odv?: number
+          order_id?: string
+          richiesto_da?: string | null
+          richiesto_il?: string | null
+          status?: string
+          titolo?: string
         }
         Relationships: [
           {
@@ -12670,6 +14421,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_variazione_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -12994,120 +14752,175 @@ export type Database = {
         }
         Relationships: []
       }
-      preventivo_kb_chunks: {
+      pos_documents: {
         Row: {
-          azienda_id: string
-          categoria: string | null
-          chunk_index: number
+          company_id: string
           created_at: string
-          documento_id: string
-          embedding: string | null
+          created_by: string | null
+          data_fine_prevista: string | null
+          data_inizio: string | null
+          dpi_richiesti: Json | null
+          firmato_da: string | null
+          firmato_il: string | null
+          generated_by: string | null
+          generated_content: string | null
           id: string
-          pagina: number | null
-          testo: string
-          testo_preview: string | null
+          indirizzo_cantiere: string
+          numero_lavoratori: number | null
+          order_id: string
+          pdf_url: string | null
+          procedure_operative: string | null
+          responsabile_sicurezza: string | null
+          rischi_presenti: Json | null
+          status: string
+          tipo_lavori: string
+          updated_at: string
+          version: number
         }
         Insert: {
-          azienda_id: string
-          categoria?: string | null
-          chunk_index?: number
+          company_id: string
           created_at?: string
-          documento_id: string
-          embedding?: string | null
+          created_by?: string | null
+          data_fine_prevista?: string | null
+          data_inizio?: string | null
+          dpi_richiesti?: Json | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          generated_by?: string | null
+          generated_content?: string | null
           id?: string
-          pagina?: number | null
-          testo: string
-          testo_preview?: string | null
+          indirizzo_cantiere: string
+          numero_lavoratori?: number | null
+          order_id: string
+          pdf_url?: string | null
+          procedure_operative?: string | null
+          responsabile_sicurezza?: string | null
+          rischi_presenti?: Json | null
+          status?: string
+          tipo_lavori: string
+          updated_at?: string
+          version?: number
         }
         Update: {
-          azienda_id?: string
-          categoria?: string | null
-          chunk_index?: number
+          company_id?: string
           created_at?: string
-          documento_id?: string
-          embedding?: string | null
+          created_by?: string | null
+          data_fine_prevista?: string | null
+          data_inizio?: string | null
+          dpi_richiesti?: Json | null
+          firmato_da?: string | null
+          firmato_il?: string | null
+          generated_by?: string | null
+          generated_content?: string | null
           id?: string
-          pagina?: number | null
-          testo?: string
-          testo_preview?: string | null
+          indirizzo_cantiere?: string
+          numero_lavoratori?: number | null
+          order_id?: string
+          pdf_url?: string | null
+          procedure_operative?: string | null
+          responsabile_sicurezza?: string | null
+          rischi_presenti?: Json | null
+          status?: string
+          tipo_lavori?: string
+          updated_at?: string
+          version?: number
         }
         Relationships: [
           {
-            foreignKeyName: "preventivo_kb_chunks_azienda_id_fkey"
-            columns: ["azienda_id"]
+            foreignKeyName: "pos_documents_company_id_fkey"
+            columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "preventivo_kb_chunks_documento_id_fkey"
-            columns: ["documento_id"]
+            foreignKeyName: "pos_documents_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "preventivo_kb_documenti"
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
       }
-      preventivo_kb_documenti: {
+      preventivo_impostazioni: {
         Row: {
-          azienda_id: string
-          categoria: string
-          chunks_count: number | null
-          created_at: string
-          descrizione: string | null
-          errore_msg: string | null
-          file_size_kb: number
-          file_type: string
-          file_url: string
+          aggiungi_posa_automatica: boolean | null
+          chiedi_piano_installazione: boolean | null
+          chiedi_smaltimento: boolean | null
+          chiedi_trasporto: boolean | null
+          company_id: string
+          firma_digitale_abilitata: boolean | null
+          firma_richiede_nome: boolean | null
           id: string
-          indicizzato_at: string | null
-          nome: string
-          pagine: number | null
-          stato: string
-          tags: string[] | null
-          updated_at: string
+          margine_target_default: number | null
+          margini_target_categorie: Json | null
+          numero_formato: string | null
+          numero_prefisso: string | null
+          overhead_percentuale: number | null
+          pdf_includi_schede_tecniche: boolean | null
+          pdf_mostra_immagini: boolean | null
+          pdf_mostra_prezzi_per_riga: boolean | null
+          pdf_mostra_sconti: boolean | null
+          pdf_mostra_solo_totale: boolean | null
+          soglia_margine_visibile: number | null
+          visibilita_margini: string | null
         }
         Insert: {
-          azienda_id: string
-          categoria?: string
-          chunks_count?: number | null
-          created_at?: string
-          descrizione?: string | null
-          errore_msg?: string | null
-          file_size_kb?: number
-          file_type?: string
-          file_url: string
+          aggiungi_posa_automatica?: boolean | null
+          chiedi_piano_installazione?: boolean | null
+          chiedi_smaltimento?: boolean | null
+          chiedi_trasporto?: boolean | null
+          company_id: string
+          firma_digitale_abilitata?: boolean | null
+          firma_richiede_nome?: boolean | null
           id?: string
-          indicizzato_at?: string | null
-          nome: string
-          pagine?: number | null
-          stato?: string
-          tags?: string[] | null
-          updated_at?: string
+          margine_target_default?: number | null
+          margini_target_categorie?: Json | null
+          numero_formato?: string | null
+          numero_prefisso?: string | null
+          overhead_percentuale?: number | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
+          soglia_margine_visibile?: number | null
+          visibilita_margini?: string | null
         }
         Update: {
-          azienda_id?: string
-          categoria?: string
-          chunks_count?: number | null
-          created_at?: string
-          descrizione?: string | null
-          errore_msg?: string | null
-          file_size_kb?: number
-          file_type?: string
-          file_url?: string
+          aggiungi_posa_automatica?: boolean | null
+          chiedi_piano_installazione?: boolean | null
+          chiedi_smaltimento?: boolean | null
+          chiedi_trasporto?: boolean | null
+          company_id?: string
+          firma_digitale_abilitata?: boolean | null
+          firma_richiede_nome?: boolean | null
           id?: string
-          indicizzato_at?: string | null
-          nome?: string
-          pagine?: number | null
-          stato?: string
-          tags?: string[] | null
-          updated_at?: string
+          margine_target_default?: number | null
+          margini_target_categorie?: Json | null
+          numero_formato?: string | null
+          numero_prefisso?: string | null
+          overhead_percentuale?: number | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
+          soglia_margine_visibile?: number | null
+          visibilita_margini?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "preventivo_kb_documenti_azienda_id_fkey"
-            columns: ["azienda_id"]
-            isOneToOne: false
+            foreignKeyName: "preventivo_impostazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -13120,6 +14933,7 @@ export type Database = {
           attachment_name: string | null
           attachment_url: string | null
           auto_source: string | null
+          bank_transaction_id: string | null
           category: string
           company_id: string
           cost_id: string | null
@@ -13146,6 +14960,7 @@ export type Database = {
           attachment_name?: string | null
           attachment_url?: string | null
           auto_source?: string | null
+          bank_transaction_id?: string | null
           category?: string
           company_id: string
           cost_id?: string | null
@@ -13172,6 +14987,7 @@ export type Database = {
           attachment_name?: string | null
           attachment_url?: string | null
           auto_source?: string | null
+          bank_transaction_id?: string | null
           category?: string
           company_id?: string
           cost_id?: string | null
@@ -13193,6 +15009,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "prima_nota_entries_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "prima_nota_entries_company_id_fkey"
             columns: ["company_id"]
@@ -13219,6 +15042,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
@@ -13318,13 +15148,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
           },
           {
             foreignKeyName: "profiles_salesperson_id_fkey"
@@ -13528,6 +15351,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_orders_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
@@ -13541,16 +15371,27 @@ export type Database = {
           article_template_id: string | null
           company_id: string
           created_at: string
+          custom_field_values: Json | null
           description: string | null
           discount_percent: number | null
           id: string
           image_url: string | null
+          is_optional: boolean | null
+          item_category: string | null
           item_type: string
           line_total: number | null
+          margine_percentuale: number | null
+          misura_x: number | null
+          misura_y: number | null
+          mostra_nel_pdf: boolean | null
           name: string
+          overhead_importo: number | null
+          parent_item_id: string | null
+          prezzo_acquisto: number | null
           quantity: number | null
           quote_id: string
           sort_order: number | null
+          tariffa_id: string | null
           unit_of_measure: string | null
           unit_price: number | null
           vat_rate: number | null
@@ -13559,16 +15400,27 @@ export type Database = {
           article_template_id?: string | null
           company_id: string
           created_at?: string
+          custom_field_values?: Json | null
           description?: string | null
           discount_percent?: number | null
           id?: string
           image_url?: string | null
+          is_optional?: boolean | null
+          item_category?: string | null
           item_type?: string
           line_total?: number | null
+          margine_percentuale?: number | null
+          misura_x?: number | null
+          misura_y?: number | null
+          mostra_nel_pdf?: boolean | null
           name: string
+          overhead_importo?: number | null
+          parent_item_id?: string | null
+          prezzo_acquisto?: number | null
           quantity?: number | null
           quote_id: string
           sort_order?: number | null
+          tariffa_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number | null
           vat_rate?: number | null
@@ -13577,16 +15429,27 @@ export type Database = {
           article_template_id?: string | null
           company_id?: string
           created_at?: string
+          custom_field_values?: Json | null
           description?: string | null
           discount_percent?: number | null
           id?: string
           image_url?: string | null
+          is_optional?: boolean | null
+          item_category?: string | null
           item_type?: string
           line_total?: number | null
+          margine_percentuale?: number | null
+          misura_x?: number | null
+          misura_y?: number | null
+          mostra_nel_pdf?: boolean | null
           name?: string
+          overhead_importo?: number | null
+          parent_item_id?: string | null
+          prezzo_acquisto?: number | null
           quantity?: number | null
           quote_id?: string
           sort_order?: number | null
+          tariffa_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number | null
           vat_rate?: number | null
@@ -13607,10 +15470,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quote_items_parent_item_id_fkey"
+            columns: ["parent_item_id"]
+            isOneToOne: false
+            referencedRelation: "quote_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quote_items_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: false
             referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "quote_items_tariffa_id_fkey"
+            columns: ["tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
             referencedColumns: ["id"]
           },
         ]
@@ -13651,6 +15535,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "quotes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_pdf_attachments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
           },
         ]
       }
@@ -13714,9 +15605,11 @@ export type Database = {
       quote_templates: {
         Row: {
           accent_color: string | null
+          bank_details: string | null
           company_id: string
           cover_tagline: string | null
           created_at: string | null
+          delivery_terms_text: string | null
           font_family: string | null
           footer_text: string | null
           header_text_color: string | null
@@ -13728,6 +15621,7 @@ export type Database = {
           logo_size: string | null
           logo_url: string | null
           name: string
+          payment_terms_text: string | null
           primary_color: string | null
           secondary_color: string | null
           show_client_details: boolean | null
@@ -13746,9 +15640,11 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          bank_details?: string | null
           company_id: string
           cover_tagline?: string | null
           created_at?: string | null
+          delivery_terms_text?: string | null
           font_family?: string | null
           footer_text?: string | null
           header_text_color?: string | null
@@ -13760,6 +15656,7 @@ export type Database = {
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          payment_terms_text?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           show_client_details?: boolean | null
@@ -13778,9 +15675,11 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          bank_details?: string | null
           company_id?: string
           cover_tagline?: string | null
           created_at?: string | null
+          delivery_terms_text?: string | null
           font_family?: string | null
           footer_text?: string | null
           header_text_color?: string | null
@@ -13792,6 +15691,7 @@ export type Database = {
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          payment_terms_text?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           show_client_details?: boolean | null
@@ -13818,6 +15718,61 @@ export type Database = {
           },
         ]
       }
+      quote_versions: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          quote_id: string
+          snapshot: Json
+          version_num: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          quote_id: string
+          snapshot: Json
+          version_num: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          quote_id?: string
+          snapshot?: Json
+          version_num?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_versions_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_versions_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       quotes: {
         Row: {
           assigned_to: string | null
@@ -13832,20 +15787,26 @@ export type Database = {
           contact_id: string | null
           created_at: string
           created_by: string
+          custom_field_values: Json | null
           description: string | null
           discount_amount: number | null
           discount_percent: number | null
           expires_at: string | null
+          firma_digitale_abilitata: boolean | null
           id: string
+          indirizzo_lavori: string | null
           internal_notes: string | null
+          km_cantiere: number | null
+          margine_totale_percentuale: number | null
           notes: string | null
           opportunity_id: string | null
           pdf_generated_at: string | null
           pdf_storage_path: string | null
+          piano_installazione: number | null
           quote_number: string
           refused_at: string | null
           refused_reason: string | null
-          salesperson_id: string | null
+          sede_id: string | null
           sent_at: string | null
           signature_token: string | null
           signed_at: string | null
@@ -13854,9 +15815,13 @@ export type Database = {
           status: string
           subtotal: number | null
           template_id: string | null
+          template_layout_override: string | null
           terms_and_conditions: string | null
+          tipo_lavoro: string | null
           title: string | null
           total: number | null
+          totale_costo_interno: number | null
+          totale_overhead: number | null
           updated_at: string
           validity_days: number | null
           vat_amount: number | null
@@ -13875,20 +15840,26 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           created_by: string
+          custom_field_values?: Json | null
           description?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           expires_at?: string | null
+          firma_digitale_abilitata?: boolean | null
           id?: string
+          indirizzo_lavori?: string | null
           internal_notes?: string | null
+          km_cantiere?: number | null
+          margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
           pdf_generated_at?: string | null
           pdf_storage_path?: string | null
+          piano_installazione?: number | null
           quote_number: string
           refused_at?: string | null
           refused_reason?: string | null
-          salesperson_id?: string | null
+          sede_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
           signed_at?: string | null
@@ -13897,9 +15868,13 @@ export type Database = {
           status?: string
           subtotal?: number | null
           template_id?: string | null
+          template_layout_override?: string | null
           terms_and_conditions?: string | null
+          tipo_lavoro?: string | null
           title?: string | null
           total?: number | null
+          totale_costo_interno?: number | null
+          totale_overhead?: number | null
           updated_at?: string
           validity_days?: number | null
           vat_amount?: number | null
@@ -13918,20 +15893,26 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           created_by?: string
+          custom_field_values?: Json | null
           description?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           expires_at?: string | null
+          firma_digitale_abilitata?: boolean | null
           id?: string
+          indirizzo_lavori?: string | null
           internal_notes?: string | null
+          km_cantiere?: number | null
+          margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
           pdf_generated_at?: string | null
           pdf_storage_path?: string | null
+          piano_installazione?: number | null
           quote_number?: string
           refused_at?: string | null
           refused_reason?: string | null
-          salesperson_id?: string | null
+          sede_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
           signed_at?: string | null
@@ -13940,9 +15921,13 @@ export type Database = {
           status?: string
           subtotal?: number | null
           template_id?: string | null
+          template_layout_override?: string | null
           terms_and_conditions?: string | null
+          tipo_lavoro?: string | null
           title?: string | null
           total?: number | null
+          totale_costo_interno?: number | null
+          totale_overhead?: number | null
           updated_at?: string
           validity_days?: number | null
           vat_amount?: number | null
@@ -13978,17 +15963,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "quotes_salesperson_id_fkey"
-            columns: ["salesperson_id"]
+            foreignKeyName: "quotes_sede_id_fkey"
+            columns: ["sede_id"]
             isOneToOne: false
-            referencedRelation: "performance_base_venditori"
-            referencedColumns: ["salesperson_id"]
-          },
-          {
-            foreignKeyName: "quotes_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "salespeople"
+            referencedRelation: "sedi"
             referencedColumns: ["id"]
           },
           {
@@ -14247,6 +16225,7 @@ export type Database = {
         Row: {
           color: string | null
           commission_multiplier: number | null
+          commission_on_usage: boolean
           created_at: string | null
           icon: string | null
           id: string
@@ -14255,10 +16234,12 @@ export type Database = {
           perks: Json | null
           position: number | null
           slug: string
+          usage_commission_pct: number | null
         }
         Insert: {
           color?: string | null
           commission_multiplier?: number | null
+          commission_on_usage?: boolean
           created_at?: string | null
           icon?: string | null
           id?: string
@@ -14267,10 +16248,12 @@ export type Database = {
           perks?: Json | null
           position?: number | null
           slug: string
+          usage_commission_pct?: number | null
         }
         Update: {
           color?: string | null
           commission_multiplier?: number | null
+          commission_on_usage?: boolean
           created_at?: string | null
           icon?: string | null
           id?: string
@@ -14279,6 +16262,7 @@ export type Database = {
           perks?: Json | null
           position?: number | null
           slug?: string
+          usage_commission_pct?: number | null
         }
         Relationships: []
       }
@@ -14424,6 +16408,108 @@ export type Database = {
           },
         ]
       }
+      sal_records: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_emissione: string
+          id: string
+          importo_totale: number
+          note: string | null
+          numero_sal: number
+          order_id: string
+          stato: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_emissione?: string
+          id?: string
+          importo_totale?: number
+          note?: string | null
+          numero_sal?: number
+          order_id: string
+          stato?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_emissione?: string
+          id?: string
+          importo_totale?: number
+          note?: string | null
+          numero_sal?: number
+          order_id?: string
+          stato?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sal_voci: {
+        Row: {
+          created_at: string
+          descrizione: string
+          id: string
+          importo_contrattuale: number
+          importo_sal: number | null
+          note: string | null
+          percentuale_avanzamento: number
+          sal_id: string
+        }
+        Insert: {
+          created_at?: string
+          descrizione: string
+          id?: string
+          importo_contrattuale?: number
+          importo_sal?: number | null
+          note?: string | null
+          percentuale_avanzamento?: number
+          sal_id: string
+        }
+        Update: {
+          created_at?: string
+          descrizione?: string
+          id?: string
+          importo_contrattuale?: number
+          importo_sal?: number | null
+          note?: string | null
+          percentuale_avanzamento?: number
+          sal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_voci_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_playbook_completions: {
         Row: {
           company_id: string
@@ -14546,13 +16632,10 @@ export type Database = {
       }
       salespeople: {
         Row: {
-          area_geografica: string | null
-          avatar_url: string | null
           commission_type: string
           commission_value: number
           company_id: string
           created_at: string
-          data_inizio: string | null
           email: string | null
           first_name: string
           id: string
@@ -14561,16 +16644,12 @@ export type Database = {
           phone: string | null
           updated_at: string
           user_id: string | null
-          zona: string | null
         }
         Insert: {
-          area_geografica?: string | null
-          avatar_url?: string | null
           commission_type?: string
           commission_value?: number
           company_id: string
           created_at?: string
-          data_inizio?: string | null
           email?: string | null
           first_name: string
           id?: string
@@ -14579,16 +16658,12 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
-          zona?: string | null
         }
         Update: {
-          area_geografica?: string | null
-          avatar_url?: string | null
           commission_type?: string
           commission_value?: number
           company_id?: string
           created_at?: string
-          data_inizio?: string | null
           email?: string | null
           first_name?: string
           id?: string
@@ -14597,7 +16672,6 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
-          zona?: string | null
         }
         Relationships: [
           {
@@ -14794,6 +16868,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "scadenze_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "scadenze_order_item_id_fkey"
             columns: ["order_item_id"]
             isOneToOne: false
@@ -14812,6 +16893,54 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sconti_quantita: {
+        Row: {
+          attivo: boolean | null
+          company_id: string
+          created_at: string | null
+          da_quantita: number
+          descrizione: string | null
+          id: string
+          prodotto_id: string | null
+          sconto_pct: number
+        }
+        Insert: {
+          attivo?: boolean | null
+          company_id: string
+          created_at?: string | null
+          da_quantita: number
+          descrizione?: string | null
+          id?: string
+          prodotto_id?: string | null
+          sconto_pct: number
+        }
+        Update: {
+          attivo?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          da_quantita?: number
+          descrizione?: string | null
+          id?: string
+          prodotto_id?: string | null
+          sconto_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sconti_quantita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sconti_quantita_prodotto_id_fkey"
+            columns: ["prodotto_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -14877,6 +17006,62 @@ export type Database = {
           },
         ]
       }
+      sedi: {
+        Row: {
+          attiva: boolean | null
+          cap: string | null
+          citta: string | null
+          colore: string | null
+          company_id: string
+          created_at: string | null
+          id: string
+          indirizzo: string | null
+          nome: string
+          principale: boolean | null
+          provincia: string | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          colore?: string | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          nome: string
+          principale?: boolean | null
+          provincia?: string | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          colore?: string | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          nome?: string
+          principale?: boolean | null
+          provincia?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sedi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signature_requests: {
         Row: {
           company_id: string
@@ -14939,6 +17124,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -15061,12 +17253,14 @@ export type Database = {
           can_view_orders: boolean | null
           can_view_persone: boolean
           can_view_prima_nota: boolean
+          can_view_scadenzario: boolean
           can_view_settings: boolean | null
           can_view_settings_customization: boolean
           can_view_settings_orders: boolean
           can_view_settings_people: boolean
           can_view_settings_profile: boolean
           can_view_settings_security: boolean
+          can_view_tesoreria: boolean
           can_view_tickets: boolean | null
           can_view_users: boolean
           can_view_warehouse: boolean | null
@@ -15122,12 +17316,14 @@ export type Database = {
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
+          can_view_scadenzario?: boolean
           can_view_settings?: boolean | null
           can_view_settings_customization?: boolean
           can_view_settings_orders?: boolean
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
           can_view_warehouse?: boolean | null
@@ -15183,12 +17379,14 @@ export type Database = {
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
+          can_view_scadenzario?: boolean
           can_view_settings?: boolean | null
           can_view_settings_customization?: boolean
           can_view_settings_orders?: boolean
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
           can_view_warehouse?: boolean | null
@@ -15203,6 +17401,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "staff_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_lotti: {
+        Row: {
+          codice_lotto: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_scadenza: string | null
+          descrizione: string
+          fornitore: string | null
+          id: string
+          note: string | null
+          posizione: string | null
+          quantita: number
+          unita_misura: string | null
+        }
+        Insert: {
+          codice_lotto: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_scadenza?: string | null
+          descrizione: string
+          fornitore?: string | null
+          id?: string
+          note?: string | null
+          posizione?: string | null
+          quantita?: number
+          unita_misura?: string | null
+        }
+        Update: {
+          codice_lotto?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_scadenza?: string | null
+          descrizione?: string
+          fornitore?: string | null
+          id?: string
+          note?: string | null
+          posizione?: string | null
+          quantita?: number
+          unita_misura?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_lotti_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -15247,6 +17498,70 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subappaltatori_sicurezza: {
+        Row: {
+          company_id: string
+          created_at: string
+          data_fine: string | null
+          data_inizio: string | null
+          durc_scadenza: string | null
+          id: string
+          order_id: string | null
+          ragione_sociale: string
+          responsabile: string | null
+          telefono: string | null
+          tipo_lavori: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          data_fine?: string | null
+          data_inizio?: string | null
+          durc_scadenza?: string | null
+          id?: string
+          order_id?: string | null
+          ragione_sociale: string
+          responsabile?: string | null
+          telefono?: string | null
+          tipo_lavori?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          data_fine?: string | null
+          data_inizio?: string | null
+          durc_scadenza?: string | null
+          id?: string
+          order_id?: string | null
+          ragione_sociale?: string
+          responsabile?: string | null
+          telefono?: string | null
+          tipo_lavori?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subappaltatori_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -15395,6 +17710,7 @@ export type Database = {
           stripe_price_monthly_id: string | null
           stripe_price_yearly_id: string | null
           stripe_product_id: string | null
+          trial_days: number
         }
         Insert: {
           created_at?: string
@@ -15416,6 +17732,7 @@ export type Database = {
           stripe_price_monthly_id?: string | null
           stripe_price_yearly_id?: string | null
           stripe_product_id?: string | null
+          trial_days?: number
         }
         Update: {
           created_at?: string
@@ -15437,12 +17754,17 @@ export type Database = {
           stripe_price_monthly_id?: string | null
           stripe_price_yearly_id?: string | null
           stripe_product_id?: string | null
+          trial_days?: number
         }
         Relationships: []
       }
       super_admin_permissions: {
         Row: {
           allowed_company_ids: string[] | null
+          audit_log_access: boolean
+          billing_read: boolean
+          billing_write: boolean
+          bulk_actions: boolean
           can_manage_admins: boolean
           can_manage_companies: boolean
           can_manage_marketing: boolean
@@ -15451,15 +17773,25 @@ export type Database = {
           can_manage_tickets: boolean
           can_view_platform_stats: boolean
           created_at: string
+          data_export: boolean
           department: string | null
+          feature_flags: boolean
           id: string
+          impersonation: boolean
           job_title: string | null
           platform_role: string | null
+          pricing_override: boolean
+          support_tickets: boolean
           updated_at: string
           user_id: string
+          user_management: boolean
         }
         Insert: {
           allowed_company_ids?: string[] | null
+          audit_log_access?: boolean
+          billing_read?: boolean
+          billing_write?: boolean
+          bulk_actions?: boolean
           can_manage_admins?: boolean
           can_manage_companies?: boolean
           can_manage_marketing?: boolean
@@ -15468,15 +17800,25 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          data_export?: boolean
           department?: string | null
+          feature_flags?: boolean
           id?: string
+          impersonation?: boolean
           job_title?: string | null
           platform_role?: string | null
+          pricing_override?: boolean
+          support_tickets?: boolean
           updated_at?: string
           user_id: string
+          user_management?: boolean
         }
         Update: {
           allowed_company_ids?: string[] | null
+          audit_log_access?: boolean
+          billing_read?: boolean
+          billing_write?: boolean
+          bulk_actions?: boolean
           can_manage_admins?: boolean
           can_manage_companies?: boolean
           can_manage_marketing?: boolean
@@ -15485,12 +17827,18 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          data_export?: boolean
           department?: string | null
+          feature_flags?: boolean
           id?: string
+          impersonation?: boolean
           job_title?: string | null
           platform_role?: string | null
+          pricing_override?: boolean
+          support_tickets?: boolean
           updated_at?: string
           user_id?: string
+          user_management?: boolean
         }
         Relationships: []
       }
@@ -15755,6 +18103,65 @@ export type Database = {
         }
         Relationships: []
       }
+      tariffe_aziendali: {
+        Row: {
+          attiva: boolean | null
+          categoria_prodotto: string | null
+          company_id: string
+          created_at: string | null
+          descrizione: string | null
+          id: string
+          nome: string
+          piano_base: number | null
+          prezzo_costo: number | null
+          prezzo_piano_aggiuntivo: number | null
+          prezzo_vendita: number | null
+          sort_order: number | null
+          tipo: string
+          unita: string
+        }
+        Insert: {
+          attiva?: boolean | null
+          categoria_prodotto?: string | null
+          company_id: string
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string
+          nome: string
+          piano_base?: number | null
+          prezzo_costo?: number | null
+          prezzo_piano_aggiuntivo?: number | null
+          prezzo_vendita?: number | null
+          sort_order?: number | null
+          tipo: string
+          unita?: string
+        }
+        Update: {
+          attiva?: boolean | null
+          categoria_prodotto?: string | null
+          company_id?: string
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string
+          nome?: string
+          piano_base?: number | null
+          prezzo_costo?: number | null
+          prezzo_piano_aggiuntivo?: number | null
+          prezzo_vendita?: number | null
+          sort_order?: number | null
+          tipo?: string
+          unita?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tariffe_aziendali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_automation_log: {
         Row: {
           created_at: string | null
@@ -15948,6 +18355,148 @@ export type Database = {
           },
         ]
       }
+      task_dependencies: {
+        Row: {
+          created_at: string
+          depends_on_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          depends_on_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          depends_on_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_dependencies_depends_on_id_fkey"
+            columns: ["depends_on_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_tag_assignments: {
+        Row: {
+          tag_id: string
+          task_id: string
+        }
+        Insert: {
+          tag_id: string
+          task_id: string
+        }
+        Update: {
+          tag_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "task_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_tag_assignments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_tags: {
+        Row: {
+          color: string
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_templates: {
+        Row: {
+          category: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          estimated_hours: number | null
+          id: string
+          name: string
+          notes: string | null
+          priority: string
+          title: string
+        }
+        Insert: {
+          category?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          estimated_hours?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          priority?: string
+          title: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          estimated_hours?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          priority?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -15959,11 +18508,17 @@ export type Database = {
           created_at: string
           created_by: string
           due_date: string | null
+          estimated_hours: number | null
           id: string
+          is_recurring: boolean
           notes: string | null
           opportunity_id: string | null
           order_id: string | null
+          parent_task_id: string | null
           priority: string
+          recurrence_end_date: string | null
+          recurrence_rule: string | null
+          sort_order: number | null
           status: string
           stock_item_id: string | null
           ticket_id: string | null
@@ -15980,11 +18535,17 @@ export type Database = {
           created_at?: string
           created_by: string
           due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          is_recurring?: boolean
           notes?: string | null
           opportunity_id?: string | null
           order_id?: string | null
+          parent_task_id?: string | null
           priority?: string
+          recurrence_end_date?: string | null
+          recurrence_rule?: string | null
+          sort_order?: number | null
           status?: string
           stock_item_id?: string | null
           ticket_id?: string | null
@@ -16001,11 +18562,17 @@ export type Database = {
           created_at?: string
           created_by?: string
           due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          is_recurring?: boolean
           notes?: string | null
           opportunity_id?: string | null
           order_id?: string | null
+          parent_task_id?: string | null
           priority?: string
+          recurrence_end_date?: string | null
+          recurrence_rule?: string | null
+          sort_order?: number | null
           status?: string
           stock_item_id?: string | null
           ticket_id?: string | null
@@ -16060,6 +18627,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
           {
@@ -16343,6 +18924,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       totp_backup_codes: {
@@ -16456,6 +19044,7 @@ export type Database = {
           details: Json | null
           id: string
           ip_address: unknown
+          is_impersonated: boolean
           target_user_id: string | null
         }
         Insert: {
@@ -16466,6 +19055,7 @@ export type Database = {
           details?: Json | null
           id?: string
           ip_address?: unknown
+          is_impersonated?: boolean
           target_user_id?: string | null
         }
         Update: {
@@ -16476,6 +19066,7 @@ export type Database = {
           details?: Json | null
           id?: string
           ip_address?: unknown
+          is_impersonated?: boolean
           target_user_id?: string | null
         }
         Relationships: [
@@ -16965,6 +19556,131 @@ export type Database = {
           },
         ]
       }
+      varianti_cliente: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          id: string
+          importo: number
+          note: string | null
+          order_id: string
+          stato: string
+          titolo: string
+          visibile_cliente: boolean
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          importo?: number
+          note?: string | null
+          order_id: string
+          stato?: string
+          titolo: string
+          visibile_cliente?: boolean
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          importo?: number
+          note?: string | null
+          order_id?: string
+          stato?: string
+          titolo?: string
+          visibile_cliente?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "varianti_cliente_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "varianti_cliente_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "varianti_cliente_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      verbali_sicurezza: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          esito: string
+          id: string
+          note: string | null
+          order_id: string | null
+          redatto_da: string | null
+          tipo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          esito?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          redatto_da?: string | null
+          tipo?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          esito?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          redatto_da?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verbali_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verbali_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verbali_sicurezza_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       virtual_phone_numbers: {
         Row: {
           assigned_to: string | null
@@ -17154,6 +19870,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_movements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
@@ -17499,6 +20222,59 @@ export type Database = {
           },
         ]
       }
+      whatsapp_credit_topups: {
+        Row: {
+          amount_eur: number
+          company_id: string
+          created_at: string
+          id: string
+          invoice_number: string | null
+          notes: string | null
+          payment_method: string | null
+          processed_at: string | null
+          status: string
+          stripe_payment_intent_id: string | null
+          triggered_by: string | null
+          type: string
+        }
+        Insert: {
+          amount_eur: number
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          payment_method?: string | null
+          processed_at?: string | null
+          status?: string
+          stripe_payment_intent_id?: string | null
+          triggered_by?: string | null
+          type?: string
+        }
+        Update: {
+          amount_eur?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          payment_method?: string | null
+          processed_at?: string | null
+          status?: string
+          stripe_payment_intent_id?: string | null
+          triggered_by?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_credit_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_credits: {
         Row: {
           alert_email_sent_at: string | null
@@ -17596,6 +20372,48 @@ export type Database = {
           },
         ]
       }
+      whatsapp_pricing: {
+        Row: {
+          category: string
+          cost_billed_per_unit: number
+          cost_real_per_unit: number
+          country_code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          markup_multiplier: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          cost_billed_per_unit?: number
+          cost_real_per_unit?: number
+          country_code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost_billed_per_unit?: number
+          cost_real_per_unit?: number
+          country_code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       work_logs: {
         Row: {
           activity_type: string | null
@@ -17654,34 +20472,33 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "work_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      v_ordine_marginalita: {
+      admin_dashboard_summary: {
         Row: {
-          id: string | null
-          company_id: string | null
-          order_code: string | null
-          description: string | null
-          preventivo_contratto: number | null
-          variazioni_approvate: number | null
-          preventivo_totale: number | null
-          costo_acquisti: number | null
-          costo_errori: number | null
-          consuntivo: number | null
-          margine: number | null
-          margine_perc: number | null
-          cliente_nome: string | null
-          work_start_date: string | null
-          work_end_date: string | null
-          created_at: string | null
-        }
-        Insert: {
-          [key: string]: never
-        }
-        Update: {
-          [key: string]: never
+          active_companies: number | null
+          arr_eur: number | null
+          calculated_at: string | null
+          churned_companies_30d: number | null
+          expired_companies: number | null
+          mrr_eur: number | null
+          new_companies_30d: number | null
+          open_support_tickets: number | null
+          row_id: number | null
+          suspended_companies: number | null
+          total_companies: number | null
+          total_users: number | null
+          trial_companies: number | null
+          trial_conversion_rate: number | null
         }
         Relationships: []
       }
@@ -17803,6 +20620,23 @@ export type Database = {
           },
         ]
       }
+      mv_analytics_sede: {
+        Row: {
+          company_id: string | null
+          costi: number | null
+          cpl: number | null
+          margine: number | null
+          margine_pct: number | null
+          mese: string | null
+          n_lead: number | null
+          n_preventivi: number | null
+          preventivi_vinti: number | null
+          ricavi: number | null
+          sede_id: string | null
+          spesa_ads: number | null
+        }
+        Relationships: []
+      }
       order_payment_summary: {
         Row: {
           installment_count: number | null
@@ -17819,30 +20653,11 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      performance_base_venditori: {
-        Row: {
-          area_geografica: string | null
-          clienti_attivi_anno: number | null
-          company_id: string | null
-          fatturato_anno: number | null
-          is_active: boolean | null
-          nome_completo: string | null
-          pipeline_count: number | null
-          pipeline_valore: number | null
-          preventivi_anno: number | null
-          preventivi_vinti_anno: number | null
-          salesperson_id: string | null
-          valore_medio_ordine: number | null
-          win_rate_anno: number | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "salespeople_company_id_fkey"
-            columns: ["company_id"]
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "companies"
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -17892,9 +20707,89 @@ export type Database = {
           },
         ]
       }
+      superadmin_service_pnl: {
+        Row: {
+          cost_eur: number | null
+          margin_eur: number | null
+          margin_pct: number | null
+          month: string | null
+          revenue_eur: number | null
+          service: string | null
+          units_sent: number | null
+        }
+        Relationships: []
+      }
+      v_ordine_marginalita: {
+        Row: {
+          cliente_nome: string | null
+          company_id: string | null
+          consuntivo: number | null
+          costo_acquisti: number | null
+          costo_errori: number | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          margine: number | null
+          margine_perc: number | null
+          order_code: string | null
+          preventivo_contratto: number | null
+          preventivo_totale: number | null
+          variazioni_approvate: number | null
+          work_end_date: string | null
+          work_start_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_preventivo_analisi: {
+        Row: {
+          company_id: string | null
+          costo_posa: number | null
+          costo_prodotti: number | null
+          costo_totale: number | null
+          created_at: string | null
+          margine_pct: number | null
+          num_prodotti_distinti: number | null
+          overhead: number | null
+          quote_id: string | null
+          quote_number: string | null
+          ricavo_posa: number | null
+          ricavo_prodotti: number | null
+          ricavo_totale: number | null
+          signed_at: string | null
+          status: string | null
+          tipo_lavoro: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_email_credits_with_log: {
+        Args: {
+          p_amount: number
+          p_company_id: string
+          p_description?: string
+          p_metadata?: Json
+          p_type?: string
+        }
+        Returns: Json
+      }
+      add_whatsapp_credits_with_log: {
         Args: {
           p_amount: number
           p_company_id: string
@@ -17955,11 +20850,24 @@ export type Database = {
       check_overdue_scadenze:
         | { Args: never; Returns: number }
         | { Args: { p_company_id: string }; Returns: Json }
+      check_plan_limit: {
+        Args: {
+          p_company_id: string
+          p_increment?: number
+          p_resource_type: string
+        }
+        Returns: Json
+      }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
       }
+      cleanup_cestino_documenti: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      complete_onboarding_step: {
+        Args: { p_company_id: string; p_step_key: string }
+        Returns: undefined
+      }
       consume_ai_credits: {
         Args: {
           p_agent_id?: string
@@ -17969,6 +20877,10 @@ export type Database = {
           p_descrizione?: string
         }
         Returns: Json
+      }
+      create_default_chat_channels: {
+        Args: { p_company_id: string }
+        Returns: undefined
       }
       create_notification: {
         Args: {
@@ -18030,6 +20942,20 @@ export type Database = {
           p_metadata?: Json
         }
         Returns: Json
+      }
+      deduct_whatsapp_credits_with_log: {
+        Args: {
+          p_campaign_id?: string
+          p_company_id: string
+          p_cost: number
+          p_description?: string
+          p_metadata?: Json
+        }
+        Returns: Json
+      }
+      do_recalculate_quote_totals: {
+        Args: { p_quote_id: string }
+        Returns: undefined
       }
       execute_automation: {
         Args: {
@@ -18234,6 +21160,17 @@ export type Database = {
           net: number
         }[]
       }
+      get_cash_flow_forecast: {
+        Args: { p_company_id: string; p_days?: number }
+        Returns: {
+          current_balance: number
+          expected_expenses: number
+          expected_income: number
+          expense_details: Json
+          forecasted_balance: number
+          income_details: Json
+        }[]
+      }
       get_cashflow_summary: {
         Args: { p_company_id: string; p_months_ahead?: number }
         Returns: Json
@@ -18360,6 +21297,14 @@ export type Database = {
         }[]
       }
       get_feature_usage_stats: { Args: never; Returns: Json }
+      get_full_rls_audit: {
+        Args: never
+        Returns: {
+          policy_count: number
+          rls_enabled: boolean
+          table_name: string
+        }[]
+      }
       get_leave_summary: {
         Args: { p_company_id: string; p_year?: number }
         Returns: {
@@ -18413,6 +21358,8 @@ export type Database = {
         }[]
       }
       get_my_company_id: { Args: never; Returns: string }
+      get_order_company_id: { Args: { _order_id: string }; Returns: string }
+      get_order_customer_id: { Args: { _order_id: string }; Returns: string }
       get_order_materials_history: {
         Args: { p_company_id: string; p_order_id: string }
         Returns: {
@@ -18644,6 +21591,10 @@ export type Database = {
         Args: { p_referrer_id: string }
         Returns: undefined
       }
+      incrementa_progressivo_sdi: {
+        Args: { p_company_id: string }
+        Returns: string
+      }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
       mark_all_notifications_read: {
         Args: { p_company_id: string }
@@ -18675,6 +21626,18 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      registra_incasso_atomico: {
+        Args: {
+          p_company_id: string
+          p_data_movimento: string
+          p_documento_id: string
+          p_importo: number
+          p_metodo: string
+          p_note?: string
+          p_riferimento?: string
+        }
+        Returns: string
+      }
       release_token_refresh_lock: {
         Args: { p_integration_id: string }
         Returns: undefined
@@ -18688,27 +21651,12 @@ export type Database = {
         }
         Returns: undefined
       }
-      search_kb_chunks: {
-        Args: {
-          p_azienda_id: string
-          p_categoria?: string
-          p_embedding: string
-          p_threshold?: number
-          p_top_k?: number
-        }
-        Returns: {
-          categoria: string
-          chunk_index: number
-          documento_id: string
-          id: string
-          pagina: number
-          similarity: number
-          testo: string
-          testo_preview: string
-        }[]
-      }
       staff_update_own_password_flag: {
         Args: { _must_change: boolean }
+        Returns: undefined
+      }
+      storna_incasso_atomico: {
+        Args: { p_company_id: string; p_movimento_id: string }
         Returns: undefined
       }
       superadmin_can_access_company: {
@@ -18924,3 +21872,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.84.2 (currently installed v2.75.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
