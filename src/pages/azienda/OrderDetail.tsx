@@ -37,6 +37,7 @@ import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import { OrderSignatureCard } from "@/components/orders/OrderSignatureCard";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
+import { SalTab } from "@/components/orders/SalTab";
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import { OdVSection } from "@/components/orders/OdVSection";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -731,10 +732,11 @@ function OrderDetailInner() {
       {/* ── MOBILE: tab layout ───────────────────────────────── */}
       <div className="sm:hidden">
         <Tabs defaultValue="stato">
-          <TabsList className="w-full grid grid-cols-5 h-auto">
+          <TabsList className="w-full grid grid-cols-6 h-auto">
             <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
             <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
             <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
+            <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
             <TabsTrigger value="giornale" className="text-xs py-2">Giornale</TabsTrigger>
             <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
           </TabsList>
@@ -876,7 +878,14 @@ function OrderDetailInner() {
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Giornale */}
+          {/* Tab 4: SAL */}
+          <TabsContent value="sal" className="space-y-4 mt-4">
+            {companyId && (
+              <SalTab orderId={id!} companyId={companyId} orderTotalAmount={order.total_amount ?? undefined} />
+            )}
+          </TabsContent>
+
+          {/* Tab 5: Giornale */}
           <TabsContent value="giornale" className="space-y-4 mt-4">
             <GiornaleTabContent orderId={id!} companyId={companyId!} />
           </TabsContent>
@@ -1048,6 +1057,9 @@ function OrderDetailInner() {
               </CardContent>
             </Card>
 
+            {companyId && (
+              <SalTab orderId={id!} companyId={companyId} orderTotalAmount={order.total_amount ?? undefined} />
+            )}
             <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
             <OrderLaborCosts orderId={id!} editable={true} />
             <OrderCommissions orderId={id!} totalAmount={order.total_amount} collectedAmount={collectedAmount} vatRate={order.vat_rate || 22} />
