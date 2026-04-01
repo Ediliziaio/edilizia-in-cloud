@@ -17,9 +17,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2,
+  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "👏", "🔥", "✅", "😮"];
 
 // --- Types ---
 interface Channel {
@@ -78,6 +81,8 @@ interface Message {
   attachment_name: string | null;
   is_edited: boolean;
   created_at: string;
+  reactions?: Record<string, string[]> | null; // emoji → [userId, ...]
+  message_type?: string;
 }
 
 interface Profile {
@@ -443,6 +448,22 @@ export default function InternalChat() {
     }
   };
 
+  const toggleReaction = useCallback(async (msgId: string, emoji: string, currentReactions: Record<string, string[]> | null | undefined) => {
+    if (!userId) return;
+    const reactions = { ...(currentReactions ?? {}) };
+    const users = reactions[emoji] ?? [];
+    if (users.includes(userId)) {
+      // Remove reaction
+      reactions[emoji] = users.filter((u) => u !== userId);
+      if (reactions[emoji].length === 0) delete reactions[emoji];
+    } else {
+      // Add reaction
+      reactions[emoji] = [...users, userId];
+    }
+    await supabase.from("internal_chat_messages").update({ reactions }).eq("id", msgId);
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+  }, [userId, selectedChannelId, queryClient]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -638,15 +659,58 @@ export default function InternalChat() {
                                 <p className="text-sm whitespace-pre-wrap break-words">{renderWithMentions(msg.content)}</p>
                               )}
                               {!isLucia && (
-                                <button
-                                  onClick={() => setReplyTo(msg)}
-                                  className="absolute -right-1 top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                                  title="Rispondi"
-                                >
-                                  <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                </button>
+                                <div className="absolute -right-1 top-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className="p-1 rounded hover:bg-muted" title="Aggiungi reazione">
+                                        <Smile className="h-3.5 w-3.5 text-muted-foreground" />
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent side="top" align="end" className="w-auto p-1.5">
+                                      <div className="flex gap-1">
+                                        {QUICK_REACTIONS.map((emoji) => (
+                                          <button
+                                            key={emoji}
+                                            onClick={() => toggleReaction(msg.id, emoji, msg.reactions)}
+                                            className="text-lg hover:scale-125 transition-transform p-0.5 rounded"
+                                          >
+                                            {emoji}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                  <button
+                                    onClick={() => setReplyTo(msg)}
+                                    className="p-1 rounded hover:bg-muted"
+                                    title="Rispondi"
+                                  >
+                                    <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </button>
+                                </div>
                               )}
                             </div>
+                            {/* Reaction counters */}
+                            {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {Object.entries(msg.reactions).map(([emoji, users]) =>
+                                  users.length > 0 ? (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => toggleReaction(msg.id, emoji, msg.reactions)}
+                                      className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${
+                                        users.includes(userId ?? "")
+                                          ? "bg-primary/10 border-primary/30 text-primary"
+                                          : "bg-muted border-border hover:bg-muted/80"
+                                      }`}
+                                    >
+                                      <span>{emoji}</span>
+                                      <span className="font-medium">{users.length}</span>
+                                    </button>
+                                  ) : null
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
