@@ -23,6 +23,7 @@ import { it } from "date-fns/locale";
 import { Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2, Settings2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 const SERVICES = [
   { key: "email", label: "Email Marketing", icon: Mail },
@@ -59,11 +60,59 @@ const PAGE_SIZE = 50;
 export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { permissions } = useSuperAdminPermissions();
   const [adjustDialog, setAdjustDialog] = useState<AdjustDialog>({ open: false, service: "", direction: "add" });
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustmentsPage, setAdjustmentsPage] = useState(0);
   const [customMaxOrders, setCustomMaxOrders] = useState<string>("");
+
+  // Plan pricing override
+  const qc = useQueryClient();
+  const { data: planOverride, refetch: refetchOverride } = useQuery({
+    queryKey: ['company-plan-override', companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('company_billing_overrides' as never)
+        .select('*')
+        .eq('company_id' as never, companyId as never)
+        .eq('service' as never, 'plan' as never)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        custom_plan_price_eur: number | null;
+        override_notes: string | null;
+        override_expires_at: string | null;
+      } | null;
+    },
+    enabled: !!companyId && permissions.pricing_override,
+  });
+
+  const [overridePrice, setOverridePrice] = useState('');
+  const [overrideNotes, setOverrideNotes] = useState('');
+  const [overrideExpiry, setOverrideExpiry] = useState('');
+
+  const saveOverrideMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('company_billing_overrides' as never)
+        .upsert({
+          company_id: companyId,
+          service: 'plan',
+          custom_plan_price_eur: overridePrice ? Number(overridePrice) : null,
+          override_notes: overrideNotes || null,
+          override_expires_at: overrideExpiry || null,
+          is_enabled: true,
+          updated_at: new Date().toISOString(),
+        } as never, { onConflict: 'company_id,service' } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Override prezzo salvato');
+      void refetchOverride();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   // Fetch overrides
   const { data: overrides, isLoading: overridesLoading } = useQuery({
@@ -380,6 +429,71 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           </p>
         </CardContent>
       </Card>
+
+      {/* Plan Pricing Override */}
+      {permissions.pricing_override && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-600" />
+              Override Prezzo Piano
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {planOverride?.custom_plan_price_eur != null && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-amber-700 border-amber-400">
+                  Override attivo: €{planOverride.custom_plan_price_eur}/mese
+                </Badge>
+                {planOverride.override_expires_at && (
+                  <span className="text-xs text-muted-foreground">
+                    Scade: {format(new Date(planOverride.override_expires_at), 'dd/MM/yyyy', { locale: it })}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Prezzo mensile personalizzato (€)</Label>
+                <Input
+                  type="number"
+                  value={overridePrice}
+                  onChange={(e) => setOverridePrice(e.target.value)}
+                  placeholder={String(planOverride?.custom_plan_price_eur ?? '')}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Scadenza override</Label>
+                <Input
+                  type="date"
+                  value={overrideExpiry}
+                  onChange={(e) => setOverrideExpiry(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Note interne</Label>
+              <Textarea
+                value={overrideNotes}
+                onChange={(e) => setOverrideNotes(e.target.value)}
+                placeholder="Es: Deal commerciale Q1 2025 — accordo con CEO"
+                rows={2}
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => saveOverrideMutation.mutate()}
+              disabled={saveOverrideMutation.isPending}
+            >
+              {saveOverrideMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Salva Override'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Credit Management */}
       <Card>
