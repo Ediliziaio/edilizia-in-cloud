@@ -90,6 +90,7 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
+      { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare, permissionKey: "canViewPersone" },
     ],
   },
 
@@ -147,7 +148,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone" },
       { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewOrders", isBeta: true },
       { title: "Messaggi Esterni", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone", featureKey: "messaging_beta", isBeta: true },
-      { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare, permissionKey: "canViewPersone" },
     ],
   },
 

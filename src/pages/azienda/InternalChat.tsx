@@ -109,10 +109,47 @@ function useInternalChat() {
     members.some((m) => m.channel_id === ch.id && m.user_id === userId)
   );
 
-  return { channels: myChannels, allChannels: channels, members, profiles, companyId, userId, queryClient };
+  // Real unread count per channel
+  const { data: unreadCounts = {}, refetch: refetchUnread } = useQuery({
+    queryKey: ["internal-chat-unread", companyId, userId],
+    enabled: !!companyId && !!userId,
+    queryFn: async () => {
+      const { data: myMemberships } = await supabase
+        .from("internal_chat_members")
+        .select("channel_id, last_read_at")
+        .eq("user_id", userId!)
+        .eq("company_id", companyId!);
+      if (!myMemberships?.length) return {} as Record<string, number>;
+      const counts: Record<string, number> = {};
+      await Promise.all(myMemberships.map(async (m) => {
+        let q = supabase
+          .from("internal_chat_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("channel_id", m.channel_id)
+          .neq("sender_id", userId!);
+        if (m.last_read_at) q = q.gt("created_at", m.last_read_at);
+        const { count } = await q;
+        if (count && count > 0) counts[m.channel_id] = count;
+      }));
+      return counts;
+    },
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+  });
+
+  const markChannelRead = useCallback(async (channelId: string) => {
+    if (!userId) return;
+    await supabase.from("internal_chat_members")
+      .update({ last_read_at: new Date().toISOString() })
+      .eq("channel_id", channelId)
+      .eq("user_id", userId);
+    refetchUnread();
+  }, [userId, refetchUnread]);
+
+  return { channels: myChannels, allChannels: channels, members, profiles, companyId, userId, queryClient, unreadCounts, markChannelRead, refetchUnread };
 }
 
-function useChannelMessages(channelId: string | null) {
+function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
 
   const { data: messages = [] } = useQuery({
@@ -142,11 +179,12 @@ function useChannelMessages(channelId: string | null) {
         filter: `channel_id=eq.${channelId}`,
       }, () => {
         queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
+        onNewMessage?.();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(sub); };
-  }, [channelId, queryClient]);
+  }, [channelId, queryClient, onNewMessage]);
 
   return messages;
 }
@@ -171,7 +209,7 @@ function profileName(p: Profile | undefined) {
 
 // --- Main Component ---
 export default function InternalChat() {
-  const { channels, allChannels, members, profiles, companyId, userId, queryClient } = useInternalChat();
+  const { channels, allChannels, members, profiles, companyId, userId, queryClient, unreadCounts, markChannelRead, refetchUnread } = useInternalChat();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -180,16 +218,16 @@ export default function InternalChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
-  const messages = useChannelMessages(selectedChannelId);
+  const messages = useChannelMessages(selectedChannelId, refetchUnread);
   const channelMembers = members.filter((m) => m.channel_id === selectedChannelId);
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
   // Auto-select first channel
   useEffect(() => {
     if (!selectedChannelId && channels.length > 0) {
-      setSelectedChannelId(channels[0].id);
+      handleSelectChannel(channels[0].id);
     }
-  }, [channels, selectedChannelId]);
+  }, [channels, selectedChannelId, handleSelectChannel]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -218,6 +256,7 @@ export default function InternalChat() {
       setReplyTo(null);
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
+      refetchUnread();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -268,13 +307,10 @@ export default function InternalChat() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Unread count per channel
-  const getUnreadCount = useCallback((channelId: string) => {
-    const myMembership = members.find((m) => m.channel_id === channelId && m.user_id === userId);
-    if (!myMembership?.last_read_at) return 0;
-    // We don't have per-channel message counts here, simplified
-    return 0;
-  }, [members, userId]);
+  const handleSelectChannel = useCallback((channelId: string) => {
+    setSelectedChannelId(channelId);
+    markChannelRead(channelId);
+  }, [markChannelRead]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -324,10 +360,11 @@ export default function InternalChat() {
               filteredChannels.map((ch) => {
                 const isActive = ch.id === selectedChannelId;
                 const memberCount = members.filter((m) => m.channel_id === ch.id).length;
+                const unread = unreadCounts[ch.id] ?? 0;
                 return (
                   <button
                     key={ch.id}
-                    onClick={() => setSelectedChannelId(ch.id)}
+                    onClick={() => handleSelectChannel(ch.id)}
                     className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors border-b ${
                       isActive ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/50"
                     }`}
@@ -336,9 +373,14 @@ export default function InternalChat() {
                       <Hash className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm truncate ${isActive ? "font-semibold" : "font-medium"}`}>{ch.name}</p>
+                      <p className={`text-sm truncate ${isActive ? "font-semibold" : unread > 0 ? "font-semibold" : "font-medium"}`}>{ch.name}</p>
                       <p className="text-xs text-muted-foreground">{memberCount} membri</p>
                     </div>
+                    {!isActive && unread > 0 && (
+                      <span className="shrink-0 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
                   </button>
                 );
               })
