@@ -176,7 +176,8 @@ async function executeTool(
     }
 
     case "create_task": {
-      if (!checkPermission(permissions, "canViewOrders")) {
+      // Creating tasks requires either order management or people management permissions
+      if (!checkPermission(permissions, "canViewOrders") && !checkPermission(permissions, "canViewPersone")) {
         return { error: "permission_denied", message: "Non hai il permesso di creare attività." };
       }
       const { data, error } = await admin.from("tasks").insert({
@@ -199,18 +200,36 @@ async function executeTool(
         return { error: "permission_denied", message: "Non hai il permesso di visualizzare i KPI." };
       }
       const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const [ordersRes, tasksRes] = await Promise.all([
+      const periodo = (toolInput.periodo as string) || "mese_corrente";
+      let periodoLabel = "mese corrente";
+      let dateFrom: string;
+
+      if (periodo === "anno") {
+        dateFrom = new Date(now.getFullYear(), 0, 1).toISOString();
+        periodoLabel = `anno ${now.getFullYear()}`;
+      } else if (periodo === "trimestre") {
+        const q = Math.floor(now.getMonth() / 3);
+        dateFrom = new Date(now.getFullYear(), q * 3, 1).toISOString();
+        periodoLabel = `Q${q + 1} ${now.getFullYear()}`;
+      } else {
+        dateFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        periodoLabel = now.toLocaleString("it-IT", { month: "long", year: "numeric" });
+      }
+
+      const [ordersRes, tasksRes, newOrdersRes] = await Promise.all([
         admin.from("orders").select("id, status", { count: "exact" }).eq("company_id", companyId).neq("status", "annullato"),
         admin.from("tasks").select("id, status, due_date", { count: "exact" }).eq("company_id", companyId).neq("status", "done"),
+        admin.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", dateFrom),
       ]);
       const overdueTasks = (tasksRes.data || []).filter((t) => t.due_date && new Date(t.due_date) < now).length;
+      const lateOrders = (ordersRes.data || []).filter((o) => ["in_lavorazione", "confermato"].includes(o.status || "")).length;
       return {
         ordini_totali: ordersRes.count ?? 0,
-        ordini_aperti: (ordersRes.data || []).filter((o) => o.status !== "completato").length,
+        ordini_aperti: lateOrders,
+        ordini_periodo: newOrdersRes.count ?? 0,
         task_aperti: tasksRes.count ?? 0,
         task_scaduti: overdueTasks,
-        periodo_riferimento: "mese corrente",
+        periodo_riferimento: periodoLabel,
         aggiornato_al: now.toISOString(),
       };
     }
@@ -298,10 +317,28 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
 
   if (!anthropicKey) {
     return errorResponse("ANTHROPIC_API_KEY non configurata", 500);
+  }
+
+  // ── JWT Auth: verify the caller is a logged-in Supabase user ──────────────
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return errorResponse("Authorization header mancante", 401);
+  }
+
+  // Use the user client (with the caller's JWT) to verify identity
+  const userClient = createClient(supabaseUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data: { user: callerUser }, error: authError } = await userClient.auth.getUser();
+  if (authError || !callerUser) {
+    return errorResponse("Token non valido o scaduto", 401);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -326,6 +363,21 @@ Deno.serve(async (req: Request) => {
 
   if (!message?.trim() || !user_id || !company_id || !channel_id) {
     return errorResponse("Parametri mancanti: message, user_id, company_id, channel_id", 400);
+  }
+
+  // Ensure the authenticated user matches the user_id in the body (prevent spoofing)
+  if (callerUser.id !== user_id) {
+    return errorResponse("user_id non corrisponde all'utente autenticato", 403);
+  }
+
+  // Verify company_id belongs to this user (prevent cross-company data access)
+  const { data: profileCheck } = await admin
+    .from("profiles")
+    .select("company_id")
+    .eq("id", user_id)
+    .single();
+  if (!profileCheck || profileCheck.company_id !== company_id) {
+    return errorResponse("company_id non autorizzato per questo utente", 403);
   }
 
   try {

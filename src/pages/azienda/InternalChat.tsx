@@ -1,20 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { it } from "date-fns/locale";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// Separator removed (unused)
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-// Textarea removed (unused)
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Hash, Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2, Smile, X, Pin, PinOff,
@@ -41,9 +38,19 @@ interface Channel {
 // Lucia bot sentinel ID (must match the edge function)
 const LUCIA_SENDER_ID = "00000000-0000-0000-0000-000000000001";
 
-// Simple inline markdown renderer for Lucia messages
+// Escape raw HTML entities to prevent XSS, then apply safe markdown transforms
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Safe inline markdown renderer for Lucia messages (always escape first)
 function renderMarkdown(text: string): string {
-  return text
+  return escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>')
@@ -187,7 +194,7 @@ function useInternalChat() {
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
 
-  const { data: messages = [] } = useQuery({
+  const { data: messages = [], isError, refetch } = useQuery({
     queryKey: ["internal-chat-messages", channelId],
     enabled: !!channelId,
     queryFn: async () => {
@@ -200,6 +207,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
       if (error) throw error;
       return data as Message[];
     },
+    retry: 2,
   });
 
   // Realtime subscription
@@ -221,7 +229,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
-  return messages;
+  return { messages, isError, refetch };
 }
 
 // --- Formatters ---
@@ -265,16 +273,32 @@ export default function InternalChat() {
     selectedChannel.name.toLowerCase().includes("lucia") ||
     selectedChannel.name.toLowerCase().includes("lucia-ai")
   );
-  const messages = useChannelMessages(selectedChannelId, refetchUnread);
-  const channelMembers = members.filter((m) => m.channel_id === selectedChannelId);
-  const profileMap = new Map(profiles.map((p) => [p.id, p]));
-  // Inject virtual Lucia profile
-  profileMap.set(LUCIA_SENDER_ID, {
-    id: LUCIA_SENDER_ID,
-    first_name: "Lucia",
-    last_name: "AI",
-    email: "lucia@ediliziacloud.internal",
-  });
+  const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
+  const channelMembers = useMemo(
+    () => members.filter((m) => m.channel_id === selectedChannelId),
+    [members, selectedChannelId]
+  );
+
+  // Memoize profileMap — rebuilt only when profiles change
+  const profileMap = useMemo(() => {
+    const m = new Map(profiles.map((p) => [p.id, p]));
+    m.set(LUCIA_SENDER_ID, {
+      id: LUCIA_SENDER_ID,
+      first_name: "Lucia",
+      last_name: "AI",
+      email: "lucia@ediliziacloud.internal",
+    });
+    return m;
+  }, [profiles]);
+
+  // Declare handleSelectChannel BEFORE the useEffect that depends on it
+  const handleSelectChannel = useCallback((channelId: string) => {
+    setSelectedChannelId(channelId);
+    setReplyTo(null);       // clear pending reply when switching channels
+    setMsgSearch("");       // clear message search
+    setShowSearch(false);
+    markChannelRead(channelId);
+  }, [markChannelRead]);
 
   // Auto-select first channel
   useEffect(() => {
@@ -307,13 +331,14 @@ export default function InternalChat() {
 
   const broadcastTyping = useCallback(() => {
     if (!presenceRef.current || !userId) return;
-    const profile = profileMap.get(userId);
-    presenceRef.current.track({ typing: true, name: profile ? `${profile.first_name}` : "Qualcuno" });
+    // Use profiles array directly to avoid stale profileMap reference
+    const profile = profiles.find((p) => p.id === userId);
+    presenceRef.current.track({ typing: true, name: profile?.first_name ?? "Qualcuno" });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       presenceRef.current?.track({ typing: false, name: "" });
     }, 3000);
-  }, [userId, profileMap]);
+  }, [userId, profiles]);
 
   // Parse @mentions from message content → returns array of user IDs
   const parseMentions = useCallback((content: string): string[] => {
@@ -402,13 +427,14 @@ export default function InternalChat() {
       });
       if (res.error) throw new Error(res.error.message);
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+      refetchUnread();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore comunicazione con Lucia";
       toast.error(`Lucia: ${msg}`);
     } finally {
       setLuciaTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, permissions, queryClient]);
+  }, [selectedChannelId, companyId, userId, permissions, queryClient, refetchUnread]);
 
   // Create channel
   const [channelName, setChannelName] = useState("");
@@ -452,18 +478,17 @@ export default function InternalChat() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filteredChannels = channels.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredChannels = useMemo(
+    () => channels.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [channels, searchQuery]
   );
 
-  const filteredMessages = msgSearch.trim()
-    ? messages.filter((m) => m.content.toLowerCase().includes(msgSearch.toLowerCase()))
-    : messages;
-
-  const handleSelectChannel = useCallback((channelId: string) => {
-    setSelectedChannelId(channelId);
-    markChannelRead(channelId);
-  }, [markChannelRead]);
+  const filteredMessages = useMemo(
+    () => msgSearch.trim()
+      ? messages.filter((m) => m.content.toLowerCase().includes(msgSearch.toLowerCase()))
+      : messages,
+    [messages, msgSearch]
+  );
 
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
@@ -515,7 +540,7 @@ export default function InternalChat() {
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-0 border rounded-lg overflow-hidden bg-card" style={{ height: "calc(100vh - 200px)" }}>
+      <div className="grid grid-cols-12 gap-0 border rounded-lg overflow-hidden bg-card h-[calc(100vh-200px)]">
         {/* Sidebar - Channel List */}
         <div className="col-span-3 border-r flex flex-col">
           <div className="p-3 border-b space-y-2">
@@ -656,7 +681,12 @@ export default function InternalChat() {
 
               {/* Messages */}
               <ScrollArea className="flex-1 px-4 py-3">
-                {messages.length === 0 ? (
+                {messagesError ? (
+                  <div className="text-center text-muted-foreground py-12">
+                    <p className="text-sm text-destructive mb-3">Errore nel caricamento dei messaggi.</p>
+                    <Button variant="outline" size="sm" onClick={() => retryMessages()}>Riprova</Button>
+                  </div>
+                ) : messages.length === 0 ? (
                   <div className="text-center text-muted-foreground py-12">
                     {isLuciaChannel ? (
                       <div className="max-w-sm mx-auto">
@@ -689,7 +719,8 @@ export default function InternalChat() {
                       const isLucia = msg.sender_id === LUCIA_SENDER_ID;
                       const prevMsg = filteredMessages[idx - 1];
                       const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
-                      const replyMsg = msg.reply_to_id ? filteredMessages.find((m) => m.id === msg.reply_to_id) : null;
+                      // Always search full messages, not filtered subset (avoids missing reply previews)
+                      const replyMsg = msg.reply_to_id ? messages.find((m) => m.id === msg.reply_to_id) : null;
                       const isHighlighted = msgSearch && msg.content.toLowerCase().includes(msgSearch.toLowerCase());
 
                       return (
