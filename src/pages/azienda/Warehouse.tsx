@@ -25,6 +25,8 @@ import {
   EyeOff,
   GripVertical,
   ScanLine,
+  Package,
+  Plus,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -532,10 +534,27 @@ export default function Warehouse() {
         </div>
       ) : filteredItems.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {hasActiveFilters
-              ? "Nessun articolo trovato con i filtri applicati."
-              : "Nessun articolo presente nel magazzino."}
+          <CardContent className="py-14 flex flex-col items-center justify-center gap-3 text-center">
+            <Package className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {hasActiveFilters ? "Nessun articolo trovato" : "Magazzino vuoto"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {hasActiveFilters
+                  ? "Prova a modificare i filtri o la ricerca."
+                  : "Aggiungi articoli dal catalogo per iniziare a gestire il magazzino."}
+              </p>
+            </div>
+            {!hasActiveFilters && (
+              <a
+                href="/azienda/impostazioni/catalogo"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                Vai al catalogo articoli
+              </a>
+            )}
           </CardContent>
         </Card>
       ) : (

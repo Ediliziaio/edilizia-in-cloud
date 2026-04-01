@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   ArrowUpRight,
   Info,
+  HardHat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -345,7 +346,23 @@ export default function MarginalitaCantieri() {
           ) : error ? (
             <p className="text-sm text-destructive p-4 text-center">Errore nel caricamento dati.</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">Nessun cantiere trovato.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <HardHat className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Nessun cantiere trovato</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {rows.length === 0
+                    ? "I dati di marginalità appariranno qui una volta creati gli ordini."
+                    : "Prova a modificare i filtri di ricerca."}
+                </p>
+              </div>
+              {rows.length === 0 && (
+                <Link to="/azienda/ordini/nuovo" className="text-xs font-medium text-primary hover:underline flex items-center gap-1">
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  Crea il primo ordine
+                </Link>
+              )}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -429,7 +446,12 @@ export default function MarginalitaCantieri() {
         ) : error ? (
           <p className="text-sm text-destructive text-center py-8">Errore nel caricamento dati.</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Nessun cantiere trovato.</p>
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+            <HardHat className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">
+              {rows.length === 0 ? "Crea il primo ordine per vedere i dati di marginalità." : "Nessun cantiere corrisponde ai filtri."}
+            </p>
+          </div>
         ) : (
           filtered.map((row) => (
             <Card key={row.id}>

@@ -126,8 +126,16 @@ export function TabTimbrature() {
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Nessuna timbratura nel periodo selezionato
+                  <TableCell colSpan={6}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+                      <Clock className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground">Nessuna timbratura trovata</p>
+                      <p className="text-xs text-muted-foreground">
+                        {filterName
+                          ? `Nessuna timbratura per "${filterName}" nel periodo selezionato.`
+                          : "Non ci sono timbrature nel periodo selezionato. Prova a cambiare le date."}
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

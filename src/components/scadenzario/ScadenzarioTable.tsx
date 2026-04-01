@@ -3,7 +3,7 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus } from "lucide-react";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -20,11 +20,28 @@ interface Props {
   scadenze: Scadenza[];
   onMarkPaid: (s: Scadenza) => void;
   onCancel: (id: string) => void;
+  onAdd?: () => void;
 }
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd }: Props) {
   if (scadenze.length === 0) {
-    return <div className="text-center py-12 text-muted-foreground">Nessuna scadenza trovata.</div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center border rounded-xl bg-card">
+        <CalendarClock className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Nessuna scadenza trovata</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Non ci sono scadenze per i filtri selezionati.
+          </p>
+        </div>
+        {onAdd && (
+          <Button size="sm" variant="outline" onClick={onAdd} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Nuova scadenza
+          </Button>
+        )}
+      </div>
+    );
   }
 
   return (

@@ -263,6 +263,7 @@ export default function Scadenzario() {
               scadenze={filtered}
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
+              onAdd={() => setNewOpen(true)}
             />
             <TablePagination
               currentPage={page}
