@@ -133,6 +133,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         url: "/admin/feature-flags",
         permission: "can_manage_admins",
       },
+      {
+        id: "webhooks",
+        label: "Webhook Outbound",
+        description: "Notifica sistemi esterni",
+        icon: Zap,
+        url: "/admin/impostazioni/webhooks",
+        permission: "can_manage_admins",
+      },
     ],
   },
 ];

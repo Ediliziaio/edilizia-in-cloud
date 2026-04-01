@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Building2, ReceiptText, MapPin, StickyNote, Loader2, Save } from "lucide-react";
+import { Building2, ReceiptText, MapPin, StickyNote, Loader2, Save, Download } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import type { Company, CompanyStatus } from "@/types/auth";
 import { sectorLabels, sectors, statusConfig } from "@/lib/companyUtils";
 import type { UseFormReturn } from "react-hook-form";
@@ -39,6 +42,32 @@ export function CompanyDetailsTab({
 }: CompanyDetailsTabProps) {
   const companyStatus = (company.status || "trial") as CompanyStatus;
   const statusCfg = statusConfig[companyStatus] || statusConfig.trial;
+
+  const [exporting, setExporting] = useState(false);
+
+  const handleGDPRExport = async () => {
+    setExporting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('gdpr-compliance', {
+        body: { action: 'admin_export_company_data', company_id: company.id },
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      });
+      if (res.error) throw res.error;
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gdpr-export-${company.id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export GDPR scaricato');
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error('Errore sconosciuto');
+      toast.error('Errore export: ' + err.message);
+    }
+    setExporting(false);
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -339,6 +368,18 @@ export function CompanyDetailsTab({
                   <span className="font-medium font-mono text-xs">{company.vat_number}</span>
                 </div>
               )}
+            </div>
+
+            <div className="pt-4 border-t mt-4">
+              <p className="text-xs text-muted-foreground mb-2">Conformità GDPR</p>
+              <Button variant="outline" size="sm" onClick={() => void handleGDPRExport()} disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Esporta Dati Azienda (GDPR)
+              </Button>
             </div>
 
           </CardContent>

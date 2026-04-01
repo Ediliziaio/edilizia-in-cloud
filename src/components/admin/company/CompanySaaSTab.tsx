@@ -23,6 +23,40 @@ interface CompanySaaSTabProps {
 
 export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId, company }: CompanySaaSTabProps) {
   const queryClient = useQueryClient();
+
+  const { data: storageData } = useQuery({
+    queryKey: ['company-storage', companyId],
+    queryFn: async () => {
+      const [ordersRes, customersRes] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      ]);
+      let storageMb = 0;
+      let fileCount = 0;
+      try {
+        const filesRes = await supabase.storage.from('company-files').list(companyId!, { limit: 1000 });
+        if (filesRes.data) {
+          fileCount = filesRes.data.length;
+          storageMb = filesRes.data.reduce(
+            (sum: number, f: { metadata?: { size?: number } }) =>
+              sum + ((f.metadata?.size ?? 0) / 1024 / 1024),
+            0
+          );
+        }
+      } catch {
+        // Ignora errori storage (bucket potrebbe non esistere)
+      }
+      return {
+        ordersCount: ordersRes.count ?? 0,
+        customersCount: customersRes.count ?? 0,
+        fileCount,
+        storageMb: Math.round(storageMb * 10) / 10,
+      };
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: !!companyId,
+  });
+
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
   const ordersPercent = maxOrders === -1 ? 0 : Math.min(100, ((stats?.ordersCount || 0) / maxOrders) * 100);
@@ -267,6 +301,51 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
           </CardContent>
         </Card>
       )}
+
+      {/* Utilizzo Dati & Storage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Utilizzo Dati & Storage</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Ordini/Commesse</p>
+              <p className="text-lg font-bold">
+                {(storageData?.ordersCount ?? 0).toLocaleString('it-IT')}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Clienti</p>
+              <p className="text-lg font-bold">
+                {(storageData?.customersCount ?? 0).toLocaleString('it-IT')}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">File caricati</p>
+              <p className="text-lg font-bold">{storageData?.fileCount ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Storage usato</p>
+              <p className="text-lg font-bold">{storageData?.storageMb ?? 0} MB</p>
+              {(storageData?.storageMb ?? 0) > 400 && (
+                <Badge variant="destructive" className="text-[10px] mt-1">
+                  Vicino al limite (500 MB)
+                </Badge>
+              )}
+            </div>
+          </div>
+          {(storageData?.storageMb ?? 0) > 0 && (
+            <div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>Storage</span>
+                <span>{storageData?.storageMb} / 500 MB</span>
+              </div>
+              <Progress value={Math.min(((storageData?.storageMb ?? 0) / 500) * 100, 100)} className="h-2" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Confronto piani */}
       {plans && plans.length > 1 && (

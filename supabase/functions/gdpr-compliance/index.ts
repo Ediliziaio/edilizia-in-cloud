@@ -325,6 +325,38 @@ Deno.serve(async (req) => {
         return jsonResponse(data);
       }
 
+      // ── Admin: Export Company Data (GDPR) ──
+      case "admin_export_company_data": {
+        if (!isSuperAdmin) return errorResponse("Solo i super admin possono eseguire questa operazione", 403);
+        const { company_id } = body;
+        if (!company_id) return errorResponse("company_id richiesto", 400);
+
+        const [company, users, orders, customers] = await Promise.all([
+          admin.from("companies").select("*").eq("id", company_id).single(),
+          admin.from("profiles").select("id,full_name,email,created_at").eq("company_id", company_id),
+          admin.from("orders").select("id,created_at,total_amount,status").eq("company_id", company_id).limit(1000),
+          admin.from("customers").select("id,name,email,phone,created_at").eq("company_id", company_id).limit(500),
+        ]);
+
+        const exportData = {
+          export_date: new Date().toISOString(),
+          company: company.data,
+          users: users.data ?? [],
+          orders_count: orders.data?.length ?? 0,
+          customers_count: customers.data?.length ?? 0,
+          note: "Export GDPR generato da SuperAdmin AEDIX",
+        };
+
+        const corsH = getCorsHeaders(req);
+        return new Response(JSON.stringify(exportData, null, 2), {
+          headers: {
+            ...corsH,
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename="gdpr-export-${company_id}.json"`,
+          },
+        });
+      }
+
       default:
         return errorResponse("Azione non supportata", 400);
     }
