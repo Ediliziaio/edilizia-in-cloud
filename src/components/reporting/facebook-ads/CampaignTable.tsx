@@ -199,6 +199,7 @@ const CampaignTable = ({ report }: Props) => {
                           <TooltipTrigger asChild>
                             <button
                               type="button"
+                              aria-label={`Vedi lead CRM per ${row.campaign_name}`}
                               className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex items-center justify-center rounded hover:bg-primary/10 text-primary"
                               onClick={() => navigate(`/azienda/marketing/contatti?q=${encodeURIComponent(row.campaign_name!)}`)}
                             >

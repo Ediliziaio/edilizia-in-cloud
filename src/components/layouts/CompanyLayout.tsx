@@ -88,6 +88,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
+import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -1065,6 +1066,7 @@ export function CompanyLayout() {
       />
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       <MobileBottomNav />
+      <PWAInstallBanner />
     </SidebarProvider>
   );
 }

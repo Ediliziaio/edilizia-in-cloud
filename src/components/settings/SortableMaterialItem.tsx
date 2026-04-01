@@ -52,6 +52,7 @@ export function SortableMaterialItem({
           <button
             {...attributes}
             {...listeners}
+            aria-label="Trascina per riordinare"
             className="cursor-grab active:cursor-grabbing touch-none p-1 rounded hover:bg-muted"
           >
             <GripVertical className="h-5 w-5 text-muted-foreground/50" />

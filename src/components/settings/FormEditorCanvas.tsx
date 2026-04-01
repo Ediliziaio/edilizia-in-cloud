@@ -63,7 +63,7 @@ function SortableField({
       onClick={onClick}
     >
       <div className="flex items-center gap-2">
-        <button {...attributes} {...listeners} className="cursor-grab touch-none">
+        <button {...attributes} {...listeners} aria-label="Trascina per riordinare" className="cursor-grab touch-none">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
         {ICON_MAP[field.type] || ICON_MAP.text}

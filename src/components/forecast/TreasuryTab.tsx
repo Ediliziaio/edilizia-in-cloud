@@ -722,7 +722,7 @@ export function TreasuryTab({
                     >
                       <div className="flex items-center gap-1.5">
                         {node.isExpandable ? (
-                          <button onClick={() => toggleRow(node.id)} className="p-0.5 rounded hover:bg-accent transition-colors">
+                          <button onClick={() => toggleRow(node.id)} aria-label={expandedRows.has(node.id) ? "Comprimi riga" : "Espandi riga"} className="p-0.5 rounded hover:bg-accent transition-colors">
                             {expandedRows.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </button>
                         ) : (

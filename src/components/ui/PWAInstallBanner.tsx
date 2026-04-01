@@ -3,9 +3,18 @@ import { X, Download } from "lucide-react";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { Button } from "@/components/ui/button";
 
+const DISMISSED_KEY = "pwa_install_banner_dismissed";
+
 export function PWAInstallBanner() {
   const { canInstall, triggerInstall } = usePWAInstallPrompt();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(DISMISSED_KEY) === "true"
+  );
+
+  const handleDismiss = () => {
+    localStorage.setItem(DISMISSED_KEY, "true");
+    setDismissed(true);
+  };
 
   if (!canInstall || dismissed) return null;
 
@@ -28,7 +37,7 @@ export function PWAInstallBanner() {
         Installa
       </Button>
       <button
-        onClick={() => setDismissed(true)}
+        onClick={handleDismiss}
         aria-label="Chiudi banner installazione"
         className="shrink-0 p-1 rounded-full hover:bg-primary-foreground/20 transition-colors"
       >

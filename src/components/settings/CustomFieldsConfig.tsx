@@ -765,6 +765,7 @@ export function CustomFieldsConfig() {
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{f.uniqueKey}</code>
                         <button
                           onClick={() => copyKey(f.uniqueKey)}
+                          aria-label="Copia chiave campo"
                           className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                         >
                           <Copy className="h-3.5 w-3.5" />

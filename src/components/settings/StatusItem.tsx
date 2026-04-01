@@ -45,6 +45,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       {/* Drag handle */}
       <button
         type="button"
+        aria-label="Trascina per riordinare"
         className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
         {...attributes}
         {...listeners}

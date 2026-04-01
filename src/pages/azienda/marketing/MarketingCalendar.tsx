@@ -440,11 +440,6 @@ export default function MarketingCalendar() {
       if (sameDate && sameTime) return;
     }
 
-    const oldTimeDisplay = current?.appointment_time?.slice(0, 5) || "—";
-    const displayNewTime = newTime?.slice(0, 5) || "—";
-    const confirmed = window.confirm(`Confermi di voler spostare l'appuntamento dalle ${oldTimeDisplay} alle ${displayNewTime}?`);
-    if (!confirmed) return;
-
     const oldDate = current?.appointment_date;
     const oldTime = current?.appointment_time;
     const oldEndTime = current?.appointment_end_time;
@@ -506,11 +501,6 @@ export default function MarketingCalendar() {
 
   // ── Resize handler ──
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
-    const confirmed = window.confirm(`Confermi di voler modificare la durata dell'appuntamento fino alle ${newEndTime}?`);
-    if (!confirmed) {
-      refetchAppointments();
-      return;
-    }
     if (!companyId) return;
 
     const { error } = await supabase

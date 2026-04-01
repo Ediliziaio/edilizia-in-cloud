@@ -49,7 +49,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-2 space-y-1">
       {/* Riga principale */}
       <div className="flex items-center gap-2">
-        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
+        <button {...attributes} {...listeners} aria-label="Trascina per riordinare" className="cursor-grab text-muted-foreground hover:text-foreground">
           <GripVertical className="h-4 w-4" />
         </button>
         <Input

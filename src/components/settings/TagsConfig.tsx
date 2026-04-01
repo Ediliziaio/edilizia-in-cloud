@@ -122,6 +122,7 @@ export function TagsConfig() {
               {tag.name}
               <button
                 onClick={() => setDeleteId(tag.id)}
+                aria-label={`Elimina tag ${tag.name}`}
                 className="ml-1 hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-3 w-3" />

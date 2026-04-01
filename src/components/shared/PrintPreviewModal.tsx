@@ -122,7 +122,7 @@ export function PrintPreviewModal({
             ref={iframeRef}
             title={title}
             className="w-full h-full border-0"
-            sandbox="allow-same-origin allow-modals"
+            sandbox="allow-same-origin allow-modals allow-scripts"
           />
         </div>
       </DialogContent>
