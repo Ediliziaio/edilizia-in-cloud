@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,7 +44,20 @@ function renderMarkdown(text: string): string {
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>')
+    .replace(/@(\w+)/g, '<span class="text-primary font-medium">@$1</span>')
     .replace(/\n/g, "<br/>");
+}
+
+// Highlight @mentions in plain text messages
+function renderWithMentions(text: string): React.ReactNode {
+  const parts = text.split(/(@\w[\w\s]*)/g);
+  return parts.map((part, i) =>
+    part.startsWith("@") ? (
+      <span key={i} className="text-primary font-medium bg-primary/10 px-0.5 rounded">{part}</span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
 }
 
 interface ChannelMember {
@@ -264,16 +277,37 @@ export default function InternalChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // Parse @mentions from message content → returns array of user IDs
+  const parseMentions = useCallback((content: string): string[] => {
+    const mentionRegex = /@([\w]+(?:\s+[\w]+)?)/g;
+    const mentioned: string[] = [];
+    let match;
+    while ((match = mentionRegex.exec(content)) !== null) {
+      const nameQuery = match[1].toLowerCase();
+      // Try to match against profiles
+      for (const p of profiles) {
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        const firstName = p.first_name.toLowerCase();
+        if (fullName.startsWith(nameQuery) || firstName === nameQuery) {
+          if (!mentioned.includes(p.id)) mentioned.push(p.id);
+        }
+      }
+    }
+    return mentioned;
+  }, [profiles]);
+
   // Send message
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (!selectedChannelId || !companyId || !userId || !newMsg.trim()) return;
+      const mentionedIds = parseMentions(newMsg.trim());
       const { error } = await supabase.from("internal_chat_messages").insert({
         channel_id: selectedChannelId,
         sender_id: userId,
         company_id: companyId,
         content: newMsg.trim(),
         reply_to_id: replyTo?.id || null,
+        mentions: mentionedIds.length > 0 ? mentionedIds : null,
       });
       if (error) throw error;
       // Update channel timestamp
@@ -590,8 +624,8 @@ export default function InternalChat() {
                             )}
                             {replyMsg && (
                               <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 pl-2 border-l-2 border-primary/30">
-                                <CornerDownRight className="h-3 w-3" />
-                                <span className="truncate max-w-[300px]">{replyMsg.content}</span>
+                                <CornerDownRight className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[300px] italic">{replyMsg.content.slice(0, 80)}{replyMsg.content.length > 80 ? "…" : ""}</span>
                               </div>
                             )}
                             <div className={`relative ${isLucia ? "bg-violet-50 dark:bg-violet-950/30 border border-violet-200/50 dark:border-violet-800/30 rounded-lg px-3 py-2" : ""}`}>
@@ -601,7 +635,7 @@ export default function InternalChat() {
                                   dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                                 />
                               ) : (
-                                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                                <p className="text-sm whitespace-pre-wrap break-words">{renderWithMentions(msg.content)}</p>
                               )}
                               {!isLucia && (
                                 <button
