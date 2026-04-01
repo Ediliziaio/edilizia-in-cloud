@@ -11,13 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+// Separator removed (unused)
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+// Textarea removed (unused)
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile, X, Pin, PinOff,
+  Hash, Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2, Smile, X, Pin, PinOff,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -380,7 +380,6 @@ export default function InternalChat() {
 
     setLuciaTyping(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("lucia-chat", {
         body: {
           message: messageText.trim(),
