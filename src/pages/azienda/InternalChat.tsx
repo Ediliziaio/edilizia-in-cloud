@@ -17,8 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight,
+  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2,
 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // --- Types ---
 interface Channel {
@@ -29,6 +30,21 @@ interface Channel {
   type: string;
   created_by: string;
   created_at: string;
+  is_system?: boolean;
+  is_dm?: boolean;
+  channel_emoji?: string | null;
+}
+
+// Lucia bot sentinel ID (must match the edge function)
+const LUCIA_SENDER_ID = "00000000-0000-0000-0000-000000000001";
+
+// Simple inline markdown renderer for Lucia messages
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>')
+    .replace(/\n/g, "<br/>");
 }
 
 interface ChannelMember {
@@ -210,17 +226,31 @@ function profileName(p: Profile | undefined) {
 // --- Main Component ---
 export default function InternalChat() {
   const { channels, allChannels, members, profiles, companyId, userId, queryClient, unreadCounts, markChannelRead, refetchUnread } = useInternalChat();
+  const permissions = usePermissions();
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newMsg, setNewMsg] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [luciaTyping, setLuciaTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
+  const isLuciaChannel = !!selectedChannel && (
+    selectedChannel.is_system === true ||
+    selectedChannel.name.toLowerCase().includes("lucia") ||
+    selectedChannel.name.toLowerCase().includes("lucia-ai")
+  );
   const messages = useChannelMessages(selectedChannelId, refetchUnread);
   const channelMembers = members.filter((m) => m.channel_id === selectedChannelId);
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  // Inject virtual Lucia profile
+  profileMap.set(LUCIA_SENDER_ID, {
+    id: LUCIA_SENDER_ID,
+    first_name: "Lucia",
+    last_name: "AI",
+    email: "lucia@ediliziacloud.internal",
+  });
 
   // Auto-select first channel
   useEffect(() => {
@@ -260,6 +290,54 @@ export default function InternalChat() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Send to Lucia AI
+  const sendToLucia = useCallback(async (messageText: string) => {
+    if (!selectedChannelId || !companyId || !userId || !messageText.trim()) return;
+    // First save user message to channel
+    await supabase.from("internal_chat_messages").insert({
+      channel_id: selectedChannelId,
+      sender_id: userId,
+      company_id: companyId,
+      content: messageText.trim(),
+      message_type: "text",
+    });
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+    // Update last_read_at
+    await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
+
+    setLuciaTyping(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("lucia-chat", {
+        body: {
+          message: messageText.trim(),
+          user_id: userId,
+          company_id: companyId,
+          channel_id: selectedChannelId,
+          user_permissions: {
+            canViewOrders: permissions.canViewOrders,
+            canViewCustomers: permissions.canViewCustomers,
+            canViewBilling: permissions.canViewBilling,
+            canViewPersone: permissions.canViewPersone,
+            canViewWarehouse: permissions.canViewWarehouse,
+            canViewCalendar: permissions.canViewCalendar,
+            canViewDashboard: permissions.canViewDashboard,
+            canViewCruscotto: permissions.canViewCruscotto,
+            canViewCosts: permissions.canViewCosts,
+            isAdmin: permissions.isAdmin,
+          },
+        },
+      });
+      if (res.error) throw new Error(res.error.message);
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore comunicazione con Lucia";
+      toast.error(`Lucia: ${msg}`);
+    } finally {
+      setLuciaTyping(false);
+    }
+  }, [selectedChannelId, companyId, userId, permissions, queryClient]);
 
   // Create channel
   const [channelName, setChannelName] = useState("");
@@ -312,10 +390,22 @@ export default function InternalChat() {
     markChannelRead(channelId);
   }, [markChannelRead]);
 
+  const handleSend = useCallback(() => {
+    if (!newMsg.trim()) return;
+    if (isLuciaChannel) {
+      const msg = newMsg.trim();
+      setNewMsg("");
+      setReplyTo(null);
+      sendToLucia(msg);
+    } else {
+      sendMutation.mutate();
+    }
+  }, [newMsg, isLuciaChannel, sendToLucia, sendMutation]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (newMsg.trim()) sendMutation.mutate();
+      handleSend();
     }
   };
 
@@ -361,6 +451,7 @@ export default function InternalChat() {
                 const isActive = ch.id === selectedChannelId;
                 const memberCount = members.filter((m) => m.channel_id === ch.id).length;
                 const unread = unreadCounts[ch.id] ?? 0;
+                const isLucia = ch.is_system || ch.name.toLowerCase().includes("lucia");
                 return (
                   <button
                     key={ch.id}
@@ -369,8 +460,8 @@ export default function InternalChat() {
                       isActive ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/50"
                     }`}
                   >
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Hash className="h-4 w-4 text-primary" />
+                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isLucia ? "bg-gradient-to-br from-violet-500 to-purple-600" : "bg-primary/10"}`}>
+                      {isLucia ? <Bot className="h-4 w-4 text-white" /> : <Hash className="h-4 w-4 text-primary" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm truncate ${isActive ? "font-semibold" : unread > 0 ? "font-semibold" : "font-medium"}`}>{ch.name}</p>
@@ -400,31 +491,68 @@ export default function InternalChat() {
           ) : (
             <>
               {/* Channel Header */}
-              <div className="px-4 py-3 border-b flex items-center justify-between">
+              <div className={`px-4 py-3 border-b flex items-center justify-between ${isLuciaChannel ? "bg-gradient-to-r from-violet-500/5 to-purple-500/5" : ""}`}>
                 <div className="flex items-center gap-2">
-                  <Hash className="h-5 w-5 text-primary" />
+                  {isLuciaChannel ? (
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-white" />
+                    </div>
+                  ) : (
+                    <Hash className="h-5 w-5 text-primary" />
+                  )}
                   <h3 className="font-semibold">{selectedChannel.name}</h3>
-                  {selectedChannel.description && (
+                  {isLuciaChannel && (
+                    <Badge variant="secondary" className="gap-1 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-0">
+                      <Sparkles className="h-2.5 w-2.5" /> AI
+                    </Badge>
+                  )}
+                  {!isLuciaChannel && selectedChannel.description && (
                     <span className="text-xs text-muted-foreground hidden md:inline">— {selectedChannel.description}</span>
                   )}
                 </div>
-                <Badge variant="secondary" className="gap-1">
-                  <Users className="h-3 w-3" />
-                  {channelMembers.length}
-                </Badge>
+                {isLuciaChannel ? (
+                  <span className="text-xs text-muted-foreground">Assistente virtuale aziendale</span>
+                ) : (
+                  <Badge variant="secondary" className="gap-1">
+                    <Users className="h-3 w-3" />
+                    {channelMembers.length}
+                  </Badge>
+                )}
               </div>
 
               {/* Messages */}
               <ScrollArea className="flex-1 px-4 py-3">
                 {messages.length === 0 ? (
                   <div className="text-center text-muted-foreground py-12">
-                    <p className="text-sm">Nessun messaggio. Inizia la conversazione!</p>
+                    {isLuciaChannel ? (
+                      <div className="max-w-sm mx-auto">
+                        <div className="h-16 w-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
+                          <Bot className="h-8 w-8 text-white" />
+                        </div>
+                        <p className="font-semibold text-foreground mb-2">Ciao! Sono Lucia 👋</p>
+                        <p className="text-sm mb-4">Il tuo assistente virtuale aziendale. Posso aiutarti con ordini, task, clienti, KPI e molto altro.</p>
+                        <div className="text-left space-y-1.5">
+                          {["Come vanno gli ordini questo mese?", "Mostrami i task in scadenza", "Chi è in cantiere oggi?", "Crea un task per domani"].map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              onClick={() => { setNewMsg(suggestion); }}
+                              className="w-full text-left text-xs border rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm">Nessun messaggio. Inizia la conversazione!</p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {messages.map((msg, idx) => {
                       const sender = profileMap.get(msg.sender_id);
                       const isMe = msg.sender_id === userId;
+                      const isLucia = msg.sender_id === LUCIA_SENDER_ID;
                       const prevMsg = messages[idx - 1];
                       const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
                       const replyMsg = msg.reply_to_id ? messages.find((m) => m.id === msg.reply_to_id) : null;
@@ -436,20 +564,27 @@ export default function InternalChat() {
                         >
                           <div className="w-8 shrink-0">
                             {showAvatar && (
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                  {initials(sender)}
-                                </AvatarFallback>
-                              </Avatar>
+                              isLucia ? (
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
+                                  <Bot className="h-4 w-4 text-white" />
+                                </div>
+                              ) : (
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                    {initials(sender)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             {showAvatar && (
                               <div className="flex items-center gap-2 mb-0.5">
-                                <span className={`text-sm font-medium ${isMe ? "text-primary" : ""}`}>
-                                  {isMe ? "Tu" : profileName(sender)}
+                                <span className={`text-sm font-medium ${isMe ? "text-primary" : isLucia ? "text-violet-600 dark:text-violet-400" : ""}`}>
+                                  {isMe ? "Tu" : isLucia ? "Lucia AI" : profileName(sender)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">{formatMsgTime(msg.created_at)}</span>
+                                {isLucia && <Sparkles className="h-3 w-3 text-violet-400" />}
                                 {msg.is_edited && <span className="text-xs text-muted-foreground italic">(modificato)</span>}
                               </div>
                             )}
@@ -459,20 +594,46 @@ export default function InternalChat() {
                                 <span className="truncate max-w-[300px]">{replyMsg.content}</span>
                               </div>
                             )}
-                            <div className="relative">
-                              <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                              <button
-                                onClick={() => setReplyTo(msg)}
-                                className="absolute -right-1 top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                                title="Rispondi"
-                              >
-                                <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
+                            <div className={`relative ${isLucia ? "bg-violet-50 dark:bg-violet-950/30 border border-violet-200/50 dark:border-violet-800/30 rounded-lg px-3 py-2" : ""}`}>
+                              {isLucia ? (
+                                <p
+                                  className="text-sm break-words leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                                />
+                              ) : (
+                                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                              )}
+                              {!isLucia && (
+                                <button
+                                  onClick={() => setReplyTo(msg)}
+                                  className="absolute -right-1 top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                                  title="Rispondi"
+                                >
+                                  <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
                       );
                     })}
+                    {luciaTyping && isLuciaChannel && (
+                      <div className="flex gap-3 mt-4">
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
+                          <Bot className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium text-violet-600 dark:text-violet-400">Lucia AI</span>
+                            <Sparkles className="h-3 w-3 text-violet-400" />
+                          </div>
+                          <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200/50 rounded-lg px-3 py-2 inline-flex items-center gap-1.5">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-500" />
+                            <span className="text-xs text-violet-500">Lucia sta elaborando...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
                 )}
@@ -491,21 +652,29 @@ export default function InternalChat() {
               )}
 
               {/* Compose */}
-              <div className="px-4 py-3 border-t">
+              <div className={`px-4 py-3 border-t ${isLuciaChannel ? "bg-violet-50/30 dark:bg-violet-950/10" : ""}`}>
+                {isLuciaChannel && (
+                  <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
+                    <Sparkles className="h-2.5 w-2.5 text-violet-400" />
+                    Chiedi a Lucia informazioni su ordini, task, clienti, KPI e molto altro
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Input
-                    placeholder={`Scrivi in #${selectedChannel.name}...`}
+                    placeholder={isLuciaChannel ? "Chiedi qualcosa a Lucia..." : `Scrivi in #${selectedChannel.name}...`}
                     value={newMsg}
                     onChange={(e) => setNewMsg(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="flex-1"
+                    disabled={luciaTyping}
+                    className={`flex-1 ${isLuciaChannel ? "border-violet-200 dark:border-violet-800 focus-visible:ring-violet-500" : ""}`}
                   />
                   <Button
-                    onClick={() => sendMutation.mutate()}
-                    disabled={!newMsg.trim() || sendMutation.isPending}
+                    onClick={handleSend}
+                    disabled={!newMsg.trim() || sendMutation.isPending || luciaTyping}
                     size="icon"
+                    className={isLuciaChannel ? "bg-violet-600 hover:bg-violet-700" : ""}
                   >
-                    <Send className="h-4 w-4" />
+                    {luciaTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
