@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile, X,
+  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile, X, Pin, PinOff,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -83,6 +83,7 @@ interface Message {
   created_at: string;
   reactions?: Record<string, string[]> | null; // emoji → [userId, ...]
   message_type?: string;
+  is_pinned?: boolean;
 }
 
 interface Profile {
@@ -484,6 +485,12 @@ export default function InternalChat() {
     }
   };
 
+  const togglePin = useCallback(async (msgId: string, currentPinned: boolean) => {
+    await supabase.from("internal_chat_messages").update({ is_pinned: !currentPinned }).eq("id", msgId);
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+    toast.success(currentPinned ? "Messaggio rimosso dai pinnati" : "Messaggio pinnato");
+  }, [selectedChannelId, queryClient]);
+
   const toggleReaction = useCallback(async (msgId: string, emoji: string, currentReactions: Record<string, string[]> | null | undefined) => {
     if (!userId) return;
     const reactions = { ...(currentReactions ?? {}) };
@@ -723,7 +730,12 @@ export default function InternalChat() {
                                 <span className="truncate max-w-[300px] italic">{replyMsg.content.slice(0, 80)}{replyMsg.content.length > 80 ? "…" : ""}</span>
                               </div>
                             )}
-                            <div className={`relative ${isLucia ? "bg-violet-50 dark:bg-violet-950/30 border border-violet-200/50 dark:border-violet-800/30 rounded-lg px-3 py-2" : ""}`}>
+                            {msg.is_pinned && (
+                            <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 mb-0.5">
+                              <Pin className="h-2.5 w-2.5" /> Pinnato
+                            </div>
+                          )}
+                          <div className={`relative ${isLucia ? "bg-violet-50 dark:bg-violet-950/30 border border-violet-200/50 dark:border-violet-800/30 rounded-lg px-3 py-2" : ""} ${msg.is_pinned ? "border-l-2 border-amber-400 pl-2" : ""}`}>
                               {isLucia ? (
                                 <p
                                   className="text-sm break-words leading-relaxed"
@@ -754,6 +766,13 @@ export default function InternalChat() {
                                       </div>
                                     </PopoverContent>
                                   </Popover>
+                                  <button
+                                    onClick={() => togglePin(msg.id, !!msg.is_pinned)}
+                                    className="p-1 rounded hover:bg-muted"
+                                    title={msg.is_pinned ? "Rimuovi pin" : "Pinna messaggio"}
+                                  >
+                                    {msg.is_pinned ? <PinOff className="h-3.5 w-3.5 text-amber-500" /> : <Pin className="h-3.5 w-3.5 text-muted-foreground" />}
+                                  </button>
                                   <button
                                     onClick={() => setReplyTo(msg)}
                                     className="p-1 rounded hover:bg-muted"
