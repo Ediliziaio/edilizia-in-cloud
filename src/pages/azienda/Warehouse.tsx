@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
@@ -66,10 +67,12 @@ import type { StockItem, WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 
 export default function Warehouse() {
+  const navigate = useNavigate();
   const {
     items,
     filteredItems,
@@ -116,6 +119,7 @@ export default function Warehouse() {
 
   const { sections } = useWarehouseSections();
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const [showMap, setShowMap] = useState(() => {
     const stored = localStorage.getItem("warehouse-show-map");
@@ -234,6 +238,27 @@ export default function Warehouse() {
               className="h-9 text-sm"
             />
           </div>
+          {/* Trasferimento e gestione magazzini */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTransferOpen(true)}
+            className="hidden sm:flex"
+            title="Trasferisci merce"
+          >
+            <ArrowLeft className="h-4 w-4 rotate-180 sm:mr-2" />
+            <span className="hidden sm:inline">Trasferisci</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/azienda/magazzino/gestione")}
+            className="hidden sm:flex"
+            title="Gestione magazzini"
+          >
+            <Package className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Magazzini</span>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -660,6 +685,11 @@ export default function Warehouse() {
         open={scannerOpen}
         onOpenChange={setScannerOpen}
         onScan={(result) => setSearchQuery(result)}
+      />
+
+      <WarehouseTransferPanel
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
       />
     </div>
   );

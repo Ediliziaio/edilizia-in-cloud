@@ -53,6 +53,7 @@ const CreateCustomer = lazy(() => import("@/pages/azienda/CreateCustomer"));
 const CompanyCustomerDetail = lazy(() => import("@/pages/azienda/CompanyCustomerDetail"));
 const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
+const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
@@ -162,6 +163,7 @@ export function companyRoutes() {
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
         <Route path="ordini/:id/modifica" element={<EditOrder />} />
         <Route path="magazzino" element={<Warehouse />} />
+        <Route path="magazzino/gestione" element={<WarehouseManager />} />
         <Route path="calendario" element={<ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>} />
         <Route path="clienti" element={<CustomersList />} />
         <Route path="clienti/nuovo" element={<CreateCustomer />} />
