@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
@@ -7,6 +7,7 @@ import { TabRichieste } from "./tabs/TabRichieste";
 import { TabSedi } from "./tabs/TabSedi";
 import { TabFestivita } from "./tabs/TabFestivita";
 import { TabProfili } from "./tabs/TabProfili";
+import { TabCedolini } from "./tabs/TabCedolini";
 
 export default function PersonalePage() {
   return (
@@ -39,6 +40,9 @@ export default function PersonalePage() {
           <TabsTrigger value="festivita" className="gap-1.5 shrink-0">
             <CalendarCheck className="h-4 w-4" /> Festività
           </TabsTrigger>
+          <TabsTrigger value="cedolini" className="gap-1.5 shrink-0">
+            <Receipt className="h-4 w-4" /> Cedolini
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="organigramma">
@@ -61,6 +65,9 @@ export default function PersonalePage() {
         </TabsContent>
         <TabsContent value="festivita">
           <TabFestivita />
+        </TabsContent>
+        <TabsContent value="cedolini">
+          <TabCedolini />
         </TabsContent>
       </Tabs>
     </div>
