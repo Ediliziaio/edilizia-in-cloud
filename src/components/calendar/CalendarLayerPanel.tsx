@@ -79,6 +79,8 @@ export function CalendarLayerPanel({
   const allEmployeesVisible = employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
   const allTeamsVisible = externalTeams.length > 0 && externalTeams.every((t) => visibleTeams.has(t.id));
 
+  const allLayersHidden = !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves;
+
   return (
     <div className="w-64 shrink-0 border rounded-lg bg-card p-3 space-y-3">
       <h3 className="text-sm font-semibold text-foreground">Gestisci visualizzazione</h3>
@@ -152,6 +154,9 @@ export function CalendarLayerPanel({
                       </span>
                     </div>
                   ))}
+                  {search && filteredEmployees.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">Nessun risultato</p>
+                  )}
                 </div>
               )}
 
@@ -177,6 +182,9 @@ export function CalendarLayerPanel({
                       <span className="text-[11px] truncate">{team.name}</span>
                     </div>
                   ))}
+                  {search && filteredTeams.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">Nessun risultato</p>
+                  )}
                 </div>
               )}
             </CollapsibleContent>
@@ -236,6 +244,11 @@ export function CalendarLayerPanel({
           </div>
         </div>
       </ScrollArea>
+
+      {/* Warning: all layers hidden */}
+      {allLayersHidden && (
+        <p className="text-xs text-amber-600 font-medium px-1">⚠️ Tutti i layer sono nascosti</p>
+      )}
 
       {/* Legenda colori */}
       <div className="pt-2 border-t border-border/50 space-y-1">

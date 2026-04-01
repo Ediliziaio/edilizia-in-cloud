@@ -287,8 +287,8 @@ export function CalendarDayView({
                   </div>
                 ))}
                 {hourApts.length === 0 && hourBusy.length === 0 && (
-                  <span className="text-[10px] text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors">
-                    + Nuovo appuntamento
+                  <span className="text-[10px] text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors">
+                    Clicca per aggiungere appuntamento
                   </span>
                 )}
               </div>
@@ -328,7 +328,7 @@ export function CalendarDayView({
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
             setEditingOrder(null);
-            toast({ title: "Date aggiornate" });
+            toast.success("Date aggiornate");
           }}
         />
       )}

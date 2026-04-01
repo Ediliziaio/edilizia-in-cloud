@@ -444,7 +444,6 @@ function CalendarInner() {
   // M13 — ordini non pianificati con drawer
   const [unplannedOpen, setUnplannedOpen] = useState(false);
   const [conflictsOpen, setConflictsOpen] = useState(false);
-  const [notifyingConflict, setNotifyingConflict] = useState<string | null>(null);
   const [mobileLayerOpen, setMobileLayerOpen] = useState(false);
   const unplannedOrders = useMemo(() => {
     return orders.filter(order => !order.expected_date && !order.work_start_date);
@@ -476,6 +475,7 @@ function CalendarInner() {
               variant="destructive"
               className="gap-1 cursor-pointer"
               onClick={() => setConflictsOpen(true)}
+              title={`${conflictCount} conflitti di risorse rilevati`}
             >
               <AlertTriangle className="h-3 w-3" />
               {conflictCount} conflitti

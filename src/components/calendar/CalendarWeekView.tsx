@@ -14,7 +14,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -89,6 +89,7 @@ export function CalendarWeekView({
     fromDate: string;
     toDate: string;
   } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Group all-day events per day
   const allDayByDate = useMemo(() => {
@@ -169,6 +170,7 @@ export function CalendarWeekView({
 
   const confirmDrop = async () => {
     if (!pendingDrop) return;
+    setIsConfirming(true);
     try {
       if (pendingDrop.type === "appointment") {
         const { error } = await supabase
@@ -187,10 +189,13 @@ export function CalendarWeekView({
         queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       }
       toast("Evento spostato");
+      setPendingDrop(null);
     } catch (e: any) {
       toast.error(`Errore: ${e.message}`);
+      setPendingDrop(null);
+    } finally {
+      setIsConfirming(false);
     }
-    setPendingDrop(null);
   };
 
   const renderAllDayEvent = (evt: any, idx: number) => {
@@ -380,8 +385,11 @@ export function CalendarWeekView({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDrop(null)}>Annulla</Button>
-            <Button onClick={confirmDrop}>Conferma</Button>
+            <Button variant="outline" onClick={() => setPendingDrop(null)} disabled={isConfirming}>Annulla</Button>
+            <Button onClick={confirmDrop} disabled={isConfirming}>
+              {isConfirming && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Conferma
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

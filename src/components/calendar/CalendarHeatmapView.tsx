@@ -205,9 +205,14 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange, employe
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold capitalize">
-              {format(currentDate, "MMMM yyyy", { locale: it })}
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold capitalize">
+                {format(currentDate, "MMMM yyyy", { locale: it })}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {heatmapMode === "day" ? "Carico di lavoro giornaliero" : "Distribuzione per operaio"}
+              </p>
+            </div>
             {employees.length > 0 && (
               <div className="flex rounded-md border overflow-hidden text-xs">
                 <button
@@ -404,6 +409,9 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange, employe
                 <div className="w-12 text-center text-[10px] text-muted-foreground font-medium">Totale</div>
               </div>
               {/* Employee rows */}
+              {employeeWorkloads.length > 0 && employeeWorkloads.every(e => e.totalDays === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">Nessun operaio ha lavori assegnati in questo mese.</p>
+              )}
               {employeeWorkloads.map(emp => (
                 <div key={emp.employeeId} className="flex gap-px mb-px items-center">
                   <div className="w-32 shrink-0 text-xs truncate pr-1">{emp.employeeName}</div>
