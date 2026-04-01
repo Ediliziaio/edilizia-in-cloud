@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";

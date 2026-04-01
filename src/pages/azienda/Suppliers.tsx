@@ -15,11 +15,9 @@ import {
   Truck, Search, Loader2, Star, ArrowLeft, Phone, Mail, Globe,
   MapPin, CreditCard, Package, CalendarClock, BookOpen, BarChart3,
   AlertTriangle, CheckCircle2, Pencil, Save, X, ExternalLink,
-  TrendingUp, TrendingDown, FileText, Plus,
 } from "lucide-react";
 import { useOperationalSuppliers, useSupplierDetail } from "@/hooks/useOperationalSuppliers";
 import type { SupplierWithStats } from "@/hooks/useOperationalSuppliers";
-import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 

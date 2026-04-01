@@ -86,7 +86,7 @@ export default function EditorDocumento() {
       createdRef.current = true;
 
       // Build prefilled data from order if available
-      let mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
+      const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
       if (ordineData) {
         mergedPrefill.note_documento = ordineData.description || undefined;
       }

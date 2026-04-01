@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Shield, Wifi, AlertTriangle, Lock, Users, Clock, Eye,
+  Shield, Wifi, AlertTriangle, Lock, Users, Eye,
   Activity, Loader2, XCircle, MonitorSmartphone, Globe,
   RefreshCw, ChevronDown,
 } from "lucide-react";

@@ -34,7 +34,7 @@ const PAGE_SIZE = 500;
 async function enrichPage(data: any[]) {
   // Enrich with assigned profile names
   const assignedIds = [...new Set(data.filter((o) => o.assigned_to).map((o) => o.assigned_to))];
-  let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+  const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
   if (assignedIds.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
@@ -47,9 +47,9 @@ async function enrichPage(data: any[]) {
 
   const oppIds = data.map((o) => o.id);
   const contactIds = [...new Set(data.filter((o) => o.contact_id).map((o) => o.contact_id))];
-  let notesCountMap: Record<string, number> = {};
-  let docsCountMap: Record<string, number> = {};
-  let appointmentMap: Record<string, { date: string; time: string | null }> = {};
+  const notesCountMap: Record<string, number> = {};
+  const docsCountMap: Record<string, number> = {};
+  const appointmentMap: Record<string, { date: string; time: string | null }> = {};
   const today = new Date().toISOString().split("T")[0];
 
   if (oppIds.length > 0) {

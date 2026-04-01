@@ -5,11 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "./GoogleCalendarSyncPrefsDialog";
 
 type GoogleCalendar = {

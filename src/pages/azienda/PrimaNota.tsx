@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
-import type { PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";

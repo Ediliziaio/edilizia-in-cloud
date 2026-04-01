@@ -2,11 +2,10 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subMonths, startOfMonth, isWithinInterval, parseISO } from "date-fns";
+import { format, subMonths, startOfMonth, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import {
-  AlertTriangle,
   Package,
   HardHat,
   TrendingDown,

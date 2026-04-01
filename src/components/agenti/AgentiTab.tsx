@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Plus, Search, Bot, Phone, MessageSquare, Users, Megaphone, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
   useUpdateUnifiedAgentStatus,
   useDuplicateUnifiedAgent,
 } from "@/hooks/useUnifiedAgents";
-import type { TipoAgente, StatoAgente } from "@/types/unifiedAgent.types";
+import type { TipoAgente } from "@/types/unifiedAgent.types";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,

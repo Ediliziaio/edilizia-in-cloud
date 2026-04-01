@@ -1,6 +1,6 @@
 import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code } from "lucide-react";
 import DOMPurify from "dompurify";
-import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType, createBlock } from "./builderTypes";
+import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType } from "./builderTypes";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 

@@ -16,9 +16,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";

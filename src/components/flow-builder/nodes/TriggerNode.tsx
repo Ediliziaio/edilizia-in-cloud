@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { getTriggerIcon } from "./nodeIcons";
-import { Plus, Zap } from "lucide-react";
+import { Plus } from "lucide-react";
 
 function TriggerNodeComponent({ data, selected }: NodeProps) {
   const catalog = getCatalogItem(data.itemId as string);

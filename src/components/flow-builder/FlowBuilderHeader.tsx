@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, Save, Undo2, Redo2, Loader2, Edit2, Check, X,
   Archive, FlaskConical, Play, Pause,

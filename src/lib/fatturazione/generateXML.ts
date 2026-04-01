@@ -7,7 +7,6 @@ import type {
   RigaDocumento,
   RiepilogoIVA,
   ScadenzaPagamento,
-  TipoDocumento,
 } from "@/types/fatturazione";
 
 // ─── Helpers ─────────────────────────────────────────────────

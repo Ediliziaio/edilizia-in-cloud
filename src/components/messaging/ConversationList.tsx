@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Inbox, Clock, Star } from "lucide-react";
+import { AlertTriangle, Inbox, Star } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { it } from "date-fns/locale";
 

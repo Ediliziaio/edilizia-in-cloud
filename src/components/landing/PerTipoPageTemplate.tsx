@@ -7,7 +7,7 @@ import StickyBottomBar from "@/components/landing/StickyBottomBar";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import {
   CheckCircle2, ArrowRight, Star, TrendingUp, Clock, Shield,
-  ChevronDown, ChevronUp, XCircle, Users, Zap,
+  ChevronDown, ChevronUp, XCircle, Zap,
 } from "lucide-react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";

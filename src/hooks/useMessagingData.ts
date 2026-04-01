@@ -179,7 +179,7 @@ export function useConfirmAiAction() {
       const companyId = effectiveCompany?.id;
       if (!companyId || !user) throw new Error("Not authenticated");
 
-      let createdActions: any[] = [];
+      const createdActions: any[] = [];
 
       if (params.action.type === "create_task") {
         const { data: task, error } = await supabase

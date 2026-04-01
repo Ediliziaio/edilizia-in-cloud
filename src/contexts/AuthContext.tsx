@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
-import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
 

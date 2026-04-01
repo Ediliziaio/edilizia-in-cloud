@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Receipt, Plus, Trash2, Eye, CheckCircle2, XCircle, Clock, Send } from "lucide-react";
+import { Receipt, Plus, Trash2, CheckCircle2, XCircle, Clock, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -40,6 +40,9 @@ export default function ExpenseReports({ companyId }: Props) {
   const [reportItems, setReportItems] = useState<any[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
   const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isAddingItem, setIsAddingItem] = useState(false);
 
   useEffect(() => {
     if (companyId) loadReports();
@@ -57,20 +60,25 @@ export default function ExpenseReports({ companyId }: Props) {
   }
 
   async function handleCreate() {
-    if (!newReport.title.trim()) { toast.error("Inserisci un titolo"); return; }
-    const { data, error } = await supabase.from("expense_reports").insert({
-      company_id: companyId,
-      title: newReport.title,
-      description: newReport.description || null,
-      period_from: newReport.period_from || null,
-      period_to: newReport.period_to || null,
-    }).select("*").single();
-    if (error) { toast.error(error.message); return; }
-    toast.success("Nota spese creata");
-    setShowCreate(false);
-    setNewReport({ title: "", description: "", period_from: "", period_to: "" });
-    loadReports();
-    openDetail(data);
+    if (!newReport.title.trim()) { toast.error("Inserisci il titolo della nota spese"); return; }
+    setIsCreating(true);
+    try {
+      const { data, error } = await supabase.from("expense_reports").insert({
+        company_id: companyId,
+        title: newReport.title,
+        description: newReport.description || null,
+        period_from: newReport.period_from || null,
+        period_to: newReport.period_to || null,
+      }).select("*").single();
+      if (error) { toast.error(error.message); return; }
+      toast.success("Nota spese creata");
+      setShowCreate(false);
+      setNewReport({ title: "", description: "", period_from: "", period_to: "" });
+      loadReports();
+      openDetail(data);
+    } finally {
+      setIsCreating(false);
+    }
   }
 
   async function openDetail(report: any) {
@@ -84,28 +92,40 @@ export default function ExpenseReports({ companyId }: Props) {
   }
 
   async function handleAddItem() {
-    if (!newItem.description.trim() || !newItem.amount) { toast.error("Compila tutti i campi"); return; }
-    const { error } = await supabase.from("expense_report_items").insert({
-      report_id: selectedReport.id,
-      company_id: companyId,
-      description: newItem.description,
-      amount: parseFloat(newItem.amount),
-      category: newItem.category,
-      expense_date: newItem.expense_date,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Voce aggiunta");
-    setShowAddItem(false);
-    setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
-    openDetail(selectedReport);
-    loadReports(); // aggiorna totale
+    if (!newItem.description.trim()) { toast.error("Inserisci la descrizione della spesa"); return; }
+    if (!newItem.amount) { toast.error("Inserisci l'importo"); return; }
+    setIsAddingItem(true);
+    try {
+      const { error } = await supabase.from("expense_report_items").insert({
+        report_id: selectedReport.id,
+        company_id: companyId,
+        description: newItem.description,
+        amount: parseFloat(newItem.amount),
+        category: newItem.category,
+        expense_date: newItem.expense_date,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Voce aggiunta");
+      setShowAddItem(false);
+      setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
+      openDetail(selectedReport);
+      loadReports();
+    } finally {
+      setIsAddingItem(false);
+    }
   }
 
   async function handleSubmit(reportId: string) {
-    await supabase.from("expense_reports").update({ status: "submitted" }).eq("id", reportId);
-    toast.success("Nota spese inviata per approvazione");
-    loadReports();
-    if (selectedReport?.id === reportId) setSelectedReport({ ...selectedReport, status: "submitted" });
+    setSubmittingId(reportId);
+    try {
+      const { error } = await supabase.from("expense_reports").update({ status: "submitted" }).eq("id", reportId);
+      if (error) { toast.error("Errore nell'invio: " + error.message); return; }
+      toast.success("Nota spese inviata per approvazione");
+      loadReports();
+      if (selectedReport?.id === reportId) setSelectedReport({ ...selectedReport, status: "submitted" });
+    } finally {
+      setSubmittingId(null);
+    }
   }
 
   async function handleDelete() {
@@ -138,7 +158,20 @@ export default function ExpenseReports({ companyId }: Props) {
       </div>
 
       {reports.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-muted-foreground">Nessuna nota spese</CardContent></Card>
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Receipt className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Nessuna nota spese</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Registra le spese aziendali per tenerle sempre sotto controllo.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Crea prima nota spese
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {reports.map((report) => {
@@ -163,8 +196,18 @@ export default function ExpenseReports({ companyId }: Props) {
                   <div className="flex gap-2">
                     {report.status === "draft" && (
                       <>
-                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleSubmit(report.id); }}>
-                          <Send className="h-3 w-3 mr-1" /> Invia
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={submittingId === report.id}
+                          onClick={(e) => { e.stopPropagation(); handleSubmit(report.id); }}
+                        >
+                          {submittingId === report.id ? (
+                            <span className="h-3 w-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
+                          ) : (
+                            <Send className="h-3 w-3 mr-1" aria-hidden="true" />
+                          )}
+                          {submittingId === report.id ? "Invio..." : "Invia"}
                         </Button>
                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleteId(report.id); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -192,8 +235,11 @@ export default function ExpenseReports({ companyId }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Annulla</Button>
-            <Button onClick={handleCreate}>Crea</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={isCreating}>Annulla</Button>
+            <Button onClick={handleCreate} disabled={isCreating}>
+              {isCreating && <span className="h-3.5 w-3.5 mr-2 rounded-full border-2 border-white border-t-transparent animate-spin inline-block" />}
+              {isCreating ? "Creazione..." : "Crea"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -270,8 +316,11 @@ export default function ExpenseReports({ companyId }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddItem(false)}>Annulla</Button>
-            <Button onClick={handleAddItem}>Aggiungi</Button>
+            <Button variant="outline" onClick={() => setShowAddItem(false)} disabled={isAddingItem}>Annulla</Button>
+            <Button onClick={handleAddItem} disabled={isAddingItem}>
+              {isAddingItem && <span className="h-3.5 w-3.5 mr-2 rounded-full border-2 border-white border-t-transparent animate-spin inline-block" />}
+              {isAddingItem ? "Aggiunta..." : "Aggiungi"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

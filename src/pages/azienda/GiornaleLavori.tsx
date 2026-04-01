@@ -5,9 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +16,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Slider } from "@/components/ui/slider";
 import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 

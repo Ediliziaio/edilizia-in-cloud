@@ -8,11 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CreditCard, Wallet, Clock, ShieldAlert, ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { CreditCard, Wallet, Clock, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -20,7 +19,6 @@ import { formatEur, formatMinutes, estimateConversationsRemaining } from "@/modu
 import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } from "@/modules/ai-agents/hooks/useAgentCredits";
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { queryKeys } from "@/lib/queryKeys";
-import { logger } from "@/utils/logger";
 
 interface CreditTransaction {
   id: string;

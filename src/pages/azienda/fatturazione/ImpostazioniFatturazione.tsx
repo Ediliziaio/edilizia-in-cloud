@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
   Plus, Pencil, Building2, Receipt, Palette, CreditCard, Percent,
-  Settings2, FileText, Globe, Lock, Download, BarChart2
+  Settings2, FileText, Globe, Download
 } from "lucide-react";
 import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";

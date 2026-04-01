@@ -11,14 +11,13 @@ import {
 import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, AlertTriangle, Loader2 } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";

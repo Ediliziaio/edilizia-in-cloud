@@ -1,6 +1,6 @@
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertTriangle, Clock, XCircle, Info } from "lucide-react";
+import { AlertTriangle, Clock, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function SubscriptionBanner() {

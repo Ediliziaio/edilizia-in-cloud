@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronRight, AlertCircle, BarChart2, TrendingUp } from "lucide-react";
+import { Send, Users, FileText, Eye, Clock, MessageCircle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronRight, AlertCircle, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";

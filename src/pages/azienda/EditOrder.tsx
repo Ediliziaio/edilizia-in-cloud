@@ -569,7 +569,7 @@ function EditOrderInner() {
 
       // Handle salesperson
       if (salespersonId && salespersonData) {
-        let commissionAmount = salespersonData.commission_type === "fixed"
+        const commissionAmount = salespersonData.commission_type === "fixed"
           ? salespersonData.commission_value
           : total * (salespersonData.commission_value / 100);
 

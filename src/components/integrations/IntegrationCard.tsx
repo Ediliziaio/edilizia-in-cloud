@@ -1,6 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { MetaStatusBadge } from "./MetaStatusBadge";
 import type { Integration, IntegrationProvider } from "@/types/integrations";
 import { ExternalLink, Settings2, CalendarDays } from "lucide-react";

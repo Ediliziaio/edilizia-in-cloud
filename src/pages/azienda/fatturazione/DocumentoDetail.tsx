@@ -14,12 +14,10 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Clock, Send, ExternalLink, Mail } from "lucide-react";
+import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import type { DocumentoFiscale as Doc, AnagraficaAzienda } from "@/types/fatturazione";
+import type { AnagraficaAzienda } from "@/types/fatturazione";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 

@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, RefreshCw, Users, Building2, MapPin, UserPlus, List, Network } from "lucide-react";
-import type { HrProfilo, OrgTreeNode } from "@/types/hr";
+import type { HrProfilo } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
 import { OrgTreeView } from "@/components/hr/OrgTreeView";
 import type { OrgTreeNode as OrgTreeNodeType } from "@/types/hr";

@@ -43,7 +43,7 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
   const { data: documents = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from("marketing_documents")
         .select("*")
         .eq("contact_id", contactId)

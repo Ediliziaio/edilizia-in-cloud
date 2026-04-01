@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
-  Play, Plus, ZoomIn, ZoomOut, Maximize2, MessageSquare,
+  Play, ZoomIn, ZoomOut, Maximize2, MessageSquare,
   UserPlus, CalendarPlus, Bell, PhoneOff, Construction,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

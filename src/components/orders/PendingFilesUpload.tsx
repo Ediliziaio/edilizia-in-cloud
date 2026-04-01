@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Paperclip, Upload, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { ALLOWED_MIME_TYPES, MAX_FILES_PER_ORDER, isValidMimeType } from "./OrderAttachments";
+import { MAX_FILES_PER_ORDER, isValidMimeType } from "./OrderAttachments";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_FORMATS = ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif";

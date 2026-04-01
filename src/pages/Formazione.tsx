@@ -6,7 +6,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRight, Star, Clock, CheckCircle2 } from "lucide-react";
+import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRight, Clock } from "lucide-react";
 
 function PromoBanner() {
   return (

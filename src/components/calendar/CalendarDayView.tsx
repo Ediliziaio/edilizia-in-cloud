@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   format,
   isSameDay,
-  parseISO,
   addDays,
   subDays,
 } from "date-fns";
@@ -18,10 +17,8 @@ import { cn } from "@/lib/utils";
 import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
-import { WeatherBadge } from "./WeatherBadge";
 import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00

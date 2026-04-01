@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { startOfYear, endOfDay } from "date-fns";
-import type { DatePreset, CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
+import type { CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
 import { queryKeys } from "@/lib/queryKeys";
 import { getDateRange } from "@/lib/dateRangeUtils";
 

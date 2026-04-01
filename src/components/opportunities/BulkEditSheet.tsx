@@ -41,7 +41,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone 
   const handleApply = () => {
     if (!selectedField || !fieldValue) return;
 
-    let data: Record<string, any> = {};
+    const data: Record<string, any> = {};
 
     if (selectedField === "value") {
       data.value = parseFloat(fieldValue) || 0;

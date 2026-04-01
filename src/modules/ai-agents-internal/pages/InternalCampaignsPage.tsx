@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Play, Pause, Trash2, Phone, CheckCircle2, BarChart3, Megaphone, FileDown } from "lucide-react";
 import { useInternalCampaigns } from "../hooks/useInternalCampaigns";
 import { CampaignBuilder } from "../components/CampaignBuilder";
-import type { CampaignStatus, InternalCampaign } from "../types/internalAgent.types";
+import type { InternalCampaign } from "../types/internalAgent.types";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 

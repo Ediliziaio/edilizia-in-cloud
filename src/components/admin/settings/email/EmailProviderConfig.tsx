@@ -8,7 +8,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff, Send, CheckCircle2, XCircle, Loader2, Info, Circle, Copy } from "lucide-react";
+import { Eye, EyeOff, Send, XCircle, Loader2, Info, Circle, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

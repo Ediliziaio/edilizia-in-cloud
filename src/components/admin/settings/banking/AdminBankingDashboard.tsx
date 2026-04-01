@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Landmark, RefreshCw, AlertTriangle, CheckCircle2, Clock, Loader2, Wifi, WifiOff } from "lucide-react";
+import { Landmark, RefreshCw, AlertTriangle, Loader2, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatDistanceToNow, differenceInDays } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
 const formatEur = (val: number) =>

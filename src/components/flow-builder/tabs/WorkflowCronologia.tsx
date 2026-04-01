@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -336,7 +335,7 @@ export function WorkflowCronologia({ flowId }: Props) {
       if (error) throw error;
 
       const entityIds = (rows ?? []).map((r: any) => r.entity_id).filter(Boolean);
-      let contactMap: Record<string, any> = {};
+      const contactMap: Record<string, any> = {};
       if (entityIds.length > 0) {
         const { data: contacts } = await (supabase as any)
           .from("marketing_contacts")

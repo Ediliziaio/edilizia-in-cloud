@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, CreditCard, UserX, Sparkles, X } from "lucide-react";
+import { Clock, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface FilterPreset {

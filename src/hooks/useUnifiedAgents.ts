@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import type {
   UnifiedAgent,
   UnifiedAgentInsert,
-  UnifiedAgentUpdate,
   AICompanyStats,
 } from "@/types/unifiedAgent.types";
 

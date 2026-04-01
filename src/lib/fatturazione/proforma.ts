@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
-import { calcolaRiepilogoIVA, calcolaTotaliDocumento } from "./calcoli";
+import { calcolaTotaliDocumento } from "./calcoli";
 
 /**
  * Converts a proforma or preventivo into a fattura.

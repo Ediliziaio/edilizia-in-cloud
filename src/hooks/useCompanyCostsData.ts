@@ -3,11 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
 import {
-  type UnifiedCost,
-  type BreakEvenData,
   buildOrderItemCosts,
   buildExternalTeamCosts,
   buildEmployeeCosts,

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
 import type { SalesPerformance, KpiData } from "@/hooks/useMarketingDashboard";
 import { fmtCur } from "@/components/marketing/dashboard/utils";

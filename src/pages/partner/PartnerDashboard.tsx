@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, MousePointerClick, Users, TrendingUp, DollarSign, Wallet, Copy, Check, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { format, subDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { PartnerOnboardingModal } from "./PartnerOnboardingModal";

@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { Check, icons } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AvailableIcon } from "@/lib/orderStatusTemplates";
 import type { OrderStatus } from "@/lib/orderUtils";
 
 export type { OrderStatus };

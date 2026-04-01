@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
-import { Search, X, ChevronDown, Plus, MapPin, Phone, Mail, Building2, User, Pencil } from "lucide-react";
+import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { useAnagraficheNative } from "@/hooks/useAnagraficheNative";
 import { validaPartitaIva, validaCodiceFiscale } from "@/lib/fatturazione/validazioniAnagrafiche";
 import type { ClienteSnapshot } from "@/types/fatturazione";

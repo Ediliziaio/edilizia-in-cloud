@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
 
 interface OrderSalesperson {
   id: string;

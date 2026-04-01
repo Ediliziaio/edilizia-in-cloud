@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CreditCard, Clock, Pause, Play, Timer, Loader2, Banknote, RefreshCw, CalendarPlus } from "lucide-react";
+import { CreditCard, Clock, Pause, Play, Loader2, RefreshCw, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";

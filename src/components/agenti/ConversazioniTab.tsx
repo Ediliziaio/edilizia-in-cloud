@@ -10,7 +10,6 @@ import {
   Play,
   Pause,
   Clock,
-  Phone,
   PhoneIncoming,
   PhoneOutgoing,
   ChevronLeft,

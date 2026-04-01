@@ -25,7 +25,7 @@ import {
   Plus, Search, Loader2, Upload, Link2, Unlink, ArrowRightLeft,
   Check, RefreshCw, Info, Users,
 } from "lucide-react";
-import type { AnagraficaNative, TipoCliente } from "@/types/fatturazione";
+import type { AnagraficaNative } from "@/types/fatturazione";
 
 const TIPO_COLORS: Record<string, string> = {
   B2B: "bg-blue-100 text-blue-700",

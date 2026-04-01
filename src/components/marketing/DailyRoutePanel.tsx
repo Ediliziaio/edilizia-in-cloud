@@ -1,4 +1,4 @@
-import { MapPin, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 interface RouteStop {
   label: string;

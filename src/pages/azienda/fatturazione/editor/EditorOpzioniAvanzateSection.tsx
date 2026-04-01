@@ -4,7 +4,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { formatCurrency } from "@/lib/formatters";
 import { shouldSuggestBollo } from "@/lib/fatturazione/calcoli";
 import type { EditorState } from "./useEditorState";
 

@@ -3,7 +3,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CalendarItem {
   id: string;

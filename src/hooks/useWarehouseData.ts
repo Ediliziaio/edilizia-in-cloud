@@ -228,7 +228,7 @@ export function useWarehouseData() {
       const [activeRes, urgentRes, overdueRes] = await Promise.all([
         // Active: not installato, not last status
         (() => {
-          let q = supabase
+          const q = supabase
             .from("order_items")
             .select("id", { count: "exact", head: true })
             .eq("order.company_id", companyId)
@@ -302,7 +302,7 @@ export function useWarehouseData() {
 
   // Group items
   const filteredGroups = useMemo(() => {
-    let sortedItems = [...filteredItems];
+    const sortedItems = [...filteredItems];
 
     if (groupBy === "date") {
       sortedItems.sort((a, b) => {
@@ -353,7 +353,7 @@ export function useWarehouseData() {
       grouped.get(orderId)!.items.push(item);
     });
 
-    let result = Array.from(grouped.values());
+    const result = Array.from(grouped.values());
     if (groupBy === "date") {
       result.sort((a, b) => (a.expectedDate || "").localeCompare(b.expectedDate || ""));
     }

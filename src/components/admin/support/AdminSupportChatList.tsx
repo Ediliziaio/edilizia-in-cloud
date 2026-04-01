@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle, RefreshCw, AlertCircle, Inbox } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { AdminSupportChatSheet } from "./AdminSupportChatSheet";

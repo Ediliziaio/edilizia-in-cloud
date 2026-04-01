@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { differenceInDays, parseISO } from "date-fns";
-import { cn } from "@/lib/utils";
 import type { CalendarOrder } from "@/types/calendar";
 
 interface LeadTimeStatsProps {

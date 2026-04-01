@@ -7,7 +7,6 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,7 +17,6 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { TaskChecklist } from "./TaskChecklist";
 import { TaskComments } from "./TaskComments";

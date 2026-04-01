@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   ClipboardList, Users, MessageSquare, TrendingUp, Heart, DollarSign,
   Calendar, Activity, ArrowUpRight, ArrowDownRight, Minus, ShoppingCart,
-  Clock, CheckCircle2, AlertTriangle, Zap
+  Clock, AlertTriangle, Zap
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -12,7 +12,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { ticketStatusLabels } from "@/lib/adminConstants";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell
+  ResponsiveContainer
 } from "recharts";
 import { CompanyConversionCard } from "./CompanyConversionCard";
 import { Progress } from "@/components/ui/progress";

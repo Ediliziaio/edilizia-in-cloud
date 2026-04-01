@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Bell, Building2, Clock, MessageSquare, CreditCard, Pause, Users, Loader2, Monitor, Mail } from "lucide-react";
 import { toast } from "sonner";
 

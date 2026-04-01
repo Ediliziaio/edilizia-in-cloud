@@ -1,4 +1,4 @@
-import { ExternalLink, Download, AlertTriangle, CheckCircle2,
+import { ExternalLink, Download, AlertTriangle,
          CreditCard, FileText, RefreshCw, Clock, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

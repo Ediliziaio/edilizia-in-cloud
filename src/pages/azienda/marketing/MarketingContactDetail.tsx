@@ -10,8 +10,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
-  FileText, Plus, Send, Search,
+  ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Search,
   Bell, User, X, Filter,
   Loader2, AlertCircle, MessageSquare, Smartphone, Merge,
 } from "lucide-react";

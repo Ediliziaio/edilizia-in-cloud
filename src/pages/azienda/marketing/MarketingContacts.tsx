@@ -225,7 +225,7 @@ export default function MarketingContacts() {
       const cfColumns = contactCustomFields.map(f => ({ key: `cf_${f.id}`, label: f.name }));
 
       // Fetch custom field values for exported contacts if any
-      let cfMap: Record<string, Record<string, string>> = {};
+      const cfMap: Record<string, Record<string, string>> = {};
       if (cfColumns.length > 0 && all && all.length > 0) {
         const ids = all.map((c: any) => c.id);
         // Chunk .in() queries to avoid Supabase limits
@@ -468,7 +468,7 @@ export default function MarketingContacts() {
       const contactIds = (contactsRaw || []).map((c: any) => c.id);
 
       // Fetch first opportunity per contact
-      let oppMap: Record<string, { name: string; value: number; status: string; pipeline_name: string; stage_name: string }> = {};
+      const oppMap: Record<string, { name: string; value: number; status: string; pipeline_name: string; stage_name: string }> = {};
       if (contactIds.length > 0) {
         const { data: opps } = await supabase
           .from("marketing_opportunities")
@@ -494,7 +494,7 @@ export default function MarketingContacts() {
 
       // Fetch call_center names
       const callCenterIds = [...new Set((contactsRaw || []).map((c: any) => c.call_center_id).filter(Boolean))];
-      let callCenterMap: Record<string, string> = {};
+      const callCenterMap: Record<string, string> = {};
       if (callCenterIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

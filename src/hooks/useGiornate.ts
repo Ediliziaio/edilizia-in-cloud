@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import type { HrGiornata, HrProfilo } from "@/types/hr";
+import type { HrGiornata } from "@/types/hr";
 
 export interface GiornataWithProfilo extends HrGiornata {
   profilo_nome: string;

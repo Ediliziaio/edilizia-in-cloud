@@ -7,7 +7,6 @@ import {
 } from "@/hooks/useAdminTeam";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { supabase } from "@/integrations/supabase/client";
-import { queryKeys } from "@/lib/queryKeys";
 import { useMutation } from "@tanstack/react-query";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import CreateSuperAdminDialog from "./CreateSuperAdminDialog";

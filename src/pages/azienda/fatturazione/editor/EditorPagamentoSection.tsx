@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Check, AlertTriangle, ChevronDown } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
-import { formatCurrency } from "@/lib/formatters";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { ScadenzaPagamento } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";

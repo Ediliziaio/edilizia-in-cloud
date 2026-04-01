@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { TrendingUp, BarChart3, Target, DollarSign, RefreshCw, Download, Trophy } from "lucide-react";

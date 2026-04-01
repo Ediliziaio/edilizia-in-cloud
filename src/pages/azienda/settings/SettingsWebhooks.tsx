@@ -9,13 +9,13 @@ import {
   useWebhookDeliveries,
   useRetryDelivery,
 } from "@/hooks/useWebhooks";
-import type { Webhook, WebhookDelivery } from "@/types/webhooks";
+import type { Webhook } from "@/types/webhooks";
 import { WEBHOOK_EVENTS } from "@/types/webhooks";
 import { supabase } from "@/integrations/supabase/client";
-import { formatRelativeTime, formatDateTime } from "@/lib/formatters";
+import { formatRelativeTime } from "@/lib/formatters";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

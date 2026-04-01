@@ -28,7 +28,6 @@ import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo } from "@/types/calendar";
-import { WeatherBadge } from "./WeatherBadge";
 import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";

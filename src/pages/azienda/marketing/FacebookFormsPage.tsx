@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Info } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";

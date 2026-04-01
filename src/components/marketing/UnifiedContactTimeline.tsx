@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Activity, Mail, MessageSquare, Phone, CalendarDays, StickyNote,
   Target, UserPlus, Settings, ArrowRight, RefreshCw, UserCheck,
-  FileText, Smartphone, AlertCircle, Loader2,
+  FileText, Smartphone, AlertCircle,
 } from "lucide-react";
 
 // ── Types ──

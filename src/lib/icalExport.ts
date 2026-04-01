@@ -1,4 +1,4 @@
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import type { CalendarAppointment, CalendarOrder } from "@/types/calendar";
 
 function escapeIcal(str: string): string {

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, Settings2, ClipboardList, ShoppingCart, AlertTriangle, PieChart } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart } from "lucide-react";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";

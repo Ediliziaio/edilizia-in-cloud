@@ -7,8 +7,6 @@ import { ArrowRight, AlertTriangle, ClipboardList, Users, Flame } from "lucide-r
 import type { UpsellAlert } from "@/hooks/useAdminRevenueData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 
 interface ChurnRisk {
   company_id: string;

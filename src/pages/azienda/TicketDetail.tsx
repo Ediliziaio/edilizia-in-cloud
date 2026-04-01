@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,7 +32,7 @@ import { TicketChat } from "@/components/tickets/TicketChat";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
-import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, TicketPriority } from "@/types/tickets";
+import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
@@ -90,7 +90,7 @@ export default function TicketDetail() {
 
       // Fetch sender profiles separately
       const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
-      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+      const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
       if (senderIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

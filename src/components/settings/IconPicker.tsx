@@ -3,7 +3,7 @@ import { icons } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { availableIcons, type AvailableIcon } from "@/lib/orderStatusTemplates";
+import { availableIcons } from "@/lib/orderStatusTemplates";
 
 interface IconPickerProps {
   value: string;

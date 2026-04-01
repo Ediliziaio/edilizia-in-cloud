@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import {
   MessageSquare, Plus, Phone, Bot, Settings2, Loader2,
-  CheckCircle2, AlertTriangle, Trash2, AlertCircle,
+  CheckCircle2, AlertTriangle, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

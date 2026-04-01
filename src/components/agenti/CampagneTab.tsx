@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import {
   Plus, Play, Pause, Trash2, Megaphone, CheckCircle2, Phone, BarChart3,
-  Calendar, Clock, Users, Loader2,
+  Calendar, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";

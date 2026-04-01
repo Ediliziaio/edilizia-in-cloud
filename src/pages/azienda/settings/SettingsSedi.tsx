@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, MapPin, Building2, Power, Trash2, Star } from 'lucide-react'
+import { Plus, Pencil, MapPin, Building2, Trash2, Star } from 'lucide-react'
 
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'

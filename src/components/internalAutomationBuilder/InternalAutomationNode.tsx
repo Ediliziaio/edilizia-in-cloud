@@ -2,7 +2,7 @@ import { memo } from "react";
 import type { InternalAutomationNode } from "@/types/internalAutomationBuilder";
 import { findTriggerLabel, findActionLabel, INTERNAL_NODE_TYPE_LABELS } from "@/types/internalAutomationBuilder";
 import {
-  Zap, Settings, MessageSquare, GitBranch, Globe, CheckSquare, RefreshCw,
+  Zap, Settings, GitBranch, Globe, CheckSquare, RefreshCw,
   Headphones, CalendarDays, Bell, Mail, Clock, Plus, Trash2, Copy,
   ClipboardList, Receipt, UserCheck, AlertTriangle,
 } from "lucide-react";

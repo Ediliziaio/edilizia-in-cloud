@@ -5,8 +5,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
@@ -22,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
-  MessageCircle, Copy, Link, HardHat,
+  MessageCircle, Copy, HardHat,
 } from "lucide-react";
 
 export default function QuoteDetail() {

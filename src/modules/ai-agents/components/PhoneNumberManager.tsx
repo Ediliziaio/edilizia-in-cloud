@@ -11,6 +11,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Phone, Plus, Bot, Link2, Trash2, Search, Loader2 } from "lucide-react";
@@ -55,6 +59,7 @@ export function PhoneNumberManager() {
   const [buyAgentId, setBuyAgentId] = useState("");
   const [buyLabel, setBuyLabel] = useState("");
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PhoneNumberRow | null>(null);
 
   const { data: numbers, isLoading } = useQuery({
     queryKey: queryKeys.aiAgents.phoneNumbers(),
@@ -165,7 +170,6 @@ export function PhoneNumberManager() {
   };
 
   const handleDelete = async (num: PhoneNumberRow) => {
-    if (!confirm(`Eliminare il numero ${num.phone_number}?`)) return;
     try {
       if (num.telnyx_phone_id) {
         await supabase.functions.invoke("telnyx-proxy", {
@@ -276,10 +280,11 @@ export function PhoneNumberManager() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive"
-                          onClick={() => handleDelete(num)}
+                          onClick={() => setDeleteTarget(num)}
+                          aria-label="Elimina numero"
                           title="Elimina numero"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
                       </div>
                     </TableCell>
@@ -378,6 +383,28 @@ export function PhoneNumberManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete phone number confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina numero</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare il numero <strong>{deleteTarget?.phone_number}</strong>?
+              Il numero verrà rilasciato e l'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

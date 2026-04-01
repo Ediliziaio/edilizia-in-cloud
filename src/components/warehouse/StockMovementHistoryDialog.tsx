@@ -51,7 +51,7 @@ export function StockMovementHistoryDialog({
         .filter((m) => m.order_item_id)
         .map((m) => m.order_item_id!);
 
-      let orderMap: Record<string, string> = {};
+      const orderMap: Record<string, string> = {};
       if (orderItemIds.length > 0) {
         const { data: orderItems } = await supabase
           .from("order_items")

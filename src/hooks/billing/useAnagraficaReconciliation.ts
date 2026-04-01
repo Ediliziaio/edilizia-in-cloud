@@ -60,7 +60,7 @@ export function useAnagraficheWithReconciliation(companyId: string | null) {
       const rows = (data ?? []) as unknown as AnagraficaForRecon[];
       const linkedIds = rows.filter((r) => r.cliente_id).map((r) => r.cliente_id!);
 
-      let profilesMap: Record<string, ProfileForMatch> = {};
+      const profilesMap: Record<string, ProfileForMatch> = {};
       if (linkedIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

@@ -2,7 +2,7 @@
  * Pure transformation functions for company costs data.
  * Extracted from useCompanyCostsData to improve maintainability.
  */
-import { format, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, isWithinInterval, isBefore, isAfter } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";

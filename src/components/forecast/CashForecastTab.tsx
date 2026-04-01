@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, startOfYear, startOfWeek, endOfWeek } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, startOfYear, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -24,7 +24,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
-import type { StaffPermissions } from "@/components/users/PermissionsDialog";
 
 interface Template {
   id: string;

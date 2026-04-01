@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { ALL_PERMISSION_SECTIONS, type PermissionSectionDef } from "@/components/users/permissionsDefaults";
+import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

@@ -32,7 +32,7 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
 
       // Fetch author names
       const authorIds = [...new Set((data || []).map((n: any) => n.author_id))];
-      let authorMap: Record<string, string> = {};
+      const authorMap: Record<string, string> = {};
       if (authorIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

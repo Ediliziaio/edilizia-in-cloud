@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Clock, CheckCircle, XCircle, CreditCard, Send, CalendarPlus, ArrowUpRight } from "lucide-react";
+import { Zap, Clock, CheckCircle, XCircle, CreditCard, CalendarPlus, ArrowUpRight } from "lucide-react";
 import { differenceInDays } from "date-fns";
 
 interface CompanyConversionCardProps {

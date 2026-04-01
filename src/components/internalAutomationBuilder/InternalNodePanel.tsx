@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import type { InternalAutomationNode, ConfigField, AvailableVariable, CatalogItem } from "@/types/internalAutomationBuilder";
 import {
   findTriggerLabel, findActionLabel,

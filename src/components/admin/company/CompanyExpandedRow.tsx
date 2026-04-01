@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-import { getOnboardingPct, getHealthBreakdown, statusConfig } from "@/lib/companyUtils";
+import { getOnboardingPct, getHealthBreakdown } from "@/lib/companyUtils";
 import { getNextActions } from "./CompanyNextActions";
 import { CompanyTagsCell } from "./CompanyTagsCell";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

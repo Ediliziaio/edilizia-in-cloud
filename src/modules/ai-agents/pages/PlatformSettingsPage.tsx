@@ -10,7 +10,7 @@ import { logger } from "@/utils/logger";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle, Phone } from "lucide-react";
+import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { AiAgentPricingConfig } from "../components/AiAgentPricingConfig";
 import { toast } from "sonner";

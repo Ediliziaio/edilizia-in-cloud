@@ -3,7 +3,6 @@ import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScanLine, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface BarcodeScannerProps {
   open: boolean;

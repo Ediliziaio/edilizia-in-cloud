@@ -1,11 +1,10 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { differenceInDays } from "date-fns";
-import type { CompanyStatus } from "@/types/auth";
 
 interface PipelineCompany {
   id: string;

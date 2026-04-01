@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/table";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { useTableSort } from "@/hooks/useTableSort";
-import {
-  TrendingUp, TrendingDown, AlertTriangle, Target, Building2,
+import { TrendingDown, AlertTriangle, Target, Building2,
   Calculator, Lightbulb, BarChart3, ArrowUpRight, ArrowDownRight,
   CircleDot, Gauge,
 } from "lucide-react";

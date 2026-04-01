@@ -383,7 +383,7 @@ export default function CompaniesList() {
       if (error) throw error;
       const map: Record<string, { content: string; created_at: string; authorName: string }> = {};
       const authorIds = [...new Set((data || []).map((n: any) => n.author_id))];
-      let authorMap: Record<string, string> = {};
+      const authorMap: Record<string, string> = {};
       if (authorIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

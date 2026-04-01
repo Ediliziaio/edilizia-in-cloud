@@ -1,21 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+
+
 import {
-  DndContext,
-  closestCenter,
-  DragOverlay,
-  useSensor,
-  useSensors,
-  PointerSensor,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
   useSortable,
-  rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { GripVertical, Eye, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +15,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 
 export interface DashboardWidget {
   id: string;

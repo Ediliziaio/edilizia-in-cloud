@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Bot, Headphones, Phone, CreditCard } from "lucide-react";
+import { Bot, Headphones, Phone } from "lucide-react";
 
 const links = [
   { to: "/azienda/agente-interno", label: "Agenti Interni", icon: Bot, end: true },

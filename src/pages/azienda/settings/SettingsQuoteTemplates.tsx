@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -13,9 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon,
-  LayoutGrid, Sparkles, Minus, Maximize, Download, Copy,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
@@ -43,6 +43,7 @@ export default function SettingsQuoteTemplates() {
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
   const [editId, setEditId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState<'cover' | 'detail'>('cover');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -93,13 +94,14 @@ export default function SettingsQuoteTemplates() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Eliminare questo template?")) return;
     try {
       await deleteTemplate.mutateAsync(id);
       toast.success("Template eliminato");
       if (editId === id) handleCancel();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore nell'eliminazione");
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -192,8 +194,13 @@ export default function SettingsQuoteTemplates() {
                     <Copy className="h-3 w-3" />
                   </Button>
                   {!tmpl.is_default && (
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(tmpl.id)}>
-                      <Trash2 className="h-3 w-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteConfirmId(tmpl.id)}
+                      aria-label="Elimina template"
+                    >
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
                     </Button>
                   )}
                 </div>
@@ -526,6 +533,27 @@ export default function SettingsQuoteTemplates() {
           </div>
         </div>
       )}
+
+      {/* Delete template confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questo template? L'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export default function CustomerTicketDetail() {
       if (error) throw error;
 
       const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
-      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+      const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
       if (senderIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

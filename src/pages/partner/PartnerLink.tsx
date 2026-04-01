@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Copy, Check, QrCode, Share2, MousePointerClick } from "lucide-react";
+import { Loader2, Copy, Check, QrCode, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { subDays, format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";

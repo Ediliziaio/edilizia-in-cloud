@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileBarChart2, Loader2, Download, Pencil, Trash2 } from "lucide-react";
+import { Plus, FileBarChart2, Loader2, Download, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
 interface SalVoce {

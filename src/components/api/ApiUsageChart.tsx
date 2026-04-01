@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState } from "react";
-import { Activity, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Activity, CheckCircle, XCircle } from "lucide-react";
 
 interface ApiKey {
   id: string;

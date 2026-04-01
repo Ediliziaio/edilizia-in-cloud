@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useGiornateSummary, type GiornataWithProfilo } from "@/hooks/useGiornate";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";

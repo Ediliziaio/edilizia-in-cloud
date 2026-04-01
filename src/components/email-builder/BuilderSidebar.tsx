@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Type, Image, RectangleHorizontal, Minus, Space, Code, Columns2, Columns3 } from "lucide-react";
+import { Type, Image, RectangleHorizontal, Minus, Space, Code } from "lucide-react";
 import type { BlockType, ColumnLayout } from "./builderTypes";
 
 interface DraggableItemProps {

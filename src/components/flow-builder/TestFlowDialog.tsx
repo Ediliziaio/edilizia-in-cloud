@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, FlaskConical, CheckCircle, XCircle, User } from "lucide-react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 

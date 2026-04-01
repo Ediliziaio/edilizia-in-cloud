@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { PaymentType } from "@/components/orders/FinancialSummary";
 
 export const orderSchema = z.object({
   customer_id: z.string().min(1, "Seleziona un cliente"),

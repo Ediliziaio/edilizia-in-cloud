@@ -129,7 +129,7 @@ export default function AuditLogTab() {
       if (error) throw error;
 
       const userIds = [...new Set((data || []).map((l) => l.user_id))];
-      let profiles: Record<string, string> = {};
+      const profiles: Record<string, string> = {};
       if (userIds.length > 0) {
         const { data: profileData } = await supabase
           .from("profiles")

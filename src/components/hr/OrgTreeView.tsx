@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback, useEffect } from "react";
-import type { OrgTreeNode, HrProfilo } from "@/types/hr";
+import { useRef, useState, useCallback } from "react";
+import type { OrgTreeNode } from "@/types/hr";
 import { OrgNode } from "@/components/hr/OrgNode";
 import { Button } from "@/components/ui/button";
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";

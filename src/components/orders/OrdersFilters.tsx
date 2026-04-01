@@ -20,7 +20,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 

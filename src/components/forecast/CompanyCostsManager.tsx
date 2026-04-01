@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat, Info } from "lucide-react";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,6 +106,7 @@ export default function MarketingAppointmentDialog({
   const [internalNotes, setInternalNotes] = useState("");
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
 
@@ -398,25 +400,25 @@ export default function MarketingAppointmentDialog({
 
   const handleDelete = async () => {
     if (!appointment?.id || !companyId) return;
-    const confirmed = window.confirm("Sei sicuro di voler eliminare questo appuntamento? L'azione non è reversibile.");
-    if (!confirmed) return;
     setSaving(true);
     try {
       const { error } = await supabase.from("appointments").delete().eq("id", appointment.id).eq("company_id", companyId);
       if (error) throw error;
-      toast({ title: "Eliminato con successo" });
+      toast({ title: "Appuntamento eliminato" });
       onSaved();
       onOpenChange(false);
-    } catch (e: any) {
-      toast({ title: "Errore", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Errore nell'eliminazione", description: e instanceof Error ? e.message : "Problema temporaneo. Riprova.", variant: "destructive" });
     } finally {
       setSaving(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
   const isBlocked = activeTab === "blocked";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -707,8 +709,8 @@ export default function MarketingAppointmentDialog({
         <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
             {isEditing && (
-              <Button variant="destructive" onClick={handleDelete} disabled={saving} size="sm">
-                <Trash2 className="h-4 w-4 mr-1" />
+              <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={saving} size="sm">
+                <Trash2 className="h-4 w-4 mr-1" aria-hidden="true" />
                 Elimina
               </Button>
             )}
@@ -749,5 +751,28 @@ export default function MarketingAppointmentDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Delete confirmation dialog */}
+    <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitleComp>Elimina appuntamento</AlertDialogTitleComp>
+          <AlertDialogDesc>
+            Sei sicuro di voler eliminare questo appuntamento? L'azione non è reversibile.
+          </AlertDialogDesc>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={handleDelete}
+            disabled={saving}
+          >
+            {saving ? "Eliminazione..." : "Elimina"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
