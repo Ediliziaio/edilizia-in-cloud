@@ -65,6 +65,7 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { StockItem, WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
+import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { supabase } from "@/integrations/supabase/client";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 
@@ -91,6 +92,8 @@ export default function Warehouse() {
     setSupplierFilter,
     sectionFilter,
     setSectionFilter,
+    warehouseFilter,
+    setWarehouseFilter,
     groupBy,
     setGroupBy,
     quickFilter,
@@ -221,6 +224,16 @@ export default function Warehouse() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Selettore magazzino */}
+          <div className="w-48 hidden sm:block">
+            <WarehouseSelect
+              value={warehouseFilter}
+              onChange={setWarehouseFilter}
+              allowAll
+              allLabel="Tutti i magazzini"
+              className="h-9 text-sm"
+            />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">

@@ -109,11 +109,83 @@ export function usePurchaseOrders() {
       if (params.actual_delivery_date) updates.actual_delivery_date = params.actual_delivery_date;
       const { error } = await supabase.from("purchase_orders").update(updates).eq("id", params.id);
       if (error) throw error;
+
+      // Quando l'ODA viene marcato come ricevuto, aggiorna automaticamente lo stock
+      if (params.status === "ricevuto") {
+        // Carica i dettagli dell'ODA per avere delivery_warehouse_id
+        const { data: odaData } = await supabase
+          .from("purchase_orders")
+          .select("delivery_warehouse_id")
+          .eq("id", params.id)
+          .single();
+
+        // Carica tutti gli articoli dell'ODA
+        const { data: items } = await supabase
+          .from("purchase_order_items")
+          .select("id, description, sku, quantity, quantity_received, article_template_id")
+          .eq("purchase_order_id", params.id);
+
+        if (items && items.length > 0) {
+          const user = (await supabase.auth.getUser()).data.user;
+          const warehouseId = odaData?.delivery_warehouse_id ?? null;
+
+          for (const item of items) {
+            const qtyToLoad = item.quantity_received > 0 ? item.quantity_received : item.quantity;
+            if (qtyToLoad <= 0) continue;
+
+            // Cerca articolo in warehouse_stock per sku o article_template_id
+            let stockItem: { id: string; quantity: number; warehouse_id: string | null } | null = null;
+
+            if (item.article_template_id) {
+              // Cerca per article_template_id nella stessa company
+              const { data: found } = await supabase
+                .from("warehouse_stock")
+                .select("id, quantity, warehouse_id")
+                .eq("company_id", companyId!)
+                .eq("article_template_id" as any, item.article_template_id)
+                .maybeSingle();
+              stockItem = found as typeof stockItem;
+            }
+
+            if (!stockItem && item.sku) {
+              const { data: found } = await supabase
+                .from("warehouse_stock")
+                .select("id, quantity, warehouse_id")
+                .eq("company_id", companyId!)
+                .ilike("name", item.sku)
+                .maybeSingle();
+              stockItem = found as typeof stockItem;
+            }
+
+            if (stockItem) {
+              // Aggiorna quantità
+              await supabase
+                .from("warehouse_stock")
+                .update({
+                  quantity: stockItem.quantity + qtyToLoad,
+                  ...(warehouseId && !stockItem.warehouse_id ? { warehouse_id: warehouseId } : {}),
+                } as any)
+                .eq("id", stockItem.id);
+
+              // Inserisci movimento di carico
+              await supabase.from("warehouse_movements").insert({
+                stock_item_id: stockItem.id,
+                movement_type: "carico",
+                quantity: qtyToLoad,
+                notes: `Ricezione ODA`,
+                performed_by: user?.id,
+                warehouse_id: warehouseId,
+              } as any);
+            }
+          }
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Stato aggiornato");
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
+      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

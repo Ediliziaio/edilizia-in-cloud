@@ -27,6 +27,7 @@ export function useWarehouseData() {
   const [orderFilter, setOrderFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
+  const [warehouseFilter, setWarehouseFilter] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
   const [page, setPage] = useState(0);
@@ -37,6 +38,7 @@ export function useWarehouseData() {
   const setOrderFilterWithReset = useCallback((v: string) => { setOrderFilter(v); setPage(0); }, []);
   const setSupplierFilterWithReset = useCallback((v: string) => { setSupplierFilter(v); setPage(0); }, []);
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setPage(0); }, []);
+  const setWarehouseFilterWithReset = useCallback((v: string | null) => { setWarehouseFilter(v); setPage(0); }, []);
   const setQuickFilterWithReset = useCallback((v: QuickFilter) => { setQuickFilter(v); setPage(0); }, []);
 
   // Fetch suppliers
@@ -124,7 +126,7 @@ export function useWarehouseData() {
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, sectionFilter, quickFilter, page),
+    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, sectionFilter, quickFilter, page, warehouseFilter),
     queryFn: async () => {
       if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
 
@@ -141,6 +143,7 @@ export function useWarehouseData() {
           notes,
           updated_at,
           section_id,
+          destination_warehouse_id,
           order:orders!inner(
             id,
             order_code,
@@ -173,6 +176,11 @@ export function useWarehouseData() {
         } else {
           query = query.eq("section_id", sectionFilter);
         }
+      }
+
+      // Warehouse filter
+      if (warehouseFilter) {
+        query = query.eq("destination_warehouse_id", warehouseFilter);
       }
 
       // Quick filters that exclude statuses
@@ -534,6 +542,8 @@ export function useWarehouseData() {
     setSupplierFilter: setSupplierFilterWithReset,
     sectionFilter,
     setSectionFilter: setSectionFilterWithReset,
+    warehouseFilter,
+    setWarehouseFilter: setWarehouseFilterWithReset,
     groupBy,
     setGroupBy,
     quickFilter,
