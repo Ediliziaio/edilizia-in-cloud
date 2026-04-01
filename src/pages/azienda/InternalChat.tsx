@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile,
+  Hash, Plus, Send, Search, Users, MessageCircle, Crown, CornerDownRight, Bot, Sparkles, Loader2, Smile, X,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -251,6 +251,8 @@ export default function InternalChat() {
   const [newMsg, setNewMsg] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [luciaTyping, setLuciaTyping] = useState(false);
+  const [msgSearch, setMsgSearch] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
@@ -424,6 +426,10 @@ export default function InternalChat() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredMessages = msgSearch.trim()
+    ? messages.filter((m) => m.content.toLowerCase().includes(msgSearch.toLowerCase()))
+    : messages;
+
   const handleSelectChannel = useCallback((channelId: string) => {
     setSelectedChannelId(channelId);
     markChannelRead(channelId);
@@ -565,15 +571,52 @@ export default function InternalChat() {
                     <span className="text-xs text-muted-foreground hidden md:inline">— {selectedChannel.description}</span>
                   )}
                 </div>
-                {isLuciaChannel ? (
-                  <span className="text-xs text-muted-foreground">Assistente virtuale aziendale</span>
-                ) : (
-                  <Badge variant="secondary" className="gap-1">
-                    <Users className="h-3 w-3" />
-                    {channelMembers.length}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }}
+                    title="Cerca nei messaggi"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                  {isLuciaChannel ? (
+                    <span className="text-xs text-muted-foreground">AI</span>
+                  ) : (
+                    <Badge variant="secondary" className="gap-1">
+                      <Users className="h-3 w-3" />
+                      {channelMembers.length}
+                    </Badge>
+                  )}
+                </div>
               </div>
+
+              {/* Message search bar */}
+              {showSearch && (
+                <div className="px-4 py-2 border-b bg-muted/20">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Cerca nei messaggi..."
+                      value={msgSearch}
+                      onChange={(e) => setMsgSearch(e.target.value)}
+                      className="pl-8 h-8 text-sm"
+                      autoFocus
+                    />
+                    {msgSearch && (
+                      <button onClick={() => setMsgSearch("")} className="absolute right-2.5 top-2.5">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  {msgSearch && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {filteredMessages.length} risultati per "{msgSearch}"
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Messages */}
               <ScrollArea className="flex-1 px-4 py-3">
@@ -604,18 +647,19 @@ export default function InternalChat() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {messages.map((msg, idx) => {
+                    {filteredMessages.map((msg, idx) => {
                       const sender = profileMap.get(msg.sender_id);
                       const isMe = msg.sender_id === userId;
                       const isLucia = msg.sender_id === LUCIA_SENDER_ID;
-                      const prevMsg = messages[idx - 1];
+                      const prevMsg = filteredMessages[idx - 1];
                       const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
-                      const replyMsg = msg.reply_to_id ? messages.find((m) => m.id === msg.reply_to_id) : null;
+                      const replyMsg = msg.reply_to_id ? filteredMessages.find((m) => m.id === msg.reply_to_id) : null;
+                      const isHighlighted = msgSearch && msg.content.toLowerCase().includes(msgSearch.toLowerCase());
 
                       return (
                         <div
                           key={msg.id}
-                          className={`group flex gap-3 ${showAvatar ? "mt-4" : "mt-0.5"}`}
+                          className={`group flex gap-3 ${showAvatar ? "mt-4" : "mt-0.5"} ${isHighlighted ? "bg-yellow-50 dark:bg-yellow-950/20 -mx-2 px-2 py-0.5 rounded" : ""}`}
                         >
                           <div className="w-8 shrink-0">
                             {showAvatar && (
