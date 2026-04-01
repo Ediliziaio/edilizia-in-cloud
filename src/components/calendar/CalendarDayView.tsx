@@ -12,7 +12,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car } from "lucide-react";
+import { useOperativeTravelLegs } from "@/hooks/useOperativeTravelLegs";
 import { cn } from "@/lib/utils";
 import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
@@ -94,6 +95,19 @@ export function CalendarDayView({
     return appointments.filter(apt => apt.appointment_date === dateStr);
   }, [appointments, hiddenEventTypes, dateStr]);
 
+  // Travel legs (only for appointments with lat/lng)
+  const appointmentsWithLocation = useMemo(() =>
+    timedAppointments.filter(a => a.lat && a.lng),
+    [timedAppointments]
+  );
+  const { travelLegs, totalKm, totalMinutes } = useOperativeTravelLegs(appointmentsWithLocation);
+  const travelLegMap = useMemo(() => {
+    const map = new Map<string, typeof travelLegs[0]>();
+    travelLegs.forEach(leg => map.set(leg.toId, leg));
+    return map;
+  }, [travelLegs]);
+  const hasTravelData = appointmentsWithLocation.length > 0;
+
   const colorMap: Record<string, string> = {
     posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
     lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
@@ -164,6 +178,19 @@ export function CalendarDayView({
         );
       })()}
 
+      {/* Travel summary */}
+      {hasTravelData && (
+        <div className="mb-3 flex items-center gap-3 p-2 rounded-lg border bg-slate-50 dark:bg-slate-900/30 text-sm">
+          <Car className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="flex-1">
+            <span className="font-medium">{totalKm.toFixed(1)} km</span>
+            <span className="text-muted-foreground ml-2 text-xs">
+              · {Math.round(totalMinutes)} min totali · {appointmentsWithLocation.length} tappe
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* All-day events */}
       {allDayEvents.length > 0 && (
         <div className="mb-3 p-2 bg-muted/30 rounded-lg border space-y-1">
@@ -223,24 +250,34 @@ export function CalendarDayView({
               >
                 {hourApts.map(apt => {
                   const Icon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
+                  const leg = travelLegMap.get(apt.id);
                   return (
-                    <div
-                      key={apt.id}
-                      className={cn(
-                        "text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer",
-                        "bg-purple-500/20 border-l-2 border-purple-500 text-purple-900 dark:text-purple-200",
-                        apt.is_completed && "opacity-60 line-through"
+                    <div key={apt.id}>
+                      {leg && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground py-0.5 border-l-2 border-dashed border-muted-foreground/30 pl-2 my-0.5">
+                          <Car className="h-3 w-3 shrink-0" />
+                          <span>{leg.distance_text}</span>
+                          <span>·</span>
+                          <span>{leg.duration_text}</span>
+                        </div>
                       )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingAppointment(mapAppointmentToEditData(apt));
-                        setAppointmentDialogOpen(true);
-                      }}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      <span className="font-medium">{apt.appointment_time?.slice(0, 5)}</span>
-                      <span className="truncate">{apt.title}</span>
-                      {apt.is_completed && <Check className="h-3.5 w-3.5 shrink-0 text-green-600 ml-auto" />}
+                      <div
+                        className={cn(
+                          "text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer",
+                          "bg-purple-500/20 border-l-2 border-purple-500 text-purple-900 dark:text-purple-200",
+                          apt.is_completed && "opacity-60 line-through"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAppointment(mapAppointmentToEditData(apt));
+                          setAppointmentDialogOpen(true);
+                        }}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-medium">{apt.appointment_time?.slice(0, 5)}</span>
+                        <span className="truncate">{apt.title}</span>
+                        {apt.is_completed && <Check className="h-3.5 w-3.5 shrink-0 text-green-600 ml-auto" />}
+                      </div>
                     </div>
                   );
                 })}
