@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, DollarSign, TrendingUp, Wallet, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, DollarSign, TrendingUp, Wallet, CheckCircle, Download } from "lucide-react";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -69,6 +71,32 @@ export default function PartnerCommissions() {
   });
 
   const subtotal = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
+
+  const exportCsvCommissions = () => {
+    if (ledger.length === 0) { toast.error("Nessuna commissione da esportare"); return; }
+    const monthName = MONTHS[month - 1];
+    const csv = [
+      ["Piano/Azienda", "MRR", "Tipo", "Aliquota", "Moltipl.", "Commissione", "Stato"].join(","),
+      ...ledger.map((l: any) => [
+        `"${l.subscription_plan_name || "---"}"`,
+        l.plan_mrr?.toFixed(2) || "0",
+        l.commission_type || "---",
+        l.commission_type === "percentage" ? `${l.commission_rate}%` : `€${l.commission_rate}`,
+        `x${l.tier_multiplier}`,
+        l.commission_amount?.toFixed(2) || "0",
+        l.status || "pending",
+      ].join(",")),
+    ].join("\n");
+    const bom  = "\uFEFF"; // BOM per Excel italiano
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `commissioni-${monthName.toLowerCase()}-${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Export ${monthName} ${year} scaricato`);
+  };
   const totalEarned = referrer?.total_earned || 0;
   const totalPaid = referrer?.total_paid || 0;
   const balance = totalEarned - totalPaid;
@@ -114,8 +142,8 @@ export default function PartnerCommissions() {
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
+      {/* Filters + Export */}
+      <div className="flex gap-3 items-center flex-wrap">
         <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -130,6 +158,9 @@ export default function PartnerCommissions() {
             ))}
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={exportCsvCommissions} disabled={ledger.length === 0}>
+          <Download className="h-4 w-4 mr-1.5" /> Esporta CSV
+        </Button>
       </div>
 
       {/* Ledger table */}

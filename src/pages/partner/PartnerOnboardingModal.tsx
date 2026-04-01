@@ -22,28 +22,45 @@ export function PartnerOnboardingModal({ referrer }: Props) {
   const handleAccept = async () => {
     setLoading(true);
     try {
+      // Recupera IP per firma digitale
+      let ip = "unknown";
+      try {
+        const res  = await fetch("https://api.ipify.org?format=json");
+        const data = await res.json();
+        ip = data.ip;
+      } catch {}
+
+      const signatureData = {
+        signed_name:      referrer.name,
+        signed_at:        new Date().toISOString(),
+        ip_address:       ip,
+        user_agent:       navigator.userAgent,
+        contract_version: "1.0",
+      };
+
       const { error } = await supabase
         .from("referrers")
         .update({
           has_accepted_terms: true,
-          terms_accepted_at: new Date().toISOString(),
+          terms_accepted_at:  new Date().toISOString(),
+          payout_details: {
+            ...((referrer.payout_details as any) || {}),
+            contract_signature: signatureData,
+          },
         })
         .eq("id", referrer.id);
       if (error) throw error;
 
-      // Send welcome notification
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "guqgszwelffntrgtsycm";
+      // Invia notifica welcome
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "rsbrguhkodgnqfomrevo";
       fetch(`https://${projectId}.supabase.co/functions/v1/send-partner-notification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "welcome",
-          referrer_id: referrer.id,
-        }),
+        body: JSON.stringify({ type: "welcome", referrer_id: referrer.id }),
       }).catch(() => {});
 
       queryClient.invalidateQueries({ queryKey: ["my-referrer", user?.id] });
-      toast.success("Benvenuto nel Programma Partner!");
+      toast.success("Contratto firmato! Benvenuto nel Programma Partner.");
     } catch (err: any) {
       toast.error("Errore", { description: err.message });
     } finally {

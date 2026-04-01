@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isValidIBAN, electronicFormatIBAN } from "ibantools";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +35,7 @@ export default function PartnerProfile() {
   const [partnerType, setPartnerType] = useState("referrer");
   const [payoutMethod, setPayoutMethod] = useState("bank_transfer");
   const [iban, setIban] = useState("");
+  const [ibanError, setIbanError] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
   const [bank, setBank] = useState("");
   const [fiscalCode, setFiscalCode] = useState("");
@@ -52,8 +54,28 @@ export default function PartnerProfile() {
     }
   }, [referrer]);
 
+  const validateIban = (value: string) => {
+    if (!value) { setIbanError(""); return; }
+    const cleaned = value.replace(/\s/g, "").toUpperCase();
+    if (!isValidIBAN(cleaned)) {
+      setIbanError("IBAN non valido — verifica il numero");
+    } else {
+      setIbanError("");
+      setIban(electronicFormatIBAN(cleaned) || cleaned);
+    }
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Blocca il salvataggio se IBAN non valido
+      if (payoutMethod === "bank_transfer" && iban) {
+        if (!isValidIBAN(iban.replace(/\s/g, ""))) {
+          throw new Error("IBAN non valido. Correggi prima di salvare.");
+        }
+      }
+      if (payoutMethod === "bank_transfer" && !accountHolder) {
+        throw new Error("Inserisci il nome dell'intestatario del conto.");
+      }
       const { error } = await supabase
         .from("referrers")
         .update({
@@ -145,8 +167,16 @@ export default function PartnerProfile() {
           {payoutMethod === "bank_transfer" && (
             <>
               <div className="space-y-1.5">
-                <Label>IBAN</Label>
-                <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IT60 X054 2811 1010 0000 0123 456" />
+                <Label>IBAN *</Label>
+                <Input
+                  value={iban}
+                  onChange={(e) => { setIban(e.target.value); validateIban(e.target.value); }}
+                  onBlur={() => validateIban(iban)}
+                  placeholder="IT60 X054 2811 1010 0000 0123 456"
+                  className={ibanError ? "border-destructive" : ""}
+                />
+                {ibanError && <p className="text-xs text-destructive">{ibanError}</p>}
+                {!ibanError && iban && <p className="text-xs text-green-600">✓ IBAN valido</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Intestatario</Label>
