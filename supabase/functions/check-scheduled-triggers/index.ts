@@ -35,6 +35,10 @@ Deno.serve(async (req) => {
     appointment_reminder_custom: 0,
     cash_flow_alert: 0,
     recurring_costs: 0,
+    order_overdue: 0,
+    task_overdue: 0,
+    cost_due: 0,
+    appointment_reminder: 0,
   };
 
   try {
@@ -149,6 +153,180 @@ Deno.serve(async (req) => {
                     payload: { opportunity_id: opp.id, stale_days: staleDays },
                   });
                   results.opportunity_stale++;
+                }
+              }
+            }
+            break;
+          }
+
+          case "order_overdue": {
+            // Fire when an order's expected delivery date is in the past and order is not completed
+            const { data: overdueOrders } = await supabase
+              .from("orders")
+              .select("id, description, code, expected_delivery_date")
+              .eq("company_id", flow.company_id)
+              .lt("expected_delivery_date", new Date().toISOString().split("T")[0])
+              .not("current_status_id", "is", null);
+
+            if (overdueOrders) {
+              const today = new Date().toISOString().split("T")[0];
+              for (const order of overdueOrders) {
+                const { data: existing } = await supabase
+                  .from("automation_trigger_events")
+                  .select("id")
+                  .eq("company_id", flow.company_id)
+                  .eq("trigger_event", "order_overdue")
+                  .eq("entity_id", order.id)
+                  .gte("created_at", today)
+                  .maybeSingle();
+
+                if (!existing) {
+                  await supabase.from("automation_trigger_events").insert({
+                    company_id: flow.company_id,
+                    trigger_event: "order_overdue",
+                    entity_id: order.id,
+                    entity_type: "order",
+                    payload: {
+                      order_id: order.id,
+                      description: order.description,
+                      code: order.code,
+                      expected_delivery_date: order.expected_delivery_date,
+                    },
+                  });
+                  results.order_overdue++;
+                }
+              }
+            }
+            break;
+          }
+
+          case "task_overdue": {
+            // Fire when a task's due date has passed and task is not completed
+            const { data: overdueTasks } = await supabase
+              .from("tasks")
+              .select("id, title, due_date, assigned_to")
+              .eq("company_id", flow.company_id)
+              .lt("due_date", new Date().toISOString().split("T")[0])
+              .neq("status", "completed")
+              .neq("status", "done");
+
+            if (overdueTasks) {
+              const today = new Date().toISOString().split("T")[0];
+              for (const task of overdueTasks) {
+                const { data: existing } = await supabase
+                  .from("automation_trigger_events")
+                  .select("id")
+                  .eq("company_id", flow.company_id)
+                  .eq("trigger_event", "task_overdue")
+                  .eq("entity_id", task.id)
+                  .gte("created_at", today)
+                  .maybeSingle();
+
+                if (!existing) {
+                  await supabase.from("automation_trigger_events").insert({
+                    company_id: flow.company_id,
+                    trigger_event: "task_overdue",
+                    entity_id: task.id,
+                    entity_type: "task",
+                    payload: { task_id: task.id, title: task.title, due_date: task.due_date },
+                  });
+                  results.task_overdue++;
+                }
+              }
+            }
+            break;
+          }
+
+          case "cost_due": {
+            // Fire when a cost is due within the configured days_before window (default 7 days)
+            const daysBefore = parseInt(cfg.days_before) || 7;
+            const dueFrom = new Date();
+            const dueTo = new Date();
+            dueTo.setDate(dueTo.getDate() + daysBefore);
+
+            const { data: dueCosts } = await supabase
+              .from("company_costs")
+              .select("id, name, amount, due_date")
+              .eq("company_id", flow.company_id)
+              .eq("is_paid", false)
+              .gte("due_date", dueFrom.toISOString().split("T")[0])
+              .lte("due_date", dueTo.toISOString().split("T")[0]);
+
+            if (dueCosts) {
+              const today = new Date().toISOString().split("T")[0];
+              for (const cost of dueCosts) {
+                const { data: existing } = await supabase
+                  .from("automation_trigger_events")
+                  .select("id")
+                  .eq("company_id", flow.company_id)
+                  .eq("trigger_event", "cost_due")
+                  .eq("entity_id", cost.id)
+                  .gte("created_at", today)
+                  .maybeSingle();
+
+                if (!existing) {
+                  await supabase.from("automation_trigger_events").insert({
+                    company_id: flow.company_id,
+                    trigger_event: "cost_due",
+                    entity_id: cost.id,
+                    entity_type: "cost",
+                    payload: { cost_id: cost.id, name: cost.name, amount: cost.amount, due_date: cost.due_date, days_before: daysBefore },
+                  });
+                  results.cost_due++;
+                }
+              }
+            }
+            break;
+          }
+
+          case "appointment_reminder": {
+            // Flow-based appointment reminder: fires X minutes before appointment
+            const minutesBefore = parseInt(cfg.minutes_before) || 60;
+            const reminderFrom = new Date();
+            const reminderTo = new Date(reminderFrom.getTime() + 10 * 60 * 1000); // 10 min window
+            const aptTargetTime = new Date(reminderFrom.getTime() + minutesBefore * 60 * 1000);
+
+            const { data: flowApts } = await supabase
+              .from("appointments")
+              .select("id, title, appointment_date, appointment_time, contact_id")
+              .eq("company_id", flow.company_id)
+              .eq("is_blocked_slot", false)
+              .neq("status", "annullato")
+              .neq("status", "cancelled")
+              .eq("appointment_date", aptTargetTime.toISOString().split("T")[0]);
+
+            if (flowApts) {
+              const today = new Date().toISOString().split("T")[0];
+              for (const apt of flowApts) {
+                if (!apt.contact_id) continue;
+                const aptDate = new Date(apt.appointment_date);
+                if (apt.appointment_time) {
+                  const [hh, mm] = apt.appointment_time.split(":").map(Number);
+                  aptDate.setHours(hh || 0, mm || 0, 0, 0);
+                } else {
+                  aptDate.setHours(9, 0, 0, 0);
+                }
+                const triggerAt = new Date(aptDate.getTime() - minutesBefore * 60 * 1000);
+                if (reminderFrom > triggerAt || reminderTo < triggerAt) continue;
+
+                const { data: existing } = await supabase
+                  .from("automation_trigger_events")
+                  .select("id")
+                  .eq("company_id", flow.company_id)
+                  .eq("trigger_event", "appointment_reminder")
+                  .eq("entity_id", apt.contact_id)
+                  .gte("created_at", today)
+                  .maybeSingle();
+
+                if (!existing) {
+                  await supabase.from("automation_trigger_events").insert({
+                    company_id: flow.company_id,
+                    trigger_event: "appointment_reminder",
+                    entity_id: apt.contact_id,
+                    entity_type: "contact",
+                    payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time, minutes_before: minutesBefore },
+                  });
+                  results.appointment_reminder++;
                 }
               }
             }
