@@ -16,7 +16,7 @@ interface BillingModeContextValue {
 const BillingModeContext = createContext<BillingModeContextValue | null>(null);
 
 export function BillingModeProvider({ children }: { children: React.ReactNode }) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, isLoading: authLoading } = useAuth();
   const [mode, setMode] = useState<BillingMode>("external");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -25,8 +25,11 @@ export function BillingModeProvider({ children }: { children: React.ReactNode })
       const raw = (effectiveCompany as any).billing_mode;
       setMode(raw === "native" ? "native" : "external");
       setIsLoading(false);
+    } else if (!authLoading) {
+      // Auth is settled but no company — stop spinner so the guard can redirect
+      setIsLoading(false);
     }
-  }, [effectiveCompany]);
+  }, [effectiveCompany, authLoading]);
 
   const switchMode = useCallback(async (newMode: BillingMode) => {
     if (!effectiveCompany) return;

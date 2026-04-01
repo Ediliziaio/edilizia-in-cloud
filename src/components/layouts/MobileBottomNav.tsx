@@ -12,7 +12,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 
 const NAV_ITEMS = [
   { label: "Home",      icon: LayoutDashboard, href: "/azienda" },
-  { label: "Cantieri",  icon: HardHat,         href: "/azienda/cantieri" },
+  { label: "Cantieri",  icon: HardHat,         href: "/azienda/ordini" },
   { label: "Giornale",  icon: BookOpen,        href: "/azienda/giornale-lavori" },
   { label: "Clienti",   icon: Users,           href: "/azienda/clienti" },
 ] as const;
