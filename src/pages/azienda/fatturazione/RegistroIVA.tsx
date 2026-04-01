@@ -81,7 +81,7 @@ export default function RegistroIVA() {
         .eq("company_id", companyId!)
         .eq("anno", anno)
         .is("deleted_at", null)
-        .not("stato", "eq", "rifiutata")
+        .in("stato", ["non_letta", "letta", "contabilizzata"])
         .order("data_fattura", { ascending: true });
       if (error) throw error;
       return data as any[];

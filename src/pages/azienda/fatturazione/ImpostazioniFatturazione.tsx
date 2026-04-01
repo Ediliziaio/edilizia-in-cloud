@@ -464,20 +464,10 @@ export default function ImpostazioniFatturazione() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="aruba">Aruba PEC — Fatturazione Elettronica</SelectItem>
-                    <SelectItem value="infocert">InfoCert — Legalinvoice</SelectItem>
-                    <SelectItem value="poste">Poste Italiane</SelectItem>
                     <SelectItem value="manuale">Manuale — Download XML</SelectItem>
+                    {/* InfoCert e Poste nascosti finché non implementati (P2-04) */}
                   </SelectContent>
                 </Select>
-                {(current.sdi_provider === 'infocert' || current.sdi_provider === 'poste') && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      L&apos;integrazione con <strong>{current.sdi_provider === 'infocert' ? 'InfoCert LegalInvoice' : 'Poste Italiane'}</strong> non è ancora disponibile.
-                      Usa <strong>Aruba</strong> o <strong>Manuale</strong> per inviare fatture al SDI.
-                    </AlertDescription>
-                  </Alert>
-                )}
               </div>
 
               {current.sdi_provider !== "manuale" && (
