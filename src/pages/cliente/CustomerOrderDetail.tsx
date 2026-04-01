@@ -11,6 +11,7 @@ import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
 import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
+import { VariantiCard } from "@/components/orders/VariantiCard";
 import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText, AlertCircle } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
@@ -192,6 +193,9 @@ export default function CustomerOrderDetail() {
         workStartDate={order.work_start_date}
         workEndDate={order.work_end_date}
       />
+
+      {/* Varianti d'ordine */}
+      <VariantiCard orderId={order.id} companyId={order.company_id} readOnly />
 
       {/* Order Documents */}
       <CustomerOrderAttachments orderId={order.id} />

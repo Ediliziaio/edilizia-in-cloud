@@ -38,6 +38,7 @@ import { OrderSignatureCard } from "@/components/orders/OrderSignatureCard";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { SalTab } from "@/components/orders/SalTab";
+import { VariantiCard } from "@/components/orders/VariantiCard";
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import { OdVSection } from "@/components/orders/OdVSection";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -929,6 +930,9 @@ function OrderDetailInner() {
             {effectiveCompany?.id && (
               <OdVSection orderId={id!} companyId={effectiveCompany.id} />
             )}
+            {effectiveCompany?.id && (
+              <VariantiCard orderId={id!} companyId={effectiveCompany.id} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -1104,6 +1108,9 @@ function OrderDetailInner() {
             />
             {effectiveCompany?.id && (
               <OdVSection orderId={id!} companyId={effectiveCompany.id} />
+            )}
+            {effectiveCompany?.id && (
+              <VariantiCard orderId={id!} companyId={effectiveCompany.id} />
             )}
             <LinkedTasks orderId={id} category="ordini" />
             <LinkedAppointments orderId={id!} />
