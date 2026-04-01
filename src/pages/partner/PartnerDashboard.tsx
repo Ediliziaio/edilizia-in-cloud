@@ -13,6 +13,7 @@ import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { PartnerOnboardingModal } from "./PartnerOnboardingModal";
+import { PartnerLeaderboard } from "@/components/partner/PartnerLeaderboard";
 
 export default function PartnerDashboard() {
   const { user } = useAuth();
@@ -353,6 +354,11 @@ export default function PartnerDashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Leaderboard */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PartnerLeaderboard />
       </div>
     </div>
   );
