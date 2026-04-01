@@ -12,6 +12,25 @@
   }
 }
 
+/* ── Mobile PWA globals ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Prevent double-tap zoom on interactive elements */
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
+
+  /* Minimum tap target size (WCAG 2.5.5) */
+  button, [role="button"], a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smooth momentum scroll on iOS */
+  .overflow-auto, .overflow-y-auto, .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

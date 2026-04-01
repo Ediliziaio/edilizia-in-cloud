@@ -38,6 +38,26 @@ export default defineConfig(() => ({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
+        shortcuts: [
+          {
+            name: "Cantieri",
+            short_name: "Cantieri",
+            url: "/azienda/cantieri",
+            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Giornale Lavori",
+            short_name: "Giornale",
+            url: "/azienda/giornale-lavori",
+            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Clienti",
+            short_name: "Clienti",
+            url: "/azienda/clienti",
+            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+          },
+        ],
       },
       workbox: {
         // Only precache icons, images and fonts — NOT JS/CSS bundles.
@@ -59,6 +79,15 @@ export default defineConfig(() => ({
               cacheName: "assets-runtime",
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
+            },
+          },
+          {
+            // Critical list endpoints: stale-while-revalidate for fast mobile loads
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/(cantieri|clienti|giornale_lavori)/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "supabase-critical",
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
             },
           },
           {
