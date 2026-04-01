@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
   Plus, Pencil, Building2, Receipt, Palette, CreditCard, Percent,
-  Settings2, FileText, Globe, Lock
+  Settings2, FileText, Globe, Lock, Download, BarChart2
 } from "lucide-react";
 import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
@@ -88,6 +88,11 @@ export default function ImpostazioniFatturazione() {
   const [activeTab, setActiveTab] = useState("azienda");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // M8 — Export Contabile
+  const [isExportingContabile, setIsExportingContabile] = useState(false);
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [exportFormat, setExportFormat] = useState("csv");
 
   // Local state for managed lists
   const [aliquote, setAliquote] = useState<AliquotaIva[]>(DEFAULT_ALIQUOTE);
@@ -183,6 +188,7 @@ export default function ImpostazioniFatturazione() {
           <TabsTrigger value="aliquote" className="gap-1.5 text-xs"><Percent className="h-3.5 w-3.5" />Aliquote IVA</TabsTrigger>
           <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Numeratori</TabsTrigger>
           <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />Avanzate</TabsTrigger>
+          <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Export</TabsTrigger>
         </TabsList>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -969,6 +975,168 @@ export default function ImpostazioniFatturazione() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* M8 — Export Contabile */}
+        <TabsContent value="export-contabile" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Download className="h-4 w-4" aria-hidden="true" /> Export Contabile
+              </CardTitle>
+              <CardDescription>
+                Esporta documenti fiscali in formato CSV o Excel per il tuo commercialista o software di contabilità.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Format selector */}
+              <div className="space-y-2">
+                <Label>Formato di esportazione</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: "csv", label: "CSV standard", desc: "Excel, LibreOffice, Google Sheets" },
+                    { id: "fatturapa_xml", label: "FatturaPA XML", desc: "Adatto a Danea, Teamsystem, Zucchetti" },
+                    { id: "prima_nota", label: "Prima nota", desc: "Registro contabile semplificato" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setExportFormat(f.id)}
+                      className={`flex-1 min-w-[120px] p-3 rounded-lg border text-left transition-colors ${
+                        exportFormat === f.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      <p className={`text-sm font-medium ${exportFormat === f.id ? "text-primary" : ""}`}>{f.label}</p>
+                      <p className="text-xs text-muted-foreground">{f.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="export-date-from">Dal</Label>
+                  <Input
+                    id="export-date-from"
+                    type="date"
+                    value={exportDateFrom}
+                    onChange={(e) => setExportDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="export-date-to">Al</Label>
+                  <Input
+                    id="export-date-to"
+                    type="date"
+                    value={exportDateTo}
+                    onChange={(e) => setExportDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Quick presets */}
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  {
+                    label: "Anno corrente",
+                    from: `${new Date().getFullYear()}-01-01`,
+                    to: `${new Date().getFullYear()}-12-31`,
+                  },
+                  {
+                    label: "Anno precedente",
+                    from: `${new Date().getFullYear() - 1}-01-01`,
+                    to: `${new Date().getFullYear() - 1}-12-31`,
+                  },
+                  {
+                    label: "Trimestre corrente",
+                    from: (() => {
+                      const q = Math.floor(new Date().getMonth() / 3);
+                      return `${new Date().getFullYear()}-${String(q * 3 + 1).padStart(2, "0")}-01`;
+                    })(),
+                    to: new Date().toISOString().split("T")[0],
+                  },
+                ].map((preset) => (
+                  <Button
+                    key={preset.label}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => { setExportDateFrom(preset.from); setExportDateTo(preset.to); }}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+
+              <Separator />
+
+              {/* Export button */}
+              <Button
+                className="w-full gap-2"
+                disabled={isExportingContabile || !exportDateFrom || !exportDateTo}
+                onClick={async () => {
+                  if (!exportDateFrom || !exportDateTo) {
+                    toast.error("Seleziona un intervallo di date");
+                    return;
+                  }
+                  setIsExportingContabile(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke("export-contabile", {
+                      body: {
+                        company_id: effectiveCompany?.id,
+                        date_from: exportDateFrom,
+                        date_to: exportDateTo,
+                        format: exportFormat,
+                      },
+                    });
+                    if (error) {
+                      const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
+                      throw new Error(detail?.error || error.message || "Errore nell'esportazione");
+                    }
+                    if (!data?.content) throw new Error("Nessun dato da esportare");
+                    // Download file
+                    const mimeTypes: Record<string, string> = {
+                      csv: "text/csv",
+                      fatturapa_xml: "application/xml",
+                      prima_nota: "text/csv",
+                    };
+                    const extensions: Record<string, string> = {
+                      csv: "csv",
+                      fatturapa_xml: "xml",
+                      prima_nota: "csv",
+                    };
+                    const blob = new Blob([data.content], { type: mimeTypes[exportFormat] || "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = data.filename || `export-contabile-${exportDateFrom}_${exportDateTo}.${extensions[exportFormat] || "csv"}`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                    toast.success("Export completato", { description: `${data.rows || ""} righe esportate` });
+                  } catch (err: unknown) {
+                    toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+                  } finally {
+                    setIsExportingContabile(false);
+                  }
+                }}
+              >
+                {isExportingContabile ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Esportazione in corso...</>
+                ) : (
+                  <><Download className="h-4 w-4" aria-hidden="true" />Esporta documenti fiscali</>
+                )}
+              </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Include fatture, note credito e proforma nel periodo selezionato
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
