@@ -11,14 +11,21 @@ import {
   getDay
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { Clock, CalendarCheck, AlertCircle, CheckCircle2, Plus } from "lucide-react";
+import { Clock, CalendarCheck, AlertCircle, CheckCircle2, Plus, Receipt, Download, Loader2 } from "lucide-react";
 
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
+
+const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 interface WorkLog {
   id: string;
@@ -36,6 +43,7 @@ interface WorkLog {
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
+  const [exportingCedolinoId, setExportingCedolinoId] = useState<string | null>(null);
   const today = new Date();
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
@@ -110,6 +118,44 @@ export default function EmployeeDashboard() {
 
   // Recent logs
   const recentLogs = workLogs.slice(0, 5);
+
+  // Fetch personal cedolini (employee_id = user's profile id)
+  const { data: cedolini = [], isLoading: cedoliniLoading } = useQuery({
+    queryKey: ["my-cedolini", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cedolini" as any)
+        .select("id, mese, anno, lordo, netto, stato")
+        .eq("employee_id", user!.id)
+        .order("anno", { ascending: false })
+        .order("mese", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return (data || []) as { id: string; mese: number; anno: number; lordo: number; netto: number; stato: string }[];
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handleDownloadCedolino = async (cedolino: { id: string; mese: number; anno: number }) => {
+    setExportingCedolinoId(cedolino.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-cedolino-pdf", {
+        body: { cedolino_id: cedolino.id, company_id: employee?.company_id },
+      });
+      if (error) throw new Error(error.message || "Errore PDF");
+      if (!data?.html) throw new Error("Nessun contenuto");
+      const blob = new Blob([data.html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, "_blank");
+      if (w) w.onload = () => w.print();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore nel download");
+    } finally {
+      setExportingCedolinoId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -327,6 +373,66 @@ export default function EmployeeDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cedolini personali */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />
+            I miei cedolini
+          </CardTitle>
+          <CardDescription>Visualizza e scarica i tuoi cedolini paga</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {cedoliniLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : cedolini.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" aria-hidden="true" />
+              <p className="text-sm">Nessun cedolino disponibile</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {cedolini.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{MESI[c.mese - 1]} {c.anno}</p>
+                    <p className="text-xs text-muted-foreground">Netto: <span className="font-semibold text-green-600">{formatCurrency(c.netto)}</span></p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={cn("text-xs border-0",
+                        c.stato === "pagato" ? "bg-green-100 text-green-800" :
+                        c.stato === "emesso" ? "bg-blue-100 text-blue-800" :
+                        "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {c.stato === "pagato" ? "Pagato" : c.stato === "emesso" ? "Emesso" : "Bozza"}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleDownloadCedolino(c)}
+                      disabled={exportingCedolinoId === c.id}
+                      aria-label="Scarica cedolino"
+                    >
+                      {exportingCedolinoId === c.id
+                        ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        : <Download className="h-4 w-4" aria-hidden="true" />}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
