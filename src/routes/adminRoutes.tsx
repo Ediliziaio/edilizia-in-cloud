@@ -52,6 +52,7 @@ const AdminPreventivi = lazy(() => import("@/pages/admin/marketing/AdminPreventi
 const AdminQuoteBuilder = lazy(() => import("@/pages/admin/marketing/AdminQuoteBuilder"));
 const AdminQuoteDetail = lazy(() => import("@/pages/admin/marketing/AdminQuoteDetail"));
 const AdminRevenueDashboard = lazy(() => import("@/pages/admin/AdminRevenueDashboard"));
+const PromoCodes = lazy(() => import("@/pages/admin/PromoCodes"));
 
 export function adminRoutes() {
   return (
@@ -166,6 +167,7 @@ export function adminRoutes() {
         <Route path="marketing/preventivi/:id/modifica" element={<AdminQuoteBuilder />} />
         <Route path="marketing/agenti-ai/*" element={<AdminMarketingAgents />} />
         <Route path="revenue" element={<AdminRevenueDashboard />} />
+        <Route path="promo-codes" element={<PromoCodes />} />
       </Route>
     </>
   );
