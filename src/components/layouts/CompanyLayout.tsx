@@ -87,6 +87,7 @@ import { useCompanyOnboarding } from "@/hooks/useCompanyOnboarding";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -1036,7 +1037,7 @@ export function CompanyLayout() {
           </header>
           <OfflineBanner />
           <LifecycleNotificationsBanner />
-          <main className="flex-1 p-3 md:p-6 bg-muted/30">
+          <main className="flex-1 p-3 md:p-6 bg-muted/30 pb-20 md:pb-6">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               <Outlet />
             </ErrorBoundary>
@@ -1063,6 +1064,7 @@ export function CompanyLayout() {
         onOpenChange={setNotificationsPanelOpen}
       />
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      <MobileBottomNav />
     </SidebarProvider>
   );
 }

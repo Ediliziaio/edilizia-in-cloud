@@ -1,9 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  ClipboardList,
+  HardHat,
+  BookOpen,
   Users,
-  Warehouse,
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,9 +12,9 @@ import { useNotifications } from "@/hooks/useNotifications";
 
 const NAV_ITEMS = [
   { label: "Home",      icon: LayoutDashboard, href: "/azienda" },
-  { label: "Ordini",    icon: ClipboardList,   href: "/azienda/ordini" },
+  { label: "Cantieri",  icon: HardHat,         href: "/azienda/cantieri" },
+  { label: "Giornale",  icon: BookOpen,        href: "/azienda/giornale-lavori" },
   { label: "Clienti",   icon: Users,           href: "/azienda/clienti" },
-  { label: "Magazzino", icon: Warehouse,        href: "/azienda/magazzino" },
 ] as const;
 
 export function MobileBottomNav() {
