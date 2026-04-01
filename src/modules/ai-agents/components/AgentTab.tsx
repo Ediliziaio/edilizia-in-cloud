@@ -22,6 +22,8 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
   const [voiceId, setVoiceId] = useState(agent.voice_id);
   const [llmModel, setLlmModel] = useState(agent.llm_model);
   const [language, setLanguage] = useState(agent.language);
+  const [thinkingEnabled, setThinkingEnabled] = useState(agent.thinking_enabled ?? false);
+  const [backupLlm, setBackupLlm] = useState(agent.backup_llm ?? "none");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const triggerSave = useCallback(
@@ -59,6 +61,16 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
   const handleLlmChange = (val: string) => {
     setLlmModel(val);
     triggerSave({ llm_model: val });
+  };
+
+  const handleThinkingEnabledChange = (val: boolean) => {
+    setThinkingEnabled(val);
+    triggerSave({ thinking_enabled: val });
+  };
+
+  const handleBackupLlmChange = (val: string) => {
+    setBackupLlm(val);
+    triggerSave({ backup_llm: val });
   };
 
   const handleLanguageChange = (val: string) => {
@@ -125,7 +137,14 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
       {/* Right column — Voice, LLM, Language */}
       <div className="space-y-6">
         <VoiceSelector value={voiceId} onChange={handleVoiceChange} />
-        <LLMSelector value={llmModel} onChange={handleLlmChange} />
+        <LLMSelector
+          value={llmModel}
+          onChange={handleLlmChange}
+          thinkingEnabled={thinkingEnabled}
+          onThinkingEnabledChange={handleThinkingEnabledChange}
+          backupLlm={backupLlm}
+          onBackupLlmChange={handleBackupLlmChange}
+        />
 
         <div className="space-y-2">
           <Label>Lingua predefinita</Label>

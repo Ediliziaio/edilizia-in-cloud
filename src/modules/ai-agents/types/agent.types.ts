@@ -29,6 +29,10 @@ export interface AIAgent {
   send_confirmation_after_booking?: boolean;
   // Tools config
   tools_config?: Record<string, unknown>;
+  // AI advanced
+  thinking_enabled?: boolean;
+  thinking_budget_tokens?: number;
+  backup_llm?: string;
 }
 
 export interface AIAgentInsert {
@@ -69,6 +73,10 @@ export interface AIAgentUpdate {
   send_confirmation_after_booking?: boolean;
   // Tools
   tools_config?: Record<string, unknown>;
+  // AI advanced
+  thinking_enabled?: boolean;
+  thinking_budget_tokens?: number;
+  backup_llm?: string;
 }
 
 export interface ElevenLabsVoice {

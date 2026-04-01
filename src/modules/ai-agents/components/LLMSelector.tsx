@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Brain, ChevronDown, Settings2 } from "lucide-react";
 import { LLM_OPTIONS } from "../types/agent.types";
+import { useState } from "react";
 
 interface LLMSelectorProps {
   value: string;
@@ -20,6 +20,11 @@ interface LLMSelectorProps {
   onTemperatureChange?: (val: number) => void;
   maxTokens?: number;
   onMaxTokensChange?: (val: number) => void;
+  // AI advanced — optional, backward-compatible
+  thinkingEnabled?: boolean;
+  onThinkingEnabledChange?: (val: boolean) => void;
+  backupLlm?: string;
+  onBackupLlmChange?: (val: string) => void;
 }
 
 const costLabel: Record<string, string> = { low: "€", medium: "€€", high: "€€€" };
@@ -29,6 +34,8 @@ export function LLMSelector({
   value, onChange,
   temperature = 0.7, onTemperatureChange,
   maxTokens = 4096, onMaxTokensChange,
+  thinkingEnabled = false, onThinkingEnabledChange,
+  backupLlm = "none", onBackupLlmChange,
 }: LLMSelectorProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -94,28 +101,38 @@ export function LLMSelector({
             <p className="text-xs text-muted-foreground">Numero massimo di token per risposta</p>
           </div>
 
-          {/* Thinking budget — coming soon */}
-          <div className="flex items-center justify-between opacity-60">
+          {/* Thinking budget */}
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Budget di riflessione</p>
-              <p className="text-xs text-muted-foreground">Prossimamente</p>
+              <p className="text-xs text-muted-foreground">
+                Attiva il ragionamento esteso (solo claude-sonnet-4-6+)
+              </p>
             </div>
-            <Switch checked={false} disabled />
+            <Switch
+              checked={thinkingEnabled}
+              onCheckedChange={(val) => onThinkingEnabledChange?.(val)}
+            />
           </div>
 
-          {/* Backup LLM — coming soon */}
-          <div className="space-y-2 opacity-60">
+          {/* Backup LLM */}
+          <div className="space-y-2">
             <Label className="text-sm">Backup LLM</Label>
-            <Select value="default" disabled>
+            <Select
+              value={backupLlm}
+              onValueChange={(val) => onBackupLlmChange?.(val)}
+            >
               <SelectTrigger className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Predefinito</SelectItem>
+                <SelectItem value="none">Nessun backup</SelectItem>
+                <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (economico)</SelectItem>
+                <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6 (bilanciato)</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Prossimamente — Modello di fallback in caso di errore
+              Modello di fallback usato automaticamente in caso di errore del primario
             </p>
           </div>
         </CollapsibleContent>
