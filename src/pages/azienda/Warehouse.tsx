@@ -59,6 +59,7 @@ import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView"
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import { WarehouseMapView } from "@/components/warehouse/WarehouseMapView";
+import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { StockItem, WarehouseItem } from "@/types/warehouse";
@@ -343,6 +344,10 @@ export default function Warehouse() {
                     <PackageOpen className="h-4 w-4" />
                     <span className="hidden sm:inline">Giacenze</span>
                   </TabsTrigger>
+                  <TabsTrigger value="lotti" className="gap-1.5">
+                    <Package className="h-4 w-4" />
+                    <span className="hidden sm:inline">Lotti</span>
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
 
@@ -526,7 +531,9 @@ export default function Warehouse() {
       </Card>
 
       {/* Content based on view mode */}
-      {viewMode === "stock" ? (
+      {viewMode === "lotti" ? (
+        <WarehouseLottiTab />
+      ) : viewMode === "stock" ? (
         <WarehouseStockTab />
       ) : isLoading ? (
         <div className="text-center py-12 text-muted-foreground">

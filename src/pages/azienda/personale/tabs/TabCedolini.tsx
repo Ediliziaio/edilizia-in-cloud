@@ -91,6 +91,47 @@ export function TabCedolini() {
     return lordo - contrib - irpef;
   };
 
+  const [isFetchingOre, setIsFetchingOre] = useState(false);
+
+  const autoFetchOre = async () => {
+    if (!form.employee_name.trim()) {
+      toast.error("Inserisci prima il nome del dipendente");
+      return;
+    }
+    setIsFetchingOre(true);
+    try {
+      const mese = parseInt(form.mese);
+      const anno = parseInt(form.anno);
+      const inizioMese = `${anno}-${String(mese).padStart(2, "0")}-01`;
+      const fineMese = new Date(anno, mese, 0).toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("presenze")
+        .select("ore_lavorate, tipo")
+        .eq("company_id", companyId!)
+        .ilike("dipendente_nome", `%${form.employee_name.trim()}%`)
+        .gte("data", inizioMese)
+        .lte("data", fineMese);
+
+      if (error) { toast.error("Errore nel recupero delle presenze"); return; }
+      if (!data || data.length === 0) {
+        toast.info(`Nessuna presenza trovata per ${form.employee_name} nel ${MESI[mese - 1]} ${anno}`);
+        return;
+      }
+
+      const totalOre = data.reduce((sum: number, p: any) => sum + (p.ore_lavorate || 0), 0);
+      const oreStraordinario = data
+        .filter((p: any) => p.tipo === "straordinario")
+        .reduce((sum: number, p: any) => sum + (p.ore_lavorate || 0), 0);
+
+      toast.success(
+        `Trovate ${totalOre.toFixed(1)} ore (di cui ${oreStraordinario.toFixed(1)} h straordinario)`
+      );
+    } finally {
+      setIsFetchingOre(false);
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!form.employee_name.trim()) throw new Error("Nome dipendente obbligatorio");
@@ -285,6 +326,23 @@ export function TabCedolini() {
                 </Select>
               </div>
             </div>
+            {/* Carica ore da timbrature */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={autoFetchOre}
+              disabled={isFetchingOre}
+            >
+              {isFetchingOre ? (
+                <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+              )}
+              {isFetchingOre ? "Caricamento..." : "Carica ore da timbrature"}
+            </Button>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Lordo (€) *</Label>

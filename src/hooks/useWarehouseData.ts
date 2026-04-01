@@ -9,7 +9,7 @@ import { exportToCSV as exportCsvUtil } from "@/lib/csvExport";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
-export type ViewMode = "list" | "kanban" | "calendar" | "stock";
+export type ViewMode = "list" | "kanban" | "calendar" | "stock" | "lotti";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
