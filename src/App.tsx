@@ -67,7 +67,9 @@ const Impiantisti = lazy(() => import("@/pages/per/Impiantisti"));
 const Ristrutturatori = lazy(() => import("@/pages/per/Ristrutturatori"));
 const Fotovoltaico = lazy(() => import("@/pages/per/Fotovoltaico"));
 const Serramentisti = lazy(() => import("@/pages/per/Serramentisti"));
-const PiccoleImprese = lazy(() => import("@/pages/per/PiccoleImprese"));
+const PiccoleImprese   = lazy(() => import("@/pages/per/PiccoleImprese"));
+const ReferralLanding  = lazy(() => import("@/pages/ReferralLanding"));
+const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -149,6 +151,10 @@ const App = () => (
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
+
+              {/* Referral public pages */}
+              <Route path="/ref/:code" element={<ReferralLanding />} />
+              <Route path="/diventa-partner" element={<DiventaPartner />} />
 
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />

@@ -47,6 +47,24 @@ export default function PartnerPayout() {
 
   const balance = (referrer?.total_earned || 0) - (referrer?.total_paid || 0);
 
+  // ── Calcola prossimo pagamento automatico (il 12 del mese) ───
+  const getNextPaymentInfo = () => {
+    const today       = new Date();
+    const day         = today.getDate();
+    const month       = today.getMonth();
+    const year        = today.getFullYear();
+    const paymentDate = day < 12
+      ? new Date(year, month, 12)
+      : new Date(year, month + 1, 12);
+    const daysLeft    = Math.ceil((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      date:        format(paymentDate, "d MMMM yyyy", { locale: it }),
+      daysLeft,
+      isThisMonth: day < 12,
+    };
+  };
+  const paymentInfo = getNextPaymentInfo();
+
   const requestPayout = useMutation({
     mutationFn: async () => {
       const amt = parseFloat(amount);
@@ -90,6 +108,30 @@ export default function PartnerPayout() {
   return (
     <div className="space-y-6 p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold tracking-tight">Richiedi Pagamento</h1>
+
+      {/* Countdown prossimo pagamento automatico */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Prossimo pagamento automatico</p>
+              <p className="text-2xl font-bold text-primary">{paymentInfo.date}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                tra {paymentInfo.daysLeft} giorni · importo stimato: {formatCurrency(balance)}
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-primary">{paymentInfo.daysLeft}</div>
+              <div className="text-xs text-muted-foreground">giorni</div>
+            </div>
+          </div>
+          {balance <= 0 && (
+            <p className="text-sm text-muted-foreground mt-3 italic">
+              Nessuna commissione maturata per questo ciclo.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Balance */}
       <Card>
