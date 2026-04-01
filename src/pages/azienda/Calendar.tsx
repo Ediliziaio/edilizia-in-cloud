@@ -831,6 +831,7 @@ function CalendarInner() {
               orders={scheduledOrders}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
+              employees={companyEmployees}
             />
           ) : (
             <CalendarGanttView

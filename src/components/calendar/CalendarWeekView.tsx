@@ -216,6 +216,11 @@ export function CalendarWeekView({
       >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}
         <span className="truncate">{label}</span>
+        {o && (evt.type === "posa" || evt.type === "lavoro") && (() => {
+          const empCount = o.order_employees?.length ?? 0;
+          if (empCount === 0) return <span className="ml-auto shrink-0 text-[9px] font-bold text-red-600">!</span>;
+          return <span className="ml-auto shrink-0 text-[9px]">{empCount}op</span>;
+        })()}
       </div>
     );
 

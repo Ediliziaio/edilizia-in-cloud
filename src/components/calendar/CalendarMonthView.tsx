@@ -289,6 +289,15 @@ export function CalendarMonthView({
                               {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
                             </span>
                             {logisticRisk && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-yellow-200" />}
+                            {(event.type === "posa" || event.type === "lavoro") && (() => {
+                              const empCount = event.order!.order_employees?.length ?? 0;
+                              if (empCount === 0) return (
+                                <span className="ml-auto shrink-0 text-[9px] bg-red-500/80 rounded px-0.5">!</span>
+                              );
+                              return (
+                                <span className="ml-auto shrink-0 text-[9px] bg-white/20 rounded px-0.5">{empCount}op</span>
+                              );
+                            })()}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="right" className="max-w-xs">
