@@ -1134,10 +1134,13 @@ export default function OrdersList() {
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="border-b">
-        <nav className="-mb-px flex gap-6 overflow-x-auto">
+        <nav className="-mb-px flex gap-6 overflow-x-auto" role="tablist" aria-label="Sezioni ordini">
           {tabs.map((t) => (
             <button
               key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
               onClick={() => handleTabChange(t.id)}
               className={`pb-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 activeTab === t.id
@@ -1145,7 +1148,7 @@ export default function OrdersList() {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              <t.icon className="h-4 w-4" />
+              <t.icon className="h-4 w-4" aria-hidden="true" />
               {t.label}
             </button>
           ))}

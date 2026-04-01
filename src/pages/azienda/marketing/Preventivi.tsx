@@ -101,7 +101,7 @@ import {
 } from "lucide-react";
 
 export default function Preventivi() {
-  const { effectiveCompany, user, role } = useAuth() as any;
+  const { effectiveCompany, user, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -348,8 +348,11 @@ export default function Preventivi() {
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="border-b mb-2">
-        <nav className="-mb-px flex gap-6">
+        <nav className="-mb-px flex gap-6" role="tablist" aria-label="Sezioni preventivi">
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "lista"}
             onClick={() => handleTabChange("lista")}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "lista"
@@ -361,6 +364,9 @@ export default function Preventivi() {
           </button>
           {isAdmin && (
             <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "analisi"}
               onClick={() => handleTabChange("analisi")}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === "analisi"
@@ -368,7 +374,7 @@ export default function Preventivi() {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              <BrainCircuit className="h-4 w-4" />
+              <BrainCircuit className="h-4 w-4" aria-hidden="true" />
               Analisi AI
             </button>
           )}

@@ -56,7 +56,7 @@ const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
-const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
+// GlobalErrors now rendered as tab inside OrdersList — lazy import removed
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
@@ -83,11 +83,11 @@ const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
-const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
+// PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
-const MarginalitaCantieri = lazy(() => import("@/pages/azienda/MarginalitaCantieri"));
+// MarginalitaCantieri now rendered as tab inside OrdersList — lazy import removed
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
@@ -113,7 +113,7 @@ const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookF
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
-const AnalisiPreventivi = lazy(() => import("@/pages/azienda/marketing/AnalisiPreventivi"));
+// AnalisiPreventivi now rendered as tab inside Preventivi — lazy import removed
 
 const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
 
