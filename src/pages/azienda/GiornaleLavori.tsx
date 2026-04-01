@@ -42,6 +42,7 @@ export default function GiornaleLavori() {
   const { lat: gpsLat, lng: gpsLng, status: gpsStatus, requestPosition } = useGPS(companyId || null);
 
   const [selectedOrderId, setSelectedOrderId] = useState(searchParams.get("ordine") || "");
+  const [isExporting, setIsExporting] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -268,6 +269,30 @@ export default function GiornaleLavori() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const handleExportPdf = async () => {
+    if (!companyId) return;
+    setIsExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-giornale-pdf", {
+        body: { company_id: companyId, ...(selectedOrderId ? { order_id: selectedOrderId } : {}) },
+      });
+      if (error) {
+        const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
+        throw new Error(detail?.error || error.message || "Errore nella generazione del PDF");
+      }
+      if (!data?.html) throw new Error("Nessun contenuto generato");
+      const blob = new Blob([data.html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, "_blank");
+      if (w) w.onload = () => w.print();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -280,9 +305,13 @@ export default function GiornaleLavori() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => toast.info("Esportazione PDF in arrivo!")}>
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Esporta</span>
+          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={isExporting}>
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
           </Button>
           <Button size="sm" onClick={openNew}>
             <Plus className="h-4 w-4" />
