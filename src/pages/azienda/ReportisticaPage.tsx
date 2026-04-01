@@ -5,8 +5,11 @@ import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsRe
 import AttributionReport from "@/components/reporting/attribution/AttributionReport";
 import VenditoriPerformanceReport from "@/components/reporting/venditori/VenditoriPerformanceReport";
 import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport";
+import CantiereDashboard from "@/components/reporting/cantieri/CantiereDashboard";
+import GoogleAdsReport from "@/components/reporting/google-ads/GoogleAdsReport";
 
 const TABS = [
+  { key: "cantieri", label: "Dashboard Cantieri" },
   { key: "facebook-ads", label: "Report di Facebook Ads" },
   { key: "google-ads", label: "Report di Google Ads" },
   { key: "attribution", label: "Rapporto di attribuzione" },
@@ -14,11 +17,11 @@ const TABS = [
   { key: "venditori", label: "Performance Venditori" },
 ];
 
-const IMPLEMENTED_TABS = ["facebook-ads", "attribution", "venditori", "calls"];
+const IMPLEMENTED_TABS = ["cantieri", "facebook-ads", "google-ads", "attribution", "venditori", "calls"];
 
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "facebook-ads";
+  const activeTab = searchParams.get("tab") || "cantieri";
 
   return (
     <div className="space-y-6">
@@ -36,8 +39,16 @@ const ReportisticaPage = () => {
           ))}
         </TabsList>
 
+        <TabsContent value="cantieri" className="mt-6">
+          <CantiereDashboard />
+        </TabsContent>
+
         <TabsContent value="facebook-ads" className="mt-6">
           <FacebookAdsReport />
+        </TabsContent>
+
+        <TabsContent value="google-ads" className="mt-6">
+          <GoogleAdsReport />
         </TabsContent>
 
         <TabsContent value="attribution" className="mt-6">
