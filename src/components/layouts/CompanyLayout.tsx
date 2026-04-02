@@ -89,6 +89,8 @@ import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardi
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
+import { useOnboardingAutoVerify } from "@/hooks/useOnboardingAutoVerify";
+import { NpsModal, useNpsTrigger } from "@/components/onboarding/NpsModal";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -960,6 +962,21 @@ export function CompanyLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Onboarding auto-verify: mark steps completed based on real DB conditions
+  useOnboardingAutoVerify();
+
+  // NPS trigger: show survey when onboarding reaches 100%
+  const { data: onboardingData } = useCompanyOnboarding();
+  const [npsOpen, setNpsOpen] = useState(false);
+  const shouldShowNps = useNpsTrigger(onboardingData?.pct ?? 0);
+  useEffect(() => {
+    if (shouldShowNps) {
+      // Small delay to avoid showing immediately on page load
+      const t = setTimeout(() => setNpsOpen(true), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [shouldShowNps]);
+
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
   const handleOpenChat = () => {
@@ -1067,6 +1084,7 @@ export function CompanyLayout() {
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       <MobileBottomNav />
       <PWAInstallBanner />
+      <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
     </SidebarProvider>
   );
 }
