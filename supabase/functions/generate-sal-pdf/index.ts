@@ -64,7 +64,7 @@ const STATO_LABELS: Record<string, string> = {
   approvato: "APPROVATO",
 };
 
-function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda): string {
+function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null): string {
   const colore = azienda.colore_primario || "#0ea5e9";
   const voci: SalVoce[] = sal.sal_voci || [];
   const totaleContrattuale = voci.reduce((s, v) => s + v.importo_contrattuale, 0);
@@ -208,7 +208,12 @@ function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda): st
     </div>
     <div style="flex:1;border-top:1px solid #cbd5e1;padding-top:8px;">
       <div style="font-size:8pt;color:#94a3b8;">Committente</div>
-      <div style="margin-top:32px;font-size:7.5pt;color:#94a3b8;">Firma e timbro</div>
+      ${signatureUrl ? `
+      <div style="margin-top:8px;font-size:7.5pt;color:#3b82f6;">
+        ✍ Firma digitale: <a href="${signatureUrl}" style="color:#3b82f6;">${signatureUrl}</a>
+      </div>
+      <div style="margin-top:4px;font-size:7pt;color:#94a3b8;">Valido 7 giorni dalla generazione</div>
+      ` : `<div style="margin-top:32px;font-size:7.5pt;color:#94a3b8;">Firma e timbro</div>`}
     </div>
   </div>
 
@@ -309,10 +314,26 @@ Deno.serve(async (req) => {
       sal_voci: Array.isArray(sal.sal_voci) ? sal.sal_voci : [],
     };
 
-    const html = buildSalHtml(salWithVoci, order, azienda);
+    // Genera token di firma digitale per il committente (valido 7 giorni)
+    const { data: signToken } = await supabase
+      .from("sal_signature_tokens")
+      .insert({
+        sal_id,
+        company_id,
+        token: crypto.randomUUID(),
+        expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+      })
+      .select("token")
+      .single();
+
+    const signatureUrl = signToken?.token
+      ? `https://app.ediliziaincloud.com/firma-sal/${signToken.token}`
+      : null;
+
+    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl);
     const filename = `sal-${sal.numero_sal}-${sal.data_emissione}.html`;
 
-    return new Response(JSON.stringify({ html, filename }), {
+    return new Response(JSON.stringify({ html, filename, signature_url: signatureUrl, signature_token: signToken?.token }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {

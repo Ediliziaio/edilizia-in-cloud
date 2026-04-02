@@ -79,11 +79,28 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2000,
-        system: `Sei un esperto di sicurezza sul lavoro italiano. Genera un POS (Piano Operativo di Sicurezza) completo conforme al D.Lgs 81/08 in italiano professionale. Output: JSON con campi tipo_lavori (string), rischi_presenti (array di oggetti {rischio, misura_prevenzione}), dpi_richiesti (array di stringhe), procedure_operative (testo lungo), note_sicurezza (testo). Rispondi SOLO con JSON valido, senza markdown.`,
+        system: `Sei un esperto di sicurezza sul lavoro italiano specializzato in edilizia. Genera un POS (Piano Operativo di Sicurezza) completo conforme al D.Lgs 81/2008 art. 89 in italiano professionale.
+Il POS deve includere OBBLIGATORIAMENTE tutte le sezioni richieste dalla normativa:
+1. DATI IDENTIFICATIVI IMPRESA (ragione sociale, P.IVA, RSPP, RLS, Medico Competente, posizione INAIL/PAT)
+2. DESCRIZIONE LAVORI E FASI (lavorazioni, cronoprogramma, numero lavoratori per fase)
+3. VALUTAZIONE RISCHI SPECIFICI EDILIZIA (caduta dall'alto, elettrocuzione, macchine/attrezzature, rumore/vibrazioni, polveri/agenti chimici) con relative misure di prevenzione
+4. DPI (Dispositivi Protezione Individuale) obbligatori per mansione
+5. PROCEDURE DI EMERGENZA (numeri emergenza 112/115/118, punto raccolta, primo soccorso)
+6. ELENCO SUBAPPALTATORI con verifica DURC
+
+Output: JSON con campi:
+- tipo_lavori (string)
+- fasi_lavori (array di {fase, durata, lavoratori})
+- rischi_presenti (array di {rischio, livello, misura_prevenzione})
+- dpi_richiesti (array di {mansione, dpi})
+- procedure_operative (testo completo formattato)
+- procedure_emergenza (testo con numeri e procedure)
+- note_sicurezza (testo)
+Rispondi SOLO con JSON valido, senza markdown.`,
         messages: [
           {
             role: "user",
-            content: `Genera il POS per questo cantiere: ${JSON.stringify(cantiereData, null, 2)}`,
+            content: `Genera il POS completo D.Lgs.81/08 per questo cantiere edile: ${JSON.stringify(cantiereData, null, 2)}`,
           },
         ],
       }),

@@ -68,11 +68,30 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2000,
-        system: `Sei un esperto di sicurezza sul lavoro italiano. Genera un DUVRI (Documento Unico Valutazione Rischi da Interferenza) conforme al D.Lgs 81/08 per un cantiere edile. Output JSON: {interferenze: [{lavorazione_committente: string, lavorazione_subappaltatore: string, rischio: string, misura: string, responsabile: string}], misure_generali: string, costi_sicurezza_stimati: number}. Rispondi SOLO con JSON valido, senza markdown.`,
+        system: `Sei un esperto di sicurezza sul lavoro italiano specializzato in edilizia. Genera un DUVRI (Documento Unico di Valutazione dei Rischi da Interferenza) completo conforme al D.Lgs 81/2008 art. 26.
+Il DUVRI deve includere OBBLIGATORIAMENTE:
+1. DATI COMMITTENTE e DATORE DI LAVORO (ragione sociale, P.IVA, rappresentante legale)
+2. DESCRIZIONE ATTIVITÀ INTERFERENTI tra impresa principale e subappaltatori
+3. IDENTIFICAZIONE RISCHI DA INTERFERENZA per ogni coppia di attività che si sovrappongono
+4. MISURE DI PREVENZIONE E PROTEZIONE specifiche per ogni interferenza identificata
+5. STIMA COSTI DELLA SICUREZZA (oneri interferenze, DPI specifici, formazione)
+6. FIRME (committente, datore di lavoro appaltatore, responsabile sicurezza)
+
+Output JSON:
+{
+  "committente": {string},
+  "appaltatore": {string},
+  "interferenze": [{lavorazione_committente, lavorazione_appaltatore, rischio, livello_rischio, misura_prevenzione, responsabile}],
+  "misure_generali": {string},
+  "costi_sicurezza_stimati": {number},
+  "costi_dettaglio": [{voce, importo}],
+  "note": {string}
+}
+Rispondi SOLO con JSON valido, senza markdown.`,
         messages: [
           {
             role: "user",
-            content: `Genera il DUVRI per questo cantiere con ${subappaltatori.length} subappaltatori: ${JSON.stringify(cantiereData, null, 2)}`,
+            content: `Genera il DUVRI completo D.Lgs.81/08 per questo cantiere edile con ${subappaltatori.length} subappaltatori: ${JSON.stringify(cantiereData, null, 2)}`,
           },
         ],
       }),
