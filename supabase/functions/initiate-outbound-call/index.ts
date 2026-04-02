@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
 
     // Auth check
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
+    if (!authHeader) return json(req, { error: "Unauthorized" }, 401);
 
     const token = authHeader.replace("Bearer ", "");
     const isServiceCall = token === serviceRoleKey;
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       companyId = body.company_id;
       userId = body.user_id || "00000000-0000-0000-0000-000000000000";
 
-      return await handleOutboundCall(adminClient, {
+      return await handleOutboundCall(req, adminClient, {
         agentId: agent_id,
         contactId: contact_id,
         phoneNumber: phone_number,
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     // User auth
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
     const { data: { user } } = await anonClient.auth.getUser(token);
-    if (!user) return json({ error: "Unauthorized" }, 401);
+    if (!user) return json(req, { error: "Unauthorized" }, 401);
 
     userId = user.id;
 
@@ -54,13 +54,13 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    if (!profile?.company_id) return json({ error: "No company" }, 400);
+    if (!profile?.company_id) return json(req, { error: "No company" }, 400);
     companyId = profile.company_id;
 
     const body = await req.json();
     const { agent_id, contact_id, phone_number } = body;
 
-    return await handleOutboundCall(adminClient, {
+    return await handleOutboundCall(req, adminClient, {
       agentId: agent_id,
       contactId: contact_id,
       phoneNumber: phone_number,
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("initiate-outbound-call error:", message);
-    return json({ error: message }, 500);
+    return json(req, { error: message }, 500);
   }
 });
 
@@ -87,13 +87,14 @@ interface OutboundCallParams {
 }
 
 async function handleOutboundCall(
+  req: Request,
   adminClient: ReturnType<typeof createClient>,
   params: OutboundCallParams
 ) {
   const { agentId, contactId, phoneNumber, companyId, userId, skipSubscriptionCheck, dynamicVars } = params;
 
-  if (!agentId) return json({ error: "agent_id obbligatorio" }, 400);
-  if (!contactId && !phoneNumber) return json({ error: "contact_id o phone_number obbligatorio" }, 400);
+  if (!agentId) return json(req, { error: "agent_id obbligatorio" }, 400);
+  if (!contactId && !phoneNumber) return json(req, { error: "contact_id o phone_number obbligatorio" }, 400);
 
   // Get agent
   const { data: agent } = await adminClient
@@ -103,8 +104,8 @@ async function handleOutboundCall(
     .eq("company_id", companyId)
     .single();
 
-  if (!agent) return json({ error: "Agente non trovato" }, 404);
-  if (!agent.elevenlabs_agent_id) return json({ error: "Agente non configurato su ElevenLabs" }, 400);
+  if (!agent) return json(req, { error: "Agente non trovato" }, 404);
+  if (!agent.elevenlabs_agent_id) return json(req, { error: "Agente non configurato su ElevenLabs" }, 400);
 
   // Business hours check (Italian timezone)
   if (agent.business_hours_enabled) {
@@ -113,14 +114,14 @@ async function handleOutboundCall(
     const timeNow = nowIT.getHours() * 60 + nowIT.getMinutes();
     const activeDays: number[] = agent.giorni_attivi ?? [1, 2, 3, 4, 5];
     if (!activeDays.includes(dayIT)) {
-      return json({ error: "Fuori dagli orari di disponibilità (giorno non attivo)" }, 403);
+      return json(req, { error: "Fuori dagli orari di disponibilità (giorno non attivo)" }, 403);
     }
     const [openH, openM] = (agent.orario_apertura ?? "08:00:00").split(":").map(Number);
     const [closeH, closeM] = (agent.orario_chiusura ?? "20:00:00").split(":").map(Number);
     const openMin = openH * 60 + openM;
     const closeMin = closeH * 60 + closeM;
     if (timeNow < openMin || timeNow >= closeMin) {
-      return json({ error: `Fuori dagli orari di disponibilità (${agent.orario_apertura?.slice(0, 5)}–${agent.orario_chiusura?.slice(0, 5)})` }, 403);
+      return json(req, { error: `Fuori dagli orari di disponibilità (${agent.orario_apertura?.slice(0, 5)}–${agent.orario_chiusura?.slice(0, 5)})` }, 403);
     }
   }
 
@@ -136,9 +137,9 @@ async function handleOutboundCall(
       .eq("company_id", companyId)
       .single();
 
-    if (!contact) return json({ error: "Contatto non trovato" }, 404);
-    if (contact.optout_call) return json({ error: "Contatto in DND per chiamate." }, 403);
-    if (!contact.phone) return json({ error: "Contatto senza numero di telefono" }, 400);
+    if (!contact) return json(req, { error: "Contatto non trovato" }, 404);
+    if (contact.optout_call) return json(req, { error: "Contatto in DND per chiamate." }, 403);
+    if (!contact.phone) return json(req, { error: "Contatto senza numero di telefono" }, 400);
 
     targetPhone = contact.phone;
     targetContactId = contact.id;
@@ -163,7 +164,7 @@ async function handleOutboundCall(
       const isSubActive = subscription?.status === "active" ||
         (subscription?.status === "trial" && subscription.trial_ends_at && new Date(subscription.trial_ends_at) > new Date());
       if (!isSubActive) {
-        return json({ error: "Abbonamento AI non attivo." }, 403);
+        return json(req, { error: "Abbonamento AI non attivo." }, 403);
       }
     }
   }
@@ -176,12 +177,12 @@ async function handleOutboundCall(
     .maybeSingle();
 
   if (credits?.calls_blocked || (credits?.balance_eur ?? 0) < 0.04) {
-    return json({ error: "Crediti AI insufficienti." }, 402);
+    return json(req, { error: "Crediti AI insufficienti." }, 402);
   }
 
   // Get ElevenLabs API key
   const elevenLabsApiKey = await getPlatformSetting("elevenlabs_api_key", "ELEVENLABS_API_KEY");
-  if (!elevenLabsApiKey) return json({ error: "ElevenLabs API key non configurata" }, 500);
+  if (!elevenLabsApiKey) return json(req, { error: "ElevenLabs API key non configurata" }, 500);
 
   // Get phone number config — prefer elevenlabs_phone_number_id (Telnyx-linked)
   const { data: phoneConfig } = await adminClient
@@ -194,7 +195,7 @@ async function handleOutboundCall(
 
   const elPhoneId = phoneConfig?.elevenlabs_phone_number_id || phoneConfig?.elevenlabs_phone_id;
   if (!elPhoneId) {
-    return json({ error: "Nessun numero di telefono configurato per questo agente." }, 400);
+    return json(req, { error: "Nessun numero di telefono configurato per questo agente." }, 400);
   }
 
   // Build ElevenLabs call payload with optional dynamic variables
@@ -226,7 +227,7 @@ async function handleOutboundCall(
 
   if (!callRes.ok) {
     console.error("[OUTBOUND] ElevenLabs error:", callData);
-    return json({ error: callData?.detail?.message || callData?.detail || "Errore ElevenLabs" }, callRes.status);
+    return json(req, { error: callData?.detail?.message || callData?.detail || "Errore ElevenLabs" }, callRes.status);
   }
 
   // Save conversation record
@@ -256,14 +257,14 @@ async function handleOutboundCall(
     },
   });
 
-  return json({
+  return json(req, {
     success: true,
     conversation_id: callData.conversation_id,
     message: `Chiamata in uscita avviata verso ${targetPhone}`,
   });
 }
 
-function json(data: unknown, status = 200) {
+function json(req: Request, data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
