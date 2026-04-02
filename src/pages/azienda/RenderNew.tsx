@@ -11,15 +11,24 @@ import { toast } from "sonner";
 import { ArrowLeft, Upload, Image, Loader2, Zap } from "lucide-react";
 
 const DEFAULT_CONFIG: RenderConfig = {
-  materiale: "pvc",
-  apertura: "battente",
-  colore: "grigio-antracite",
-  vetro: "basso_emissivo",
-  stile_ambiente: "moderno",
-  larghezza: 120,
-  altezza: 150,
-  numero_ante: 2,
-  note_libere: "",
+  nuovo_infisso: {
+    materiale: "pvc",
+    colore: { ral: "9016", nome: "Bianco puro", finitura: "liscio_opaco" },
+    colore_mode: "ral",
+    profilo: { dimensione: "70mm", forma: "europeo" },
+    vetro: { tipo: "trasparente", prompt_fragment: "double glazed clear glass" },
+    ferramenta: {
+      maniglia_stile: "classica_dritta",
+      colore_hardware_id: "cromo_lucido",
+      colore_hardware_finish: "polished chrome",
+    },
+    cerniere: { tipo: "europea", colore: "argento", num_per_anta: 2 },
+    num_ante: 2,
+    stile_telaio: "europeo_classico",
+    sostituzione: { infissi: true, cassonetto: false, tapparella: false },
+  },
+  apertura_default: "battente_2_ante",
+  notes: "",
 };
 
 export default function RenderNew() {

@@ -522,13 +522,49 @@ Deno.serve(async (req) => {
     }
 
     // ── Build prompt v6 ─────────────────────────────────────────────────────
-    // If config override in body, merge into session for prompt building
-    const sessionForPrompt = config
-      ? { ...session, config: config }
-      : session;
+    // Bridge v1 → v6: se config è flat (vecchio formato), avvolgilo in
+    // nuovo_infisso per compatibilità con buildPromptFromConfig v6
+    const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;
+
+    const renderConfig: Record<string, unknown> = rawConfig.nuovo_infisso
+      ? rawConfig // già formato v6
+      : {
+          nuovo_infisso: {
+            materiale: rawConfig.materiale || "pvc",
+            colore: {
+              ral: "9016",
+              nome: String(rawConfig.colore || "bianco").replace(/-/g, " "),
+              finitura: "liscio_opaco",
+            },
+            colore_mode: "ral",
+            profilo: { dimensione: "70mm", forma: "europeo" },
+            vetro: {
+              tipo: rawConfig.vetro || "trasparente",
+              prompt_fragment: "double glazed clear glass",
+            },
+            ferramenta: {
+              maniglia_stile: "classica_dritta",
+              colore_hardware_id: "cromo_lucido",
+              colore_hardware_finish: "polished chrome",
+            },
+            cerniere: { tipo: "europea", colore: "argento", num_per_anta: 2 },
+            num_ante: Number(rawConfig.numero_ante) || 2,
+            stile_telaio: "europeo_classico",
+            sostituzione: { infissi: true, cassonetto: false, tapparella: false },
+          },
+          apertura_default: rawConfig.apertura || "battente_2_ante",
+          notes: String(rawConfig.note_libere || ""),
+        };
+
+    // buildPromptFromConfig v6 riceve session-like object con .config e .foto_analisi
+    const sessionLike = {
+      ...session,
+      config: renderConfig,
+      foto_analisi: (session as Record<string, unknown>).foto_analisi || {},
+    };
 
     const { systemPrompt, userPrompt, negativePrompt, promptVersion, blocks } =
-      buildPromptFromConfig(sessionForPrompt);
+      buildPromptFromConfig(sessionLike);
 
     // ── Legge provider config e API key ─────────────────────────────────────
     const { data: providerConfig } = await supabase
