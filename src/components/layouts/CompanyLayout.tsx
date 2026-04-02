@@ -989,6 +989,13 @@ export function CompanyLayout() {
       <div className="min-h-screen flex w-full">
         <CompanySidebar />
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Skip to main content — keyboard / screen-reader accessibility */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:border focus:rounded focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md"
+          >
+            Vai al contenuto principale
+          </a>
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
           <MultiCompanySwitcher />
@@ -997,8 +1004,8 @@ export function CompanyLayout() {
           <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
             {/* Mobile: hamburger (top level) or back arrow (sub-pages) */}
             {isSubPage ? (
-              <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 -ml-1 shrink-0" onClick={() => navigate(-1)}>
-                <ArrowLeft className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
+                <ArrowLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
             ) : (
               <SidebarTrigger className="md:hidden h-9 w-9 -ml-1 shrink-0" />
@@ -1027,11 +1034,11 @@ export function CompanyLayout() {
             )}
 
             <div className="hidden md:block flex-1" />
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)">
-              <Search className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
+              <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche">
-              <Bell className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche" aria-label={notifUnreadCount > 0 ? `Notifiche (${notifUnreadCount} non lette)` : "Notifiche"}>
+              <Bell className="h-4 w-4" aria-hidden="true" />
               {notifUnreadCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] font-bold">
                   {notifUnreadCount > 99 ? "99+" : notifUnreadCount}
@@ -1055,7 +1062,7 @@ export function CompanyLayout() {
           </header>
           <OfflineBanner />
           <LifecycleNotificationsBanner />
-          <main className="flex-1 p-3 md:p-6 bg-muted/30 pb-20 md:pb-6">
+          <main className="flex-1 p-3 md:p-6 bg-muted/30 pb-20 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               <Outlet />
             </ErrorBoundary>
