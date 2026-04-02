@@ -213,21 +213,33 @@ async function handleOutboundCall(
     };
   }
 
-  // Initiate outbound call via ElevenLabs Telnyx endpoint
-  const callRes = await fetch("https://api.elevenlabs.io/v1/convai/telnyx/outbound-call", {
-    method: "POST",
-    headers: {
-      "xi-api-key": elevenLabsApiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(elPayload),
-  });
+  // Initiate outbound call via ElevenLabs Telnyx endpoint (with 429 retry, max 3 attempts)
+  let callRes: Response | null = null;
+  let callData: Record<string, unknown> = {};
+  const MAX_ATTEMPTS = 3;
 
-  const callData = await callRes.json();
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    callRes = await fetch("https://api.elevenlabs.io/v1/convai/telnyx/outbound-call", {
+      method: "POST",
+      headers: {
+        "xi-api-key": elevenLabsApiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(elPayload),
+    });
+    callData = await callRes.json();
 
-  if (!callRes.ok) {
+    if (callRes.status !== 429) break;
+
+    if (attempt < MAX_ATTEMPTS) {
+      console.warn(`[OUTBOUND] Rate limit 429 — retry ${attempt}/${MAX_ATTEMPTS - 1} in 2s`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  if (!callRes!.ok) {
     console.error("[OUTBOUND] ElevenLabs error:", callData);
-    return json(req, { error: callData?.detail?.message || callData?.detail || "Errore ElevenLabs" }, callRes.status);
+    return json(req, { error: (callData as any)?.detail?.message || (callData as any)?.detail || "Errore ElevenLabs" }, callRes!.status);
   }
 
   // Save conversation record

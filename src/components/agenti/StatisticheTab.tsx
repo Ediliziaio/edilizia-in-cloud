@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,29 @@ const TIPO_LABELS: Record<string, string> = {
 
 export function StatisticheTab() {
   const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
   const [giorni, setGiorni] = useState("30");
+
+  // Realtime subscription: invalida le query stats ad ogni nuova conversazione
+  useEffect(() => {
+    if (!companyId) return;
+    const channel = supabase
+      .channel("ai-stats-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ai_agent_conversations",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [companyId, queryClient]);
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["ai-analytics", companyId, giorni],

@@ -7,7 +7,7 @@ const baseLinks = [
   { to: "/azienda/marketing/agente-ai", label: "Agenti", icon: Bot, end: true },
   { to: "/azienda/marketing/agente-ai/knowledge-base", label: "Knowledge Base", icon: Database },
   { to: "/azienda/marketing/agente-ai/numeri-telefono", label: "Numeri di Telefono", icon: Phone },
-  { to: "/azienda/marketing/agente-ai/whatsapp", label: "WhatsApp", icon: MessageCircle, badge: "Alpha" },
+  { to: "/azienda/marketing/agente-ai/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { to: "/azienda/marketing/agente-ai/crediti", label: "Crediti & Utilizzo", icon: CreditCard },
 ];
 

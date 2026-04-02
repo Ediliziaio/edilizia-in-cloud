@@ -64,6 +64,24 @@ export function KnowledgeBaseTab() {
   const [addText, setAddText] = useState("");
   const [addFile, setAddFile] = useState<File | null>(null);
 
+  // Ultimo sync
+  const { data: lastSync } = useQuery({
+    queryKey: ["kb-last-sync", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ai_knowledge_base_v2")
+        .select("updated_at")
+        .eq("company_id", companyId!)
+        .eq("sync_status", "synced")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data?.updated_at ?? null;
+    },
+    staleTime: 60_000,
+  });
+
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["kb-docs-v2", companyId, filtroSync, cerca],
     enabled: !!companyId,
@@ -215,6 +233,11 @@ export function KnowledgeBaseTab() {
           </SelectContent>
         </Select>
         <div className="flex-1" />
+        {lastSync && (
+          <p className="text-xs text-muted-foreground">
+            Ultimo sync: {format(new Date(lastSync), "dd/MM/yyyy HH:mm", { locale: it })}
+          </p>
+        )}
         <Button size="sm" onClick={() => setShowAdd(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> Aggiungi documento
         </Button>

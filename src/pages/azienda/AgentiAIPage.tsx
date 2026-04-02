@@ -35,7 +35,7 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
   { key: "conversazioni", label: "Chiamate", icon: History },
   { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
-  { key: "whatsapp", label: "WhatsApp", icon: MessageSquare, badge: "Alpha" },
+  { key: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { key: "statistiche", label: "Statistiche", icon: BarChart2 },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
 ];
