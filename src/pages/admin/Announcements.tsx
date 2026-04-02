@@ -158,8 +158,6 @@ export default function Announcements() {
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  if (!permissions.can_view_platform_stats) return <AccessDenied />;
-
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: queryKeys.admin.announcements,
     queryFn: async () => {
@@ -171,6 +169,7 @@ export default function Announcements() {
       return data as Announcement[];
     },
     staleTime: 5 * 60 * 1000,
+    enabled: permissions.can_view_platform_stats,
   });
 
   const createMutation = useMutation({
@@ -219,6 +218,8 @@ export default function Announcements() {
     },
     onError: () => toast.error("Errore nell'eliminazione"),
   });
+
+  if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const typeLabels: Record<string, string> = {
     banner: "Banner",

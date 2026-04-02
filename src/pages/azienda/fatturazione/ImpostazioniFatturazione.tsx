@@ -14,7 +14,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
   Plus, Pencil, Building2, Receipt, Palette, CreditCard, Percent,

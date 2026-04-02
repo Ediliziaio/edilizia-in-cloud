@@ -81,6 +81,7 @@ function BlockedOrdersFull({ companyId }: { companyId: string }) {
 
 export default function BlockedOrdersPanel({ companyId, compact = false, minimal = false }: Props) {
   const { data: blocked = [], isLoading } = useBlockedOrders(companyId);
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   if (minimal) {
@@ -117,8 +118,6 @@ export default function BlockedOrdersPanel({ companyId, compact = false, minimal
   }
 
   // Full card mode (legacy)
-  const navigate = useNavigate();
-
   if (isLoading) return (
     <Card><CardContent className="py-4 text-center text-sm text-muted-foreground">Analisi blocchi materiali...</CardContent></Card>
   );

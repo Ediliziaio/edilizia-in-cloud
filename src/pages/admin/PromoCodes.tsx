@@ -51,9 +51,6 @@ const emptyForm: PromoCodeForm = {
 
 export default function PromoCodes() {
   const { permissions } = useSuperAdminPermissions();
-
-  if (!permissions.billing_write) return <AccessDenied />;
-
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<PromoCodeForm>(emptyForm);
@@ -68,6 +65,7 @@ export default function PromoCodes() {
       if (error) throw error;
       return (data ?? []) as PromoCode[];
     },
+    enabled: permissions.billing_write,
   });
 
   const createMutation = useMutation({
@@ -102,6 +100,8 @@ export default function PromoCodes() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['promo-codes'] }),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (!permissions.billing_write) return <AccessDenied />;
 
   return (
     <div className="space-y-6">

@@ -68,7 +68,6 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const [customMaxOrders, setCustomMaxOrders] = useState<string>("");
 
   // Plan pricing override
-  const qc = useQueryClient();
   const { data: planOverride, refetch: refetchOverride } = useQuery({
     queryKey: ['company-plan-override', companyId],
     queryFn: async () => {

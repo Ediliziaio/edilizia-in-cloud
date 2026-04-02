@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/table";
 import { Plus, Trash2, Package, Loader2 } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
-import { it } from "date-fns/locale";
 
 interface Lotto {
   id: string;

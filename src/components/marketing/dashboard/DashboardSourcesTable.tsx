@@ -14,18 +14,9 @@ interface Props {
 }
 
 export const DashboardSourcesTable = memo(function DashboardSourcesTable({ sources, isLoading }: Props) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader><CardTitle className="text-base">Analisi Fonti & ROI</CardTitle></CardHeader>
-        <CardContent><Skeleton className="h-40 w-full" /></CardContent>
-      </Card>
-    );
-  }
-
   const rawRows = sources || [];
   const hasSpend = rawRows.some(r => r.spend > 0);
-  
+
   const rows = useMemo(() => {
     return [...rawRows].sort((a, b) => {
       if (hasSpend) {
@@ -34,6 +25,15 @@ export const DashboardSourcesTable = memo(function DashboardSourcesTable({ sourc
       return b.leads - a.leads;
     });
   }, [rawRows, hasSpend]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Analisi Fonti & ROI</CardTitle></CardHeader>
+        <CardContent><Skeleton className="h-40 w-full" /></CardContent>
+      </Card>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={200}>

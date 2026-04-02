@@ -318,16 +318,16 @@ export default function SettingsWebhooks() {
   const companyId = (effectiveCompany as any)?.id as string | undefined;
   const { toast } = useToast();
 
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
+  const [logsWebhook, setLogsWebhook] = useState<Webhook | null>(null);
+  const [logsOpen, setLogsOpen] = useState(false);
+
   const { data: webhooks = [], isLoading } = useWebhooks(companyId ?? "");
   const deleteMutation = useDeleteWebhook(companyId ?? "");
   const updateMutation = useUpdateWebhook(companyId ?? "");
 
   if (!companyId) return null;
-
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
-  const [logsWebhook, setLogsWebhook] = useState<Webhook | null>(null);
-  const [logsOpen, setLogsOpen] = useState(false);
 
   const openEdit = (w: Webhook) => { setEditingWebhook(w); setFormOpen(true); };
   const openCreate = () => { setEditingWebhook(null); setFormOpen(true); };

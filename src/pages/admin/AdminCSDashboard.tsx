@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, AlertTriangle, CheckCircle2, Clock, Users, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Users, Loader2 } from 'lucide-react';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
 import { AccessDenied } from '@/components/admin/AccessDenied';
 
@@ -20,8 +20,6 @@ interface CSData {
 
 export default function AdminCSDashboard() {
   const { permissions } = useSuperAdminPermissions();
-
-  if (!permissions.impersonation) return <AccessDenied />;
 
   const { data, isLoading } = useQuery<CSData>({
     queryKey: ['admin-cs-dashboard'],
@@ -75,7 +73,10 @@ export default function AdminCSDashboard() {
     },
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+    enabled: permissions.impersonation,
   });
+
+  if (!permissions.impersonation) return <AccessDenied />;
 
   if (isLoading) {
     return (

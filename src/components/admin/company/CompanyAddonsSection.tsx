@@ -31,7 +31,7 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
   const [price, setPrice] = useState(String(company.white_label_monthly_price ?? 49));
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
-  const [priceEditing, setPriceEditing] = useState(false);
+  const [, setPriceEditing] = useState(false);
 
   const { data: logs } = useQuery({
     queryKey: ["addon-logs", company.id, "white_label"],

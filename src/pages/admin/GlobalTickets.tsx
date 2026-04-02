@@ -8,7 +8,6 @@ import { MessageSquare } from "lucide-react";
 
 export default function GlobalTickets() {
   const { permissions } = useSuperAdminPermissions();
-  if (!permissions.can_manage_tickets) return <AccessDenied />;
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["admin-support-unread-count"],
@@ -21,7 +20,10 @@ export default function GlobalTickets() {
       return count || 0;
     },
     refetchInterval: 30000,
+    enabled: permissions.can_manage_tickets,
   });
+
+  if (!permissions.can_manage_tickets) return <AccessDenied />;
 
   return (
     <div className="space-y-6">

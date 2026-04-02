@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,8 +44,6 @@ const emptyForm: WebhookForm = { name: '', url: '', events: [], secret_token: ''
 
 export default function AdminSettingsWebhooks() {
   const { permissions } = useSuperAdminPermissions();
-  if (!permissions.can_manage_admins) return <AccessDenied />;
-
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<WebhookForm>(emptyForm);
@@ -61,6 +59,7 @@ export default function AdminSettingsWebhooks() {
       if (error) throw error;
       return (data ?? []) as Webhook[];
     },
+    enabled: permissions.can_manage_admins,
   });
 
   const createMutation = useMutation({
@@ -80,6 +79,8 @@ export default function AdminSettingsWebhooks() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (!permissions.can_manage_admins) return <AccessDenied />;
 
   const testWebhook = async (webhook: Webhook) => {
     setTestingId(webhook.id);

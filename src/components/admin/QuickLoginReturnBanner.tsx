@@ -32,9 +32,9 @@ export function QuickLoginReturnBanner() {
     setOriginalName(sessionStorage.getItem(ORIGINAL_NAME_KEY));
   }, []);
 
-  if (!originalEmail || !originalName) return null;
-
   const { refreshAuth } = useAuth();
+
+  if (!originalEmail || !originalName) return null;
 
   const handleReturn = async () => {
     setLoading(true);

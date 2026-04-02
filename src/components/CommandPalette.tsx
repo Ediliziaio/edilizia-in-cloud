@@ -187,7 +187,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         )}
 
         {filteredNavGroups.map((group) => {
-          const GroupIcon = group.icon;
           return (
             <CommandGroup key={group.title} heading={group.title}>
               {group.items.map((item) => {
