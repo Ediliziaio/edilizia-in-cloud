@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink,
+  TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
@@ -18,6 +18,11 @@ import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -32,8 +37,33 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function PrimaNotaInner() {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+
+  const importMutation = useMutation({
+    mutationFn: async (action: "from_banking" | "from_invoices" | "both") => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("sync-prima-nota", {
+        body: { company_id: effectiveCompany?.id, action },
+      });
+      if (res.error) throw res.error;
+      return res.data as { total: number; imported_banking: number; imported_invoices: number };
+    },
+    onSuccess: (data) => {
+      if (data.total === 0) {
+        toast.info("Nessuna novità da importare");
+      } else {
+        const parts = [];
+        if (data.imported_banking > 0) parts.push(`${data.imported_banking} da banca`);
+        if (data.imported_invoices > 0) parts.push(`${data.imported_invoices} da fatture`);
+        toast.success(`Importate ${data.total} registrazioni`, { description: parts.join(", ") });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+    },
+    onError: (e) => toast.error("Errore importazione", { description: String(e) }),
+  });
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
@@ -123,6 +153,19 @@ function PrimaNotaInner() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-1" /> CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importMutation.mutate("both")}
+            disabled={importMutation.isPending}
+            title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
+          >
+            {importMutation.isPending
+              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              : <RefreshCw className="h-4 w-4 mr-1" />}
+            <span className="hidden sm:inline">Importa Auto</span>
+            <span className="sm:hidden">Importa</span>
           </Button>
           <Button onClick={() => setNewOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
