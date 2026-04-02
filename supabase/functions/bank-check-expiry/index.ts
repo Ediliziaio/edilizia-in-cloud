@@ -91,11 +91,61 @@ Deno.serve(async (req) => {
       if (!notifErr) notificationsSent++;
     }
 
+    // ─── Alert saldo sotto soglia ─────────────────────────────────────────────
+    let balanceAlertsTriggered = 0;
+
+    // Leggi tutte le regole balance_below attive
+    const { data: alertRules } = await supabase
+      .from("bank_alert_rules")
+      .select("id, company_id, threshold")
+      .eq("rule_type", "balance_below")
+      .eq("is_active", true);
+
+    for (const rule of alertRules || []) {
+      if (!rule.threshold || rule.threshold <= 0) continue;
+
+      // Somma saldo disponibile per company
+      const { data: accounts } = await supabase
+        .from("bank_accounts")
+        .select("current_balance, iban")
+        .eq("company_id", rule.company_id)
+        .eq("is_active", true);
+
+      if (!accounts || accounts.length === 0) continue;
+
+      const totalBalance = accounts.reduce((sum: number, acc: any) => sum + (acc.current_balance || 0), 0);
+
+      if (totalBalance < rule.threshold) {
+        // Evita notifiche duplicate nelle ultime 24h
+        const { count } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", rule.company_id)
+          .eq("type", "bank_low_balance")
+          .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+        if ((count ?? 0) > 0) continue;
+
+        await supabase.from("notifications").insert({
+          company_id: rule.company_id,
+          type: "bank_low_balance",
+          title: "Saldo bancario sotto soglia",
+          message: `Il saldo totale dei conti bancari è €${totalBalance.toFixed(2)}, sotto la soglia configurata di €${rule.threshold.toFixed(2)}.`,
+          severity: "warning",
+          metadata: { balance: totalBalance, threshold: rule.threshold, rule_id: rule.id },
+          is_read: false,
+        });
+
+        balanceAlertsTriggered++;
+      }
+    }
+
     return jsonResponse({
       success: true,
       expiring_connections: (expiring || []).length,
       marked_expired: markedExpired,
       notifications_sent: notificationsSent,
+      balance_alerts_triggered: balanceAlertsTriggered,
     });
   } catch (e) {
     console.error("bank-check-expiry error:", e);

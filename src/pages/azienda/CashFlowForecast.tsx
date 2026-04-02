@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { Download, Printer, CalendarClock, BookOpen } from "lucide-react";
+import { Download, Printer, CalendarClock, BookOpen, Landmark, TrendingUp, TrendingDown } from "lucide-react";
 import { exportToCSV } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,13 @@ import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 
 export default function CashFlowForecast() {
   const navigate = useNavigate();
+
   const {
     isLoading,
     orders,
@@ -34,6 +37,49 @@ export default function CashFlowForecast() {
     scadenzeForForecast,
     primaNotaSaldo,
   } = useCashFlowData();
+
+  // Dati bancari reali: saldo attuale + entrate/uscite previste
+  const { data: bankingSummary } = useQuery({
+    queryKey: ["banking-summary-forecast", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const [accountsRes, unpaidInvoicesRes, openPurchaseOrdersRes] = await Promise.all([
+        supabase
+          .from("bank_accounts")
+          .select("current_balance")
+          .eq("company_id", companyId!)
+          .eq("is_active", true),
+        supabase
+          .from("invoices")
+          .select("total, paid_amount")
+          .eq("company_id", companyId!)
+          .not("status", "in", '("paid","cancelled","draft")'),
+        supabase
+          .from("purchase_orders")
+          .select("total_amount")
+          .eq("company_id", companyId!)
+          .not("status", "in", '("ricevuto","annullato")'),
+      ]);
+
+      const bankBalance = (accountsRes.data || []).reduce((s: number, a: any) => s + (a.current_balance || 0), 0);
+      const pendingIncome = (unpaidInvoicesRes.data || []).reduce(
+        (s: number, inv: any) => s + Math.max(0, (inv.total || 0) - (inv.paid_amount || 0)),
+        0
+      );
+      const pendingExpenses = (openPurchaseOrdersRes.data || []).reduce(
+        (s: number, po: any) => s + (po.total_amount || 0),
+        0
+      );
+
+      return {
+        bankBalance,
+        pendingIncome,
+        pendingExpenses,
+        forecast30: bankBalance + pendingIncome - pendingExpenses,
+      };
+    },
+    staleTime: 300_000,
+  });
 
   // Export CSV
   const exportCSV = () => {
@@ -144,6 +190,33 @@ export default function CashFlowForecast() {
           </Button>
         </div>
       </div>
+
+      {/* Saldo bancario reale */}
+      {bankingSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Saldo Banca", value: bankingSummary.bankBalance, icon: Landmark, color: "text-primary" },
+            { label: "Entrate Attese", value: bankingSummary.pendingIncome, icon: TrendingUp, color: "text-green-600" },
+            { label: "Uscite Attese", value: bankingSummary.pendingExpenses, icon: TrendingDown, color: "text-destructive" },
+            { label: "Forecast 30gg", value: bankingSummary.forecast30, icon: CalendarClock, color: bankingSummary.forecast30 >= 0 ? "text-primary" : "text-destructive" },
+          ].map((kpi) => {
+            const Icon = kpi.icon;
+            return (
+              <Card key={kpi.label}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Icon className={`h-5 w-5 flex-shrink-0 ${kpi.color}`} />
+                  <div>
+                    <p className={`text-lg font-bold leading-tight ${kpi.color}`}>
+                      €{kpi.value.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{kpi.label}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="incassato" className="w-full">
