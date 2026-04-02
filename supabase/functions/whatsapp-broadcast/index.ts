@@ -91,11 +91,12 @@ Deno.serve(async (req) => {
     const encKey = getEncryptionKey();
     const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
 
-    // Build contact query based on segment
+    // Build contact query based on segment — rispetta opt-out GDPR
     let query = adminClient
       .from("marketing_contacts")
       .select("id, phone, first_name, last_name, email")
       .eq("company_id", company_id)
+      .eq("optout_whatsapp", false)   // GDPR: escludi contatti in opt-out
       .not("phone", "is", null);
 
     const seg = segment || "tutti";
@@ -114,6 +115,14 @@ Deno.serve(async (req) => {
     // "tutti" and "pipeline" use all contacts with phone
 
     const { data: rawContacts, error: contactsErr } = await query.limit(10000);
+
+    // Log opt-out exclusions for audit
+    if (rawContacts && contact_ids?.length) {
+      const excluded = contact_ids.length - rawContacts.length;
+      if (excluded > 0) {
+        console.log(`[WhatsApp Broadcast] ${excluded} contatti esclusi per opt-out WhatsApp (GDPR)`);
+      }
+    }
 
     if (contactsErr) {
       return new Response(

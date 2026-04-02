@@ -130,6 +130,8 @@ export function WhatsAppTemplatesTab() {
         return <Badge variant="outline" className="gap-1 text-amber-600"><Clock className="h-3 w-3" /> In attesa</Badge>;
       case "REJECTED":
         return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Rifiutato</Badge>;
+      case "PAUSED":
+        return <Badge variant="secondary" className="gap-1 text-gray-600"><Clock className="h-3 w-3" /> Sospeso</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -285,6 +287,12 @@ export function WhatsAppTemplatesTab() {
                       <div className="flex items-center gap-1 mt-1 text-xs text-destructive">
                         <AlertCircle className="h-3 w-3" />
                         {tpl.rejected_reason}
+                      </div>
+                    )}
+                    {tpl.status === "PENDING" && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
+                        <Clock className="h-3 w-3" />
+                        In attesa di approvazione Meta (24-48h)
                       </div>
                     )}
                   </div>
