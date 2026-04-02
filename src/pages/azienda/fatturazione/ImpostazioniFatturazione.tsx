@@ -428,6 +428,27 @@ export default function ImpostazioniFatturazione() {
               )}
             </CardContent>
           </Card>
+
+          {/* DURC */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Regolarità Contributiva (DURC)</CardTitle>
+              <CardDescription>Il sistema notifica automaticamente 30 giorni prima della scadenza.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-w-xs">
+                <Label>Scadenza DURC</Label>
+                <Input
+                  type="date"
+                  value={current.durc_expiry_date ?? ""}
+                  onChange={(e) => updateField("durc_expiry_date", e.target.value || null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Inserisci la data di scadenza del DURC per ricevere alert automatici.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ═══════════════════════════════════════════════════════ */}

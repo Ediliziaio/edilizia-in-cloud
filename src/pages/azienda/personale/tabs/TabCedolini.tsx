@@ -255,8 +255,13 @@ export function TabCedolini() {
                   <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.ritenute_irpef)}</TableCell>
                   <TableCell className="text-right font-semibold text-primary">{formatCurrency(c.netto)}</TableCell>
                   <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
+                        {STATO_LABELS[c.stato] || c.stato}
+                      </span>
+                    </div>
                     <Select value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
-                      <SelectTrigger className="h-7 text-xs w-24 border-none p-1">
+                      <SelectTrigger className="h-6 text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

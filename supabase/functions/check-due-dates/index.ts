@@ -104,7 +104,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ message: "Done", processed: totalProcessed });
+    // ── DURC Scadenza Alert ───────────────────────────────────────────────────
+    let durcAlertsTriggered = 0;
+    const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+
+    const { data: scadenzeDurc } = await supabase
+      .from("anagrafica_azienda")
+      .select("company_id, ragione_sociale, durc_expiry_date")
+      .not("durc_expiry_date", "is", null)
+      .lte("durc_expiry_date", in30);
+
+    for (const az of scadenzeDurc || []) {
+      const daysLeft = Math.floor(
+        (new Date(az.durc_expiry_date).getTime() - Date.now()) / 86400000
+      );
+
+      // Evita notifiche duplicate nelle ultime 48h
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", az.company_id)
+        .eq("type", "durc_expiry")
+        .gte("created_at", new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
+
+      if ((count ?? 0) > 0) continue;
+
+      await supabase.from("notifications").insert({
+        company_id: az.company_id,
+        type: "durc_expiry",
+        title: daysLeft <= 0 ? "DURC SCADUTO" : `DURC in scadenza tra ${daysLeft} giorni`,
+        message: `Il DURC scade il ${az.durc_expiry_date}. Rinnovarlo prima di partecipare a gare o emettere fatture PA.`,
+        severity: daysLeft <= 0 ? "critical" : daysLeft <= 7 ? "high" : "warning",
+        metadata: { expiry_date: az.durc_expiry_date, days_left: daysLeft },
+        is_read: false,
+      });
+
+      durcAlertsTriggered++;
+    }
+
+    return jsonResponse({ message: "Done", processed: totalProcessed, durc_alerts: durcAlertsTriggered });
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("check-due-dates error:", err);

@@ -7,6 +7,49 @@ const MESI = [
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 
+/**
+ * Calcola contributi CCNL Edilizia Industria — Aliquote 2024
+ */
+function calcolaContributiCCNLEdilizia(lordo: number) {
+  // INPS
+  const INPS_DIP = 0.0919;    // 9.19% — quota IVS dipendente
+  const INPS_DAT = 0.2870;    // 28.70% — quota IVS datore
+  // INAIL (media settore edile)
+  const INAIL_DAT = 0.0380;   // 3.80%
+  // Cassa Edile
+  const CE_DIP = 0.0040;      // 0.40% Cassa Edile dipendente
+  const CE_DAT = 0.0165;      // 1.65% Cassa Edile datore
+  // Previdenza complementare Cometa
+  const COMETA_DAT = 0.0020;  // 0.20%
+
+  const contribDipendente = lordo * (INPS_DIP + CE_DIP);
+  const contribDatore = lordo * (INPS_DAT + INAIL_DAT + CE_DAT + COMETA_DAT);
+  const cassaEdileDip = lordo * CE_DIP;
+  const cassaEdileDat = lordo * CE_DAT;
+
+  // Calcolo IRPEF — scaglioni 2024 (annualizzato ÷ 12 × 12 = lordo annuo ≈ lordo mensile × 12)
+  const imponibile = lordo - contribDipendente;
+  const imponibileAnnuo = imponibile * 12;
+
+  let irpefAnnua = 0;
+  if (imponibileAnnuo <= 15000) irpefAnnua = imponibileAnnuo * 0.23;
+  else if (imponibileAnnuo <= 28000) irpefAnnua = 3450 + (imponibileAnnuo - 15000) * 0.25;
+  else if (imponibileAnnuo <= 50000) irpefAnnua = 6700 + (imponibileAnnuo - 28000) * 0.35;
+  else irpefAnnua = 14400 + (imponibileAnnuo - 50000) * 0.43;
+
+  // Detrazione lavoro dipendente (art. 13 TUIR 2024) su base annua
+  let detrazioneAnnua = 0;
+  if (imponibileAnnuo <= 15000) detrazioneAnnua = 1955;
+  else if (imponibileAnnuo <= 28000) detrazioneAnnua = 1910;
+  else if (imponibileAnnuo <= 50000) detrazioneAnnua = 1910 * ((50000 - imponibileAnnuo) / 22000);
+
+  const irpefNetta = Math.max(0, (irpefAnnua - detrazioneAnnua) / 12);
+  const netto = lordo - contribDipendente - irpefNetta;
+  const costoAzienda = lordo + contribDatore;
+
+  return { contribDipendente, contribDatore, cassaEdileDip, cassaEdileDat, irpefNetta, netto, costoAzienda };
+}
+
 function fmtEur(n: number | null | undefined): string {
   if (n === null || n === undefined) return "€ 0,00";
   return `€ ${n.toFixed(2).replace(".", ",")}`;
@@ -22,11 +65,15 @@ function buildHtml(cedolino: any, azienda: any): string {
     .join(", ");
 
   const lordo = cedolino.lordo ?? 0;
-  const contribDip = cedolino.contributi_dipendente ?? 0;
-  const contribDatore = cedolino.contributi_datore ?? 0;
-  const irpef = cedolino.ritenute_irpef ?? 0;
-  const netto = cedolino.netto ?? (lordo - contribDip - irpef);
+  // Usa CCNL Edilizia se i contributi non sono già calcolati nel DB
+  const ccnl = calcolaContributiCCNLEdilizia(lordo);
+  const contribDip = cedolino.contributi_dipendente ?? ccnl.contribDipendente;
+  const contribDatore = cedolino.contributi_datore ?? ccnl.contribDatore;
+  const irpef = cedolino.ritenute_irpef ?? ccnl.irpefNetta;
+  const netto = cedolino.netto ?? ccnl.netto;
   const costoAzienda = lordo + contribDatore;
+  const cassaEdileDip = ccnl.cassaEdileDip;
+  const cassaEdileDat = ccnl.cassaEdileDat;
 
   const statoLabel: Record<string, string> = { bozza: "Bozza", emesso: "Emesso", pagato: "Pagato" };
   const statoColor: Record<string, string> = { bozza: "#9ca3af", emesso: "#3b82f6", pagato: "#22c55e" };
@@ -130,8 +177,12 @@ function buildHtml(cedolino: any, azienda: any): string {
         <td class="right">${fmtEur(lordo)}</td>
       </tr>
       <tr>
-        <td class="negative">(-) Contributi previdenziali dipendente</td>
-        <td class="right negative">− ${fmtEur(contribDip)}</td>
+        <td class="negative">(-) Contributi INPS dipendente (9.19%)</td>
+        <td class="right negative">− ${fmtEur(contribDip - cassaEdileDip)}</td>
+      </tr>
+      <tr>
+        <td class="negative">(-) Cassa Edile dipendente (0.40%)</td>
+        <td class="right negative">− ${fmtEur(cassaEdileDip)}</td>
       </tr>
       <tr>
         <td class="negative">(-) Ritenute IRPEF</td>
@@ -158,8 +209,12 @@ function buildHtml(cedolino: any, azienda: any): string {
         <td class="right">${fmtEur(lordo)}</td>
       </tr>
       <tr>
-        <td>Contributi previdenziali a carico datore</td>
-        <td class="right">${fmtEur(contribDatore)}</td>
+        <td>Contributi INPS + INAIL datore (32.50%)</td>
+        <td class="right">${fmtEur(contribDatore - cassaEdileDat)}</td>
+      </tr>
+      <tr>
+        <td>Cassa Edile + Cometa datore (1.85%)</td>
+        <td class="right">${fmtEur(cassaEdileDat)}</td>
       </tr>
       <tr class="total-row">
         <td>= Costo totale azienda</td>
