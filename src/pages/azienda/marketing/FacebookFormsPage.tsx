@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -108,6 +108,35 @@ export default function FacebookFormsPage() {
     enabled: !!companyId && !!integration?.id,
   });
 
+  // Webhook health: last event + count in last 7 days
+  const { data: webhookHealth } = useQuery({
+    queryKey: [...queryKeys.metaForms.leadCounts(companyId), "health"],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const { data, count } = await supabase
+        .from("integration_webhook_events")
+        .select("id, received_at, status", { count: "exact" })
+        .eq("company_id", companyId)
+        .eq("provider", "meta")
+        .gte("received_at", sevenDaysAgo)
+        .order("received_at", { ascending: false })
+        .limit(1);
+      const lastEvent = data?.[0] || null;
+      const recentCount = count ?? 0;
+      // Health determination: >0 events in 7d = healthy; no events = unknown; last event >48h = warn
+      const hoursSinceLast = lastEvent
+        ? (Date.now() - new Date(lastEvent.received_at).getTime()) / 3600000
+        : null;
+      const health: "healthy" | "warn" | "unknown" =
+        !lastEvent ? "unknown" :
+        hoursSinceLast !== null && hoursSinceLast > 48 ? "warn" : "healthy";
+      return { lastEvent, recentCount, hoursSinceLast, health };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+  });
+
   const getPageName = (pageAssetId: string | null) => {
     if (!pageAssetId) return "—";
     const page = pages.find((p) => p.id === pageAssetId);
@@ -166,6 +195,59 @@ export default function FacebookFormsPage() {
           </p>
         </div>
       </div>
+
+      {/* Webhook health status */}
+      {webhookHealth && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Stato Webhook Meta</CardTitle>
+              {webhookHealth.health === "healthy" && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Attivo
+                </span>
+              )}
+              {webhookHealth.health === "warn" && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 font-medium">
+                  <Clock className="h-3.5 w-3.5" /> Nessun evento recente
+                </span>
+              )}
+              {webhookHealth.health === "unknown" && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                  <XCircle className="h-3.5 w-3.5" /> Nessun evento ricevuto
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex gap-6 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Ultimi 7 giorni</p>
+                <p className="font-semibold">{webhookHealth.recentCount} eventi</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Ultimo evento ricevuto</p>
+                <p className="font-semibold">
+                  {webhookHealth.lastEvent
+                    ? format(parseISO(webhookHealth.lastEvent.received_at), "dd/MM/yyyy HH:mm", { locale: it })
+                    : "—"}
+                </p>
+              </div>
+              {webhookHealth.health === "warn" && (
+                <div className="text-amber-600 text-xs self-center">
+                  Verifica che il webhook sia correttamente configurato in Meta Business Manager.
+                </div>
+              )}
+              {webhookHealth.health === "unknown" && (
+                <div className="text-muted-foreground text-xs self-center">
+                  Nessun lead ricevuto negli ultimi 7 giorni. Il webhook potrebbe non essere attivo.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* M10 — Meta App Review Banner */}
       {!reviewDismissed && (() => {

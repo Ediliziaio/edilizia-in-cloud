@@ -130,7 +130,7 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone" },
-      { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewOrders", isBeta: true },
+      { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewOrders" },
       { title: "Messaggi Esterni", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone" },
     ],
   },
