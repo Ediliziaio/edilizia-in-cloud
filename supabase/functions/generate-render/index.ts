@@ -1,125 +1,405 @@
 // generate-render — Edge Function EiC
 // Render Infissi AI — Multi-Provider (OpenAI / Gemini)
 // NO Lovable Gateway — API keys da platform_settings
-// Prompt Engine v6 — Infissi
+// Prompt Engine v6 completo (ported from Edile Genius)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ── MATERIAL_PHYSICS ─────────────────────────────────────────────────────────
+// ── MATERIAL_PHYSICS ──────────────────────────────────────────────────────────
 const MATERIAL_PHYSICS: Record<string, string> = {
-  pvc: "PVC profilo bianco/colorato, superfici opache con leggerissimo riflesso, giunti squadrati, aspetto pulito e moderno",
-  alluminio: "alluminio anodizzato o verniciato a polvere, superfici metalliche con riflessi freddi, profili sottili, look industriale/moderno",
-  legno: "legno naturale con venatura visibile, caldo e materico, bordi arrotondati, possibile verniciatura o oliatura",
-  "legno-alluminio": "combinazione legno interno e alluminio esterno, dualità termica-estetica, profilo esterno metallico e interno caldo",
-  acciaio: "acciaio inox o corten, superfici metalliche brillanti o ossidate, profili molto sottili, stile industriale minimalista",
+  pvc: "white or colored PVC (polyvinyl chloride) frame — smooth matte surface with very slight plastic texture under direct light, internal multi-chamber structure visible at frame cross-section edges, corners welded with subtle seam lines, uniform color throughout without natural grain, exterior surface shows shallow surface relief from extrusion process",
+  alluminio: "extruded aluminum frame — anodized or powder-coated exterior, sharp precise 90° or slightly beveled edges, clearly visible thermal break (dark polyamide strip, approximately 3-5mm wide) between inner and outer shells at frame cross-section, surface shows very subtle directional micro-texture from coating process, thin elegant profile (typically 50-65mm visible sight line width), consistent metallic finish",
+  legno: "solid wood frame — clearly visible natural wood grain running along the frame length, slightly rounded milled edges, paint or opaque stain finish showing faint grain texture beneath the coating, traditional mortise-and-tenon visible corner joint geometry (slight raised line at 45° miter), warm organic color variation, thicker profile (68-92mm sight line), possible hairline micro-cracks at painted corners",
+  legno_alluminio: "hybrid timber-aluminum composite frame — interior side shows solid wood with warm grain and stain finish, exterior side shows slim precision-extruded aluminum cladding with powder-coated finish, visible thin shadow line at the wood-aluminum transition edge, combines warmth of interior wood aesthetic with weather-resistant modern aluminum exterior",
+  acciaio_corten: "Corten weathering steel frame — unmistakable rust-orange patina with rough oxidized surface texture and natural color variation from dark rust-red to lighter orange-tan, ultra-thin sight line profiles (25-35mm visible width), industrial precise geometric form, characteristic streaking pattern typical of Cor-Ten oxidation",
+  acciaio_minimale: "ultra-minimal structural steel frame — extremely thin sight lines (15-25mm), deep matte black or dark anthracite powder-coated surface, machined precise geometric edges, nearly frameless appearance with maximum glass-to-frame ratio, industrial modern aesthetic, tiny cap screws or concealed fixings visible at mullion intersections",
 };
 
-// ── APERTURA_DESCRIPTION ─────────────────────────────────────────────────────
+// ── APERTURA_DESCRIPTION ──────────────────────────────────────────────────────
 const APERTURA_DESCRIPTION: Record<string, string> = {
-  battente: "anta che si apre ruotando su cerniere laterali, visibili cerniere sul lato, maniglia al centro",
-  "scorrevole-alzante": "anta che scorre lateralmente su binario, profilo orizzontale inferiore spesso, nessuna cerniera visibile",
-  vasistas: "anta che si apre verso l'esterno dal basso ruotando su cerniera superiore, apertura angolata visibile",
-  "a-libro": "due ante che si aprono come un libro verso l'esterno, cerniere centrali e laterali",
-  fisso: "finestra fissa non apribile, nessun hardware visibile tranne il profilo",
-  "coulisse-ante": "ante scorrevoli su binari multipli sovrapposti, aspetto impilato lateralmente",
-  tilt_turn: "anta oscillotraslante, visibili cerniere inferiori per ribaltamento e laterali per rotazione",
+  battente_1_anta: "single-leaf inward-opening casement window — ONE sash panel hinged on the LEFT or RIGHT side, operated by a single lever handle on the opposite stile, 2 hinges visible on the hinge side stile (top and bottom), center-of-glass gasket line visible",
+  battente_2_ante: "double-leaf inward-opening casement window — TWO equal sash panels meeting at center, each hinged on its outer side stile, 2 hinges per sash = 4 hinges total (2 visible on left stile, 2 on right stile), each sash has its own lever handle near the center meeting stile, center rebate/espagnolette bolt visible where panels meet",
+  battente_3_ante: "triple-leaf casement window — THREE panels, typically center panel fixed (no hinges, no handle) flanked by two opening sashes each with 2 hinges and a handle, visible central fixed mullion and two moving sash dividers",
+  scorrevole: "horizontal sliding window — two or more panels sliding on visible aluminum top rail and bottom track, each panel has a flush pull handle or recessed grip, no hinges visible, only sliding hardware guides at top corners",
+  scorrevole_alzante: "lift-and-slide large door/window — very large glass panels (typically 1.5-3m wide each), bottom track system with lifting hardware visible, heavy-duty multi-point lock handle on leading edge, no exposed hinges, minimal frame profile at panel edges",
+  vasistas: "top-hung tilt-in window — sash hinged at TOP rail only, opens by tilting inward from the bottom, handle located on bottom rail of sash, 2 friction hinges at top corners, scissor-arm stay mechanism visible on both side stiles when open",
+  anta_ribalta: "tilt-and-turn window — multi-function sash with BOTH tilt-in (vasistas) and side-swing (battente) capability, 2 hinges on hinge-side stile, distinctive multi-position lever handle (pointing DOWN=closed, HORIZONTAL=tilt, UP=turn), rebated all around",
+  bilico: "center-pivot window — sash rotates on central horizontal pivot axis, top half swings inward while bottom swings outward, visible pivot fittings at mid-height of both side stiles, no traditional hinges on frame edges",
+  fisso: "fixed non-opening light — no hinges, no handle, no gaps or shadow lines from sash rebate, glass beaded directly into fixed frame, single uninterrupted frame profile all around",
+  portafinestra: "full-height balcony/French door — floor-to-near-ceiling height (typically 210-240cm), low threshold (15-20mm) at floor level, same 2-hinges-per-leaf as standard window but larger scale, may have floor-mounted pivot pin, anti-panic handle or lever, often with fixed sidelight panels",
+  cassonetto_integrato: "window with integrated roller box — standard opening sash below, above the frame top rail a visible box housing containing the rolled-up shutter, box face-panel protrudes 60-200mm from wall plane, typically same color as frame",
 };
 
-// ── VETRO_DESCRIPTION ────────────────────────────────────────────────────────
-const VETRO_DESCRIPTION: Record<string, string> = {
-  trasparente: "vetro trasparente che riflette l'ambiente esterno, alta trasmissione luminosa",
-  basso_emissivo: "vetro con coating riflettente bluastro/verdastro, leggera iridescenza alla luce",
-  satinato: "vetro opacizzato, diffonde la luce senza permettere visione diretta",
-  specchiato: "vetro a specchio, riflette completamente l'ambiente circostante",
-  colorato: "vetro tinto (bronzo, grigio, azzurro), filtra la luce con tonalità",
-  "retinato-sicurezza": "vetro con reticolo metallico interno visibile, aspetto industriale",
+// ── CASSONETTO_MATERIAL_DESC ──────────────────────────────────────────────────
+const CASSONETTO_MATERIAL_DESC: Record<string, string> = {
+  pvc_tradizionale: "traditional PVC roller shutter housing (cassonetto PVC standard) — rectangular box profile protruding 160-200mm above window top rail, face panel approximately 200mm tall, smooth matte PVC surface with subtle panel seam line, bottom strip slightly recessed where shutter curtain exits, same extrusion quality as PVC window frame",
+  pvc_slim: "slim-profile PVC cassonetto — reduced-depth housing only 110-130mm visible height above frame, lower profile ratio for modern facades, smooth face panel with minimal protrusion (80-100mm from wall), contemporary proportions matching thin-profile frame systems",
+  pvc_integrato: "wall-integrated cassonetto (cassonetto a muro/incassato) — fully recessed into masonry, only the bottom inspection strip approximately 30-40mm visible below wall surface level, wall plaster or cladding runs continuously over the housing, virtually invisible from exterior — only a thin reveal line marks its position",
+  alluminio_coibentato: "insulated aluminum cassonetto — aluminum face panels with powder-coated finish matching or contrasting frame, visible side inspection cover flanges at 45° angles, polyurethane foam fill (not visible but implied by professional thermal appearance), face panel 170-210mm height, crisp machined edges and corners",
 };
 
-// ── COLORI_STANDARD ──────────────────────────────────────────────────────────
-const COLORI_STANDARD: Record<string, string> = {
-  bianco: "bianco puro RAL 9016, superficie omogenea",
-  "grigio-antracite": "grigio scuro RAL 7016, colore premium molto richiesto",
-  "grigio-chiaro": "grigio medio RAL 7035",
-  nero: "nero RAL 9005, aspetto deciso e moderno",
-  "bronzo-marrone": "bronzo/marrone RAL 8019, caldo e classico",
-  "legno-chiaro": "effetto legno chiaro tipo abete o rovere naturale",
-  "legno-scuro": "effetto legno scuro tipo noce o wengé",
-  ral_personalizzato: "colore RAL personalizzato secondo specifiche cliente",
+// ── TAPPARELLA_DESC ───────────────────────────────────────────────────────────
+const TAPPARELLA_DESC: Record<string, string> = {
+  pvc_avvolgibile: "PVC roll-up shutter curtain — horizontal extruded PVC slats 37-55mm wide, each slat with smooth rounded upper edge and male-female interlocking lower edge, uniform matte colored surface with very subtle extrusion line texture running horizontally, bottom end-rail heavier profile (40-60mm) with integrated rubber seal and lift lug, side guide channels (guide) visible as thin U-profile strips on left and right jamb faces, total curtain thickness approximately 8-12mm",
+  alluminio_avvolgibile: "aluminum roll-up shutter curtain — extruded aluminum foam-filled slats 37-55mm wide, slightly metallic surface sheen compared to PVC, slat walls approximately 1.2-1.5mm thick with visible interior foam at side edges when looked at obliquely, crisp precise slat-to-slat joints, heavier appearance than PVC equivalent, bottom bar with EPDM rubber weatherstrip, side guide channels in matching anodized or powder-coated aluminum",
+  microforata: "microperforated roll-up shutter — same slat profile as standard PVC/aluminum avvolgibile but with regular grid of circular perforations 3-4mm diameter at approximately 6-8mm centers, perforation pattern creates a screenprint-like texture visible across the curtain surface, light passes through holes creating dappled interior light, retains privacy from outside while allowing partial outward vision from inside",
+  persiana_alluminio: "aluminum louvered shutter (persiana avvolgibile) — horizontal extruded aluminum slats 60-80mm wide with traditional shutter profile (S-curve cross-section), visible twin pivot pins at each slat end inserted into side guide channels, slats appear at consistent angle (typically 30-45° open or closed), side channel guides are deeper (40-50mm) than standard roller guides, traditional Mediterranean aesthetic, bottom rail is a solid bar connecting all slat pivots",
+  veneziana_integrata: "integral blind between glazing (tendina veneziana integrata) — visible only as a series of very thin parallel horizontal lines 25mm apart suspended between the two glass panes inside the double-glazing unit, slat lines cast faint shadow on interior glass surface, operated by a small external thumb-wheel or magnetic control on frame edge, no external mechanism visible, glass still appears transparent with blind fully open, gives ultra-minimal modern look",
+  nessuna: "No shutter or blind — bare window frame only with no additional covering system",
 };
 
-// ── STILE_AMBIENTE ────────────────────────────────────────────────────────────
-const STILE_AMBIENTE: Record<string, string> = {
-  moderno: "architettura contemporanea, linee pulite e geometriche, facciata liscia o ventilata",
-  classico: "architettura tradizionale italiana, mattoni o intonaco rustico, finestre con archi",
-  industriale: "loft o edificio industriale riconvertito, cemento a vista, vetro e acciaio",
-  rurale: "casa di campagna, pietra locale, persiane in legno, giardino naturale",
-  minimalista: "architettura ridotta all'essenziale, grandi superfici, nessun ornamento",
-  mediterraneo: "intonaco colorato (bianco/giallo/ocra), terrazze, vegetazione mediterranea",
+// ── CERNIERA_DESC / CERNIERA_COLORE_DESC ─────────────────────────────────────
+const CERNIERA_DESC: Record<string, string> = {
+  europea: "Standard European butt hinge (cerniera europea) — two rectangular steel plates approximately 50×35mm each, 3 countersunk screws per plate, polished or coated to match hardware, central pin knuckle approximately 8mm diameter, hinge projects 3-4mm from frame face when closed",
+  a_libro: "Book-fold concealed hinge (cerniera a libro) — when door/window is closed hinge is partially recessed into frame rebate, only the outer knuckle visible as a thin strip approximately 6mm × 40mm, appears more elegant and flush than standard hinge",
+  invisibile: "Fully concealed pivot hinge (cerniera invisibile/nascosta) — completely hidden inside frame rebate when window is closed, no visible hardware on frame face, only a very faint rebate shadow line indicates hinge location, premium invisible appearance",
 };
 
-// ── buildPromptFromConfig ─────────────────────────────────────────────────────
-function buildPromptFromConfig(config: Record<string, unknown>): {
+const CERNIERA_COLORE_DESC: Record<string, string> = {
+  argento: "silver polished chrome finish",
+  nero_opaco: "matte black finish",
+  inox: "brushed stainless steel finish",
+  bronzo: "antique bronze finish",
+  oro: "polished gold/brass finish",
+  uguale_maniglia: "same finish as the window handle",
+};
+
+// ── CINGHIA_DESC ──────────────────────────────────────────────────────────────
+const CINGHIA_DESC: Record<string, string> = {
+  con_cinghia: "manual strap winder (avvolgitore a cinghia) — rectangular surface-mounted plastic box (120×160mm) on interior wall beside window, 15mm wide woven polyester strap exits through wall slot and wraps around internal spring-loaded drum, visible strap hanging in slight arc when at rest",
+  senza_cinghia: "motorized (no strap) — no visible strap or winder on interior or exterior; small flush switch plate (single rocker UP/DOWN/STOP) or RF remote receiver mounted near frame; motor housed inside roller tube within cassonetto, inaudible from exterior",
+  con_catenella: "bead chain operator (catenella) — small-diameter stainless-steel or plastic bead chain loop hanging 300-400mm beside window frame, connected to internal geared clutch mechanism at frame edge, used for venetian blinds or light roller screens",
+  con_manovella: "manual crank operator (manovella) — folding or fixed metal crank handle 100-150mm long projecting from frame edge or wall plate, connected via rigid rod through wall to worm-gear mechanism on roller tube, visible crank hardware at waist height beside window",
+};
+
+// ── STILE_TELAIO_DESC ─────────────────────────────────────────────────────────
+const STILE_TELAIO_DESC: Record<string, string> = {
+  nodo_ridotto: "reduced-node (nodo ridotto) profile — sash sits nearly flush with outer frame, minimal step between sash face and frame face (only 3-5mm reveal), maximizes glass area, contemporary flush-line aesthetic, gasket lines barely visible",
+  nodo_ridotto_maniglia_centrale: "reduced-node profile with CENTER-PLACED handle — same flush geometry as nodo ridotto, BUT the lever handle is positioned at exact vertical center of the sash height (not at standard 1/2-down or lock-stile position), creating a symmetrical visual balance point",
+  minimal_squadrato: "minimal squared profile — ultra-thin sight lines (35-45mm), sharp 90° edges with no rounding, Bauhaus-inspired geometric precision, maximum glass-to-frame ratio",
+  classico_arrotondato: "classic rounded profile — traditional residential proportions with softly rounded edges (radius 3-5mm), wider sight lines (55-70mm), familiar warm aesthetic",
+  europeo_classico: "classic European profile — standard 70-82mm system with gentle 2mm edge radius, balanced proportions suitable for renovation of traditional buildings",
+  arco_sagomato: "arched/shaped frame — non-rectangular frame following arch, gothic, or custom curved geometry at top rail, requires bent or segmented profile pieces, traditional architectural feature",
+};
+
+// ── MANIGLIE_V5 ───────────────────────────────────────────────────────────────
+const MANIGLIE_V5: Record<string, string> = {
+  toulon: "Toulon-style curved ergonomic lever handle — smooth S-curve body form, rounded grip terminus, 130-145mm total length, slim 22-25mm grip diameter, visible curved shank transition from backplate to lever body",
+  classica_dritta: "Classic straight lever handle — flat rectangular profile, 120-130mm lever length, 20-22mm grip thickness, square or slightly beveled edges, standard Italian residential window hardware",
+  vienna: "Vienna butterfly-wing (farfalla) lever handle — two symmetric curved wing-lobes flanking the center spindle rose, graceful organic silhouette, traditional Viennese architectural style, ornate period-appropriate appearance with visible casting detail",
+  q_moderna: "Q-model squared minimal lever handle — strict rectangular cross-section with sharp 90° corners, completely flat face with no rounding, 125-135mm lever length, Bauhaus/industrial minimalist style, clean architectural appearance",
+  con_rosetta: "Lever handle with decorative backplate (con rosetta) — circular or square backplate 50-60mm spanning the spindle area, lever body 120-130mm emerging from plate center, visible screw heads on plate corners or perimeter",
+  pomolo: "Round pomolo knob handle — spherical or cylindrical form 35-45mm diameter, compact low projection from frame face, smooth rounded surface with visible setscrew or cover cap",
+  alzante: "Lift-and-slide (alzante) operating handle — long ergonomic lever 200-280mm with curved palm grip, heavy die-cast body with visible mechanism pivot, projects 60-80mm from frame face, used on large sliding door panels",
+  nessuna: "Fixed light (no handle) — completely clean frame face with no handle hardware, no backplate, no visible spindle hole. The sash is non-opening.",
+};
+
+// ── HARDWARE_COLORS_V5 ────────────────────────────────────────────────────────
+const HARDWARE_COLORS_V5: Record<string, string> = {
+  cromo_lucido: "polished chrome — bright specular reflection",
+  inox_spazzolato: "brushed stainless steel — directional satin micro-lines",
+  nero_opaco: "matte black powder coat — no specular highlight",
+  nero_lucido: "gloss black — clear specular reflection",
+  bronzo_anticato: "antique bronze patina — warm irregular oxidized surface",
+  oro_pvd: "polished gold PVD coating — warm yellow specular reflection",
+  ottone_spazzolato: "brushed brass — warm gold directional micro-lines",
+  titanio: "titanium anodized — cool grey with subtle metallic depth",
+};
+
+// ── buildPromptFromConfig v6 ──────────────────────────────────────────────────
+// Accepts a session-like object with .config (v6 nested or legacy flat) and optional .foto_analisi
+function buildPromptFromConfig(session: any): {
   systemPrompt: string;
   userPrompt: string;
-  promptBlocks: Record<string, string>;
+  negativePrompt: string;
   promptVersion: string;
+  blocks: Record<string, string>;
 } {
-  const materiale = (config.materiale as string) || "pvc";
-  const apertura = (config.apertura as string) || "battente";
-  const colore = (config.colore as string) || "bianco";
-  const vetro = (config.vetro as string) || "trasparente";
-  const stileAmbiente = (config.stile_ambiente as string) || "moderno";
-  const larghezza = (config.larghezza as number) || 120;
-  const altezza = (config.altezza as number) || 150;
-  const numeroAnte = (config.numero_ante as number) || 2;
-  const noteLibere = (config.note_libere as string) || "";
-  const qualita = (config.qualita as string) || "alta";
+  // Fallback defaults for missing analysis fields
+  const analisi = {
+    tipo_apertura: "battente_2_ante",
+    materiale_attuale: "sconosciuto",
+    colore_attuale: "sconosciuto",
+    condizioni: "sconosciuto",
+    num_ante_attuale: 2,
+    spessore_telaio: "circa 70mm",
+    tipo_vetro_attuale: "non identificabile",
+    presenza_cassonetto: false,
+    tipo_cassonetto: "non presente",
+    presenza_tapparella: false,
+    stile_edificio: "classico",
+    materiale_muro: "intonaco",
+    colore_muro: "chiaro",
+    presenza_davanzale: false,
+    presenza_inferriata: false,
+    piano: "non identificabile",
+    luce: "luce naturale",
+    angolo_ripresa: "frontale",
+    ...(session.foto_analisi || {}),
+  };
+  const config = session.config || {};
+  const nuovoInfisso = config.nuovo_infisso || {};
+  const notes = config.notes || config.options?.notes || "";
 
-  const materialDesc = MATERIAL_PHYSICS[materiale] || materiale;
-  const aperturaDesc = APERTURA_DESCRIPTION[apertura] || apertura;
-  const vetroDesc = VETRO_DESCRIPTION[vetro] || vetro;
-  const coloreDesc = COLORI_STANDARD[colore] || colore;
-  const ambienteDesc = STILE_AMBIENTE[stileAmbiente] || stileAmbiente;
-  const qualitaDesc = qualita === "alta"
-    ? "rendering fotorealistico di altissima qualità, dettagli millimetrici"
-    : "rendering fotorealistico professionale";
+  const hasV2 = nuovoInfisso.sostituzione || (analisi.tipo_apertura && nuovoInfisso.materiale);
 
-  const systemPrompt = `Sei un motore di rendering architetturale specializzato in infissi e serramenti italiani.
-Il tuo compito è modificare la foto originale dell'edificio sostituendo gli infissi esistenti con quelli specificati.
-Mantieni INVARIATI: struttura dell'edificio, colori delle pareti, cielo, vegetazione, persone, veicoli, illuminazione.
-Sostituisci SOLO gli infissi (finestre, porte-finestre, portoncini) con quelli descritti.
-Qualità output: ${qualitaDesc}.`;
+  if (!hasV2) {
+    // Legacy v1 fallback (config flat: materiale, apertura, colore, vetro)
+    const mat = config.materiale || "pvc";
+    const col = config.colore || "bianco";
+    const vet = config.vetro || "trasparente";
+    const note = config.note_libere || "";
+    const windowDesc = `${mat} window, ${col} color, ${vet} glass${note ? ", " + note : ""}`;
+    const system = "You are an expert architectural visualization AI. Replace the existing windows/doors with new ones while maintaining photorealistic quality.";
+    const user = `Replace all visible windows in this photograph with: ${windowDesc}. Maintain exact same perspective, lighting, wall texture, and surroundings.`;
+    const negative = "cartoon, illustration, sketch, drawing, watermark, text overlay, blurry, distorted perspective, different building, changed wall color, unrealistic lighting";
+    return { systemPrompt: system, userPrompt: user, negativePrompt: negative, promptVersion: "1.0.0", blocks: { legacy: user } };
+  }
 
-  const userPrompt = `Sostituisci tutti gli infissi visibili in questa foto con i seguenti:
+  const sost = nuovoInfisso.sostituzione || { infissi: true, cassonetto: false, tapparella: false };
+  const colore = nuovoInfisso.colore || {};
+  const profilo = nuovoInfisso.profilo || {};
+  const vetro = nuovoInfisso.vetro || {};
+  const ferramenta = nuovoInfisso.ferramenta || {};
+  const cassonetto = nuovoInfisso.cassonetto || {};
+  const tapparella = nuovoInfisso.tapparella || {};
+  const cerniere = nuovoInfisso.cerniere || {};
+  const trasformazione = nuovoInfisso.trasformazione || {};
 
-MATERIALE: ${materiale} — ${materialDesc}
-TIPO APERTURA: ${apertura} — ${aperturaDesc}
-COLORE PROFILO: ${colore} — ${coloreDesc}
-VETRO: ${vetro} — ${vetroDesc}
-DIMENSIONI INDICATIVE: ${larghezza}cm × ${altezza}cm per anta
-NUMERO ANTE PER FINESTRA: ${numeroAnte}
-STILE EDIFICIO: ${stileAmbiente} — ${ambienteDesc}
-${noteLibere ? `\nNOTE AGGIUNTIVE: ${noteLibere}` : ""}
-
-Requisiti tecnici del render:
-- Proporzioni e posizioni degli infissi identiche all'originale
-- Riflessi realistici sul vetro coerenti con l'illuminazione della foto
-- Ombre e luci degli infissi coerenti con la fonte luminosa esistente
-- Profili ${materiale} con spessore proporzionato alla dimensione reale
-- Giunti e guarnizioni visibili dove appropriato
-- Qualità fotorealistica professionale adatta a preventivo commerciale`;
-
-  const promptBlocks = {
-    materiale: materialDesc,
-    apertura: aperturaDesc,
-    colore: coloreDesc,
-    vetro: vetroDesc,
-    ambiente: ambienteDesc,
-    dimensioni: `${larghezza}×${altezza}cm, ${numeroAnte} ante`,
-    note: noteLibere,
+  const finituraMap: Record<string, string> = {
+    liscio_opaco: "smooth matte finish", liscio_lucido: "smooth glossy finish",
+    venatura_legno: "wood-grain textured surface", spazzolato: "brushed metallic finish",
+    satinato: "satin finish", goffrato: "embossed/textured surface",
+  };
+  const profiloSize: Record<string, string> = {
+    "70mm": "70mm residential profile with 3 chambers",
+    "82mm": "82mm premium profile with 5 chambers",
+    "92mm": "92mm Passivhaus-grade profile with 7 chambers",
+  };
+  const profiloForma: Record<string, string> = {
+    squadrato: "squared/angular edges", arrotondato: "softly rounded edges", europeo: "classic European profile",
   };
 
-  return { systemPrompt, userPrompt, promptBlocks, promptVersion: "v6" };
+  const blocks: Record<string, string> = {};
+
+  // Block A
+  blocks.A = `[BLOCK A – ROLE & MISSION]\nYou are a SURGICAL PHOTOREALISTIC IMAGE EDITOR for architectural visualization. Your ONLY task: replace EXACTLY the specified building elements while leaving EVERYTHING ELSE 100% pixel-perfect identical. This is PRECISE SURGICAL REPLACEMENT, not artistic interpretation.\n\nCRITICAL RENDERING RULES:\n1. If the frame color is a SOLID RAL color: render perfectly uniform flat color with NO wood grain, NO natural texture variation, NO organic patterns. Only the specified finish texture (matte/glossy/satin) is allowed.\n2. If the frame color is a WOOD EFFECT laminate: render realistic wood grain pattern with natural color variation, visible grain direction running along the frame length, knot patterns, and subtle depth — as a high-quality laminate film applied over PVC or aluminum substrate.\n3. Never mix these two modes — a RAL color must never show grain, and a wood effect must always show grain.\n4. Handle hardware must match the exact style and finish specified — do not default to generic lever handles.\n5. Frame profile style (nodo ridotto, minimal, classic) must be accurately represented in sight-line width and edge geometry.\n6. If cinghia/motor mode is specified, render the appropriate operating mechanism.\n7. If a transformation is requested, accurately depict the new opening type while preserving the original wall opening dimensions.\n8. All shadows, reflections, and ambient occlusion must be physically correct for the new elements.\n9. CASSONETTO — if marked ✅ REPLACE in BLOCK C, the roller shutter box ABOVE the window MUST be rendered in the exact specified color/finish.\n10. TAPPARELLA — if marked ✅ REPLACE in BLOCK C, every slat of the roller shutter MUST be rendered in the exact specified color/finish.\n11. Output image dimensions must match input image dimensions exactly.`;
+
+  // Block B
+  blocks.B = `[BLOCK B – EXISTING ELEMENTS INVENTORY]\nWindow/door type: ${APERTURA_DESCRIPTION[analisi.tipo_apertura] || analisi.tipo_apertura}\nCurrent material: ${analisi.materiale_attuale}, Color: ${analisi.colore_attuale}, Condition: ${analisi.condizioni}\nPanels: ${analisi.num_ante_attuale}, Frame depth: ${analisi.spessore_telaio}\nGlass: ${analisi.tipo_vetro_attuale}\nRoller box: ${analisi.presenza_cassonetto ? "YES — " + analisi.tipo_cassonetto : "NOT PRESENT"}\nShutter: ${analisi.presenza_tapparella ? "YES" : "NOT PRESENT"}\nBuilding: ${analisi.stile_edificio}, Wall: ${analisi.materiale_muro} (${analisi.colore_muro})\nSill: ${analisi.presenza_davanzale ? "YES" : "NO"}, Bars: ${analisi.presenza_inferriata ? "YES" : "NO"}\nFloor: ${analisi.piano}, Light: ${analisi.luce}, Angle: ${analisi.angolo_ripresa}`;
+
+  // Block C
+  const cLines: string[] = ["[BLOCK C – REPLACEMENT MANIFEST]", "EXACTLY these elements must change — NOTHING else:"];
+  if (sost.infissi) {
+    let infissoColorDesc = colore.nome || "white";
+    if (nuovoInfisso.colore_mode === "legno" && nuovoInfisso.colore_wood_effect) {
+      infissoColorDesc = `${nuovoInfisso.colore_wood_effect.name || nuovoInfisso.colore_wood_effect.id} wood-effect laminate`;
+    } else if (colore.ral) {
+      infissoColorDesc = `${colore.nome} (RAL ${colore.ral})`;
+    }
+    cLines.push(`\n✅ REPLACE window/door frame → new finish: ${infissoColorDesc}`);
+  } else {
+    cLines.push(`\n🚫 KEEP window/door frame exactly as in original photo`);
+  }
+  if (sost.cassonetto) {
+    if (cassonetto.azione === "rimuovi") {
+      cLines.push(`\n✅ REMOVE cassonetto — fill with continuous wall surface`);
+    } else if (cassonetto.azione === "sostituisci" && cassonetto.materiale) {
+      const cassMode = nuovoInfisso.cass_colore_mode || cassonetto.colore_mode || "ral";
+      let cassColorDesc = "";
+      if (cassMode === "legno") {
+        const cwe = nuovoInfisso.cass_wood_effect || cassonetto.colore_wood_effect;
+        cassColorDesc = cwe ? `${cwe.name || cwe.id} wood-effect laminate` : "wood-effect laminate";
+      } else {
+        const cc = nuovoInfisso.cass_colore || cassonetto.colore;
+        cassColorDesc = cc ? `${cc.name || cc.nome || ""}${cc.ral ? ` (RAL ${cc.ral})` : ""}` : "specified color";
+      }
+      cLines.push(`\n✅ REPLACE cassonetto → new finish: ${cassColorDesc}`);
+    } else {
+      cLines.push(`\n🚫 KEEP cassonetto exactly as in original photo`);
+    }
+  } else {
+    cLines.push(`\n🚫 ${analisi.presenza_cassonetto ? "KEEP existing cassonetto exactly as-is" : "No cassonetto present — do not add one"}`);
+  }
+  if (sost.tapparella) {
+    if (tapparella.azione === "rimuovi") {
+      cLines.push(`\n✅ REMOVE tapparella completely`);
+    } else if (tapparella.azione === "sostituisci" && tapparella.materiale) {
+      const tapMode = nuovoInfisso.tap_colore_mode || tapparella.colore_mode || "ral";
+      let tapColorDesc = "";
+      if (tapMode === "legno") {
+        const twe = nuovoInfisso.tap_wood_effect || tapparella.colore_wood_effect;
+        tapColorDesc = twe ? `${twe.name || twe.id} wood-effect laminate` : "wood-effect laminate";
+      } else {
+        const tc = nuovoInfisso.tap_colore || tapparella.colore;
+        tapColorDesc = tc ? `${tc.name || tc.nome || ""}${tc.ral ? ` (RAL ${tc.ral})` : ""}` : "specified color";
+      }
+      cLines.push(`\n✅ REPLACE tapparella → new finish: ${tapColorDesc}`);
+    } else {
+      cLines.push(`\n🚫 KEEP tapparella exactly as in original photo`);
+    }
+  } else {
+    cLines.push(`\n🚫 ${analisi.presenza_tapparella ? "KEEP existing shutter exactly as-is" : "No shutter present — do not add one"}`);
+  }
+  cLines.push(`\n⚠️ CRITICAL: Every element marked 🚫 KEEP must be pixel-identical to the original.`);
+  cLines.push(`⚠️ CRITICAL: Every element marked ✅ REPLACE must be rendered with the EXACT specified finish.`);
+  blocks.C = cLines.join("\n");
+
+  // Block D
+  if (sost.infissi) {
+    const coloreMode = nuovoInfisso.colore_mode || "ral";
+    if (coloreMode === "legno" && nuovoInfisso.colore_wood_effect) {
+      const we = nuovoInfisso.colore_wood_effect;
+      blocks.D = `[BLOCK D – NEW FRAME MATERIAL & COLOR]\nMaterial: ${MATERIAL_PHYSICS[nuovoInfisso.materiale] || nuovoInfisso.materiale}\nColor mode: WOOD EFFECT LAMINATE\nWood effect: ${we.name || we.id} — ${we.prompt_fragment || "realistic wood grain laminate film"}\nFinish: ${finituraMap[colore.finitura] || colore.finitura || "wood-grain textured surface"}\n\nWOOD EFFECT RENDERING RULES:\n- Frame MUST show realistic wood grain pattern with natural color variation\n- Grain direction runs ALONG frame length\n- Surface is high-quality laminate film — do NOT render as flat solid color`;
+    } else {
+      let colorDesc = colore.nome || "";
+      if (colore.ral) colorDesc += ` (RAL ${colore.ral})`;
+      blocks.D = `[BLOCK D – NEW FRAME MATERIAL & COLOR]\nMaterial: ${MATERIAL_PHYSICS[nuovoInfisso.materiale] || nuovoInfisso.materiale}\nColor: ${colorDesc}\nFinish: ${finituraMap[colore.finitura] || colore.finitura || "smooth matte"}\n\nSOLID RAL COLOR RENDERING RULES:\n- Frame MUST be perfectly uniform in color with NO wood grain, NO natural texture variation\n- Only the specified surface finish texture is permitted\n- Do NOT add any grain or natural material patterns`;
+    }
+  } else {
+    blocks.D = `[BLOCK D – FRAME MATERIAL — SKIPPED]\nFrame replacement not requested.`;
+  }
+
+  // Block E
+  if (sost.infissi) {
+    const numAnte = nuovoInfisso.num_ante || analisi.num_ante_attuale || 1;
+    const cerPerAnta = cerniere.num_per_anta || 2;
+    const cerTotal = cerPerAnta * numAnte;
+    const cerTipo = CERNIERA_DESC[cerniere.tipo] || cerniere.tipo || "standard hinge";
+    const cerColore = CERNIERA_COLORE_DESC[cerniere.colore] || cerniere.colore || "silver";
+    let stileTelaioPart = "";
+    const stileTelaio = nuovoInfisso.stile_telaio;
+    if (stileTelaio && STILE_TELAIO_DESC[stileTelaio]) {
+      stileTelaioPart = `\nFrame style: ${STILE_TELAIO_DESC[stileTelaio]}`;
+      if (stileTelaio === "nodo_ridotto_maniglia_centrale") {
+        stileTelaioPart += `\nHANDLE PLACEMENT OVERRIDE: lever handle MUST be at exact vertical CENTER of sash height.`;
+      }
+    }
+    blocks.E = `[BLOCK E – FRAME PROFILE & HINGE GEOMETRY]\nProfile system: ${profiloSize[profilo.dimensione] || profilo.dimensione || "standard"}\nEdge shape: ${profiloForma[profilo.forma] || profilo.forma || "standard"}${stileTelaioPart}\nPanels: ${numAnte}\n\nHINGE DETAIL:\nTotal hinges: ${cerTotal} (${cerPerAnta} per sash × ${numAnte} sash${numAnte > 1 ? "es" : ""})\nHinge type: ${cerTipo}\nHinge finish: ${cerColore}\nHinge placement: top ~200mm from top rail, bottom ~200mm from bottom rail`;
+  } else {
+    blocks.E = `[BLOCK E – FRAME PROFILE — SKIPPED]\nFrame replacement not requested.`;
+  }
+
+  // Block F
+  if (sost.infissi) {
+    blocks.F = `[BLOCK F – GLASS UNIT]\n${vetro.prompt_fragment || vetro.tipo || "double glazed clear glass"}\nRequirements:\n- Thin greenish tint at glass edge\n- Specular highlight matching scene light direction\n- Interior appears dark/neutral\n- Spacer bar visible only at perimeter inside rebate`;
+  } else {
+    blocks.F = `[BLOCK F – GLASS — SKIPPED]`;
+  }
+
+  // Block G
+  if (sost.infissi) {
+    const manigliaStile = ferramenta.maniglia_stile;
+    const hwFinish = ferramenta.colore_hardware_finish;
+    if (manigliaStile && MANIGLIE_V5[manigliaStile]) {
+      const handleDesc = MANIGLIE_V5[manigliaStile];
+      const finishDesc = hwFinish || (ferramenta.colore_hardware_id && HARDWARE_COLORS_V5[ferramenta.colore_hardware_id]) || "silver chrome finish";
+      blocks.G = `[BLOCK G – HARDWARE DETAILS]\nHandle style: ${handleDesc}\nHandle finish: ${finishDesc}\nHandle position: centered on the meeting stile\nCRITICAL: Handle MUST be clearly visible on every opening sash in exactly the specified style and finish.`;
+    } else {
+      blocks.G = `[BLOCK G – HARDWARE DETAILS]\nHandle: lever handle\nColor: ${ferramenta.colore || "silver"}\nHandle position: centered on the meeting stile`;
+    }
+  } else {
+    blocks.G = `[BLOCK G – HARDWARE — SKIPPED]`;
+  }
+
+  // Block H
+  if (sost.cassonetto && cassonetto.azione === "rimuovi") {
+    blocks.H = `[BLOCK H – ROLLER BOX REMOVAL]\nRemove entire cassonetto. Show continuous wall surface matching surrounding facade. Wall fill must be seamless — no ghost outline, shadow gap or discoloration.`;
+  } else if (sost.cassonetto && cassonetto.azione === "sostituisci" && cassonetto.materiale) {
+    const cassMode = nuovoInfisso.cass_colore_mode || cassonetto.colore_mode || "ral";
+    const cassWood = nuovoInfisso.cass_wood_effect || cassonetto.colore_wood_effect;
+    const cassColorObj = nuovoInfisso.cass_colore || cassonetto.colore;
+    let cColor = "";
+    if (cassMode === "legno" && cassWood) {
+      cColor = `Target finish: ${cassWood.name || cassWood.id} wood-effect laminate — grain must be visible on cassonetto face`;
+    } else if (cassColorObj) {
+      const name = cassColorObj.name || cassColorObj.nome || "";
+      const ral = cassColorObj.ral || "";
+      cColor = `Target finish: ${name}${ral ? ` (RAL ${ral})` : ""} — smooth flat consistent tone, no grain`;
+    }
+    blocks.H = `[BLOCK H – NEW ROLLER BOX (CASSONETTO)]\nIMPORTANT: cassonetto MUST be replaced.\nReplace with: ${CASSONETTO_MATERIAL_DESC[cassonetto.materiale] || cassonetto.materiale}\n${cColor}\nKeep same dimensions. Cast appropriate shadow onto wall below.\nCRITICAL: Do NOT leave cassonetto in original color.`;
+  } else {
+    blocks.H = `[BLOCK H – ROLLER BOX]\n${analisi.presenza_cassonetto ? "Keep existing cassonetto exactly as-is." : "No cassonetto. Do not add one."}`;
+  }
+
+  // Block I
+  if (sost.tapparella && tapparella.azione === "rimuovi") {
+    blocks.I = `[BLOCK I – SHUTTER REMOVAL]\nRemove shutter completely. Show bare window frame, no guide channels, no bottom bar.`;
+  } else if (sost.tapparella && tapparella.azione === "sostituisci" && tapparella.materiale) {
+    const tapMode = nuovoInfisso.tap_colore_mode || tapparella.colore_mode || "ral";
+    const tapWood = nuovoInfisso.tap_wood_effect || tapparella.colore_wood_effect;
+    const tapColorObj = nuovoInfisso.tap_colore || tapparella.colore;
+    let iLines = `[BLOCK I – NEW SHUTTER/BLIND SYSTEM]\nInstall: ${TAPPARELLA_DESC[tapparella.materiale] || tapparella.materiale}`;
+    if (tapMode === "legno" && tapWood) {
+      iLines += `\nFinish: ${tapWood.name || tapWood.id} wood-effect — slats MUST show grain`;
+    } else if (tapColorObj) {
+      iLines += `\nFinish: ${tapColorObj.name || tapColorObj.nome || ""}${tapColorObj.ral ? ` (RAL ${tapColorObj.ral})` : ""} — solid uniform color`;
+    }
+    const cinghia = tapparella.cinghia;
+    if (cinghia && CINGHIA_DESC[cinghia]) {
+      iLines += `\n\nOPERATING MECHANISM:\n${CINGHIA_DESC[cinghia]}`;
+    }
+    blocks.I = iLines;
+  } else {
+    blocks.I = `[BLOCK I – SHUTTER]\n${analisi.presenza_tapparella ? "Keep existing shutter exactly as-is." : "No shutter. Do not add one."}`;
+  }
+
+  // Block J
+  blocks.J = `[BLOCK J – PIXEL-PERFECT ENVIRONMENT PRESERVATION]\nThe following MUST remain 100% unchanged:\n- Wall: color (${analisi.colore_muro}), material (${analisi.materiale_muro}), texture, aging, stains\n- Window sill: ${analisi.presenza_davanzale ? "KEEP" : "NOT PRESENT — do not add"}\n- Security bars: ${analisi.presenza_inferriata ? "KEEP all bars" : "NOT PRESENT — do not add"}\n- Camera perspective: exact (${analisi.angolo_ripresa})\n- Surroundings: every pipe, cable, drain, crack, plant, neighboring window\n- Sky/background: identical\n- Lighting: same direction (${analisi.luce})`;
+
+  // Block K
+  blocks.K = `[BLOCK K – PHOTOREALISTIC LIGHTING & SHADOWS]\nLighting: ${analisi.luce}\nRequired shadows:\n- Frame shadow into wall rebate (~15-25mm depth)\n- Hinge shadow from each knuckle\n- Handle shadow on frame face\n- ${analisi.presenza_cassonetto ? "Cassonetto shadow onto wall below" : "No cassonetto shadow"}\n- Glass reflection matching scene light direction\n- Ambient occlusion in wall-to-frame rebate transition`;
+
+  // Block L
+  blocks.L = `[BLOCK L – ABSOLUTE NEGATIVE CONSTRAINTS]\nNEVER:\n- Change wall color, texture, or any facade element not requested\n- Alter camera perspective\n- Add elements absent in original (plants, people, extra windows)\n- Change sky/weather\n- Produce cartoon/CGI artifacts\n- Add text/watermarks\n- Distort window proportions\n- Add hinges to fixed lights\n- Add shutters/cassonetto if not requested AND none existed\n- Show wood grain on solid RAL color\n- Show flat color on wood-effect laminate\n- Change image dimensions`;
+
+  // Block M — Transformation
+  if (trasformazione?.attiva && trasformazione.da && trasformazione.a) {
+    const daDesc = APERTURA_DESCRIPTION[trasformazione.da] || trasformazione.da;
+    const aDesc = APERTURA_DESCRIPTION[trasformazione.a] || trasformazione.a;
+    blocks.M = `[BLOCK M – OPENING TYPE TRANSFORMATION]\nTransform from: ${daDesc}\nTransform to: ${aDesc}\n\nRULES:\n- Wall opening dimensions MUST remain identical\n- Only frame, sash configuration, and hardware change\n- Preserve exact wall opening position, lintel, and sill`;
+  }
+
+  // Block N — Final Checklist
+  const items: string[] = [];
+  if (sost.infissi) {
+    const colorLabel = nuovoInfisso.colore_mode === "legno"
+      ? (nuovoInfisso.colore_wood_effect?.name || "wood-effect laminate")
+      : (colore.nome || "specified RAL color");
+    items.push(`☐ FRAME → REPLACE with ${nuovoInfisso.materiale || "PVC"} in ${colorLabel}`);
+  } else {
+    items.push(`☐ FRAME → KEEP identical to original`);
+  }
+  if (sost.cassonetto && cassonetto.azione === "sostituisci") {
+    items.push(`☐ CASSONETTO → REPLACE — verify NOT original color`);
+  } else if (sost.cassonetto && cassonetto.azione === "rimuovi") {
+    items.push(`☐ CASSONETTO → REMOVE — show clean wall`);
+  } else {
+    items.push(`☐ CASSONETTO → ${analisi.presenza_cassonetto ? "KEEP as-is" : "NOT PRESENT"}`);
+  }
+  if (sost.tapparella && tapparella.azione === "sostituisci") {
+    items.push(`☐ TAPPARELLA → REPLACE`);
+  } else if (sost.tapparella && tapparella.azione === "rimuovi") {
+    items.push(`☐ TAPPARELLA → REMOVE`);
+  } else {
+    items.push(`☐ TAPPARELLA → ${analisi.presenza_tapparella ? "KEEP as-is" : "NOT PRESENT"}`);
+  }
+  if (sost.infissi && ferramenta.maniglia_stile) {
+    items.push(`☐ HANDLE → ${ferramenta.maniglia_stile} in ${ferramenta.colore_hardware_finish || "chrome"} — visible on each sash`);
+  }
+  items.push(`☐ WALL, SILL, SURROUNDINGS → KEEP 100% identical`);
+  items.push(`☐ IMAGE DIMENSIONS → output MUST match original exactly`);
+  blocks.N = `[BLOCK N – FINAL PRESERVATION CHECKLIST]\nVerify EVERY item before outputting. Regenerate if any item is wrong.\n\n${items.join("\n")}`;
+
+  const systemPrompt = blocks.A;
+  const userParts = [blocks.B, blocks.C, blocks.D, blocks.E, blocks.F, blocks.G, blocks.H, blocks.I, blocks.J, blocks.K, blocks.L];
+  if (blocks.M) userParts.push(blocks.M);
+  userParts.push(blocks.N);
+  if (notes) userParts.push(`[ADDITIONAL NOTES]\n${notes}`);
+  const userPrompt = userParts.join("\n\n");
+  const negativePrompt = "cartoon, illustration, sketch, drawing, watermark, text overlay, blurry, distorted perspective, different building, changed wall color, unrealistic lighting, 3D render, CGI artifacts, missing hinges, wrong handle style, wood grain on RAL solid color, flat color on wood-effect laminate, cassonetto unchanged when replacement was requested, wrong image dimensions";
+
+  return { systemPrompt, userPrompt, negativePrompt, promptVersion: "6.0.0", blocks };
 }
 
 // ── fetchWithTimeout ──────────────────────────────────────────────────────────
@@ -198,7 +478,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verifica che la sessione appartenga all'utente (tramite company)
+    // Verifica che la sessione appartenga all'utente
     const { data: profile } = await supabase
       .from("profiles")
       .select("company_id")
@@ -212,7 +492,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Controlla crediti ───────────────────────────────────────────────────
+    // ── Controlla e deduce crediti ──────────────────────────────────────────
     const creditResult = await supabase.rpc("deduct_render_credit", {
       _company_id: session.company_id,
     });
@@ -230,23 +510,27 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString() })
       .eq("id", session_id);
 
-    // ── Genera signed URL per la foto originale ─────────────────────────────
+    // ── Genera signed URL per foto originale ────────────────────────────────
     const originalPath = session.original_photo_url as string;
     let imageUrl = originalPath;
 
     if (originalPath && !originalPath.startsWith("http")) {
       const { data: signed } = await supabase.storage
         .from("render-originals")
-        .createSignedUrl(originalPath, 600); // 10 min
+        .createSignedUrl(originalPath, 600);
       if (signed?.signedUrl) imageUrl = signed.signedUrl;
     }
 
-    // ── Build prompt ────────────────────────────────────────────────────────
-    const renderConfig = config || (session.config as Record<string, unknown>) || {};
-    const { systemPrompt, userPrompt, promptBlocks, promptVersion } =
-      buildPromptFromConfig(renderConfig);
+    // ── Build prompt v6 ─────────────────────────────────────────────────────
+    // If config override in body, merge into session for prompt building
+    const sessionForPrompt = config
+      ? { ...session, config: config }
+      : session;
 
-    // ── Legge provider config e API key da platform_settings ────────────────
+    const { systemPrompt, userPrompt, negativePrompt, promptVersion, blocks } =
+      buildPromptFromConfig(sessionForPrompt);
+
+    // ── Legge provider config e API key ─────────────────────────────────────
     const { data: providerConfig } = await supabase
       .from("render_provider_config")
       .select("*")
@@ -273,11 +557,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Chiama il provider AI corretto ──────────────────────────────────────
+    // ── Chiama il provider AI ───────────────────────────────────────────────
     let imageData: string | null = null;
 
     if (providerConfig.provider_key === "openai") {
-      // OpenAI: gpt-image-1 con image editing (multipart/form-data)
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       const imgBlob = await imgResp.blob();
 
@@ -309,7 +592,6 @@ Deno.serve(async (req) => {
       if (b64) imageData = `data:image/png;base64,${b64}`;
 
     } else if (providerConfig.provider_key === "gemini") {
-      // Google Gemini: gemini-2.0-flash-preview-image-generation
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       const imgBuffer = await imgResp.arrayBuffer();
       const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
@@ -354,8 +636,7 @@ Deno.serve(async (req) => {
 
     } else {
       throw new Error(
-        `Provider '${providerConfig.provider_key}' non supporta image generation. ` +
-        `Selezionare OpenAI o Gemini.`
+        `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`
       );
     }
 
@@ -388,6 +669,8 @@ Deno.serve(async (req) => {
     // ── Aggiorna render_sessions: completed ─────────────────────────────────
     const costReal = providerConfig.cost_real_per_render ?? 0.04;
     const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
+    const activeConfig = sessionForPrompt.config as Record<string, unknown>;
+    const ni = (activeConfig?.nuovo_infisso as Record<string, unknown>) || {};
 
     await supabase
       .from("render_sessions")
@@ -395,24 +678,26 @@ Deno.serve(async (req) => {
         status: "completed",
         result_urls: [resultUrl],
         prompt_used: userPrompt,
-        prompt_blocks: promptBlocks,
+        prompt_blocks: blocks,
         prompt_version: promptVersion,
-        prompt_char_count: userPrompt.length,
+        prompt_char_count: (systemPrompt + userPrompt).length,
         provider_key: providerConfig.provider_key,
         cost_real: costReal,
         cost_billed: costBilled,
-        config_snapshot: renderConfig,
+        config_snapshot: activeConfig,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
 
-    // ── Incrementa contatore render provider ────────────────────────────────
+    // ── Incrementa contatore provider ───────────────────────────────────────
     await supabase
       .from("render_provider_config")
       .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
       .eq("id", providerConfig.id);
 
     // ── Inserisce in render_gallery ─────────────────────────────────────────
+    const tagMat = (ni.materiale as string) || (activeConfig?.materiale as string) || null;
+    const tagCol = ((ni.colore as Record<string, string>)?.nome) || (activeConfig?.colore as string) || null;
     await supabase.from("render_gallery").insert({
       company_id: session.company_id,
       session_id,
@@ -420,7 +705,7 @@ Deno.serve(async (req) => {
       title: `Render ${new Date().toLocaleDateString("it-IT")}`,
       original_url: session.original_photo_url,
       render_url: resultUrl,
-      tags: [renderConfig.materiale as string, renderConfig.colore as string].filter(Boolean),
+      tags: [tagMat, tagCol].filter(Boolean),
     });
 
     return new Response(
@@ -431,6 +716,7 @@ Deno.serve(async (req) => {
         provider: providerConfig.provider_key,
         cost_billed: costBilled,
         prompt_version: promptVersion,
+        prompt_char_count: (systemPrompt + userPrompt).length,
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
     );
@@ -439,7 +725,6 @@ Deno.serve(async (req) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[generate-render] error:", msg);
 
-    // Aggiorna sessione come failed se session_id disponibile
     try {
       const body2 = await req.clone().json().catch(() => ({}));
       const sid = (body2 as { session_id?: string }).session_id;
