@@ -10,7 +10,7 @@ import { logger } from "@/utils/logger";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle } from "lucide-react";
+import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle, Image, RefreshCw, Save } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { AiAgentPricingConfig } from "../components/AiAgentPricingConfig";
 import { toast } from "sonner";
@@ -213,6 +213,96 @@ export default function PlatformSettingsPage() {
   const previewMarkup = parseFloat(globalMarkup) || 2;
   const previewBilled = previewReal * previewMarkup;
   const previewMarginPct = calculateMarginPercent(previewBilled, previewReal);
+
+  // ── Render AI state ─────────────────────────────────────────────
+  const [renderDefaultProvider, setRenderDefaultProvider] = useState("openai");
+  const [renderOpenaiKey, setRenderOpenaiKey] = useState("");
+  const [renderGeminiKey, setRenderGeminiKey] = useState("");
+  const [renderShowOpenaiKey, setRenderShowOpenaiKey] = useState(false);
+  const [renderShowGeminiKey, setRenderShowGeminiKey] = useState(false);
+  const [renderSaving, setRenderSaving] = useState(false);
+
+  const { data: renderSettings } = useQuery({
+    queryKey: ["platform-settings-render"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings" as never)
+        .select("key, value")
+        .in("key" as never, [
+          "render_default_provider",
+          "render_openai_api_key",
+          "render_gemini_api_key",
+        ] as never);
+      return (data as unknown as { key: string; value: string }[]) ?? [];
+    },
+  });
+
+  useEffect(() => {
+    if (renderSettings) {
+      const provVal = renderSettings.find(s => s.key === "render_default_provider")?.value;
+      const oaiVal = renderSettings.find(s => s.key === "render_openai_api_key")?.value;
+      const gemVal = renderSettings.find(s => s.key === "render_gemini_api_key")?.value;
+      if (provVal) setRenderDefaultProvider(provVal);
+      if (oaiVal) setRenderOpenaiKey(oaiVal);
+      if (gemVal) setRenderGeminiKey(gemVal);
+    }
+  }, [renderSettings]);
+
+  const { data: renderProviders = [] } = useQuery({
+    queryKey: ["render-provider-config"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("render_provider_config" as never)
+        .select("*")
+        .order("is_default" as never, { ascending: false });
+      return (data as unknown as {
+        id: string;
+        provider_key: string;
+        label: string;
+        model: string;
+        is_default: boolean;
+        is_active: boolean;
+        cost_real_per_render: number;
+        markup_multiplier: number;
+        renders_generated: number;
+      }[]) ?? [];
+    },
+  });
+
+  const handleSaveRenderSettings = async () => {
+    setRenderSaving(true);
+    try {
+      const upserts = [
+        { key: "render_default_provider", value: renderDefaultProvider },
+        { key: "render_openai_api_key", value: renderOpenaiKey },
+        { key: "render_gemini_api_key", value: renderGeminiKey },
+      ];
+
+      for (const row of upserts) {
+        await supabase
+          .from("platform_settings" as never)
+          .upsert({ key: row.key, value: row.value } as never, { onConflict: "key" as never });
+      }
+
+      // Aggiorna is_default in render_provider_config
+      await supabase
+        .from("render_provider_config" as never)
+        .update({ is_default: false } as never);
+      await supabase
+        .from("render_provider_config" as never)
+        .update({ is_default: true } as never)
+        .eq("provider_key" as never, renderDefaultProvider as never);
+
+      toast.success("Impostazioni Render AI salvate");
+      queryClient.invalidateQueries({ queryKey: ["render-provider-config"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-render"] });
+    } catch (err) {
+      toast.error("Errore nel salvataggio");
+      logger.error("Render settings save error", err);
+    } finally {
+      setRenderSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -511,6 +601,140 @@ export default function PlatformSettingsPage() {
 
       {/* AI Agent Pricing (new ai_agent_pricing table) */}
       <AiAgentPricingConfig />
+
+      {/* ── Render AI ──────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-5 w-5 text-primary" />
+            Render AI — Infissi
+          </CardTitle>
+          <CardDescription>
+            Configura il provider AI per la generazione render fotorealistico infissi.
+            Le API key vengono lette dalla Edge Function a runtime.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Provider default */}
+          <div className="space-y-2">
+            <Label>Provider default</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+              value={renderDefaultProvider}
+              onChange={(e) => setRenderDefaultProvider(e.target.value)}
+            >
+              <option value="openai">OpenAI GPT-Image-1 (raccomandato)</option>
+              <option value="gemini">Google Gemini Flash</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Solo OpenAI e Gemini supportano image generation. Anthropic è solo per analisi.
+            </p>
+          </div>
+
+          {/* OpenAI API Key */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Shield className="h-4 w-4" /> OpenAI API Key
+              {renderOpenaiKey && <CheckCircle2 className="h-4 w-4 text-primary" />}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type={renderShowOpenaiKey ? "text" : "password"}
+                value={renderOpenaiKey}
+                onChange={(e) => setRenderOpenaiKey(e.target.value)}
+                placeholder="sk-proj-..."
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setRenderShowOpenaiKey(v => !v)}
+              >
+                {renderShowOpenaiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Richiede accesso a gpt-image-1. Genera su platform.openai.com/api-keys
+            </p>
+          </div>
+
+          {/* Gemini API Key */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Shield className="h-4 w-4" /> Google Gemini API Key
+              {renderGeminiKey && <CheckCircle2 className="h-4 w-4 text-primary" />}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type={renderShowGeminiKey ? "text" : "password"}
+                value={renderGeminiKey}
+                onChange={(e) => setRenderGeminiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setRenderShowGeminiKey(v => !v)}
+              >
+                {renderShowGeminiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Genera su aistudio.google.com/apikey
+            </p>
+          </div>
+
+          {/* Tabella statistiche provider */}
+          {renderProviders.length > 0 && (
+            <div className="space-y-2">
+              <Label>Statistiche provider</Label>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Modello</TableHead>
+                      <TableHead>Default</TableHead>
+                      <TableHead>Attivo</TableHead>
+                      <TableHead>Costo reale</TableHead>
+                      <TableHead>Markup</TableHead>
+                      <TableHead>Render totali</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {renderProviders.map((rp) => (
+                      <TableRow key={rp.id}>
+                        <TableCell className="font-medium">{rp.label}</TableCell>
+                        <TableCell className="font-mono text-xs">{rp.model}</TableCell>
+                        <TableCell>
+                          {rp.is_default
+                            ? <Badge>Default</Badge>
+                            : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {rp.is_active
+                            ? <CheckCircle2 className="h-4 w-4 text-primary" />
+                            : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                        </TableCell>
+                        <TableCell>€{rp.cost_real_per_render}</TableCell>
+                        <TableCell>{rp.markup_multiplier}×</TableCell>
+                        <TableCell>{rp.renders_generated}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={handleSaveRenderSettings} disabled={renderSaving}>
+            {renderSaving
+              ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</>
+              : <><Save className="h-4 w-4 mr-2" />Salva impostazioni Render</>}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

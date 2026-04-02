@@ -43,6 +43,7 @@ import {
   ShieldAlert,
   NotebookPen,
   Rocket,
+  Image,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -161,6 +162,7 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewSettings" },
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
+      { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewMarketingAiAgent" },
     ],
   },
 ];

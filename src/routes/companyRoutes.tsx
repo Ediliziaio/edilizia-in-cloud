@@ -62,6 +62,10 @@ const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
+const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
+const RenderNew = lazy(() => import("@/pages/azienda/RenderNew"));
+const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
+const RenderGalleryDetail = lazy(() => import("@/pages/azienda/RenderGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
@@ -218,6 +222,12 @@ export function companyRoutes() {
         {/* Unified Agenti AI page (2 tabs: custom, platform) */}
         <Route path="agenti-ai" element={<AgentiAIPage />} />
         <Route path="agenti-ai/:agentId" element={<AgentDetailPage />} />
+
+        {/* Render AI Routes */}
+        <Route path="render" element={<RenderHub />} />
+        <Route path="render/new" element={<RenderNew />} />
+        <Route path="render/gallery" element={<RenderGallery />} />
+        <Route path="render/gallery/:id" element={<RenderGalleryDetail />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />
