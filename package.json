@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:critical": "vitest run src/test/logic/fatturazione.test.ts src/test/logic/preventivi.test.ts src/test/logic/banking.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
