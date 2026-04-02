@@ -59,10 +59,20 @@ export default function RenderGalleryDetail() {
       data?.status === "processing" ? 5_000 : false,
   });
 
-  // Build original public URL
-  const originalUrl = session?.original_photo_url
-    ? supabase.storage.from("render-originals").getPublicUrl(session.original_photo_url).data.publicUrl
-    : null;
+  // Build signed URL for private render-originals bucket
+  const { data: originalUrl = null } = useQuery({
+    queryKey: ["render-original-signed", session?.original_photo_url],
+    queryFn: async () => {
+      if (!session?.original_photo_url) return null;
+      const { data, error } = await supabase.storage
+        .from("render-originals")
+        .createSignedUrl(session.original_photo_url, 3600);
+      if (error) return null;
+      return data.signedUrl;
+    },
+    enabled: !!session?.original_photo_url,
+    staleTime: 50 * 60 * 1000, // 50 min (URL valido 60 min)
+  });
 
   const resultUrl = session?.result_urls?.[0] ?? null;
 

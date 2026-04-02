@@ -182,7 +182,7 @@ export default function BankAccountsList({ companyId }: Props) {
                     onClick={() => {
                       setShownIbans((prev) => {
                         const next = new Set(prev);
-                        next.has(account.id) ? next.delete(account.id) : next.add(account.id);
+                        if (next.has(account.id)) next.delete(account.id); else next.add(account.id);
                         return next;
                       });
                     }}

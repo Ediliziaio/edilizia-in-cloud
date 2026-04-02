@@ -650,12 +650,12 @@ function CalendarInner() {
                 showWeather={showWeather}
                 onToggleEmployee={(id) => {
                   const next = new Set(effectiveVisibleEmployees);
-                  next.has(id) ? next.delete(id) : next.add(id);
+                  if (next.has(id)) next.delete(id); else next.add(id);
                   setVisibleEmployeeIds(next);
                 }}
                 onToggleTeam={(id) => {
                   const next = new Set(effectiveVisibleTeams);
-                  next.has(id) ? next.delete(id) : next.add(id);
+                  if (next.has(id)) next.delete(id); else next.add(id);
                   setVisibleTeamIds(next);
                 }}
                 onToggleAllEmployees={(v) => {
@@ -868,12 +868,12 @@ function CalendarInner() {
             showWeather={showWeather}
             onToggleEmployee={(id) => {
               const next = new Set(effectiveVisibleEmployees);
-              next.has(id) ? next.delete(id) : next.add(id);
+              if (next.has(id)) next.delete(id); else next.add(id);
               setVisibleEmployeeIds(next);
             }}
             onToggleTeam={(id) => {
               const next = new Set(effectiveVisibleTeams);
-              next.has(id) ? next.delete(id) : next.add(id);
+              if (next.has(id)) next.delete(id); else next.add(id);
               setVisibleTeamIds(next);
             }}
             onToggleAllEmployees={(v) => {

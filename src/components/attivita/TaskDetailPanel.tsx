@@ -339,7 +339,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 <Avatar className="w-6 h-6">
                   <AvatarFallback className="text-[10px]">
                     {(task.assigned_profile
-                      ? task.assigned_profile.first_name?.[0]
+                      ? (task.assigned_profile.first_name?.[0] ?? "?")
                       : "?"
                     ).toUpperCase()}
                   </AvatarFallback>

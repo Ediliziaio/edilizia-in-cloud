@@ -113,19 +113,13 @@ export default function RenderHub() {
                 <Card
                   key={session.id}
                   className="cursor-pointer hover:border-primary/40 transition-colors"
-                  onClick={() => resultUrl && navigate(`/azienda/render/gallery/${session.id}`)}
+                  onClick={() => navigate(`/azienda/render/gallery/${session.id}`)}
                 >
                   <CardContent className="p-4 flex items-center gap-4">
-                    {/* Thumbnail */}
+                    {/* Thumbnail — render-results is public; render-originals is private (no direct URL) */}
                     <div className="w-20 h-14 rounded-md overflow-hidden bg-muted shrink-0">
                       {resultUrl ? (
                         <img src={resultUrl} alt="render" className="w-full h-full object-cover" />
-                      ) : session.original_photo_url ? (
-                        <img
-                          src={session.original_photo_url}
-                          alt="originale"
-                          className="w-full h-full object-cover opacity-50"
-                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Image className="h-6 w-6 text-muted-foreground/40" />
