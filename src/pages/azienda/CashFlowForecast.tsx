@@ -13,6 +13,8 @@ import { MarginTab } from "@/components/forecast/MarginTab";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
+import { CashFlowProjectionChart } from "@/components/forecast/CashFlowProjectionChart";
 
 
 export default function CashFlowForecast() {
@@ -37,6 +39,9 @@ export default function CashFlowForecast() {
     scadenzeForForecast,
     primaNotaSaldo,
   } = useCashFlowData();
+
+  // Proiezione 90 giorni con dati reali banking + fatture
+  const { data: realData } = useCashFlowRealData(companyId);
 
   // Dati bancari reali: saldo attuale + entrate/uscite previste
   const { data: bankingSummary } = useQuery({
@@ -216,6 +221,15 @@ export default function CashFlowForecast() {
             );
           })}
         </div>
+      )}
+
+      {/* Proiezione 90 giorni */}
+      {realData && (
+        <CashFlowProjectionChart
+          projection={realData.projection}
+          currentBalance={realData.currentBalance}
+          hasBanking={realData.hasBanking}
+        />
       )}
 
       {/* Tabs */}
