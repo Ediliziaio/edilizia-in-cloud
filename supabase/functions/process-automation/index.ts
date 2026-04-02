@@ -287,7 +287,24 @@ async function processQueue(supabase: any) {
             .update({ status: "pending", attempts, execute_at: retryAt, last_error: result.error, updated_at: now })
             .eq("id", item.id);
         } else {
+          // Permanent failure — write to dead letter queue before marking failed
           await markQueueItem(supabase, item.id, "failed", result.error);
+          await supabase.from("automation_dead_letter").insert({
+            flow_id: item.flow_id,
+            company_id: item.company_id,
+            enrollment_id: item.enrollment_id,
+            node_id: item.current_node_id,
+            node_type: node?.node_type || "unknown",
+            entity_id: item.entity_id,
+            entity_type: item.entity_type,
+            context_json: item.context_json || {},
+            error_message: result.error || "Unknown error after max retries",
+            attempts,
+            first_failed_at: item.created_at || now,
+            last_failed_at: now,
+          }).then(() => {}).catch((dlErr: any) => {
+            console.error("Dead letter insert failed:", dlErr?.message);
+          });
         }
         continue;
       }
@@ -314,6 +331,23 @@ async function processQueue(supabase: any) {
       console.error(`Queue item ${item.id} error:`, err);
       await markQueueItem(supabase, item.id, "failed", err.message);
       await completeExecutionRun(supabase, item.enrollment_id, "error", err.message);
+      // Write uncaught exception to dead letter queue
+      await supabase.from("automation_dead_letter").insert({
+        flow_id: item.flow_id,
+        company_id: item.company_id,
+        enrollment_id: item.enrollment_id,
+        node_id: item.current_node_id,
+        node_type: "unknown",
+        entity_id: item.entity_id,
+        entity_type: item.entity_type,
+        context_json: item.context_json || {},
+        error_message: `Uncaught exception: ${err.message}`,
+        attempts: item.attempts + 1,
+        first_failed_at: item.created_at || now,
+        last_failed_at: now,
+      }).then(() => {}).catch((dlErr: any) => {
+        console.error("Dead letter insert (catch) failed:", dlErr?.message);
+      });
     }
   }
 
@@ -339,7 +373,7 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
       return executeSplit(cfg);
 
     case "action":
-      return await executeAction(supabase, cfg, entityId, companyId);
+      return await executeActionSafe(supabase, cfg, entityId, companyId);
 
     case "goal":
       return { success: true, output: { reached: true } };
@@ -407,6 +441,17 @@ function executeSplit(cfg: Record<string, any>) {
   const branch = rand < splitA ? "a" : "b";
 
   return { success: true, output: { branch, random: rand, split_a: splitA }, branch };
+}
+
+// ── Action (safe wrapper with error boundary) ──
+async function executeActionSafe(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  try {
+    return await executeAction(supabase, cfg, entityId, companyId);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    console.error(`[executeActionSafe] unhandled error for action_type=${cfg.action_type}:`, msg);
+    return { success: false, error: `Unhandled exception in action "${cfg.action_type}": ${msg}` };
+  }
 }
 
 // ── Action ──
