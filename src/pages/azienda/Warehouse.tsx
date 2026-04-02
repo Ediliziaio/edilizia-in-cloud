@@ -28,6 +28,7 @@ import {
   ScanLine,
   Package,
   Plus,
+  ArrowLeft,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -352,7 +353,7 @@ export default function Warehouse() {
               activeSectionFilter="all"
               onFilterSection={() => {}}
               showTitle={false}
-              droppable={isOrderItemView}
+              droppable={showDroppableMap}
             />
           )}
         </div>
