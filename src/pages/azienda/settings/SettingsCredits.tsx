@@ -18,13 +18,13 @@ import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2 } from "lucide-react";
+import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2, Image } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 
 interface WalletData {
-  type: "email" | "ai" | "whatsapp";
+  type: "email" | "ai" | "whatsapp" | "render";
   label: string;
   icon: React.ReactNode;
   balance: number;
@@ -43,6 +43,12 @@ interface CreditLogEntry {
   campaign_id: string | null;
   created_at: string;
 }
+
+const RENDER_PACKAGES = [
+  { price: 9,  qty: 10,  label: "Render Starter",       badge: null },
+  { price: 39, qty: 50,  label: "Render Professional",  badge: "Più richiesto" },
+  { price: 69, qty: 100, label: "Render Business",      badge: "Miglior Valore" },
+];
 
 const PACKAGES = [
   { amount: 10, label: "€10", emails: "~" },
@@ -112,6 +118,21 @@ export default function SettingsCredits() {
         .maybeSingle();
       if (error) throw error;
       return data as { balance_eur: number; total_spent_eur: number; total_recharged_eur: number; sends_blocked: boolean } | null;
+    },
+    enabled: !!companyId,
+  });
+
+  // Fetch render credits
+  const { data: renderCredits } = useQuery({
+    queryKey: ["render-credits", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("render_credits" as never)
+        .select("balance, total_used, total_purchased")
+        .eq("company_id" as never, companyId as never)
+        .maybeSingle();
+      return data as { balance: number; total_used: number; total_purchased: number } | null;
     },
     enabled: !!companyId,
   });
@@ -264,9 +285,18 @@ export default function SettingsCredits() {
       recharged: waCredits?.total_recharged_eur ?? 0,
       blocked: waCredits?.sends_blocked ?? false,
     },
+    {
+      type: "render",
+      label: "Render AI",
+      icon: <Image className="h-5 w-5" />,
+      balance: renderCredits?.balance ?? 0,
+      spent: renderCredits?.total_used ?? 0,
+      recharged: renderCredits?.total_purchased ?? 0,
+      blocked: false,
+    },
   ];
 
-  const totalBalance = wallets.reduce((s, w) => s + w.balance, 0);
+  const totalBalance = wallets.filter(w => w.type !== "render").reduce((s, w) => s + w.balance, 0);
   const hasBlocked = wallets.some((w) => w.blocked);
   const emailsPerEur = pricePerEmail ? Math.floor(1 / pricePerEmail) : 0;
 
@@ -291,6 +321,7 @@ export default function SettingsCredits() {
           <TabsTrigger value="ricarica">Ricarica Email</TabsTrigger>
           <TabsTrigger value="ricarica-ai">Ricarica AI</TabsTrigger>
           <TabsTrigger value="ricarica-wa">Ricarica WhatsApp</TabsTrigger>
+          <TabsTrigger value="ricarica-render">Ricarica Render</TabsTrigger>
           <TabsTrigger value="storico">Storico Email</TabsTrigger>
           <TabsTrigger value="storico-wa">Storico WhatsApp</TabsTrigger>
         </TabsList>
@@ -323,16 +354,16 @@ export default function SettingsCredits() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className={`text-3xl font-extrabold ${w.blocked ? "text-destructive" : "text-foreground"}`}>
-                    {formatEur(w.balance)}
+                    {w.type === "render" ? `${w.balance} render` : formatEur(w.balance)}
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <ArrowDownRight className="h-3 w-3 text-destructive" />
-                      Speso: {formatEur(w.spent)}
+                      Speso: {w.type === "render" ? `${w.spent} render` : formatEur(w.spent)}
                     </div>
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-                      Ricaricato: {formatEur(w.recharged)}
+                      Ricaricato: {w.type === "render" ? `${w.recharged} render` : formatEur(w.recharged)}
                     </div>
                   </div>
                   {w.recharged > 0 && (
@@ -574,6 +605,63 @@ export default function SettingsCredits() {
                         ) : (
                           "Acquista"
                         )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ricarica-render" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Image className="h-4 w-4" /> Acquista Crediti Render AI
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-sm text-muted-foreground">
+                  Saldo attuale:{" "}
+                  <span className="font-bold text-foreground">
+                    {renderCredits?.balance ?? 0} render
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mb-6">
+                Ogni render consuma 1 credito. I crediti non scadono.
+                Scegli il pacchetto più adatto alle tue esigenze.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {RENDER_PACKAGES.map((pkg) => (
+                  <Card
+                    key={pkg.qty}
+                    className={`text-center hover:border-primary transition-colors relative ${pkg.badge ? "border-primary" : ""}`}
+                  >
+                    {pkg.badge && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <Badge className="text-[10px] px-2">{pkg.badge}</Badge>
+                      </div>
+                    )}
+                    <CardContent className="pt-8 pb-6 space-y-3">
+                      <p className="text-sm font-medium text-muted-foreground">{pkg.label}</p>
+                      <p className="text-4xl font-extrabold text-primary">€{pkg.price}</p>
+                      <p className="text-lg font-semibold">{pkg.qty} render</p>
+                      <p className="text-xs text-muted-foreground">
+                        €{(pkg.price / pkg.qty).toFixed(2)} / render
+                      </p>
+                      <Button
+                        className="w-full"
+                        size="sm"
+                        onClick={() =>
+                          toast.info(
+                            "Acquisto render disponibile a breve. Contatta il supporto."
+                          )
+                        }
+                      >
+                        Acquista
                       </Button>
                     </CardContent>
                   </Card>
