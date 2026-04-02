@@ -249,6 +249,14 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
       if (dbError) throw dbError;
 
+      // Diary log
+      void supabase.from("order_events" as never).insert({
+        order_id: orderId,
+        event_type: "allegato_caricato",
+        payload: { file_name: file.name, file_type: file.type },
+        actor_id: user!.id,
+      } as never);
+
       queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
       toast({
         title: "Documento caricato",

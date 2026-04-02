@@ -59,6 +59,12 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       toast.success("Richiesta di firma creata");
       qc.invalidateQueries({ queryKey: ["signature-requests", orderId] });
       setDialogOpen(false);
+      // Diary log
+      void supabase.from("order_events" as never).insert({
+        order_id: orderId,
+        event_type: "contratto_firmato",
+        payload: { signer_email: email, signer_name: name },
+      } as never);
     },
     onError: (e: any) => toast.error(e.message || "Errore nella creazione"),
   });

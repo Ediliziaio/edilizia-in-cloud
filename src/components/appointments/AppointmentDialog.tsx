@@ -273,6 +273,19 @@ export function AppointmentDialog({
         const { data: inserted, error } = await supabase.from("appointments").insert(payload as any).select("id").single();
         if (error) throw error;
         toast({ title: "Appuntamento creato" });
+        // Diary log (fire-and-forget, solo se collegato a un ordine)
+        if (payload.order_id) {
+          void supabase.from("order_events" as never).insert({
+            order_id: payload.order_id,
+            event_type: "appuntamento_creato",
+            payload: {
+              title: payload.title,
+              date: payload.appointment_date,
+              time: payload.appointment_time,
+              type: payload.appointment_type,
+            },
+          } as never);
+        }
         // Fire-and-forget Google sync
         if (isGoogleConnected && inserted?.id) {
           gcalPush(inserted.id).catch(() => {});
