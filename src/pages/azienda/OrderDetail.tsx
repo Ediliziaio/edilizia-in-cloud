@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { ArrowLeft, User, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, Receipt, MoreVertical } from "lucide-react";
+import { ArrowLeft, User, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, Receipt, MoreVertical, BookOpen } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
@@ -46,6 +46,7 @@ import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCasc
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { OrderDiaryTab } from "@/components/orders/OrderDiaryTab";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -733,12 +734,13 @@ function OrderDetailInner() {
       {/* ── MOBILE: tab layout ───────────────────────────────── */}
       <div className="sm:hidden">
         <Tabs defaultValue="stato">
-          <TabsList className="w-full grid grid-cols-6 h-auto">
+          <TabsList className="w-full grid grid-cols-7 h-auto">
             <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
             <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
             <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
             <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
             <TabsTrigger value="giornale" className="text-xs py-2">Giornale</TabsTrigger>
+            <TabsTrigger value="diario" className="text-xs py-2 text-primary font-medium">Diario</TabsTrigger>
             <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
           </TabsList>
 
@@ -891,7 +893,19 @@ function OrderDetailInner() {
             <GiornaleTabContent orderId={id!} companyId={companyId!} />
           </TabsContent>
 
-          {/* Tab 5: Altro */}
+          {/* Tab 6: Diario */}
+          <TabsContent value="diario" className="space-y-4 mt-4">
+            {order.customer && (
+              <OrderDiaryTab
+                orderId={id!}
+                customerName={`${order.customer.first_name} ${order.customer.last_name}`}
+                customerEmail={order.customer.email}
+                customerPhone={order.customer.phone || undefined}
+              />
+            )}
+          </TabsContent>
+
+          {/* Tab 7: Altro */}
           <TabsContent value="altro" className="space-y-4 mt-4">
             <Card>
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -1092,6 +1106,26 @@ function OrderDetailInner() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.internal_notes || "Nessuna nota interna"}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Diario Privato dell'Ordine */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Diario dell'Ordine
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {order.customer && (
+                  <OrderDiaryTab
+                    orderId={id!}
+                    customerName={`${order.customer.first_name} ${order.customer.last_name}`}
+                    customerEmail={order.customer.email}
+                    customerPhone={order.customer.phone || undefined}
+                  />
                 )}
               </CardContent>
             </Card>
