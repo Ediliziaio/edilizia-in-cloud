@@ -756,7 +756,6 @@ function OrderDetailInner() {
                 displayItems={displayItems}
                 orderItems={orderItems}
                 companyId={effectiveCompany?.id || ""}
-                description={order.description}
                 onItemsChange={(newItems) => {
                   const newItem = newItems.find((ni) => !ni.id);
                   if (newItem) addItemMutation.mutate(newItem);
@@ -898,7 +897,6 @@ function OrderDetailInner() {
               displayItems={displayItems}
               orderItems={orderItems}
               companyId={effectiveCompany?.id || ""}
-              description={order.description}
               onItemsChange={(newItems) => {
                 const newItem = newItems.find((ni) => !ni.id);
                 if (newItem) addItemMutation.mutate(newItem);

@@ -10,7 +10,6 @@ interface OrdineArticoliProps {
   displayItems: OrderItem[];
   orderItems: OrderItemData[];
   companyId: string;
-  description?: string;
   onItemsChange: (newItems: OrderItem[]) => void;
   onItemUpdate: (item: OrderItem) => void;
   onAttachmentsRefresh: () => void;
