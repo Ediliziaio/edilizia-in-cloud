@@ -11,16 +11,12 @@ import {
   TrendingDown,
   CalendarDays,
   Filter,
+  RotateCcw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -30,8 +26,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import {
@@ -80,15 +85,82 @@ type OrderError = {
   orders: { order_code: string | null; description: string };
 };
 
+interface FilterState {
+  category: string;
+  type: string;
+  dateFrom: Date | undefined;
+  dateTo: Date | undefined;
+}
+
+const EMPTY_FILTERS: FilterState = {
+  category: "all",
+  type: "all",
+  dateFrom: undefined,
+  dateTo: undefined,
+};
+
+function countActiveFilters(f: FilterState): number {
+  let n = 0;
+  if (f.category !== "all") n++;
+  if (f.type !== "all") n++;
+  if (f.dateFrom) n++;
+  if (f.dateTo) n++;
+  return n;
+}
+
+function FilterSection({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full py-2.5 px-1 text-sm font-medium hover:bg-muted/50 rounded transition-colors">
+        <span>{title}</span>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-1 pb-3 space-y-2">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function GlobalErrors() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterType, setFilterType] = useState("all");
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
+  // ── Filtri ────────────────────────────────────────────────
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [localFilters, setLocalFilters] = useState<FilterState>(EMPTY_FILTERS);
 
+  const activeFilterCount = countActiveFilters(filters);
+
+  const handleOpenFilters = () => {
+    setLocalFilters(filters);
+    setFiltersOpen(true);
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(localFilters);
+    setFiltersOpen(false);
+  };
+
+  const handleResetFilters = () => {
+    setLocalFilters(EMPTY_FILTERS);
+    setFilters(EMPTY_FILTERS);
+    setFiltersOpen(false);
+  };
+
+  // ── Data ─────────────────────────────────────────────────
   const { data: errors = [], isLoading } = useQuery({
     queryKey: ["global-errors", companyId],
     queryFn: async () => {
@@ -106,22 +178,26 @@ export default function GlobalErrors() {
 
   const filtered = useMemo(() => {
     return errors.filter((e) => {
-      if (filterCategory !== "all" && e.error_category !== filterCategory) return false;
-      if (filterType !== "all" && e.error_type !== filterType) return false;
-      if (dateFrom || dateTo) {
+      if (filters.category !== "all" && e.error_category !== filters.category) return false;
+      if (filters.type !== "all" && e.error_type !== filters.type) return false;
+      if (filters.dateFrom || filters.dateTo) {
         const d = parseISO(e.error_date);
-        if (dateFrom && d < dateFrom) return false;
-        if (dateTo && d > dateTo) return false;
+        if (filters.dateFrom && d < filters.dateFrom) return false;
+        if (filters.dateTo && d > filters.dateTo) return false;
       }
       return true;
     });
-  }, [errors, filterCategory, filterType, dateFrom, dateTo]);
+  }, [errors, filters]);
 
-  // Stats
+  // ── Stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
     const totalLoss = filtered.reduce((s, e) => s + Number(e.amount), 0);
-    const merceTotal = filtered.filter((e) => e.error_type === "merce").reduce((s, e) => s + Number(e.amount), 0);
-    const manodoperaTotal = filtered.filter((e) => e.error_type === "manodopera").reduce((s, e) => s + Number(e.amount), 0);
+    const merceTotal = filtered
+      .filter((e) => e.error_type === "merce")
+      .reduce((s, e) => s + Number(e.amount), 0);
+    const manodoperaTotal = filtered
+      .filter((e) => e.error_type === "manodopera")
+      .reduce((s, e) => s + Number(e.amount), 0);
 
     const catCount: Record<string, number> = {};
     filtered.forEach((e) => {
@@ -131,12 +207,14 @@ export default function GlobalErrors() {
 
     const now = new Date();
     const monthStart = startOfMonth(now);
-    const thisMonth = errors.filter((e) => parseISO(e.error_date) >= monthStart).reduce((s, e) => s + Number(e.amount), 0);
+    const thisMonth = errors
+      .filter((e) => parseISO(e.error_date) >= monthStart)
+      .reduce((s, e) => s + Number(e.amount), 0);
 
     return { totalLoss, merceTotal, manodoperaTotal, topCategory, thisMonth };
   }, [filtered, errors]);
 
-  // Chart: losses by category
+  // ── Chart: by category ───────────────────────────────────
   const categoryChart = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach((e) => {
@@ -147,7 +225,7 @@ export default function GlobalErrors() {
       .sort((a, b) => b.amount - a.amount);
   }, [filtered]);
 
-  // Chart: monthly trend (last 6 months, from ALL errors not filtered)
+  // ── Chart: monthly trend ─────────────────────────────────
   const monthlyChart = useMemo(() => {
     const now = new Date();
     const months: { label: string; start: Date; end: Date }[] = [];
@@ -163,26 +241,51 @@ export default function GlobalErrors() {
       });
       return {
         month: m.label,
-        merce: inMonth.filter((e) => e.error_type === "merce").reduce((s, e) => s + Number(e.amount), 0),
-        manodopera: inMonth.filter((e) => e.error_type === "manodopera").reduce((s, e) => s + Number(e.amount), 0),
+        merce: inMonth
+          .filter((e) => e.error_type === "merce")
+          .reduce((s, e) => s + Number(e.amount), 0),
+        manodopera: inMonth
+          .filter((e) => e.error_type === "manodopera")
+          .reduce((s, e) => s + Number(e.amount), 0),
       };
     });
   }, [errors]);
 
-  
-
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Caricamento errori...</div>;
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Caricamento errori...
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Errori Globali</h1>
-        <p className="text-muted-foreground">Panoramica di tutti gli errori registrati sugli ordini</p>
+      {/* ── Header con bottone Filtri ─────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Errori Globali</h1>
+          <p className="text-muted-foreground">
+            Panoramica di tutti gli errori registrati sugli ordini
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs shrink-0 relative"
+          onClick={handleOpenFilters}
+        >
+          <Filter className="mr-1.5 h-3.5 w-3.5" />
+          Filtri
+          {activeFilterCount > 0 && (
+            <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
       </div>
 
-      {/* Stat Cards */}
+      {/* ── Stat Cards ───────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -190,7 +293,9 @@ export default function GlobalErrors() {
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{formatCurrency(stats.totalLoss)}</div>
+            <div className="text-2xl font-bold text-destructive">
+              {formatCurrency(stats.totalLoss)}
+            </div>
             <p className="text-xs text-muted-foreground">{filtered.length} errori totali</p>
           </CardContent>
         </Card>
@@ -221,14 +326,18 @@ export default function GlobalErrors() {
             <div className="text-2xl font-bold">{formatCurrency(stats.thisMonth)}</div>
             {stats.topCategory && (
               <p className="text-xs text-muted-foreground">
-                Categoria più frequente: <strong>{CATEGORY_LABELS[stats.topCategory[0]] || stats.topCategory[0]}</strong> ({stats.topCategory[1]})
+                Categoria più frequente:{" "}
+                <strong>
+                  {CATEGORY_LABELS[stats.topCategory[0]] || stats.topCategory[0]}
+                </strong>{" "}
+                ({stats.topCategory[1]})
               </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* ── Charts ────────────────────────────────────────── */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -246,7 +355,10 @@ export default function GlobalErrors() {
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>
                     {categoryChart.map((entry) => (
-                      <Cell key={entry.key} fill={CATEGORY_COLORS[entry.key] || "hsl(var(--primary))"} />
+                      <Cell
+                        key={entry.key}
+                        fill={CATEGORY_COLORS[entry.key] || "hsl(var(--primary))"}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
@@ -266,72 +378,42 @@ export default function GlobalErrors() {
                 <YAxis tickFormatter={formatCurrencyCompact} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Legend />
-                <Bar dataKey="merce" name="Merce" stackId="a" fill="hsl(var(--destructive))" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="manodopera" name="Manodopera" stackId="a" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="merce"
+                  name="Merce"
+                  stackId="a"
+                  fill="hsl(var(--destructive))"
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="manodopera"
+                  name="Manodopera"
+                  stackId="a"
+                  fill="hsl(var(--primary))"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* ── Tabella errori ────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="h-4 w-4" /> Tutti gli errori
-            </CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  {Object.entries(TYPE_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("gap-1", dateFrom && "text-foreground")}>
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {dateFrom ? format(dateFrom, "dd/MM/yy") : "Da"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("gap-1", dateTo && "text-foreground")}>
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {dateTo ? format(dateTo, "dd/MM/yy") : "A"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dateTo} onSelect={setDateTo} className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-              {(filterCategory !== "all" || filterType !== "all" || dateFrom || dateTo) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFilterCategory("all"); setFilterType("all"); setDateFrom(undefined); setDateTo(undefined); }}>
-                  Reset
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Tutti gli errori</CardTitle>
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground h-7"
+                onClick={handleResetFilters}
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Rimuovi filtri
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -350,27 +432,43 @@ export default function GlobalErrors() {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground py-8"
+                    >
                       Nessun errore trovato
                     </TableCell>
                   </TableRow>
                 ) : (
                   filtered.map((e) => (
                     <TableRow key={e.id}>
-                      <TableCell className="whitespace-nowrap">{format(parseISO(e.error_date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {format(parseISO(e.error_date), "dd/MM/yyyy")}
+                      </TableCell>
                       <TableCell>
-                        <Link to={`/azienda/ordini/${e.order_id}`} className="text-primary hover:underline font-medium">
+                        <Link
+                          to={`/azienda/ordini/${e.order_id}`}
+                          className="text-primary hover:underline font-medium"
+                        >
                           {e.orders.order_code || e.orders.description?.slice(0, 30)}
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={e.error_type === "merce" ? "destructive" : "default"}>
+                        <Badge
+                          variant={e.error_type === "merce" ? "destructive" : "default"}
+                        >
                           {TYPE_LABELS[e.error_type] || e.error_type}
                         </Badge>
                       </TableCell>
-                      <TableCell>{CATEGORY_LABELS[e.error_category] || e.error_category}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(Number(e.amount))}</TableCell>
-                      <TableCell className="max-w-[250px] truncate">{e.description}</TableCell>
+                      <TableCell>
+                        {CATEGORY_LABELS[e.error_category] || e.error_category}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(Number(e.amount))}
+                      </TableCell>
+                      <TableCell className="max-w-[250px] truncate">
+                        {e.description}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -379,6 +477,134 @@ export default function GlobalErrors() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Filtri Sheet (sidebar laterale destra) ─────────── */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="right" className="w-[340px] sm:w-[380px] flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="text-base">Filtri Avanzati</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-1 mt-4">
+            {/* Tipo errore */}
+            <FilterSection title="Tipo errore" defaultOpen>
+              <Select
+                value={localFilters.type}
+                onValueChange={(v) => setLocalFilters((p) => ({ ...p, type: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Tutti" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  {Object.entries(TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterSection>
+
+            {/* Categoria */}
+            <FilterSection title="Categoria" defaultOpen>
+              <Select
+                value={localFilters.category}
+                onValueChange={(v) => setLocalFilters((p) => ({ ...p, category: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Tutte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterSection>
+
+            {/* Data da */}
+            <FilterSection title="Periodo">
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Dal</p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start h-8 text-xs",
+                          localFilters.dateFrom && "text-foreground"
+                        )}
+                      >
+                        <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                        {localFilters.dateFrom
+                          ? format(localFilters.dateFrom, "dd/MM/yyyy")
+                          : "Scegli data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.dateFrom}
+                        onSelect={(d) => setLocalFilters((p) => ({ ...p, dateFrom: d }))}
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Al</p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start h-8 text-xs",
+                          localFilters.dateTo && "text-foreground"
+                        )}
+                      >
+                        <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                        {localFilters.dateTo
+                          ? format(localFilters.dateTo, "dd/MM/yyyy")
+                          : "Scegli data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.dateTo}
+                        onSelect={(d) => setLocalFilters((p) => ({ ...p, dateTo: d }))}
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </FilterSection>
+          </div>
+
+          {/* Action buttons */}
+          <div className="border-t pt-4 space-y-2 shrink-0">
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleApplyFilters}>
+              Applica filtri
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full text-sm"
+              onClick={handleResetFilters}
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Ripristina
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
