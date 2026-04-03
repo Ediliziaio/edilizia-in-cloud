@@ -522,7 +522,7 @@ function OrdersListInner() {
     try {
       const saved = localStorage.getItem("orders-visible-columns");
       if (saved) return new Set(JSON.parse(saved));
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
     return new Set(["date"]);
   });
 

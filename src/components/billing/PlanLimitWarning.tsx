@@ -36,7 +36,7 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
         p_increment: 0,
       } as never);
       if (error) {
-        console.error("check_plan_limit error:", error);
+        console.error("Errore check_plan_limit:", error);
         return null;
       }
       return data as PlanLimitResult;

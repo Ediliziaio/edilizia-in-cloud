@@ -137,7 +137,7 @@ export function useCreateUnifiedAgent() {
         if (elAgentId) {
           try {
             await callElevenLabsProxy({ action: "delete_agent", agent_id: elAgentId });
-          } catch (_) {}
+          } catch (_) { /* rollback ElevenLabs non critico — silenzioso */ }
         }
         throw error;
       }

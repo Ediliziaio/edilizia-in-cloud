@@ -33,14 +33,14 @@ function loadState(storageKey: string, defaults: Record<string, boolean>): Recor
   try {
     const stored = localStorage.getItem(storageKey);
     if (stored) return { ...defaults, ...JSON.parse(stored) };
-  } catch {}
+  } catch { /* storage non disponibile — silenzioso */ }
   return { ...defaults };
 }
 
 function saveState(storageKey: string, state: Record<string, boolean>) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(state));
-  } catch {}
+  } catch { /* storage non disponibile — silenzioso */ }
 }
 
 function findActiveSection(pathname: string, routeMap: Record<string, string>): string | undefined {

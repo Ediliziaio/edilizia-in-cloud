@@ -43,7 +43,7 @@ function readCompleted(): Set<string> {
 function writeCompleted(ids: Set<string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
-  } catch {}
+  } catch { /* storage non disponibile — silenzioso */ }
 }
 
 interface OnboardingProgress {

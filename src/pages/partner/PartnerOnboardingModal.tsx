@@ -28,7 +28,7 @@ export function PartnerOnboardingModal({ referrer }: Props) {
         const res  = await fetch("https://api.ipify.org?format=json");
         const data = await res.json();
         ip = data.ip;
-      } catch {}
+      } catch { /* storage non disponibile — silenzioso */ }
 
       const signatureData = {
         signed_name:      referrer.name,

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, AlertCircle, Package, Receipt } from "lucide-react";
-import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
+import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -21,9 +21,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
-import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
-import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
+import { OrderItem } from "@/components/orders/OrderItemsList";
+import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";

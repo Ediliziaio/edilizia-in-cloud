@@ -673,7 +673,7 @@ const CompanySidebar = memo(function CompanySidebar() {
     try {
       const stored = localStorage.getItem("sidebar_open_area");
       if (stored) return stored;
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
     return findActiveAreaId(location.pathname);
   });
 
@@ -681,7 +681,7 @@ const CompanySidebar = memo(function CompanySidebar() {
     const active = findActiveAreaId(location.pathname);
     if (active && active !== openAreaId) {
       setOpenAreaId(active);
-      try { localStorage.setItem("sidebar_open_area", active); } catch {}
+      try { localStorage.setItem("sidebar_open_area", active); } catch { /* storage non disponibile — silenzioso */ }
     }
   }, [location.pathname]);
 
@@ -828,7 +828,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                     onOpenChange={(isOpen) => {
                       const newId = isOpen ? area.id : null;
                       setOpenAreaId(newId);
-                      try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch {}
+                      try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch { /* storage non disponibile — silenzioso */ }
                     }}
                   />
                 );

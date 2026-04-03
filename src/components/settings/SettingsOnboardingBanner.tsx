@@ -29,7 +29,7 @@ export function SettingsOnboardingBanner() {
   const progressPct = (completedCount / totalCount) * 100;
 
   const handleDismiss = () => {
-    try { localStorage.setItem("settings_onboarding_dismissed", "1"); } catch {}
+    try { localStorage.setItem("settings_onboarding_dismissed", "1"); } catch { /* storage non disponibile — silenzioso */ }
     setDismissed(true);
   };
 

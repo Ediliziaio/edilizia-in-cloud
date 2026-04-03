@@ -20,7 +20,7 @@ export function useOrdinePDF() {
       URL.revokeObjectURL(url);
       toast.success("PDF scaricato con successo");
     } catch (e) {
-      console.error("PDF generation error:", e);
+      console.error("Errore generazione PDF:", e);
       toast.error("Errore nella generazione del PDF");
     } finally {
       setIsGenerating(false);

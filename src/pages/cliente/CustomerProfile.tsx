@@ -57,7 +57,7 @@ export default function CustomerProfile() {
       toast({ title: "Profilo aggiornato", description: "Le tue informazioni sono state salvate con successo" });
     },
     onError: (error: Error) => {
-      console.error("Error updating profile:", error);
+      console.error("Errore aggiornamento profilo:", error);
       toast({ title: "Errore", description: "Impossibile aggiornare il profilo. Riprova più tardi.", variant: "destructive" });
     },
   });

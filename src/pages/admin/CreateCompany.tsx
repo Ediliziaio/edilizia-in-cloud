@@ -473,7 +473,7 @@ export default function CreateCompany() {
             {statusTemplate.length > 0 ? (
               <div className="space-y-2">
                 {statusTemplate.map((status, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                  <div key={status.name} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
                       style={{ backgroundColor: status.color }}

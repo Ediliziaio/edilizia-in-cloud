@@ -260,9 +260,10 @@ export function CalendarGanttView({
     switch (zoom) {
       case "year":
         return format(currentDate, "yyyy");
-      case "quarter":
+      case "quarter": {
         const q = Math.floor(currentDate.getMonth() / 3) + 1;
         return `Q${q} ${format(currentDate, "yyyy")}`;
+      }
       case "month":
         return format(currentDate, "MMMM yyyy", { locale: it });
     }

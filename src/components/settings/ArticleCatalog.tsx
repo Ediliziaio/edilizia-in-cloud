@@ -808,8 +808,7 @@ export function ArticleCatalog() {
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 
-  if (!companyId) return null;
-
+  // Hooks must be declared before any early return (Rules of Hooks)
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [filterModalita, setFilterModalita] = useState("all");
@@ -897,6 +896,9 @@ export function ArticleCatalog() {
     },
     onError: (err: any) => toast.error(err.message),
   });
+
+  // Early return after all hooks
+  if (!companyId) return null;
 
   const filtered = articles.filter((a) => {
     const q = search.toLowerCase();

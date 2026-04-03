@@ -60,7 +60,7 @@ export function ChangePasswordForm() {
     { label: `Almeno ${minLength} caratteri`, ok: newPassword.length >= minLength },
     ...(requireUppercase ? [{ label: "Almeno una lettera maiuscola", ok: /[A-Z]/.test(newPassword) }] : []),
     ...(requireNumbers ? [{ label: "Almeno un numero", ok: /[0-9]/.test(newPassword) }] : []),
-    ...(requireSpecial ? [{ label: "Almeno un carattere speciale", ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword) }] : []),
+    ...(requireSpecial ? [{ label: "Almeno un carattere speciale", ok: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword) }] : []),
   ];
 
   const allChecksPassed = newPassword.length > 0 && passwordChecks.every((c) => c.ok);

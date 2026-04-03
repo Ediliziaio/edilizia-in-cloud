@@ -124,7 +124,7 @@ export default function CompaniesList() {
     try {
       const saved = localStorage.getItem("companies_visible_cols");
       if (saved) return JSON.parse(saved) as ColKey[];
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
     return DEFAULT_COLS;
   });
   const toggleCol = useCallback((key: ColKey) => {

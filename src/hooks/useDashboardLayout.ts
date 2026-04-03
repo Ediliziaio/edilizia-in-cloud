@@ -34,7 +34,7 @@ export function useDashboardLayout() {
         const parsed = JSON.parse(saved);
         return parsed.activeTab || "panoramica";
       }
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
     return "panoramica";
   });
 
@@ -45,14 +45,14 @@ export function useDashboardLayout() {
         const parsed = JSON.parse(saved);
         if (parsed.tabs) return parsed.tabs;
       }
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
     return DEFAULT_TABS;
   });
 
   const persist = useCallback((newActiveTab: DashboardTab, newTabs: TabConfig[]) => {
     try {
       localStorage.setItem(storageKey, JSON.stringify({ activeTab: newActiveTab, tabs: newTabs }));
-    } catch {}
+    } catch { /* storage non disponibile — silenzioso */ }
   }, [storageKey]);
 
   const switchTab = useCallback((tab: DashboardTab) => {

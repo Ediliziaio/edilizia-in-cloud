@@ -49,7 +49,7 @@ export const LeadTemperatureBadge = memo(function LeadTemperatureBadge({
           )}
         >
           <span>{emoji}</span>
-          {!compact && <span>{temp.label.replace(/\s*[🔥❄️]/, '')}</span>}
+          {!compact && <span>{temp.label.replace(/\s*(?:\u{1F525}|\u2744\uFE0F?)/u, '')}</span>}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">

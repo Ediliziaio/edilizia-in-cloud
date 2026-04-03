@@ -67,7 +67,7 @@ function writeProfileCache(userId: string, profile: Profile | null, role: AppRol
 }
 
 function clearProfileCache() {
-  try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch {}
+  try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch { /* storage non disponibile — silenzioso */ }
 }
 
 // Module-level cache for the latest Supabase access/refresh tokens.

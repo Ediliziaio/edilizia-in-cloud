@@ -1,7 +1,7 @@
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import { OrderEconomics } from "./OrderEconomics";
 import { OrderCommissions } from "./OrderCommissions";
-import type { Installment, OrderItemData } from "@/lib/orderUtils";
+import type { Installment } from "@/lib/orderUtils";
 
 interface OrdineEconomicoProps {
   orderId: string;

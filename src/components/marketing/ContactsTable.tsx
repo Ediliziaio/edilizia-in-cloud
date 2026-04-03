@@ -100,7 +100,7 @@ export function loadVisibleColumns(storageKey?: string): Set<string> {
       const legacy = localStorage.getItem(STORAGE_KEY_PREFIX);
       if (legacy) return new Set(JSON.parse(legacy) as string[]);
     }
-  } catch {}
+  } catch { /* storage non disponibile — silenzioso */ }
   return new Set(DEFAULT_VISIBLE);
 }
 

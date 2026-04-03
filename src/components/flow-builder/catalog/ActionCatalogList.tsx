@@ -120,7 +120,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
       const curr = JSON.parse(localStorage.getItem("flow_recent_actions") || "[]");
       const updated = [item.id, ...curr.filter((id: string) => id !== item.id)].slice(0, 5);
       localStorage.setItem("flow_recent_actions", JSON.stringify(updated));
-    } catch {}
+    } catch { /* localStorage non disponibile — silenzioso */ }
     onSelect(item);
   };
 
