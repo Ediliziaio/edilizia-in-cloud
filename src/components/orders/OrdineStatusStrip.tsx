@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 import type { OrderStatus } from "@/lib/orderUtils";
 import type { StatusHistoryItem } from "./OrderProgressTracker";
@@ -10,13 +9,22 @@ interface OrdineStatusStripProps {
   onStatusChange?: (statusId: string) => void;
 }
 
+/** Converts a hex color to an rgba string with the given opacity */
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function OrdineStatusStrip({
   statuses,
   currentStatusId,
   statusHistory = [],
   onStatusChange,
 }: OrdineStatusStripProps) {
-  const sorted = [...statuses].sort((a, b) => a.position - b.position);
+  const sorted = [...statuses].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const currentIndex = sorted.findIndex((s) => s.id === currentStatusId);
 
   const getDate = (statusId: string): string | null => {
@@ -29,12 +37,32 @@ export function OrdineStatusStrip({
   };
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto scrollbar-hide">
       <div className="flex items-center min-w-max px-1 py-2 gap-0">
         {sorted.map((status, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
           const date = getDate(status.id);
+          const color = status.color || "#6b7280";
+
+          // Circle styles driven by the status's own color
+          const circleStyle: React.CSSProperties = isCompleted
+            ? { backgroundColor: color, borderColor: color, color: "#fff" }
+            : isCurrent
+            ? { backgroundColor: hexToRgba(color, 0.12), borderColor: color, color }
+            : { backgroundColor: "#fff", borderColor: "#e5e7eb", color: "#9ca3af" };
+
+          // Label color
+          const labelStyle: React.CSSProperties = isCompleted
+            ? { color: "#6b7280" }
+            : isCurrent
+            ? { color, fontWeight: 600 }
+            : { color: "#9ca3af" };
+
+          // Connector color
+          const connectorStyle: React.CSSProperties = {
+            backgroundColor: index < currentIndex ? color : "#e5e7eb",
+          };
 
           return (
             <div key={status.id} className="flex items-center">
@@ -44,14 +72,8 @@ export function OrdineStatusStrip({
                 onClick={() => onStatusChange?.(status.id)}
               >
                 <div
-                  className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium",
-                    isCompleted
-                      ? "border-orange-500 bg-orange-500 text-white"
-                      : isCurrent
-                      ? "border-orange-500 bg-orange-50 text-orange-600"
-                      : "border-gray-200 bg-white text-gray-400 group-hover:border-gray-400"
-                  )}
+                  className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium"
+                  style={circleStyle}
                 >
                   {isCompleted ? (
                     <Check className="h-3.5 w-3.5" />
@@ -60,14 +82,8 @@ export function OrdineStatusStrip({
                   )}
                 </div>
                 <span
-                  className={cn(
-                    "text-xs whitespace-nowrap max-w-[80px] text-center leading-tight",
-                    isCurrent
-                      ? "text-orange-600 font-medium"
-                      : isCompleted
-                      ? "text-gray-500"
-                      : "text-gray-400"
-                  )}
+                  className="text-xs whitespace-nowrap max-w-[80px] text-center leading-tight transition-colors"
+                  style={labelStyle}
                 >
                   {status.name}
                 </span>
@@ -81,10 +97,8 @@ export function OrdineStatusStrip({
               {/* Connector */}
               {index < sorted.length - 1 && (
                 <div
-                  className={cn(
-                    "h-0.5 w-8 mx-1 mb-5 flex-shrink-0",
-                    index < currentIndex ? "bg-orange-400" : "bg-gray-200"
-                  )}
+                  className="h-0.5 w-8 mx-1 mb-5 flex-shrink-0 transition-colors"
+                  style={connectorStyle}
                 />
               )}
             </div>

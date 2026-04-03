@@ -10,7 +10,7 @@ interface OrdineArticoliProps {
   displayItems: OrderItem[];
   orderItems: OrderItemData[];
   companyId: string;
-  description: string;
+  description?: string;
   onItemsChange: (newItems: OrderItem[]) => void;
   onItemUpdate: (item: OrderItem) => void;
   onAttachmentsRefresh: () => void;
@@ -21,23 +21,12 @@ export function OrdineArticoli({
   displayItems,
   orderItems,
   companyId,
-  description,
   onItemsChange,
   onItemUpdate,
   onAttachmentsRefresh,
 }: OrdineArticoliProps) {
   return (
     <div className="space-y-4">
-      {description && (
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {description}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
