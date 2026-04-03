@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal } from "lucide-react";
+import { OrdersFilterSidebar, INITIAL_FILTER_STATE, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
@@ -98,6 +99,8 @@ function OrdersListInner() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarFilters, setSidebarFilters] = useState<OrdersFilterState>(INITIAL_FILTER_STATE);
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -223,8 +226,49 @@ function OrdersListInner() {
     gcTime: 15 * 60 * 1000,
   });
 
-  const orders = ordersResult?.orders ?? [];
+  const rawOrders = ordersResult?.orders ?? [];
   const totalCount = ordersResult?.totalCount ?? 0;
+
+  // Apply sidebar client-side filters on top of the server-side filtered page data
+  const orders = useMemo(() => {
+    let result = rawOrders;
+    const sf = sidebarFilters;
+
+    if (sf.dateFrom) {
+      const from = new Date(sf.dateFrom);
+      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
+    }
+    if (sf.dateTo) {
+      const to = new Date(sf.dateTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
+    }
+    if (sf.orderSearch) {
+      const q = sf.orderSearch.toLowerCase();
+      result = result.filter(o =>
+        (o.order_code || "").toLowerCase().includes(q) ||
+        (o.description || "").toLowerCase().includes(q)
+      );
+    }
+    if (sf.includeStatuses.length > 0) {
+      result = result.filter(o => sf.includeStatuses.includes(o.current_status_id || ""));
+    }
+    if (sf.paymentStatus === "paid") {
+      result = result.filter(o => o.deposit_paid && o.balance_paid);
+    } else if (sf.paymentStatus === "unpaid") {
+      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
+    } else if (sf.paymentStatus === "overdue") {
+      // Treat as unpaid (no overdue date available at this level)
+      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
+    }
+    if (sf.amountMin) {
+      result = result.filter(o => (o.total_amount || 0) >= parseFloat(sf.amountMin));
+    }
+    if (sf.amountMax) {
+      result = result.filter(o => (o.total_amount || 0) <= parseFloat(sf.amountMax));
+    }
+    return result;
+  }, [rawOrders, sidebarFilters]);
 
   // B2 — query aggregati separata: calcola totali su TUTTI gli ordini filtrati, non solo la pagina
   const { data: aggregates } = useQuery({
@@ -929,6 +973,30 @@ function OrdersListInner() {
           <p className="text-muted-foreground">Gestisci gli ordini della tua azienda</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Filtri avanzati — pulsante mobile */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="lg:hidden"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <SlidersHorizontal className="h-4 w-4 mr-1" />
+            Filtri
+            {(() => {
+              const c = [
+                sidebarFilters.dateFrom || sidebarFilters.dateTo,
+                sidebarFilters.orderSearch,
+                sidebarFilters.includeStatuses.length > 0,
+                sidebarFilters.paymentStatus !== "all",
+                sidebarFilters.amountMin || sidebarFilters.amountMax,
+              ].filter(Boolean).length;
+              return c > 0 ? (
+                <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {c}
+                </span>
+              ) : null;
+            })()}
+          </Button>
           {/* Vista tabella/pipeline — solo desktop */}
           <ToggleGroup
             type="single"
@@ -984,125 +1052,141 @@ function OrdersListInner() {
         activePendingFilter={paymentFilter === "pending"}
       />
 
-      <OrdersFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        statuses={statuses}
-        paymentFilter={paymentFilter}
-        onPaymentFilterChange={setPaymentFilter}
-        monthFilter={monthFilter}
-        onMonthFilterChange={handleMonthChange}
-        customerFilter={customerFilter}
-        onCustomerFilterChange={setCustomerFilter}
-        uniqueCustomers={uniqueCustomers}
-        amountMin={amountMin}
-        amountMax={amountMax}
-        onAmountMinChange={setAmountMin}
-        onAmountMaxChange={setAmountMax}
-        contractDateRange={contractDateRange}
-        onContractDateRangeChange={setContractDateRange}
-        warehouseDateRange={warehouseDateRange}
-        onWarehouseDateRangeChange={setWarehouseDateRange}
-        expectedDateRange={expectedDateRange}
-        onExpectedDateRangeChange={setExpectedDateRange}
-        hasAnyFilter={hasAnyFilter}
-        onClearAllFilters={clearAllFilters}
-        salespersonFilter={salespersonFilter}
-        onSalespersonFilterChange={setSalespersonFilter}
-        uniqueSalespeople={uniqueSalespeople}
-        laborFilter={laborFilter}
-        onLaborFilterChange={setLaborFilter}
-        uniqueLabor={uniqueLabor}
-        supplierFilter={supplierFilter}
-        onSupplierFilterChange={setSupplierFilter}
-        uniqueSuppliers={uniqueSuppliers}
-        hideCompleted={hideCompleted}
-        onHideCompletedChange={setHideCompleted}
-      />
-
-      {/* Content */}
-      {isLoading ? (
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <Skeleton className="h-5 w-[80px]" />
-                <Skeleton className="h-5 w-[150px] flex-1" />
-                <Skeleton className="h-5 w-[120px]" />
-                <Skeleton className="h-5 w-[80px]" />
-                <Skeleton className="h-5 w-[70px]" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : orders.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Nessun ordine trovato</h3>
-            <p className="text-muted-foreground mb-4">
-              {totalCount === 0
-                ? "Non hai ancora creato nessun ordine."
-                : "Nessun ordine corrisponde ai filtri selezionati."}
-            </p>
-            {totalCount === 0 && (
-              <Button asChild>
-                <Link to="/azienda/ordini/nuovo">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crea il primo ordine
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : viewMode === "pipeline" ? (
-        <OrdersPipelineView
-          orders={allOrdersForPipeline}
+      {/* Flex layout: sidebar (desktop) + main content */}
+      <div className="flex gap-0 items-start -mx-0">
+        {/* Advanced filter sidebar */}
+        <OrdersFilterSidebar
+          filters={sidebarFilters}
+          onFiltersChange={setSidebarFilters}
           statuses={statuses}
-          onStatusChange={handleStatusChange}
+          ordersCount={orders.length}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
         />
-      ) : (
-        <div className="space-y-4">
-          <OrdersTable
-            orders={orders}
-            onDelete={(id) => deleteOrderMutation.mutate(id)}
-            isDeleting={deleteOrderMutation.isPending}
-            orderCosts={orderCostsMap}
+
+        {/* Main content area */}
+        <div className="flex-1 min-w-0 space-y-4 lg:pl-6">
+          <OrdersFilters
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
             statuses={statuses}
-            onBulkStatusChange={handleBulkStatusChange}
-            onBulkDelete={handleBulkDelete}
-            isBulkUpdating={isBulkUpdating}
-            visibleColumns={visibleColumns}
-            salespeopleMap={salespeopleMap}
-            laborMap={laborMap}
+            paymentFilter={paymentFilter}
+            onPaymentFilterChange={setPaymentFilter}
+            monthFilter={monthFilter}
+            onMonthFilterChange={handleMonthChange}
+            customerFilter={customerFilter}
+            onCustomerFilterChange={setCustomerFilter}
+            uniqueCustomers={uniqueCustomers}
+            amountMin={amountMin}
+            amountMax={amountMax}
+            onAmountMinChange={setAmountMin}
+            onAmountMaxChange={setAmountMax}
+            contractDateRange={contractDateRange}
+            onContractDateRangeChange={setContractDateRange}
+            warehouseDateRange={warehouseDateRange}
+            onWarehouseDateRangeChange={setWarehouseDateRange}
+            expectedDateRange={expectedDateRange}
+            onExpectedDateRangeChange={setExpectedDateRange}
+            hasAnyFilter={hasAnyFilter}
+            onClearAllFilters={clearAllFilters}
+            salespersonFilter={salespersonFilter}
+            onSalespersonFilterChange={setSalespersonFilter}
+            uniqueSalespeople={uniqueSalespeople}
+            laborFilter={laborFilter}
+            onLaborFilterChange={setLaborFilter}
+            uniqueLabor={uniqueLabor}
+            supplierFilter={supplierFilter}
+            onSupplierFilterChange={setSupplierFilter}
+            uniqueSuppliers={uniqueSuppliers}
+            hideCompleted={hideCompleted}
+            onHideCompletedChange={setHideCompleted}
           />
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-2">
-              <p className="text-sm text-muted-foreground hidden sm:block">
-                Mostrando {showingFrom}–{showingTo} di {totalCount} ordini
-              </p>
-              <p className="text-xs text-muted-foreground sm:hidden">
-                {showingFrom}–{showingTo} / {totalCount}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Precedente</span>
-                </Button>
-                <span className="text-sm font-medium px-1">
-                  {page} / {totalPages}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
-                  <span className="hidden sm:inline mr-1">Successivo</span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+
+          {/* Content */}
+          {isLoading ? (
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-5 w-[80px]" />
+                    <Skeleton className="h-5 w-[150px] flex-1" />
+                    <Skeleton className="h-5 w-[120px]" />
+                    <Skeleton className="h-5 w-[80px]" />
+                    <Skeleton className="h-5 w-[70px]" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : orders.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nessun ordine trovato</h3>
+                <p className="text-muted-foreground mb-4">
+                  {totalCount === 0
+                    ? "Non hai ancora creato nessun ordine."
+                    : "Nessun ordine corrisponde ai filtri selezionati."}
+                </p>
+                {totalCount === 0 && (
+                  <Button asChild>
+                    <Link to="/azienda/ordini/nuovo">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Crea il primo ordine
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : viewMode === "pipeline" ? (
+            <OrdersPipelineView
+              orders={allOrdersForPipeline}
+              statuses={statuses}
+              onStatusChange={handleStatusChange}
+            />
+          ) : (
+            <div className="space-y-4">
+              <OrdersTable
+                orders={orders}
+                onDelete={(id) => deleteOrderMutation.mutate(id)}
+                isDeleting={deleteOrderMutation.isPending}
+                orderCosts={orderCostsMap}
+                statuses={statuses}
+                onBulkStatusChange={handleBulkStatusChange}
+                onBulkDelete={handleBulkDelete}
+                isBulkUpdating={isBulkUpdating}
+                visibleColumns={visibleColumns}
+                salespeopleMap={salespeopleMap}
+                laborMap={laborMap}
+              />
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-2">
+                  <p className="text-sm text-muted-foreground hidden sm:block">
+                    Mostrando {showingFrom}–{showingTo} di {totalCount} ordini
+                  </p>
+                  <p className="text-xs text-muted-foreground sm:hidden">
+                    {showingFrom}–{showingTo} / {totalCount}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline ml-1">Precedente</span>
+                    </Button>
+                    <span className="text-sm font-medium px-1">
+                      {page} / {totalPages}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
+                      <span className="hidden sm:inline mr-1">Successivo</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       <CSVImportDialog
         open={importOpen}
