@@ -58,7 +58,7 @@ const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
-// GlobalErrors now rendered as tab inside OrdersList — lazy import removed
+const AnomaliePage = lazy(() => import("@/pages/azienda/anomalie"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
@@ -182,7 +182,8 @@ export function companyRoutes() {
         <Route path="costi" element={<CompanyCosts />} />
         
         <Route path="attivita" element={<UnifiedTasks />} />
-        <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
+        <Route path="errori" element={<ErrorBoundary title="Errore nella pagina anomalie"><AnomaliePage /></ErrorBoundary>} />
+        <Route path="anomalie" element={<ErrorBoundary title="Errore nella pagina anomalie"><AnomaliePage /></ErrorBoundary>} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
         <Route path="personale" element={<PersonalePage />} />
