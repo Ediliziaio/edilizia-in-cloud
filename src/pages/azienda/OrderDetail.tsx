@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { ArrowLeft, User, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, Receipt, MoreVertical, BookOpen } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertTriangle, AlertCircle, Package, Receipt, BookOpen } from "lucide-react";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +12,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
@@ -21,32 +19,34 @@ import {
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
-import { OrderEconomics } from "@/components/orders/OrderEconomics";
-import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
-import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
-import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
-import { OrderSignatureCard } from "@/components/orders/OrderSignatureCard";
-import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
-import { SalTab } from "@/components/orders/SalTab";
-import { VariantiCard } from "@/components/orders/VariantiCard";
-import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
-import { OdVSection } from "@/components/orders/OdVSection";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { OrderDiaryTab } from "@/components/orders/OrderDiaryTab";
+// ── New sub-components ──────────────────────────────────────────
+import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
+import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
+import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
+import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
+import { OrdineCliente } from "@/components/orders/OrdineCliente";
+import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
+import { OrdineManodopera } from "@/components/orders/OrdineManodopera";
+import { OrdineSAL } from "@/components/orders/OrdineSAL";
+import { OrdineFirma } from "@/components/orders/OrdineFirma";
+import { OrdineNote } from "@/components/orders/OrdineNote";
+import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
+import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -231,6 +231,7 @@ function OrderDetailInner() {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [statusChangeDialog, setStatusChangeDialog] = useState<{
     open: boolean; targetStatusId: string | null; targetStatusName: string;
   }>({ open: false, targetStatusId: null, targetStatusName: "" });
@@ -631,494 +632,331 @@ function OrderDetailInner() {
     .reduce((sum, i) => sum + i.amount, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Back button: visible only on desktop (mobile header handles it) */}
-          <Button variant="ghost" size="icon" className="hidden md:inline-flex shrink-0" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 overflow-hidden">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl md:text-2xl font-bold truncate">Dettaglio Ordine</h1>
-              {order.order_code && <span className="text-sm text-muted-foreground font-medium shrink-0">({order.order_code})</span>}
-            </div>
-            <p className="text-sm text-muted-foreground">Creato il {formatDate(order.created_at)}</p>
-          </div>
-        </div>
-        {/* Desktop: full buttons */}
-        <div className="hidden sm:flex gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => setDuplicateDialogOpen(true)}>
-            <Copy className="h-4 w-4 mr-2" />Duplica
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link to={`/azienda/ordini/${id}/modifica`}><Pencil className="h-4 w-4 mr-2" />Modifica</Link>
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-2" />Elimina</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
-                <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteOrderMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Elimina
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-        {/* Mobile: three-dot dropdown */}
-        <div className="sm:hidden shrink-0">
-          <AlertDialog>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
-                  <Copy className="h-4 w-4 mr-2" />Duplica
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to={`/azienda/ordini/${id}/modifica`}>
-                    <Pencil className="h-4 w-4 mr-2" />Modifica
-                  </Link>
-                </DropdownMenuItem>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem className="text-destructive focus:text-destructive">
-                    <Trash2 className="h-4 w-4 mr-2" />Elimina
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
-                <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteOrderMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Elimina
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* ── New Header (breadcrumb + title + actions) ──────────── */}
+      <OrdineDetailHeader
+        ordineId={id!}
+        orderCode={order.order_code || "—"}
+        descrizione={order.description}
+        dataCreazione={order.created_at}
+        nomeCliente={
+          order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`
+            : "Cliente non disponibile"
+        }
+        onDuplica={() => setDuplicateDialogOpen(true)}
+        onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
+        onNuovoSAL={() => {/* SAL creation is handled inside SalTab */}}
+        onElimina={() => setDeleteConfirmOpen(true)}
+      />
+
+      {/* ── Status strip ──────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-100 px-6 py-3">
+        <OrdineStatusStrip
+          statuses={statuses}
+          currentStatusId={order.current_status_id}
+          statusHistory={progressHistory}
+          onStatusChange={handleStatusChange}
+        />
       </div>
 
-      {/* Order Alerts */}
-      {orderAlerts.length > 0 && (
-        <div className="space-y-3">
-          {orderAlerts.map((alert) => (
-            <Alert key={`${alert.type}-${alert.title}`} variant={alert.type === 'urgent' ? 'destructive' : 'default'}
-              className={cn(
-                alert.type === 'warning' && 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600',
-                alert.type === 'info' && 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600'
-              )}>
-              {alert.icon}
-              <AlertTitle>{alert.title}</AlertTitle>
-              <AlertDescription>{alert.description}</AlertDescription>
-            </Alert>
-          ))}
-        </div>
-      )}
-
-      {/* ── MOBILE: tab layout ───────────────────────────────── */}
-      <div className="sm:hidden">
-        <Tabs defaultValue="stato">
-          <TabsList className="w-full grid grid-cols-7 h-auto">
-            <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
-            <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
-            <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
-            <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-            <TabsTrigger value="giornale" className="text-xs py-2">Giornale</TabsTrigger>
-            <TabsTrigger value="diario" className="text-xs py-2 text-primary font-medium">Diario</TabsTrigger>
-            <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
-          </TabsList>
-
-          {/* Tab 1: Stato + Cliente + Date */}
-          <TabsContent value="stato" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><User className="h-4 w-4" />Cliente</CardTitle></CardHeader>
-              <CardContent className="space-y-1">
-                {order.customer ? (
-                  <>
-                    <Link to={`/azienda/clienti/${order.customer.id}`} className="font-semibold text-primary hover:underline block">
-                      {order.customer.first_name} {order.customer.last_name}
-                    </Link>
-                    {order.customer.phone && <p className="text-sm text-muted-foreground">{order.customer.phone}</p>}
-                    <p className="text-sm text-muted-foreground">{order.customer.email}</p>
-                    {order.customer.address && <p className="text-sm text-muted-foreground">{order.customer.address}</p>}
-                  </>
-                ) : <p className="text-muted-foreground text-sm">Cliente non disponibile</p>}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4" />Stato Ordine</CardTitle></CardHeader>
-              <CardContent>
-                <OrderProgressTracker statuses={statuses} currentStatusId={order.current_status_id}
-                  statusHistory={progressHistory} onStatusChange={handleStatusChange} interactive={true} size="sm" />
-              </CardContent>
-            </Card>
-
-            <InlineEditableDatesCard
-              orderId={order.id}
-              expectedDate={order.expected_date}
-              warehouseArrivalDate={order.warehouse_arrival_date}
-              workStartDate={order.work_start_date}
-              workEndDate={order.work_end_date}
-            />
-
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Storico Stati</CardTitle></CardHeader>
-              <CardContent>
-                {statusHistory.length === 0 ? <p className="text-muted-foreground text-sm">Nessuno storico</p> : (
-                  <div className="space-y-3">
-                    {statusHistory.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.status.color }} />
-                          <span className="text-sm font-medium">{entry.status.name}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{formatDateTime(entry.changed_at)}</span>
-                      </div>
-                    ))}
-                  </div>
+      <div className="px-6 py-6 space-y-6">
+        {/* ── Alerts ──────────────────────────────────────────── */}
+        {orderAlerts.length > 0 && (
+          <div className="space-y-3">
+            {orderAlerts.map((alert) => (
+              <Alert
+                key={`${alert.type}-${alert.title}`}
+                variant={alert.type === "urgent" ? "destructive" : "default"}
+                className={cn(
+                  alert.type === "warning" &&
+                    "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600",
+                  alert.type === "info" &&
+                    "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600"
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              >
+                {alert.icon}
+                <AlertTitle>{alert.title}</AlertTitle>
+                <AlertDescription>{alert.description}</AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
 
-          {/* Tab 2: Articoli */}
-          <TabsContent value="articoli" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4" />Descrizione</CardTitle></CardHeader>
-              <CardContent><p className="whitespace-pre-wrap text-sm">{order.description}</p></CardContent>
-            </Card>
+        {/* ── MOBILE: tab layout ──────────────────────────────── */}
+        <div className="sm:hidden">
+          <Tabs defaultValue="stato">
+            <TabsList className="w-full grid grid-cols-7 h-auto">
+              <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
+              <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
+              <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
+              <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
+              <TabsTrigger value="giornale" className="text-xs py-2">Giornale</TabsTrigger>
+              <TabsTrigger value="diario" className="text-xs py-2 text-primary font-medium">Diario</TabsTrigger>
+              <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
+            </TabsList>
 
-            <OrderItemsList
-              items={displayItems}
+            {/* Tab 1: Stato + Cliente + Date */}
+            <TabsContent value="stato" className="space-y-4 mt-4">
+              <OrdineCliente customer={order.customer} />
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Storico Stati</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {statusHistory.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">Nessuno storico</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {statusHistory.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: entry.status.color }}
+                            />
+                            <span className="text-sm font-medium">{entry.status.name}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDateTime(entry.changed_at)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <OrdineTempistiche
+                orderId={order.id}
+                expectedDate={order.expected_date}
+                warehouseArrivalDate={order.warehouse_arrival_date}
+                workStartDate={order.work_start_date}
+                workEndDate={order.work_end_date}
+              />
+            </TabsContent>
+
+            {/* Tab 2: Articoli */}
+            <TabsContent value="articoli" className="space-y-4 mt-4">
+              <OrdineArticoli
+                orderId={id!}
+                displayItems={displayItems}
+                orderItems={orderItems}
+                companyId={effectiveCompany?.id || ""}
+                description={order.description}
+                onItemsChange={(newItems) => {
+                  const newItem = newItems.find((ni) => !ni.id);
+                  if (newItem) addItemMutation.mutate(newItem);
+                }}
+                onItemUpdate={handleItemUpdate}
+                onAttachmentsRefresh={handleAttachmentsRefresh}
+              />
+            </TabsContent>
+
+            {/* Tab 3: Finanza */}
+            <TabsContent value="finanza" className="space-y-4 mt-4">
+              <OrdineEconomico
+                orderId={id!}
+                totalAmount={order.total_amount}
+                vatRate={order.vat_rate || 22}
+                paymentType={(order.payment_type as PaymentType) || "standard"}
+                installments={displayInstallments}
+                hasBuildingBonus={order.has_building_bonus}
+                financingCost={order.financing_cost ?? undefined}
+                items={economicsItems}
+                collectedAmount={collectedAmount}
+                onInstallmentPaidToggle={handleInstallmentPaidToggle}
+              />
+              {/* Fatturazione */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Receipt className="h-4 w-4" />
+                    Fatturazione
+                    {fattureCollegate.length > 0 && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {fattureCollegate.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {fattureCollegate.length > 0 ? (
+                    <div className="space-y-2">
+                      {fattureCollegate.map((f: any) => (
+                        <Link
+                          key={f.id}
+                          to={`/azienda/documenti/${f.id}`}
+                          className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{f.numero}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {f.stato}
+                            </Badge>
+                          </div>
+                          <span className="text-muted-foreground">
+                            {formatCurrency(f.totale_da_pagare)}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nessuna fattura collegata
+                    </p>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() =>
+                      navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)
+                    }
+                  >
+                    <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                    Crea fattura
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 4: SAL */}
+            <TabsContent value="sal" className="space-y-4 mt-4">
+              {companyId && (
+                <OrdineSAL
+                  orderId={id!}
+                  companyId={companyId}
+                  orderTotalAmount={order.total_amount ?? undefined}
+                />
+              )}
+            </TabsContent>
+
+            {/* Tab 5: Giornale */}
+            <TabsContent value="giornale" className="space-y-4 mt-4">
+              <GiornaleTabContent orderId={id!} companyId={companyId!} />
+            </TabsContent>
+
+            {/* Tab 6: Diario */}
+            <TabsContent value="diario" className="space-y-4 mt-4">
+              {order.customer && (
+                <OrderDiaryTab
+                  orderId={id!}
+                  customerName={`${order.customer.first_name} ${order.customer.last_name}`}
+                  customerEmail={order.customer.email}
+                  customerPhone={order.customer.phone || undefined}
+                />
+              )}
+            </TabsContent>
+
+            {/* Tab 7: Altro */}
+            <TabsContent value="altro" className="space-y-4 mt-4">
+              <OrdineNote
+                notes={order.internal_notes}
+                isEditing={isEditingNotes}
+                editedNotes={editedNotes}
+                isSaving={updateNotesMutation.isPending}
+                onEdit={handleEditNotes}
+                onSave={handleSaveNotes}
+                onCancel={() => setIsEditingNotes(false)}
+                onNotesChange={setEditedNotes}
+              />
+              <OrdineManodopera orderId={id!} editable={true} />
+              <OrderErrors orderId={id!} />
+              <LinkedTasks orderId={id} category="ordini" />
+              <LinkedAppointments orderId={id!} />
+              <OrdineAcquisto
+                orderId={id!}
+                orderCode={order.order_code}
+                items={displayItems.map((i) => ({
+                  name: i.name,
+                  quantity: i.quantity,
+                  purchase_price: i.purchase_price,
+                  supplier_id: i.supplier_id,
+                  vat_rate: i.vat_rate,
+                }))}
+              />
+              <OrdineFirma
+                orderId={id!}
+                customerEmail={order.customer?.email}
+                customerName={
+                  order.customer
+                    ? `${order.customer.first_name} ${order.customer.last_name}`
+                    : undefined
+                }
+              />
+              {effectiveCompany?.id && (
+                <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* ── DESKTOP: 2-column layout ─────────────────────────── */}
+        <div className="hidden sm:grid gap-6 lg:grid-cols-3">
+          {/* ── Left Column (2/3) ──────────────────────────────── */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Articoli */}
+            <OrdineArticoli
+              orderId={id!}
+              displayItems={displayItems}
+              orderItems={orderItems}
+              companyId={effectiveCompany?.id || ""}
+              description={order.description}
               onItemsChange={(newItems) => {
-                const newItem = newItems.find(ni => !ni.id);
+                const newItem = newItems.find((ni) => !ni.id);
                 if (newItem) addItemMutation.mutate(newItem);
               }}
-              editable={true} allowEdit={true} showStatusControls={true}
-              onAttachmentsRefresh={handleAttachmentsRefresh}
               onItemUpdate={handleItemUpdate}
+              onAttachmentsRefresh={handleAttachmentsRefresh}
             />
 
-            <OrderAttachments orderId={id!} editable={true} />
-            <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
-          </TabsContent>
-
-          {/* Tab 3: Finanza */}
-          <TabsContent value="finanza" className="space-y-4 mt-4">
-            <FinancialSummaryReadOnly
+            {/* Economico */}
+            <OrdineEconomico
+              orderId={id!}
               totalAmount={order.total_amount}
               vatRate={order.vat_rate || 22}
-              paymentType={(order.payment_type as PaymentType) || 'standard'}
+              paymentType={(order.payment_type as PaymentType) || "standard"}
               installments={displayInstallments}
               hasBuildingBonus={order.has_building_bonus}
               financingCost={order.financing_cost ?? undefined}
+              items={economicsItems}
+              collectedAmount={collectedAmount}
               onInstallmentPaidToggle={handleInstallmentPaidToggle}
             />
 
-            <OrderEconomics
-              orderId={id!}
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              items={economicsItems}
-            />
-
-            <OrderCommissions
-              orderId={id!}
-              totalAmount={order.total_amount}
-              collectedAmount={collectedAmount}
-              vatRate={order.vat_rate || 22}
-            />
-
-            {/* Fatturazione */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Receipt className="h-4 w-4" />Fatturazione
-                  {fattureCollegate.length > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-xs">{fattureCollegate.length}</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {fattureCollegate.length > 0 ? (
-                  <div className="space-y-2">
-                    {fattureCollegate.map((f: any) => (
-                      <Link key={f.id} to={`/azienda/documenti/${f.id}`}
-                        className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{f.numero}</span>
-                          <Badge variant="outline" className="text-xs">{f.stato}</Badge>
-                        </div>
-                        <span className="text-muted-foreground">{formatCurrency(f.totale_da_pagare)}</span>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">Nessuna fattura collegata</p>
-                )}
-                <Button variant="outline" size="sm" className="w-full"
-                  onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)}>
-                  <Receipt className="h-3.5 w-3.5 mr-1.5" />Crea fattura
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Tab 4: SAL */}
-          <TabsContent value="sal" className="space-y-4 mt-4">
+            {/* SAL */}
             {companyId && (
-              <SalTab orderId={id!} companyId={companyId} orderTotalAmount={order.total_amount ?? undefined} />
-            )}
-          </TabsContent>
-
-          {/* Tab 5: Giornale */}
-          <TabsContent value="giornale" className="space-y-4 mt-4">
-            <GiornaleTabContent orderId={id!} companyId={companyId!} />
-          </TabsContent>
-
-          {/* Tab 6: Diario */}
-          <TabsContent value="diario" className="space-y-4 mt-4">
-            {order.customer && (
-              <OrderDiaryTab
+              <OrdineSAL
                 orderId={id!}
-                customerName={`${order.customer.first_name} ${order.customer.last_name}`}
-                customerEmail={order.customer.email}
-                customerPhone={order.customer.phone || undefined}
+                companyId={companyId}
+                orderTotalAmount={order.total_amount ?? undefined}
               />
             )}
-          </TabsContent>
 
-          {/* Tab 7: Altro */}
-          <TabsContent value="altro" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Note Interne</CardTitle>
-                {!isEditingNotes && <Button variant="ghost" size="sm" onClick={handleEditNotes}>Modifica</Button>}
-              </CardHeader>
-              <CardContent>
-                {isEditingNotes ? (
-                  <div className="space-y-3">
-                    <Textarea value={editedNotes} onChange={(e) => setEditedNotes(e.target.value)} rows={4} placeholder="Aggiungi note interne..." />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleSaveNotes} disabled={updateNotesMutation.isPending}>Salva</Button>
-                      <Button size="sm" variant="outline" onClick={() => setIsEditingNotes(false)}>Annulla</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.internal_notes || "Nessuna nota interna"}</p>
-                )}
-              </CardContent>
-            </Card>
-
-            <OrderLaborCosts orderId={id!} editable={true} />
-            <OrderErrors orderId={id!} />
-            <LinkedTasks orderId={id} category="ordini" />
-            <LinkedAppointments orderId={id!} />
-            <LinkedPurchaseOrdersCard
-              orderId={id!}
-              orderCode={order.order_code}
-              items={displayItems.map(i => ({ name: i.name, quantity: i.quantity, purchase_price: i.purchase_price, supplier_id: i.supplier_id, vat_rate: i.vat_rate }))}
-            />
-            <OrderSignatureCard
-              orderId={id!}
-              customerEmail={order.customer?.email}
-              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-            />
-            {effectiveCompany?.id && (
-              <OdVSection orderId={id!} companyId={effectiveCompany.id} />
-            )}
-            {effectiveCompany?.id && (
-              <VariantiCard orderId={id!} companyId={effectiveCompany.id} />
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* ── DESKTOP: grid layout ─────────────────────────────── */}
-      <div className="hidden sm:block">
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Descrizione Lavoro</CardTitle></CardHeader>
-              <CardContent><p className="whitespace-pre-wrap">{order.description}</p></CardContent>
-            </Card>
-
-            <OrderItemsList
-              items={displayItems}
-              onItemsChange={(newItems) => {
-                const newItem = newItems.find(ni => !ni.id);
-                if (newItem) addItemMutation.mutate(newItem);
-              }}
-              editable={true} allowEdit={true} showStatusControls={true}
-              onAttachmentsRefresh={handleAttachmentsRefresh}
-              onItemUpdate={handleItemUpdate}
-            />
-
-            <OrderAttachments orderId={id!} editable={true} />
-
-            <FinancialSummaryReadOnly
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              paymentType={(order.payment_type as PaymentType) || 'standard'}
-              installments={displayInstallments}
-              hasBuildingBonus={order.has_building_bonus}
-              financingCost={order.financing_cost ?? undefined}
-              onInstallmentPaidToggle={handleInstallmentPaidToggle}
-            />
-
-            <OrderEconomics
-              orderId={id!}
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              items={economicsItems}
-            />
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><User className="h-5 w-5" />Cliente</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {order.customer ? (
-                  <>
-                    <Link to={`/azienda/clienti/${order.customer.id}`} className="font-medium text-primary hover:underline">
-                      {order.customer.first_name} {order.customer.last_name}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">{order.customer.email}</p>
-                    {order.customer.phone && <p className="text-sm text-muted-foreground">{order.customer.phone}</p>}
-                    {order.customer.address && <p className="text-sm text-muted-foreground">{order.customer.address}</p>}
-                  </>
-                ) : <p className="text-muted-foreground">Cliente non disponibile</p>}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Stato Ordine</CardTitle></CardHeader>
-              <CardContent>
-                <OrderProgressTracker statuses={statuses} currentStatusId={order.current_status_id}
-                  statusHistory={progressHistory} onStatusChange={handleStatusChange} interactive={true} size="sm" />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Storico Stati</CardTitle></CardHeader>
-              <CardContent>
-                {statusHistory.length === 0 ? <p className="text-muted-foreground">Nessuno storico disponibile</p> : (
-                  <div className="space-y-4">
-                    {statusHistory.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.status.color }} />
-                          <span className="font-medium">{entry.status.name}</span>
-                        </div>
-                        <span className="text-sm text-muted-foreground">{formatDateTime(entry.changed_at)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Fatturazione card */}
+            {/* Giornale (preview) */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Receipt className="h-4 w-4" />Fatturazione
-                  {fattureCollegate.length > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-xs">{fattureCollegate.length}</Badge>
-                  )}
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Giornale dei Lavori
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {fattureCollegate.length > 0 ? (
-                  <div className="space-y-2">
-                    {fattureCollegate.map((f: any) => (
-                      <Link key={f.id} to={`/azienda/documenti/${f.id}`}
-                        className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{f.numero}</span>
-                          <Badge variant="outline" className="text-xs">{f.stato}</Badge>
-                        </div>
-                        <span className="text-muted-foreground">{formatCurrency(f.totale_da_pagare)}</span>
-                      </Link>
-                    ))}
-                    <div className="pt-1 border-t flex justify-between text-sm">
-                      <span className="text-muted-foreground">Totale fatturato</span>
-                      <span className="font-medium">{formatCurrency(fattureCollegate.reduce((s: number, f: any) => s + (f.totale_da_pagare ?? 0), 0))}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">Nessuna fattura collegata</p>
-                )}
-                <Button variant="outline" size="sm" className="w-full"
-                  onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)}>
-                  <Receipt className="h-3.5 w-3.5 mr-1.5" />Crea fattura per questo ordine
-                </Button>
-              </CardContent>
-            </Card>
-
-            {companyId && (
-              <SalTab orderId={id!} companyId={companyId} orderTotalAmount={order.total_amount ?? undefined} />
-            )}
-            <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
-            <OrderLaborCosts orderId={id!} editable={true} />
-            <OrderCommissions orderId={id!} totalAmount={order.total_amount} collectedAmount={collectedAmount} vatRate={order.vat_rate || 22} />
-            <OrderErrors orderId={id!} />
-            <InlineEditableDatesCard
-              orderId={order.id}
-              expectedDate={order.expected_date}
-              warehouseArrivalDate={order.warehouse_arrival_date}
-              workStartDate={order.work_start_date}
-              workEndDate={order.work_end_date}
-            />
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Note Interne</CardTitle>
-                {!isEditingNotes && <Button variant="ghost" size="sm" onClick={handleEditNotes}>Modifica</Button>}
-              </CardHeader>
               <CardContent>
-                {isEditingNotes ? (
-                  <div className="space-y-3">
-                    <Textarea value={editedNotes} onChange={(e) => setEditedNotes(e.target.value)} rows={4} placeholder="Aggiungi note interne..." />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleSaveNotes} disabled={updateNotesMutation.isPending}>Salva</Button>
-                      <Button size="sm" variant="outline" onClick={() => setIsEditingNotes(false)}>Annulla</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.internal_notes || "Nessuna nota interna"}</p>
-                )}
+                <GiornaleTabContent orderId={id!} companyId={companyId!} />
               </CardContent>
             </Card>
 
-            {/* Diario Privato dell'Ordine */}
+            {/* Diario */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-primary" />
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                  <BookOpen className="h-4 w-4" />
                   Diario dell'Ordine
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4">
+              <CardContent>
                 {order.customer && (
                   <OrderDiaryTab
                     orderId={id!}
@@ -1130,37 +968,217 @@ function OrderDetailInner() {
               </CardContent>
             </Card>
 
-            <LinkedPurchaseOrdersCard
+            {/* Variazioni + OdV */}
+            {effectiveCompany?.id && (
+              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
+            )}
+          </div>
+
+          {/* ── Right Column (1/3) ──────────────────────────────── */}
+          <div className="space-y-5">
+            {/* Cliente */}
+            <OrdineCliente customer={order.customer} />
+
+            {/* Tempistiche */}
+            <OrdineTempistiche
+              orderId={order.id}
+              expectedDate={order.expected_date}
+              warehouseArrivalDate={order.warehouse_arrival_date}
+              workStartDate={order.work_start_date}
+              workEndDate={order.work_end_date}
+            />
+
+            {/* Storico stati */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Storico Stati
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statusHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nessuno storico disponibile
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {statusHistory.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: entry.status.color }}
+                          />
+                          <span className="text-sm font-medium">{entry.status.name}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDateTime(entry.changed_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Fatturazione */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                  <Receipt className="h-4 w-4" />
+                  Fatturazione
+                  {fattureCollegate.length > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {fattureCollegate.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {fattureCollegate.length > 0 ? (
+                  <div className="space-y-2">
+                    {fattureCollegate.map((f: any) => (
+                      <Link
+                        key={f.id}
+                        to={`/azienda/documenti/${f.id}`}
+                        className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{f.numero}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {f.stato}
+                          </Badge>
+                        </div>
+                        <span className="text-muted-foreground">
+                          {formatCurrency(f.totale_da_pagare)}
+                        </span>
+                      </Link>
+                    ))}
+                    <div className="pt-1 border-t flex justify-between text-sm">
+                      <span className="text-muted-foreground">Totale fatturato</span>
+                      <span className="font-medium">
+                        {formatCurrency(
+                          fattureCollegate.reduce(
+                            (s: number, f: any) => s + (f.totale_da_pagare ?? 0),
+                            0
+                          )
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nessuna fattura collegata
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() =>
+                    navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)
+                  }
+                >
+                  <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                  Crea fattura
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Note */}
+            <OrdineNote
+              notes={order.internal_notes}
+              isEditing={isEditingNotes}
+              editedNotes={editedNotes}
+              isSaving={updateNotesMutation.isPending}
+              onEdit={handleEditNotes}
+              onSave={handleSaveNotes}
+              onCancel={() => setIsEditingNotes(false)}
+              onNotesChange={setEditedNotes}
+            />
+
+            {/* Manodopera */}
+            <OrdineManodopera orderId={id!} editable={true} />
+
+            {/* Errori */}
+            <OrderErrors orderId={id!} />
+
+            {/* Ordini di acquisto */}
+            <OrdineAcquisto
               orderId={id!}
               orderCode={order.order_code}
-              items={displayItems.map(i => ({ name: i.name, quantity: i.quantity, purchase_price: i.purchase_price, supplier_id: i.supplier_id, vat_rate: i.vat_rate }))}
+              items={displayItems.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                purchase_price: i.purchase_price,
+                supplier_id: i.supplier_id,
+                vat_rate: i.vat_rate,
+              }))}
             />
-            <OrderSignatureCard
+
+            {/* Firma */}
+            <OrdineFirma
               orderId={id!}
               customerEmail={order.customer?.email}
-              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+              customerName={
+                order.customer
+                  ? `${order.customer.first_name} ${order.customer.last_name}`
+                  : undefined
+              }
             />
-            {effectiveCompany?.id && (
-              <OdVSection orderId={id!} companyId={effectiveCompany.id} />
-            )}
-            {effectiveCompany?.id && (
-              <VariantiCard orderId={id!} companyId={effectiveCompany.id} />
-            )}
+
+            {/* Task e appuntamenti */}
             <LinkedTasks orderId={id} category="ordini" />
             <LinkedAppointments orderId={id!} />
           </div>
         </div>
       </div>
 
+      {/* ── Dialogs ──────────────────────────────────────────── */}
+
+      {/* Delete confirm (triggered by OrdineDetailHeader) */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteOrderMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Status Change Dialog */}
-      <Dialog open={statusChangeDialog.open} onOpenChange={(open) => setStatusChangeDialog({ ...statusChangeDialog, open })}>
+      <Dialog
+        open={statusChangeDialog.open}
+        onOpenChange={(open) => setStatusChangeDialog({ ...statusChangeDialog, open })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Conferma cambio stato</DialogTitle>
-            <DialogDescription>Vuoi cambiare lo stato dell'ordine a "{statusChangeDialog.targetStatusName}"?</DialogDescription>
+            <DialogDescription>
+              Vuoi cambiare lo stato dell'ordine a "{statusChangeDialog.targetStatusName}"?
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" })}>Annulla</Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" })
+              }
+            >
+              Annulla
+            </Button>
             <Button onClick={confirmStatusChange} disabled={updateStatusMutation.isPending}>
               {updateStatusMutation.isPending ? "Aggiornamento..." : "Conferma"}
             </Button>
@@ -1174,12 +1192,18 @@ function OrderDetailInner() {
           <DialogHeader>
             <DialogTitle>Duplica ordine</DialogTitle>
             <DialogDescription>
-              Duplicare l'ordine {order.order_code ? `#${order.order_code}` : ''}? Il nuovo ordine verrà creato come bozza senza pagamenti incassati.
+              Duplicare l'ordine {order.order_code ? `#${order.order_code}` : ""}? Il nuovo ordine
+              verrà creato come bozza senza pagamenti incassati.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>Annulla</Button>
-            <Button onClick={() => duplicateOrderMutation.mutate()} disabled={duplicateOrderMutation.isPending}>
+            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => duplicateOrderMutation.mutate()}
+              disabled={duplicateOrderMutation.isPending}
+            >
               {duplicateOrderMutation.isPending ? "Duplicazione..." : "Duplica"}
             </Button>
           </DialogFooter>
