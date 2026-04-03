@@ -27,7 +27,6 @@ import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/Finan
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
-import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
@@ -50,52 +49,6 @@ import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
-
-function GiornaleTabContent({ orderId, companyId }: { orderId: string; companyId: string }) {
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["giornale-lavori-order", orderId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("giornale_lavori")
-        .select("*, giornale_foto(id, url)")
-        .eq("order_id", orderId)
-        .eq("company_id", companyId)
-        .order("data_lavori", { ascending: false })
-        .limit(5);
-      return data || [];
-    },
-    enabled: !!orderId && !!companyId,
-  });
-
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
-
-  if (entries.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          <p className="text-sm">Nessun report giornaliero</p>
-          <Link to={`/azienda/giornale-lavori?ordine=${orderId}`} className="text-xs text-primary underline mt-1 block">
-            Vai al Giornale dei Lavori →
-          </Link>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {entries.map((entry: any) => (
-        <GiornaleCard key={entry.id} entry={entry} compact />
-      ))}
-      <Link
-        to={`/azienda/giornale-lavori?ordine=${orderId}`}
-        className="block text-center text-sm text-primary underline"
-      >
-        Vedi tutti i report →
-      </Link>
-    </div>
-  );
-}
 
 // ── Order Alert logic ────────────────────────────────────────────
 
@@ -748,12 +701,11 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-7 h-auto">
+            <TabsList className="w-full grid grid-cols-6 h-auto">
               <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
               <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-              <TabsTrigger value="giornale" className="text-xs py-2">Giornale</TabsTrigger>
               <TabsTrigger value="diario" className="text-xs py-2 text-primary font-medium">Diario</TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
             </TabsList>
@@ -896,12 +848,7 @@ function OrderDetailInner() {
               )}
             </TabsContent>
 
-            {/* Tab 5: Giornale */}
-            <TabsContent value="giornale" className="space-y-4 mt-4">
-              <GiornaleTabContent orderId={id!} companyId={companyId!} />
-            </TabsContent>
-
-            {/* Tab 6: Diario */}
+            {/* Tab 5: Diario */}
             <TabsContent value="diario" className="space-y-4 mt-4">
               {order.customer && (
                 <OrderDiaryTab
@@ -998,24 +945,20 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Giornale (preview) */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Giornale dei Lavori
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <GiornaleTabContent orderId={id!} companyId={companyId!} />
-              </CardContent>
-            </Card>
-
             {/* Diario */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                  <BookOpen className="h-4 w-4" />
-                  Diario dell'Ordine
+                <CardTitle className="flex items-center justify-between text-sm font-medium text-gray-600">
+                  <span className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" />
+                    Diario dell'Ordine
+                  </span>
+                  <Link
+                    to={`/azienda/giornale-lavori?ordine=${id}`}
+                    className="text-xs text-primary hover:underline font-normal"
+                  >
+                    Giornale completo →
+                  </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent>

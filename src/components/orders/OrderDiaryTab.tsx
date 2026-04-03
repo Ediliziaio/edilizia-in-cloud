@@ -69,6 +69,14 @@ function formatEventDescription(event: OrderEvent): string {
     case "fattura_creata":
     case "fattura_pagata":
       return `${p.numero ?? "Fattura"} — €${Number(p.total ?? p.totale ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+    case "giornale_lavori_inserito": {
+      const parts: string[] = [];
+      if (p.data_lavori) parts.push(format(parseISO(p.data_lavori as string), "dd MMM yyyy", { locale: it }));
+      if (p.lavorazioni) parts.push(String(p.lavorazioni).slice(0, 60) + (String(p.lavorazioni).length > 60 ? "…" : ""));
+      if (p.personale) parts.push(`${p.personale} operai`);
+      if (p.avanzamento != null) parts.push(`${p.avanzamento}% avanzamento`);
+      return parts.join(" · ") || "Report giornaliero";
+    }
     case "allegato_caricato":
     case "foto_rilievo_caricata":
       return (p.file_name as string) || "File caricato";
