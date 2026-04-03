@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal } from "lucide-react";
-import { OrdersFilterSidebar, INITIAL_FILTER_STATE, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
+import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
@@ -267,8 +267,36 @@ function OrdersListInner() {
     if (sf.amountMax) {
       result = result.filter(o => (o.total_amount || 0) <= parseFloat(sf.amountMax));
     }
+    if (sf.excludeStatuses.length > 0) {
+      result = result.filter(o => !sf.excludeStatuses.includes(o.current_status_id || ""));
+    }
+    if (sf.createdFrom) {
+      const from = new Date(sf.createdFrom);
+      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
+    }
+    if (sf.createdTo) {
+      const to = new Date(sf.createdTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
+    }
+    if (sf.salespersonId) {
+      result = result.filter(o => {
+        const names = salespeopleMap.get(o.id) || [];
+        const spEntry = uniqueSalespeople.find(sp => sp.id === sf.salespersonId);
+        return spEntry ? names.includes(spEntry.name) : false;
+      });
+    }
+    if (sf.laborIds.length > 0) {
+      result = result.filter(o => {
+        const names = laborMap.get(o.id) || [];
+        return sf.laborIds.some(lid => {
+          const laborEntry = uniqueLabor.find(l => l.id === lid);
+          return laborEntry ? names.includes(laborEntry.name) : false;
+        });
+      });
+    }
     return result;
-  }, [rawOrders, sidebarFilters]);
+  }, [rawOrders, sidebarFilters, salespeopleMap, laborMap, uniqueSalespeople, uniqueLabor]);
 
   // B2 — query aggregati separata: calcola totali su TUTTI gli ordini filtrati, non solo la pagina
   const { data: aggregates } = useQuery({
@@ -973,29 +1001,19 @@ function OrdersListInner() {
           <p className="text-muted-foreground">Gestisci gli ordini della tua azienda</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filtri avanzati — pulsante mobile */}
+          {/* Filtri avanzati */}
           <Button
             variant="outline"
             size="sm"
-            className="lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <SlidersHorizontal className="h-4 w-4 mr-1" />
             Filtri
-            {(() => {
-              const c = [
-                sidebarFilters.dateFrom || sidebarFilters.dateTo,
-                sidebarFilters.orderSearch,
-                sidebarFilters.includeStatuses.length > 0,
-                sidebarFilters.paymentStatus !== "all",
-                sidebarFilters.amountMin || sidebarFilters.amountMax,
-              ].filter(Boolean).length;
-              return c > 0 ? (
-                <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                  {c}
-                </span>
-              ) : null;
-            })()}
+            {countActiveFilters(sidebarFilters) > 0 && (
+              <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                {countActiveFilters(sidebarFilters)}
+              </span>
+            )}
           </Button>
           {/* Vista tabella/pipeline — solo desktop */}
           <ToggleGroup
@@ -1052,20 +1070,18 @@ function OrdersListInner() {
         activePendingFilter={paymentFilter === "pending"}
       />
 
-      {/* Flex layout: sidebar (desktop) + main content */}
-      <div className="flex gap-0 items-start -mx-0">
-        {/* Advanced filter sidebar */}
-        <OrdersFilterSidebar
-          filters={sidebarFilters}
-          onFiltersChange={setSidebarFilters}
-          statuses={statuses}
-          ordersCount={orders.length}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
+      <OrdersFilterSidebar
+        filters={sidebarFilters}
+        onFiltersChange={setSidebarFilters}
+        statuses={statuses}
+        ordersCount={orders.length}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        salespeople={uniqueSalespeople}
+        laborList={uniqueLabor}
+      />
 
-        {/* Main content area */}
-        <div className="flex-1 min-w-0 space-y-4 lg:pl-6">
+      <div className="space-y-4">
           <OrdersFilters
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -1185,7 +1201,6 @@ function OrdersListInner() {
               )}
             </div>
           )}
-        </div>
       </div>
 
       <CSVImportDialog
