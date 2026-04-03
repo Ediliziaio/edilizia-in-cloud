@@ -229,75 +229,6 @@ function OrdersListInner() {
   const rawOrders = ordersResult?.orders ?? [];
   const totalCount = ordersResult?.totalCount ?? 0;
 
-  // Apply sidebar client-side filters on top of the server-side filtered page data
-  const orders = useMemo(() => {
-    let result = rawOrders;
-    const sf = sidebarFilters;
-
-    if (sf.dateFrom) {
-      const from = new Date(sf.dateFrom);
-      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
-    }
-    if (sf.dateTo) {
-      const to = new Date(sf.dateTo);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
-    }
-    if (sf.orderSearch) {
-      const q = sf.orderSearch.toLowerCase();
-      result = result.filter(o =>
-        (o.order_code || "").toLowerCase().includes(q) ||
-        (o.description || "").toLowerCase().includes(q)
-      );
-    }
-    if (sf.includeStatuses.length > 0) {
-      result = result.filter(o => sf.includeStatuses.includes(o.current_status_id || ""));
-    }
-    if (sf.paymentStatus === "paid") {
-      result = result.filter(o => o.deposit_paid && o.balance_paid);
-    } else if (sf.paymentStatus === "unpaid") {
-      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
-    } else if (sf.paymentStatus === "overdue") {
-      // Treat as unpaid (no overdue date available at this level)
-      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
-    }
-    if (sf.amountMin) {
-      result = result.filter(o => (o.total_amount || 0) >= parseFloat(sf.amountMin));
-    }
-    if (sf.amountMax) {
-      result = result.filter(o => (o.total_amount || 0) <= parseFloat(sf.amountMax));
-    }
-    if (sf.excludeStatuses.length > 0) {
-      result = result.filter(o => !sf.excludeStatuses.includes(o.current_status_id || ""));
-    }
-    if (sf.createdFrom) {
-      const from = new Date(sf.createdFrom);
-      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
-    }
-    if (sf.createdTo) {
-      const to = new Date(sf.createdTo);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
-    }
-    if (sf.salespersonId) {
-      result = result.filter(o => {
-        const names = salespeopleMap.get(o.id) || [];
-        const spEntry = uniqueSalespeople.find(sp => sp.id === sf.salespersonId);
-        return spEntry ? names.includes(spEntry.name) : false;
-      });
-    }
-    if (sf.laborIds.length > 0) {
-      result = result.filter(o => {
-        const names = laborMap.get(o.id) || [];
-        return sf.laborIds.some(lid => {
-          const laborEntry = uniqueLabor.find(l => l.id === lid);
-          return laborEntry ? names.includes(laborEntry.name) : false;
-        });
-      });
-    }
-    return result;
-  }, [rawOrders, sidebarFilters, salespeopleMap, laborMap, uniqueSalespeople, uniqueLabor]);
-
   // B2 — query aggregati separata: calcola totali su TUTTI gli ordini filtrati, non solo la pagina
   const { data: aggregates } = useQuery({
     queryKey: ["orders-aggregates", effectiveCompany?.id, debouncedSearch, statusFilter, paymentFilter,
@@ -393,8 +324,8 @@ function OrdersListInner() {
     staleTime: 3 * 60 * 1000,
   });
 
-  // Batch queries for cost calculations — use IDs from current page only
-  const orderIds = useMemo(() => orders.map(o => o.id), [orders]);
+  // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
+  const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
 
   const { data: itemCosts = [] } = useQuery({
     queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],
@@ -581,6 +512,73 @@ function OrdersListInner() {
     return map;
   }, [externalTeamCosts]);
   const supNameToIdMap = useMemo(() => new Map(supplierProfiles.map(s => [s.name, s.id])), [supplierProfiles]);
+
+  // Apply sidebar client-side filters — placed here so salespeopleMap/laborMap/unique* are available
+  const orders = useMemo(() => {
+    let result = rawOrders;
+    const sf = sidebarFilters;
+
+    if (sf.dateFrom) {
+      const from = new Date(sf.dateFrom);
+      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
+    }
+    if (sf.dateTo) {
+      const to = new Date(sf.dateTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
+    }
+    if (sf.orderSearch) {
+      const q = sf.orderSearch.toLowerCase();
+      result = result.filter(o =>
+        (o.order_code || "").toLowerCase().includes(q) ||
+        (o.description || "").toLowerCase().includes(q)
+      );
+    }
+    if (sf.includeStatuses.length > 0) {
+      result = result.filter(o => sf.includeStatuses.includes(o.current_status_id || ""));
+    }
+    if (sf.excludeStatuses.length > 0) {
+      result = result.filter(o => !sf.excludeStatuses.includes(o.current_status_id || ""));
+    }
+    if (sf.paymentStatus === "paid") {
+      result = result.filter(o => o.deposit_paid && o.balance_paid);
+    } else if (sf.paymentStatus === "unpaid" || sf.paymentStatus === "overdue") {
+      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
+    }
+    if (sf.amountMin) {
+      result = result.filter(o => (o.total_amount || 0) >= parseFloat(sf.amountMin));
+    }
+    if (sf.amountMax) {
+      result = result.filter(o => (o.total_amount || 0) <= parseFloat(sf.amountMax));
+    }
+    if (sf.createdFrom) {
+      const from = new Date(sf.createdFrom);
+      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
+    }
+    if (sf.createdTo) {
+      const to = new Date(sf.createdTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
+    }
+    if (sf.salespersonId) {
+      const orderIdsWithSp = new Set(
+        salespeopleData
+          .filter((sp: any) => sp.salesperson_id === sf.salespersonId)
+          .map((sp: any) => sp.order_id)
+      );
+      result = result.filter(o => orderIdsWithSp.has(o.id));
+    }
+    if (sf.laborIds.length > 0) {
+      const empIds = sf.laborIds.filter(id => id.startsWith("emp-")).map(id => id.slice(4));
+      const teamIds = sf.laborIds.filter(id => id.startsWith("team-")).map(id => id.slice(5));
+      const orderIdsWithLabor = new Set([
+        ...employeeCosts.filter((e: any) => empIds.includes(e.employee_id)).map((e: any) => e.order_id),
+        ...externalTeamCosts.filter((t: any) => teamIds.includes(t.external_team_id)).map((t: any) => t.order_id),
+      ]);
+      result = result.filter(o => orderIdsWithLabor.has(o.id));
+    }
+    return result;
+  }, [rawOrders, sidebarFilters, salespeopleData, employeeCosts, externalTeamCosts]);
 
   // Column visibility state
   const OPTIONAL_COLUMNS = [
