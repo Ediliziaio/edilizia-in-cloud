@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Copy, Pencil, TrendingUp, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -14,6 +14,8 @@ interface OrdineDetailHeaderProps {
   onModifica: () => void;
   onNuovoSAL: () => void;
   onElimina: () => void;
+  onDownloadPDF?: () => void;
+  isGeneratingPDF?: boolean;
 }
 
 export function OrdineDetailHeader({
@@ -26,6 +28,8 @@ export function OrdineDetailHeader({
   onModifica,
   onNuovoSAL,
   onElimina,
+  onDownloadPDF,
+  isGeneratingPDF = false,
 }: OrdineDetailHeaderProps) {
   const navigate = useNavigate();
   return (
@@ -54,6 +58,22 @@ export function OrdineDetailHeader({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {onDownloadPDF && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadPDF}
+              disabled={isGeneratingPDF}
+              className="text-xs"
+            >
+              {isGeneratingPDF ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <FileDown className="h-3.5 w-3.5 mr-1" />
+              )}
+              Scarica PDF
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

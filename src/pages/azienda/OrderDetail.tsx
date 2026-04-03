@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -47,6 +47,7 @@ import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
+import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -228,6 +229,8 @@ function OrderDetailInner() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
+  const { downloadPDF, isGenerating: isGeneratingPDF } = useOrdinePDF();
+
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
@@ -353,6 +356,50 @@ function OrderDetailInner() {
 
   // Fetch linked fatture
   const { data: fattureCollegate = [] } = useFattureByOrdine(id);
+
+  // Fetch labor costs for PDF
+  const { data: pdfLaborEmployees = [] } = useQuery({
+    queryKey: ["order-employees-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select("*, employee:employees(first_name, last_name)")
+        .eq("order_id", id!);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  const { data: pdfLaborTeams = [] } = useQuery({
+    queryKey: ["order-external-teams-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_external_teams")
+        .select("*, external_team:external_teams(name)")
+        .eq("order_id", id!);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  const { data: pdfSalList = [] } = useQuery({
+    queryKey: ["sal-list-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sal_records")
+        .select("*, sal_voci(*)")
+        .eq("order_id", id!)
+        .order("numero_sal");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
 
   // Update status mutation
   const updateStatusMutation = useMutation({
@@ -602,6 +649,19 @@ function OrderDetailInner() {
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 
+  const handleDownloadPDF = useCallback(() => {
+    if (!order) return;
+    downloadPDF({
+      order,
+      items: orderItems,
+      laborEmployees: pdfLaborEmployees,
+      laborTeams: pdfLaborTeams,
+      salList: pdfSalList,
+      statuses,
+      companyName: effectiveCompany?.name,
+    });
+  }, [order, orderItems, pdfLaborEmployees, pdfLaborTeams, pdfSalList, statuses, effectiveCompany, downloadPDF]);
+
   if (orderLoading) {
     return (
       <div className="space-y-6">
@@ -648,6 +708,8 @@ function OrderDetailInner() {
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onNuovoSAL={() => {/* SAL creation is handled inside SalTab */}}
         onElimina={() => setDeleteConfirmOpen(true)}
+        onDownloadPDF={handleDownloadPDF}
+        isGeneratingPDF={isGeneratingPDF}
       />
 
       {/* ── Status strip ──────────────────────────────────────── */}
