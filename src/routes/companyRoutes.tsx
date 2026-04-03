@@ -47,6 +47,7 @@ const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/Setting
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
+const OrderDiaryPage = lazy(() => import("@/pages/azienda/OrderDiaryPage"));
 const EditOrder = lazy(() => import("@/pages/azienda/EditOrder"));
 const CustomersList = lazy(() => import("@/pages/azienda/CustomersList"));
 const CreateCustomer = lazy(() => import("@/pages/azienda/CreateCustomer"));
@@ -165,6 +166,7 @@ export function companyRoutes() {
         <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
         <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
+        <Route path="ordini/:id/diario" element={<ErrorBoundary title="Errore nel diario ordine"><OrderDiaryPage /></ErrorBoundary>} />
         <Route path="ordini/:id/modifica" element={<EditOrder />} />
         <Route path="magazzino" element={<Warehouse />} />
         <Route path="magazzino/gestione" element={<WarehouseManager />} />

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2 } from "lucide-react";
+import { BookOpen, ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -58,6 +58,15 @@ export function OrdineDetailHeader({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/azienda/ordini/${ordineId}/diario`)}
+            className="text-xs text-primary border-primary/30 hover:bg-primary/5"
+          >
+            <BookOpen className="h-3.5 w-3.5 mr-1" />
+            Diario Ordine
+          </Button>
           {onDownloadPDF && (
             <Button
               variant="outline"

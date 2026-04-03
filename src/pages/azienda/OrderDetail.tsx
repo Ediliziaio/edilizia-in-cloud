@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, BookOpen } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt } from "lucide-react";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +32,6 @@ import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCasc
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { OrderDiaryTab } from "@/components/orders/OrderDiaryTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
@@ -701,12 +700,11 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-6 h-auto">
+            <TabsList className="w-full grid grid-cols-5 h-auto">
               <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
               <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-              <TabsTrigger value="diario" className="text-xs py-2 text-primary font-medium">Diario</TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
             </TabsList>
 
@@ -848,19 +846,7 @@ function OrderDetailInner() {
               )}
             </TabsContent>
 
-            {/* Tab 5: Diario */}
-            <TabsContent value="diario" className="space-y-4 mt-4">
-              {order.customer && (
-                <OrderDiaryTab
-                  orderId={id!}
-                  customerName={`${order.customer.first_name} ${order.customer.last_name}`}
-                  customerEmail={order.customer.email}
-                  customerPhone={order.customer.phone || undefined}
-                />
-              )}
-            </TabsContent>
-
-            {/* Tab 7: Altro */}
+            {/* Tab 5: Altro */}
             <TabsContent value="altro" className="space-y-4 mt-4">
               <OrdineNote
                 notes={order.internal_notes}
@@ -944,34 +930,6 @@ function OrderDetailInner() {
                 orderTotalAmount={order.total_amount ?? undefined}
               />
             )}
-
-            {/* Diario */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-sm font-medium text-gray-600">
-                  <span className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    Diario dell'Ordine
-                  </span>
-                  <Link
-                    to={`/azienda/giornale-lavori?ordine=${id}`}
-                    className="text-xs text-primary hover:underline font-normal"
-                  >
-                    Giornale completo →
-                  </Link>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {order.customer && (
-                  <OrderDiaryTab
-                    orderId={id!}
-                    customerName={`${order.customer.first_name} ${order.customer.last_name}`}
-                    customerEmail={order.customer.email}
-                    customerPhone={order.customer.phone || undefined}
-                  />
-                )}
-              </CardContent>
-            </Card>
 
             {/* Variazioni + OdV */}
             {effectiveCompany?.id && (
