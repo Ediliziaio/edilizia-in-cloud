@@ -95,6 +95,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       // ─── Pianificazione ───
+      { title: "Assistenza & Lavori", url: "/azienda/assistenza-lavori", icon: LayoutGrid, permissionKey: "canViewTickets", moduleKey: "tickets", groupLabel: "Pianificazione" },
       { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", groupLabel: "Pianificazione" },
       { title: "Interventi", url: "/azienda/interventi", icon: Wrench, permissionKey: "canViewOrders", groupLabel: "Pianificazione" },
       { title: "Manutenzione", url: "/azienda/manutenzione", icon: Settings, permissionKey: "canViewOrders", groupLabel: "Pianificazione" },

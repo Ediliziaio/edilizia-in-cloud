@@ -101,6 +101,7 @@ const InterventiList = lazy(() => import("@/pages/azienda/InterventiList"));
 const InterventiDetail = lazy(() => import("@/pages/azienda/InterventiDetail"));
 const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
+const AssistenzaLavoriHub = lazy(() => import("@/pages/azienda/AssistenzaLavoriHub"));
 
 // Marketing
 const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/MarketingDashboard"));
@@ -179,6 +180,7 @@ export function companyRoutes() {
         <Route path="clienti/nuovo" element={<CreateCustomer />} />
         <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
         
+        <Route path="assistenza-lavori" element={<AssistenzaLavoriHub />} />
         <Route path="assistenza" element={<TicketsList />} />
         <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
         <Route path="assistenza/:id" element={<TicketDetail />} />
