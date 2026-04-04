@@ -18,7 +18,7 @@ export default defineConfig(() => ({
   plugins: [
     react(),
     VitePWA({
-      registerType: "prompt",
+      registerType: "autoUpdate",
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "robots.txt", "icons/apple-touch-icon.png"],
       manifest: {
@@ -69,14 +69,13 @@ export default defineConfig(() => ({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/auth\//, /^\/assets\//],
         cleanupOutdatedCaches: true,
-        // skipWaiting: false — do NOT auto-activate the new SW mid-session.
-        // With autoUpdate, Vite injects skipWaiting() which causes the new SW
-        // to take over while the old page is still loaded. If Cloudflare is
-        // mid-deploy, asset fetches briefly return the SPA HTML fallback, which
-        // the SW caches, poisoning the assets-runtime cache and breaking the app.
-        // Setting false means the new SW waits until all tabs are closed/reloaded.
-        skipWaiting: false,
-        clientsClaim: false,
+        // skipWaiting: true — force the new SW to take over immediately.
+        // The old SW had NetworkFirst for assets which poisoned the assets-runtime
+        // cache (Cloudflare mid-deploy served index.html for JS chunk URLs).
+        // The new SW has NO runtimeCaching for assets so the poisoned cache is
+        // never consulted — safe to skipWaiting now that the root cause is removed.
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Critical list endpoints: stale-while-revalidate for fast mobile loads
