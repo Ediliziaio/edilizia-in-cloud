@@ -147,6 +147,8 @@ export default function InterventiDetail() {
     onSuccess: () => {
       toast.success("Costo registrato nei Costi Aziendali");
       queryClient.invalidateQueries({ queryKey: ["rapportini", id] });
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["rapportini-firmati-count"] });
     },
     onError: (e: Error) => toast.error(e.message || "Errore nella generazione del costo"),
   });
