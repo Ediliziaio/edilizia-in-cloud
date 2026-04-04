@@ -18,7 +18,7 @@ export default defineConfig(() => ({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "robots.txt", "icons/apple-touch-icon.png"],
       manifest: {
@@ -69,18 +69,15 @@ export default defineConfig(() => ({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/auth\//, /^\/assets\//],
         cleanupOutdatedCaches: true,
+        // skipWaiting: false — do NOT auto-activate the new SW mid-session.
+        // With autoUpdate, Vite injects skipWaiting() which causes the new SW
+        // to take over while the old page is still loaded. If Cloudflare is
+        // mid-deploy, asset fetches briefly return the SPA HTML fallback, which
+        // the SW caches, poisoning the assets-runtime cache and breaking the app.
+        // Setting false means the new SW waits until all tabs are closed/reloaded.
+        skipWaiting: false,
+        clientsClaim: false,
         runtimeCaching: [
-          {
-            // JS/CSS chunks: network-first so new deploys are always reflected.
-            // Falls back to cache if offline (content-hashed, safe to cache).
-            urlPattern: /\/assets\/.*\.(js|css)$/,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "assets-runtime",
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
-            },
-          },
           {
             // Critical list endpoints: stale-while-revalidate for fast mobile loads
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/(cantieri|clienti|giornale_lavori)/i,
