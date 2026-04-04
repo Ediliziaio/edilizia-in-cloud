@@ -368,6 +368,22 @@ export function CompanyDetailsTab({
                   <span className="font-medium font-mono text-xs">{company.vat_number}</span>
                 </div>
               )}
+              {stats && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Ordini</span>
+                    <span className="font-medium">{stats.ordersCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Clienti</span>
+                    <span className="font-medium">{stats.customersCount}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Team</span>
+                <span className="font-medium">{totalTeam}</span>
+              </div>
             </div>
 
             <div className="pt-4 border-t mt-4">

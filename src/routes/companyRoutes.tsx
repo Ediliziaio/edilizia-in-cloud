@@ -14,17 +14,12 @@ const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCata
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
 const SettingsPipelines = lazy(() => import("@/pages/azienda/settings/SettingsPipelines"));
 const SettingsSuppliers = lazy(() => import("@/pages/azienda/settings/SettingsSuppliers"));
-const SettingsUsers = lazy(() => import("@/pages/azienda/settings/SettingsUsers"));
+// SettingsUsers, SettingsSalespeople, SettingsStaff, SettingsTeams → rimpiazzati da SettingsPeople
+// SettingsSecurity, SettingsSecurityDashboard, SettingsActivityLog, SettingsPrivacy → rimpiazzati da SettingsSecurityHub
 const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
-const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/SettingsSalespeople"));
-const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
 const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
-const SettingsTeams = lazy(() => import("@/pages/azienda/settings/SettingsTeams"));
 const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
-const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
-const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
-const SettingsActivityLog = lazy(() => import("@/pages/azienda/settings/SettingsActivityLog"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
@@ -38,7 +33,6 @@ const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTari
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
-const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
@@ -110,10 +104,10 @@ const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/Marketin
 const MarketingContacts = lazy(() => import("@/pages/azienda/marketing/MarketingContacts"));
 const MarketingOpportunities = lazy(() => import("@/pages/azienda/marketing/MarketingOpportunities"));
 const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
-const MarketingAutomations = lazy(() => import("@/pages/azienda/marketing/MarketingAutomations"));
+// MarketingAutomations → sostituito da AutomazioniUnified
+// MarketingTasks → sostituito da UnifiedTasks
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
 const MarketingContactDetail = lazy(() => import("@/pages/azienda/marketing/MarketingContactDetail"));
-const MarketingTasks = lazy(() => import("@/pages/azienda/marketing/MarketingTasks"));
 const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketing"));
 const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEditor"));
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));

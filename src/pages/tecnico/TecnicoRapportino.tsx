@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   ChevronRight,
-  ChevronLeft,
   Plus,
   Minus,
   Camera,

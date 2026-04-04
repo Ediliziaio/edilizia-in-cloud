@@ -93,6 +93,7 @@ export function NuovoInterventoDialog({
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", effectiveCompany.id)
+        .in("role", ["tecnico", "admin", "staff"])
         .order("last_name");
       return data ?? [];
     },

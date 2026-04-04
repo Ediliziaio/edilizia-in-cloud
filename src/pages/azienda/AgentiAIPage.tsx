@@ -45,7 +45,7 @@ export default function AgentiAIPage() {
   const rawTab = searchParams.get("tab") as MainTab | null;
   const activeTab: MainTab = rawTab && TABS.some((t) => t.key === rawTab) ? rawTab : "agenti";
   const companyId = useEffectiveCompanyId();
-  const { data: stats } = useAICompanyStats();
+  const { data: stats, isLoading: statsLoading } = useAICompanyStats();
 
   // ElevenLabs config status — read-only via safe view
   const { data: elConfig } = useQuery({
@@ -121,7 +121,25 @@ export default function AgentiAIPage() {
         </div>
 
         {/* Stats bar — only on Agenti tab */}
-        {activeTab === "agenti" && stats && <AgentiAIStatsBar stats={stats} />}
+        {activeTab === "agenti" && (
+          stats
+            ? <AgentiAIStatsBar stats={stats} />
+            : statsLoading
+              ? (
+                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 px-6 py-4 bg-card border-b border-border">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-muted animate-pulse flex-shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-5 w-10 bg-muted animate-pulse rounded" />
+                        <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+              : null
+        )}
 
         {/* Tab content */}
         <TabsContent value="agenti" className="mt-0">
