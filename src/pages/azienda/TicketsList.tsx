@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -48,6 +48,7 @@ import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -151,6 +152,28 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             <span className="hidden sm:inline">Crea Ticket</span>
           </Link>
         </Button>
+      </div>
+
+      {/* Tab switcher tipo */}
+      <div className="flex gap-2 border-b pb-2">
+        <button
+          className="px-4 py-1.5 rounded-t text-sm font-medium border-b-2 border-primary text-primary bg-primary/5"
+          aria-current="page"
+        >
+          Supporto
+        </button>
+        <button
+          className="px-4 py-1.5 rounded-t text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 border-b-2 border-transparent"
+          onClick={() => navigate("/azienda/interventi?tipo=intervento")}
+        >
+          Interventi
+        </button>
+        <button
+          className="px-4 py-1.5 rounded-t text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 border-b-2 border-transparent"
+          onClick={() => navigate("/azienda/interventi?tipo=emergenza")}
+        >
+          Emergenze
+        </button>
       </div>
 
       {/* Stats Cards */}

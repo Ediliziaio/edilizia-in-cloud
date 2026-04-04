@@ -97,6 +97,8 @@ const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
+const InterventiList = lazy(() => import("@/pages/azienda/InterventiList"));
+const InterventiDetail = lazy(() => import("@/pages/azienda/InterventiDetail"));
 
 // Marketing
 const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/MarketingDashboard"));
@@ -178,6 +180,8 @@ export function companyRoutes() {
         <Route path="assistenza" element={<TicketsList />} />
         <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
         <Route path="assistenza/:id" element={<TicketDetail />} />
+        <Route path="interventi" element={<InterventiList />} />
+        <Route path="interventi/:id" element={<InterventiDetail />} />
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
