@@ -312,9 +312,9 @@ function CalendarInner() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, subject, data_intervento_prevista, status, assigned_to")
+        .select("id, subject, tipo, data_intervento_prevista, status, assigned_to")
         .eq("company_id", effectiveCompany.id)
-        .eq("tipo", "intervento")
+        .in("tipo", ["intervento", "emergenza"])
         .not("data_intervento_prevista", "is", null)
         .gte("data_intervento_prevista", calendarRangeStart)
         .lte("data_intervento_prevista", calendarRangeEnd)
@@ -906,6 +906,8 @@ function CalendarInner() {
               statuses={statuses}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
+              interventi={showInterventi ? calInterventi : []}
+              manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
           )}
         </div>

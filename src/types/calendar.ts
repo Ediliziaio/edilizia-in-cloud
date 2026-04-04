@@ -77,6 +77,7 @@ export interface CalendarWarehouseInfo {
 export interface CalendarIntervento {
   id: string;
   subject: string;
+  tipo: string;
   data_intervento_prevista: string | null;
   status: string;
   assigned_to: string | null;

@@ -39,10 +39,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import type { CalendarOrder, GanttZoom, OrderStatus } from "@/types/calendar";
+import type { CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { DraggableOrderBar } from "./DraggableOrderBar";
 import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
 
@@ -52,6 +52,8 @@ interface CalendarGanttViewProps {
   statuses: OrderStatus[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
+  interventi?: CalendarIntervento[];
+  manutenzioni?: CalendarManutenzione[];
 }
 
 const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
@@ -61,6 +63,7 @@ const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
 };
 
 const ROW_HEIGHT = 50;
+const LEFT_COL_WIDTH = 220;
 
 function getOrderProgress(order: CalendarOrder): number | undefined {
   if (!order.work_start_date || !order.work_end_date) return undefined;
@@ -78,6 +81,8 @@ export function CalendarGanttView({
   statuses,
   currentDate,
   onDateChange,
+  interventi = [],
+  manutenzioni = [],
 }: CalendarGanttViewProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -398,6 +403,34 @@ export function CalendarGanttView({
                   </div>
                 );
               })}
+              {/* Interventi labels */}
+              {interventi.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200">
+                    <Wrench className="h-3.5 w-3.5 text-orange-600" />
+                    <span className="text-xs font-semibold text-orange-700">Interventi ({interventi.length})</span>
+                  </div>
+                  {interventi.map((iv) => (
+                    <div key={iv.id} className="border-b flex items-center px-3" style={{ height: ROW_HEIGHT }}>
+                      <span className="text-xs font-medium truncate text-orange-700">{iv.subject}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {/* Manutenzioni labels */}
+              {manutenzioni.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200">
+                    <Settings className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="text-xs font-semibold text-blue-700">Manutenzioni ({manutenzioni.length})</span>
+                  </div>
+                  {manutenzioni.map((mn) => (
+                    <div key={mn.id} className="border-b flex items-center px-3" style={{ height: ROW_HEIGHT }}>
+                      <span className="text-xs font-medium truncate text-blue-700">{mn.titolo}</span>
+                    </div>
+                  ))}
+                </>
+              )}
               {/* Capacity row label */}
               <div className="h-8 flex items-center px-3 bg-muted/40 border-t">
                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Carico</span>
@@ -555,6 +588,62 @@ export function CalendarGanttView({
                   );
                 })}
 
+                {/* ── Sezione Interventi ──────────────────────────────── */}
+                {interventi.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200" style={{ minWidth: LEFT_COL_WIDTH }}>
+                      <Wrench className="h-3.5 w-3.5 text-orange-600" />
+                      <span className="text-xs font-semibold text-orange-700">Interventi ({interventi.length})</span>
+                    </div>
+                    {interventi.map((iv) => {
+                      if (!iv.data_intervento_prevista) return null;
+                      const ivDate = parseISO(iv.data_intervento_prevista);
+                      const dayOffset = differenceInDays(ivDate, days[0]);
+                      if (dayOffset < 0 || dayOffset >= days.length) return null;
+                      return (
+                        <div key={iv.id} className="relative border-b border-muted" style={{ height: ROW_HEIGHT }}>
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1"
+                            style={{ left: dayOffset * dayWidth }}
+                          >
+                            <div className={`h-5 px-2 rounded text-[10px] font-semibold text-white flex items-center gap-1 ${iv.tipo === "emergenza" ? "bg-red-500" : "bg-orange-500"}`}>
+                              <Wrench className="h-2.5 w-2.5" />
+                              {iv.tipo === "emergenza" ? "Urg." : "Int."}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                {/* ── Sezione Manutenzioni ────────────────────────────── */}
+                {manutenzioni.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200" style={{ minWidth: LEFT_COL_WIDTH }}>
+                      <Settings className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="text-xs font-semibold text-blue-700">Manutenzioni in scadenza ({manutenzioni.length})</span>
+                    </div>
+                    {manutenzioni.map((mn) => {
+                      if (!mn.prossima_scadenza) return null;
+                      const mnDate = parseISO(mn.prossima_scadenza);
+                      const dayOffset = differenceInDays(mnDate, days[0]);
+                      if (dayOffset < 0 || dayOffset >= days.length) return null;
+                      return (
+                        <div key={mn.id} className="relative border-b border-muted" style={{ height: ROW_HEIGHT }}>
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2"
+                            style={{ left: dayOffset * dayWidth }}
+                          >
+                            <div className="h-5 px-2 rounded bg-blue-500 text-[10px] font-semibold text-white flex items-center gap-1">
+                              <Settings className="h-2.5 w-2.5" />
+                              Manut.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
                 {/* Capacity row */}
                 <div className="flex h-8 border-t bg-muted/20">
                   {capacityPerDay.map((count, idx) => (
