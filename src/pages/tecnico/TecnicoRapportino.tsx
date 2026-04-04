@@ -69,6 +69,14 @@ export default function TecnicoRapportino() {
     enabled: !!authUser,
   });
 
+  // Traccia decrementamenti sessione: scortaId → quantità usata
+  const [decrementiFurgone, setDecrementiFurgone] = useState<Record<string, number>>({});
+
+  // Scorte con disponibilità > 0 per questa sessione
+  const scorteDisponibili = scorte.filter(
+    (s: any) => (s.quantita_attuale - (decrementiFurgone[s.id] ?? 0)) > 0
+  );
+
   // Canvas firma helpers
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current!;
@@ -153,8 +161,14 @@ export default function TecnicoRapportino() {
     setFotoPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Materiale da scorte
+  // Materiale da scorte (con verifica disponibilità e tracking decremento)
   const addMaterialeScorta = (scorta: any) => {
+    const available = (scorta.quantita_attuale ?? 0) - (decrementiFurgone[scorta.id] ?? 0);
+    if (available <= 0) {
+      toast.error("Scorta esaurita per questo intervento");
+      return;
+    }
+    setDecrementiFurgone((prev) => ({ ...prev, [scorta.id]: (prev[scorta.id] ?? 0) + 1 }));
     setMateriali((prev) => {
       const existing = prev.findIndex((m) => m.descrizione === scorta.nome_materiale);
       if (existing >= 0) {
@@ -245,10 +259,24 @@ export default function TecnicoRapportino() {
           .update({ status: "risolto" })
           .eq("id", id!);
       }
+
+      // Decrementa scorte furgone usate in questa sessione
+      const scorteMap = new Map(scorte.map((s: any) => [s.id, s]));
+      for (const [scortaId, usedQty] of Object.entries(decrementiFurgone)) {
+        if (usedQty <= 0) continue;
+        const scorta = scorteMap.get(scortaId);
+        if (!scorta) continue;
+        const newQty = Math.max(0, (scorta.quantita_attuale ?? 0) - usedQty);
+        await supabase
+          .from("scorte_furgone")
+          .update({ quantita_attuale: newQty })
+          .eq("id", scortaId);
+      }
     },
     onSuccess: () => {
       toast.success("Rapportino salvato!");
       queryClient.invalidateQueries({ queryKey: ["tecnico-lavori"] });
+      queryClient.invalidateQueries({ queryKey: ["scorte-furgone"] });
       navigate("/tecnico");
     },
     onError: (err: Error) => toast.error(err.message || "Errore nel salvataggio"),
@@ -348,23 +376,30 @@ export default function TecnicoRapportino() {
             {scorte.length > 0 && (
               <div>
                 <p className="text-slate-400 text-sm font-medium mb-2">Dal furgone:</p>
-                <div className="space-y-2">
-                  {scorte.map((s: any) => (
-                    <button
-                      key={s.id}
-                      onClick={() => addMaterialeScorta(s)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center justify-between text-left active:bg-slate-700"
-                    >
-                      <div>
-                        <p className="text-white font-medium">{s.nome_materiale}</p>
-                        <p className="text-slate-400 text-sm">
-                          Disponibili: {s.quantita_attuale} {s.unita_misura ?? "pz"}
-                        </p>
-                      </div>
-                      <Plus className="h-5 w-5 text-blue-400 shrink-0" />
-                    </button>
-                  ))}
-                </div>
+                {scorteDisponibili.length === 0 ? (
+                  <p className="text-slate-500 text-sm text-center py-2">Tutte le scorte disponibili sono state utilizzate</p>
+                ) : (
+                  <div className="space-y-2">
+                    {scorteDisponibili.map((s: any) => {
+                      const rimanenti = (s.quantita_attuale ?? 0) - (decrementiFurgone[s.id] ?? 0);
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => addMaterialeScorta(s)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center justify-between text-left active:bg-slate-700"
+                        >
+                          <div>
+                            <p className="text-white font-medium">{s.nome_materiale}</p>
+                            <p className="text-slate-400 text-sm">
+                              Disponibili: {rimanenti} {s.unita_misura ?? "pz"}
+                            </p>
+                          </div>
+                          <Plus className="h-5 w-5 text-blue-400 shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
