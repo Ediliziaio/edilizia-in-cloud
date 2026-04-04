@@ -64,7 +64,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Dati Reali del Settore Edile Italiano",
-        body: "Secondo i dati ANCE 2025, il 67% delle imprese edili italiane con meno di 50 dipendenti non ha ancora alcuno strumento digitale per il monitoraggio dei costi di cantiere. Le imprese che invece hanno adottato software gestionali specifici per l'edilizia riportano in media una riduzione dei costi operativi del 22% nel primo anno di utilizzo. Il ritorno sull'investimento (ROI) di un gestionale per cantieri si raggiunge tipicamente in 4-6 mesi, rendendolo uno degli investimenti più rapidi che un'impresa edile possa fare.",
+        body: "Secondo i dati ANCE 2026, il 67% delle imprese edili italiane con meno di 50 dipendenti non ha ancora alcuno strumento digitale per il monitoraggio dei costi di cantiere. Le imprese che invece hanno adottato software gestionali specifici per l'edilizia riportano in media una riduzione dei costi operativi del 22% nel primo anno di utilizzo. Il ritorno sull'investimento (ROI) di un gestionale per cantieri si raggiunge tipicamente in 4-6 mesi, rendendolo uno degli investimenti più rapidi che un'impresa edile possa fare.",
       },
       {
         type: "quote",
@@ -75,7 +75,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Caso Studio: Impresa Costruzioni Generali di Bergamo",
-        body: "Un'impresa da 15 dipendenti con 3,2 milioni di fatturato annuo ha adottato un gestionale digitale per i cantieri a gennaio 2025. Nei primi sei mesi ha registrato una riduzione del 19% del costo del lavoro per cantiere grazie al monitoraggio presenze in tempo reale, un risparmio del 14% sui materiali grazie alla gestione digitale degli ordini, e un miglioramento del cash flow di 45 giorni grazie alla fatturazione automatica dei SAL. Il margine netto medio per commessa è passato dal 6,2% all'8,7% — un incremento che in termini assoluti vale oltre 80.000€ all'anno.",
+        body: "Un'impresa da 15 dipendenti con 3,2 milioni di fatturato annuo ha adottato un gestionale digitale per i cantieri a gennaio 2026. Nei primi sei mesi ha registrato una riduzione del 19% del costo del lavoro per cantiere grazie al monitoraggio presenze in tempo reale, un risparmio del 14% sui materiali grazie alla gestione digitale degli ordini, e un miglioramento del cash flow di 45 giorni grazie alla fatturazione automatica dei SAL. Il margine netto medio per commessa è passato dal 6,2% all'8,7% — un incremento che in termini assoluti vale oltre 80.000€ all'anno.",
       },
       {
         type: "section",
@@ -380,7 +380,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Il Cliente Moderno Cerca Online: I Dati",
-        body: "Secondo i dati Google Italia 2025, le ricerche relative a 'impresa edile [città]', 'ristrutturazione casa', 'preventivo ristrutturazione' sono cresciute del 34% rispetto all'anno precedente. La maggior parte di queste ricerche avviene da mobile, con l'intenzione di contattare direttamente l'impresa entro 24 ore. Il 91% degli utenti che effettua una ricerca locale su Google clicca su uno dei tre risultati nella mappa — il cosiddetto 'Local Pack'. Essere in quella mappa è il primo obiettivo di marketing per qualsiasi impresa edile locale.",
+        body: "Secondo i dati Google Italia 2026, le ricerche relative a 'impresa edile [città]', 'ristrutturazione casa', 'preventivo ristrutturazione' sono cresciute del 34% rispetto all'anno precedente. La maggior parte di queste ricerche avviene da mobile, con l'intenzione di contattare direttamente l'impresa entro 24 ore. Il 91% degli utenti che effettua una ricerca locale su Google clicca su uno dei tre risultati nella mappa — il cosiddetto 'Local Pack'. Essere in quella mappa è il primo obiettivo di marketing per qualsiasi impresa edile locale.",
       },
       {
         type: "section",
@@ -429,8 +429,8 @@ export const blogPosts: BlogPost[] = [
       "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto di Excel: tempo perso, errori, opportunità mancate e rischio di conformità fiscale.",
     category: "Digitalizzazione",
     tags: ["excel edilizia", "software gestionale", "costi nascosti", "digitalizzazione"],
-    publishedAt: "2025-12-20",
-    updatedAt: "2025-12-20",
+    publishedAt: "2026-12-20",
+    updatedAt: "2026-12-20",
     readTime: 6,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -443,7 +443,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Quante Imprese Edili Usano Ancora Excel",
-        body: "Un'indagine condotta nel 2025 da ANCE su 2.400 piccole e medie imprese edili italiane ha rilevato che il 71% usa fogli Excel come strumento principale per la gestione delle commesse, il 58% per le presenze e il 64% per la contabilità interna. Questo dato è in calo rispetto al 2022 (82%) ma rimane elevatissimo per un settore che gestisce commesse da centinaia di migliaia di euro. La resistenza al cambiamento è comprensibile: Excel è familiare, apparentemente gratuito e controllabile. Ma i costi nascosti sono reali.",
+        body: "Un'indagine condotta nel 2026 da ANCE su 2.400 piccole e medie imprese edili italiane ha rilevato che il 71% usa fogli Excel come strumento principale per la gestione delle commesse, il 58% per le presenze e il 64% per la contabilità interna. Questo dato è in calo rispetto al 2022 (82%) ma rimane elevatissimo per un settore che gestisce commesse da centinaia di migliaia di euro. La resistenza al cambiamento è comprensibile: Excel è familiare, apparentemente gratuito e controllabile. Ma i costi nascosti sono reali.",
       },
       {
         type: "list",
@@ -491,8 +491,8 @@ export const blogPosts: BlogPost[] = [
       "piano digitale",
       "software edilizia",
     ],
-    publishedAt: "2025-12-05",
-    updatedAt: "2025-12-05",
+    publishedAt: "2026-12-05",
+    updatedAt: "2026-12-05",
     readTime: 9,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -671,11 +671,11 @@ export const blogPosts: BlogPost[] = [
   {
     id: "10",
     slug: "documentazione-obbligatoria-cantiere-2025",
-    title: "Documentazione Obbligatoria Cantiere 2025: Lista Completa per Imprese Edili",
+    title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa per Imprese Edili",
     excerpt:
-      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2025. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
+      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
     category: "Normativa",
-    tags: ["documentazione cantiere 2025", "POS cantiere", "DURC", "normativa edilizia"],
+    tags: ["documentazione cantiere 2022026"POS cantiere", "DURC", "normativa edilizia"],
     publishedAt: "2026-04-14",
     updatedAt: "2026-04-14",
     readTime: 11,
@@ -685,7 +685,7 @@ export const blogPosts: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "La documentazione obbligatoria in cantiere nel 2025 non è cambiata radicalmente rispetto agli anni precedenti, ma le sanzioni per chi non la ha in ordine sono diventate più severe e i controlli degli ispettori più frequenti. Un cantiere senza il POS aggiornato rischia una multa fino a 6.400 euro e la sospensione immediata dei lavori. Un DURC scaduto del subappaltatore può bloccare il pagamento di uno stato avanzamento lavori da parte della committenza pubblica. In questa guida trovi la lista completa, aggiornata al 2025, di tutti i documenti obbligatori — divisi per fase del cantiere — con le sanzioni applicabili per chi non li ha in ordine.",
+        body: "La documentazione obbligatoria in cantiere nel 2026 non è cambiata radicalmente rispetto agli anni precedenti, ma le sanzioni per chi non la ha in ordine sono diventate più severe e i controlli degli ispettori più frequenti. Un cantiere senza il POS aggiornato rischia una multa fino a 6.400 euro e la sospensione immediata dei lavori. Un DURC scaduto del subappaltatore può bloccare il pagamento di uno stato avanzamento lavori da parte della committenza pubblica. In questa guida trovi la lista completa, aggiornata al 2026, di tutti i documenti obbligatori — divisi per fase del cantiere — con le sanzioni applicabili per chi non li ha in ordine.",
       },
       {
         type: "section",
@@ -890,7 +890,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Perché Tante Imprese Edili Usano Ancora Excel",
-        body: "La risposta è semplice: Excel è familiare, è già pagato (incluso in Office 365 da 9€/mese), e tutti sanno usarlo almeno a un livello base. Quando un'impresa cresce da 1 a 3 cantieri aperti contemporaneamente, il passaggio naturale è aprire una nuova scheda nel foglio. Poi un'altra. Poi un altro file. Poi una cartella che si chiama 'Cantieri 2025 v3 DEFINITIVO (2)'. Il problema è che questo approccio ha un costo nascosto molto più alto di qualsiasi alternativa software — e la maggior parte dei titolari non lo calcola mai perché è un costo sommerso, distribuito in migliaia di micro-perdite quotidiane.",
+        body: "La risposta è semplice: Excel è familiare, è già pagato (incluso in Office 365 da 9€/mese), e tutti sanno usarlo almeno a un livello base. Quando un'impresa cresce da 1 a 3 cantieri aperti contemporaneamente, il passaggio naturale è aprire una nuova scheda nel foglio. Poi un'altra. Poi un altro file. Poi una cartella che si chiama 'Cantieri 2026 v3 DEFINITIVO (2)'. Il problema è che questo approccio ha un costo nascosto molto più alto di qualsiasi alternativa software — e la maggior parte dei titolari non lo calcola mai perché è un costo sommerso, distribuito in migliaia di micro-perdite quotidiane.",
       },
       {
         type: "list",
