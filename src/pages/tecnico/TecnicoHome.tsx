@@ -94,7 +94,7 @@ export default function TecnicoHome() {
           </div>
           <p className="text-white font-semibold text-base leading-tight truncate">{item.subject}</p>
           {item.customer && (
-            <p className="text-slate-400 text-sm mt-1">{(item.customer as any).full_name}</p>
+            <p className="text-slate-400 text-sm mt-1">{item.customer.full_name}</p>
           )}
           {item.indirizzo_intervento && (
             <div className="flex items-center gap-1.5 mt-2">

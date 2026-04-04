@@ -50,11 +50,11 @@ export default function TecnicoInterventi() {
     enabled: !!user,
   });
 
-  const filtered = interventi.filter((i: any) =>
+  const filtered = (interventi as any[]).filter((i) =>
     !search ||
     i.subject?.toLowerCase().includes(search.toLowerCase()) ||
     i.indirizzo_intervento?.toLowerCase().includes(search.toLowerCase()) ||
-    (i.customer as any)?.full_name?.toLowerCase().includes(search.toLowerCase()),
+    i.customer?.full_name?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -99,7 +99,12 @@ export default function TecnicoInterventi() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
-          <p className="text-lg">Nessun intervento trovato</p>
+          <p className="text-lg font-medium">Nessun intervento trovato</p>
+          {search && (
+            <button onClick={() => setSearch("")} className="mt-2 text-blue-400 text-sm underline">
+              Cancella ricerca
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -126,8 +131,8 @@ export default function TecnicoInterventi() {
                     )}
                   </div>
                   <p className="text-white font-semibold text-base leading-tight">{item.subject}</p>
-                  {(item.customer as any) && (
-                    <p className="text-slate-400 text-sm mt-1">{(item.customer as any).full_name}</p>
+                  {(item as any).customer && (
+                    <p className="text-slate-400 text-sm mt-1">{(item as any).customer.full_name}</p>
                   )}
                   {item.indirizzo_intervento && (
                     <div className="flex items-center gap-1.5 mt-2">

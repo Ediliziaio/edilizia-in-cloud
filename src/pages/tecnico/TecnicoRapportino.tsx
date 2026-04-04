@@ -127,23 +127,30 @@ export default function TecnicoRapportino() {
   };
 
   // Foto handling
+  // Revoca URL object al cleanup per evitare memory leak
+  useEffect(() => {
+    return () => {
+      fotoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [fotoPreviews]);
+
   const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (fotoFiles.length + files.length > 5) {
       toast.error("Massimo 5 foto");
       return;
     }
+    // Revoca le precedenti prima di rimpiazzarle
+    fotoPreviews.forEach((url) => URL.revokeObjectURL(url));
     const newFiles = [...fotoFiles, ...files].slice(0, 5);
     setFotoFiles(newFiles);
-    const previews = newFiles.map((f) => URL.createObjectURL(f));
-    setFotoPreviews(previews);
+    setFotoPreviews(newFiles.map((f) => URL.createObjectURL(f)));
   };
 
   const removeFoto = (idx: number) => {
-    const newFiles = fotoFiles.filter((_, i) => i !== idx);
-    const newPreviews = fotoPreviews.filter((_, i) => i !== idx);
-    setFotoFiles(newFiles);
-    setFotoPreviews(newPreviews);
+    URL.revokeObjectURL(fotoPreviews[idx]);
+    setFotoFiles((prev) => prev.filter((_, i) => i !== idx));
+    setFotoPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Materiale da scorte

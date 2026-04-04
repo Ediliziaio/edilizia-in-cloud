@@ -18,6 +18,14 @@ import { toast } from "sonner";
 import { RapportinoForm } from "@/components/interventi/RapportinoForm";
 import type { Intervento, RapportinoIntervento } from "@/types/interventi";
 
+const STATO_CONFIG: Record<string, { label: string; color: string }> = {
+  aperto: { label: "Aperto", color: "bg-blue-100 text-blue-800" },
+  in_lavorazione: { label: "In lavorazione", color: "bg-yellow-100 text-yellow-800" },
+  in_attesa: { label: "In attesa", color: "bg-orange-100 text-orange-800" },
+  risolto: { label: "Risolto", color: "bg-green-100 text-green-800" },
+  chiuso: { label: "Chiuso", color: "bg-gray-100 text-gray-600" },
+};
+
 export default function InterventiDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -149,9 +157,10 @@ export default function InterventiDetail() {
             <Badge className={intervento.tipo === "emergenza" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}>
               {intervento.tipo === "emergenza" ? "Emergenza" : "Intervento"}
             </Badge>
-            <Badge className={intervento.status === "risolto" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
-              {intervento.status}
-            </Badge>
+            {(() => {
+              const s = STATO_CONFIG[intervento.status] ?? { label: intervento.status, color: "bg-gray-100 text-gray-600" };
+              return <Badge className={s.color}>{s.label}</Badge>;
+            })()}
           </div>
           <p className="text-sm text-gray-500 mt-1">
             Creato il {format(new Date(intervento.created_at), "dd MMMM yyyy", { locale: it })}
