@@ -586,122 +586,280 @@ export const blogPosts: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Hai due cantieri aperti, la squadra che chiama ogni mezz'ora, e un cliente che vuole sapere quando finisce. Non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso fino ad oggi. Il problema non è la tua squadra. Il problema è che organizzare un cantiere edile senza un sistema non si può fare. In questa guida trovi il metodo completo — dalla partenza alla chiusura — senza fogli Excel sparsi e senza perdere il controllo dei margini.",
+        body: "Hai due cantieri aperti, la squadra che chiama ogni mezz'ora, e un cliente che vuole sapere quando finisce. Non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso fino ad oggi. Il problema non è la tua squadra. Il problema è che organizzare un cantiere edile senza un sistema strutturato non si può fare. Le imprese edili italiane perdono in media il 15-20% del margine di commessa per problemi di organizzazione: materiali ordinati doppio, ore non imputate alla commessa giusta, SAL sfasati rispetto ai costi reali. In questa guida trovi il metodo completo — dalla partenza alla chiusura — con le 5 fasi operative che le imprese edili strutturate usano per tenere il controllo di ogni cantiere, anche quando ne hanno 5 aperti contemporaneamente.",
+      },
+      {
+        type: "section",
+        heading: "Perché la Maggior Parte dei Cantieri va Fuori Controllo",
+        body: "La risposta è sempre la stessa: il cantiere parte senza un sistema. Si sa cosa costruire, si sa quanto si è quotato, ma non esiste un piano operativo scritto con budget per fase, risorse assegnate, date di approvvigionamento materiali e responsabili. Quando i problemi arrivano — e arrivano sempre — non ci sono strumenti per capire quanto si sta sforando e dove. Si scopre solo a fine lavori, quando i danni sono fatti. Organizzare un cantiere edile significa costruire quel sistema prima che i lavori inizino, non durante.",
       },
       {
         type: "list",
         heading: "Prima di Aprire il Cantiere: i 5 Passi Obbligatori",
         items: [
-          "Definisci il budget di commessa interno: quanto puoi spendere in manodopera, materiali e noli per stare in utile? La regola: il costo previsto non deve superare il 70% del valore contrattuale.",
-          "Pianifica le fasi di lavoro: ogni fase ha un nome, una data di inizio e fine, le risorse assegnate e i materiali da ordinare.",
-          "Controlla la documentazione prima di iniziare: notifica preliminare, POS, DURC di tutti i subappaltatori, contratti firmati e permessi edilizi. Mancano? Il cantiere non parte.",
-          "Ordina i materiali con 10-15 giorni di anticipo rispetto alla fase in cui servono. Il ritardo materiali è la causa numero uno di scostamento sui tempi.",
-          "Assegna un responsabile di cantiere: anche se sei sempre in giro, ogni cantiere ha bisogno di una persona di riferimento in loco.",
+          "Definisci il budget di commessa interno: quanto puoi spendere in manodopera, materiali e noli per stare in utile? La regola operativa: il costo previsto non deve superare il 70% del valore contrattuale per lavori standard (lasciando 30% tra margine e imprevisti).",
+          "Pianifica le fasi di lavoro per nome e durata: ogni fase ha un nome (es. 'demolizioni', 'strutturale', 'impiantistica', 'finiture'), una data di inizio e fine stimata, le risorse umane assegnate e i materiali da ordinare con anticipo.",
+          "Controlla la documentazione prima di iniziare: notifica preliminare, POS aggiornato, DURC di tutti i subappaltatori, contratti firmati e permessi edilizi. Se manca anche solo un documento, il cantiere non deve partire — il rischio multa e blocco lavori è reale.",
+          "Ordina i materiali con 10-15 giorni di anticipo rispetto alla fase in cui servono: il ritardo materiali è la causa numero uno di scostamento sui tempi. Piano di approvvigionamento = piano di cantiere.",
+          "Assegna un responsabile di cantiere identificato per nome: anche se sei presente ogni giorno, ogni cantiere ha bisogno di una persona di riferimento in loco con delega chiara su cosa decidere autonomamente e cosa deve passare da te.",
         ],
       },
       {
         type: "section",
+        heading: "Come Strutturare il Budget di Commessa",
+        body: "Il budget di commessa non è il preventivo che hai mandato al cliente. È il tuo documento interno, con i costi reali che prevedi di sostenere. Va strutturato per voci: manodopera (ore previste × costo orario interno), materiali (quantità da computo × prezzi reali dei tuoi fornitori), subappaltatori (offerte ricevute), noli e attrezzature, spese generali di cantiere (ponteggi, servizi, sicurezza). La differenza tra preventivo cliente e budget di commessa è il tuo margine. Se non costruisci questo documento prima di iniziare i lavori, non hai uno strumento di controllo: stai solo sperando che i conti tornino.",
+      },
+      {
+        type: "list",
         heading: "Come Assegnare le Squadre al Cantiere",
-        body: "Ogni mattina, prima delle 8, devi sapere: quante persone hai disponibili, dove sono assegnate, se ci sono assenze o imprevisti.",
+        items: [
+          "Ogni persona deve avere un'assegnazione cantiere chiara ogni mattina prima delle 8:00. Chi va dove, per fare cosa, con quali risorse.",
+          "Le assegnazioni devono essere visibili a til tuo caposquadra non sa che il Rossi è assegnato al cantiere di Via Garibaldi questa settimana, avrai conflitti e ritardi.",
+          "Traccia le presenze per cantiere, non solo per persona: sapere quante ore ha lavorato Mario in totale questa settimana non ti serve. Ti serve sapere quante ore ha lavorato SUL CANTIERE X — per imputare il costo alla commessa giusta.",
+          "Gestisci le assenze in anticipo: ferie, malattie, cantieri bloccati per meteo. Un piano di cantiere che non prevede buffer per le assenze è un piano destinato a slittare.",
+        ],
       },
       {
         type: "section",
         heading: "Come Controllare l'Avanzamento Lavori Senza Essere in Cantiere",
-        body: "Il report di avanzamento lavori è lo strumento che ti dà visibilità a distanza. Deve rispondere a 3 domande: siamo in linea con i tempi previsti? Siamo in linea con il budget? Ci sono problemi da escalare?",
+        body: "Il report di avanzamento lavori è lo strumento che ti dà visibilità a distanza. Non deve essere complicato — deve rispondere a 3 domande: siamo in linea con i tempi previsti? Siamo in linea con il budget? Ci sono problemi che richiedono una decisione? Il report va aggiornato almeno settimanalmente, meglio ogni 2-3 giorni. Non deve essere un documento di 10 pagine: un aggiornamento per fase (avanzamento in % + costi sostenuti a oggi vs budget) è sufficiente per avere la situazione sotto controllo. La differenza tra imprese edili che chiudono i cantieri in utile e quelle che ci rimettono è spesso tutta qui: le prime controllano settimanalmente, le seconde scoprono i problemi a fine lavori.",
       },
       {
         type: "list",
-        heading: "I 4 Costi da Monitorare in Tempo Reale",
+        heading: "I 4 Costi da Monitorare in Tempo Reale su Ogni Cantiere",
         items: [
-          "Manodopera: quante ore lavorate, a che costo orario, su quale fase.",
-          "Materiali: ogni acquisto deve essere imputato al cantiere e alla fase specifica.",
-          "Noli e attrezzature: traccia quando entrano e quando escono.",
-          "Subappaltatori: i SAL che devi pagare ai sub devono corrispondere all'avanzamento reale.",
+          "Manodopera: quante ore lavorate, a che costo orario (inclusi oneri sociali e contributi), su quale fase specifica. Un'ora di muratore costa all'impresa circa 35-45€ tutto incluso — moltiplicata per 200 ore non tracciate, sono 7.000-9.000€ che svaniscono.",
+          "Materiali: ogni acquisto deve essere imputato al cantiere e alla fase specifica nel momento in cui avviene, non a fine mese. Il DDT del fornitore deve arrivare in ufficio entro 24 ore dalla consegna.",
+          "Noli e attrezzature: traccia quando entrano e quando escono dal cantiere. Un ponteggio lasciato fermo 3 settimane in più del necessario può costare 800-1.200€ aggiuntivi.",
+          "Subappaltatori: i SAL che devi pagare ai sub devono corrispondere all'avanzamento reale, verificato e firmato. Non pagare in anticipo rispetto all'avanzamento reale — protegge i tuoi flussi di cassa.",
         ],
-      },
-      {
-        type: "cta",
-        heading: "Edilizia in Cloud organizza il cantiere per te",
-        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Prova gratis 14 giorni.",
-      },
-    ],
-  },
-
-  {
-    id: "10",
-    slug: "documentazione-obbligatoria-cantiere-2025",
-    title: "Documentazione Obbligatoria Cantiere 2025: Lista Completa per Imprese Edili",
-    excerpt:
-      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2025. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
-    category: "Normativa",
-    tags: ["documentazione cantiere 2025", "POS cantiere", "DURC", "normativa edilizia"],
-    publishedAt: "2026-04-14",
-    updatedAt: "2026-04-14",
-    readTime: 8,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage:
-      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
-    content: [
-      {
-        type: "intro",
-        body: "La documentazione obbligatoria in cantiere nel 2025 non è cambiata radicalmente, ma le sanzioni per chi non la ha in ordine sono diventate più severe.",
-      },
-      {
-        type: "list",
-        heading: "I Documenti Obbligatori Prima di Iniziare i Lavori",
-        items: [
-          "Titolo Abilitativo: CILA, SCIA o Permesso di Costruire.",
-          "Notifica Preliminare: obbligatoria per cantieri che superano 30 giorni lavorativi con più di 20 lavoratori.",
-          "PSC e POS: il POS lo redigi tu. Non avere il POS = multa da 2.500 a 6.400 euro.",
-          "DURC: il tuo e quello di ogni subappaltatore. Validità 120 giorni.",
-        ],
-      },
-      {
-        type: "cta",
-        heading: "Edilizia in Cloud archivia la documentazione di ogni cantiere",
-        body: "POS, DURC, contratti, DDT e SAL sempre disponibili. Prova gratis 14 giorni.",
-      },
-    ],
-  },
-
-  {
-    id: "11",
-    slug: "come-fare-preventivo-edilizia",
-    title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine)",
-    excerpt:
-      "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili.",
-    category: "Preventivi",
-    tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
-    publishedAt: "2026-04-21",
-    updatedAt: "2026-04-21",
-    readTime: 9,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
-    content: [
-      {
-        type: "intro",
-        body: "Il preventivo è la prima cosa che il cliente vede di te. Se arriva tardi, è perso. Se non tiene conto dei costi reali, vinci il lavoro e perdi i soldi.",
       },
       {
         type: "section",
+        heading: "Come Gestire i Fornitori e i Materiali",
+        body: "La gestione dei materiali è una delle aree dove le imprese edili perdono più soldi, e quasi sempre per problemi organizzativi: ordini doppi, resi non registrati, materiali consegnati al cantiere sbagliato. La soluzione è avere un unico punto di controllo per tutti gli ordini: chi ordina cosa, per quale cantiere, a quale fornitore, a che prezzo. Ogni DDT ricevuto deve essere verificato rispetto all'ordine (quantità, prezzo) e associato al cantiere specifico. Il magazzino mobile del cantiere va inventariato almeno settimanalmente: materiali non utilizzati hanno un costo di stoccaggio e rischiano di essere 'persi' tra un cantiere e l'altro.",
+      },
+      {
+        type: "section",
+        heading: "Come Comunicare con il Cliente Durante i Lavori",
+        body: "La comunicazione con il cliente è spesso sottovalutata come parte dell'organizzazione del cantiere. Un cliente informato è un cliente che non chiama ogni giorno per sapere come stanno andando i lavori — e questo ti libera tempo prezioso. La pratica migliore è inviare un aggiornamento breve ogni 1-2 settimane: avanzamento in percentuale, foto dell'avanzamento, eventuali variazioni al programma con la motivazione. Non deve essere un documento formale: un messaggio WhatsApp con 2-3 foto e 5 righe di testo fa la differenza nella percezione del cliente. I clienti soddisfatti generano passaparola — il canale di acquisizione più efficiente per le imprese edili italiane.",
+      },
+      {
+        type: "list",
+        heading: "Come Chiudere un Cantiere Correttamente",
+        items: [
+          "Verifica finale del budget vs costi sostenuti: qual è il margine effettivo? Dove hai sforato e perché? Queste informazioni devono alimentare il tuo database per preventivi futuri più precisi.",
+          "Documentazione di chiusura: dichiarazione di conformità, certificato di regolare esecuzione, collaudo se richiesto. Non lasciare il cantiere aperto burocraticamente per mesi.",
+          "Saldo finale cliente: il SAL finale deve includere tutte le varianti concordate. Non lasciare soldi sul tavolo per 'dimenticanze' contabili.",
+          "Valutazione interna: cos'ha funzionato? Cosa non ha funzionato? Quale fornitore ha rispetto di più? Quali fasi sono andate out of schedule e perché?",
+        ],
+      },
+    ],
+  },
+  {
+    id: "10",
+    slug: "fattura-elettronica-italiana-come-funziona",
+    title: "Fattura Elettronica Italiana: Come Funziona e Perché è Obbligatoria per le Aziende",
+    excerpt:
+      "La fattura elettronica obbligatoria dal 1° gennaio 2024 per tutte le imprese. Ma com'è fatta, dove la invii, e cosa succede se sbagli? Una guida completa senza tecnicismi.",
+    category: "Compliance & Fiscalità",
+    tags: ["fattura elettronica", "compliance", "fiscalità italiana", "agenzia delle entrate"],
+    publishedAt: "2026-04-14",
+    updatedAt: "2026-04-14",
+    readTime: 11,
+    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1554224311-beee415c201f?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Dal 1° gennaio 2024, la fattura cartacea è ufficialmente morta per tutte le aziende italiane — sia per le vendite tra aziende (B2B) che verso privati (B2C). Ora tutto deve essere elettronico, registrato su un sistema governativo, con standard XML specifici. Se la tua impresa non è ancora in regola, il rischio è semplice: le sanzioni partono da 250€ per ogni fattura non trasmessa correttamente. Non è una semplice norma da rispettare: è la struttura stessa di come la tassazione italiana funziona adesso. Questa guida ti spiega cosa è la fattura elettronica, come si crea, dove la invii, cosa succede se sbagli, e come le imprese edili strutturate l'hanno integrata nei loro processi senza diventare pazze.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è la Fattura Elettronica (e Cos'è l'XML)",
+        body: "La fattura elettronica non è un PDF con firma digitale. È un file in formato XML — uno standard informatico — che contiene i dati strutturati della tua fattura: numero, data, importo, dati cliente, causali, aliquote IVA, importi, e una firma digitale a garanzia dell'autenticità. Questo file viene inviato a un server governativo chiamato Sistema di Interscambio (SDI), che funge da intermediario tra te e i clienti B2B, oppure direttamente all'Agenzia delle Entrate se il cliente è un privato. L'XML non è qualcosa che scrivi a mano: lo genera il tuo software di contabilità, il tuo gestionale, o il tuo commercialista. Ma devi capire cosa contiene, perché gli errori nella struttura del file significano fatture rifiutate, ritardi nei pagamenti, e sanzioni.",
+      },
+      {
+        type: "section",
+        heading: "Chi Deve Fare la Fattura Elettronica",
+        body: "Ormai quasi tutti: imprese soggette a IVA, ditte individuali, professionisti. Ci sono solo 2 eccezioni: agricoltori in regime di esonero da IVA (esonerati fino a una certa soglia), e microscopiche eccezioni amministrative rare. Se emetti fatture in Italia, devi usare la fattura elettronica. Non è una scelta. È una regola.",
+      },
+      {
+        type: "section",
+        heading: "Come Funziona il Ciclo della Fattura Elettronica",
+        body: "Il processo è semplice in teoria: crei la fattura nel tuo software, il software la trasforma in XML, la trasmette allo SDI, lo SDI la controlla, e se non ha errori la invia al cliente. In pratica, pero, il cliente non riceve la fattura, ma riceve una notifica che la fattura è disponibile. Per il cliente privato, una email dell'Agenzia delle Entrate con il link per scaricare la fattura. Per il cliente azienda, una comunicazione che la fattura è pronta nello SDI. Se la fattura ha errori formali (malformazione XML, dati mancanti, colli non congruenti), lo SDI la rifiuta e te la restituisce con un codice di errore. A quel punto devi correggere e reinviare. Se il cliente è un'azienda privata (non soggetta a IVA, come molti professionisti), la fattura se la scarica in un secondo momento, ma la trasmissione deve avvenire comunque.",
+      },
+      {
+        type: "list",
+        heading: "I 5 Errori Più Comuni nelle Fatture Elettroniche (e Come Evitarli)",
+        items: [
+          "Dati cliente incompleti o mal formattati: il cliente deve avere partita IVA (se azienda) o codice fiscale (se privato) esatto. Un errore anche di una cifra causa il rifiuto della fattura.",
+          "Aliquote IVA sbagliate: se applichi il 10% quando dovresti applicare il 22%, la fattura può essere ritenuta non conforme. Anche un'aliquota Intracomunitaria o estero richiede dichiarazioni specifiche.",
+          "Ritenute e contributi mal indicati: se il cliente è la Pubblica Amministrazione, la ritenuta 4% va indicata in modo specifico nell'XML. Non è opzionale.",
+          "Cause/Natura della Transazione mancante: per tutte le fatture, devi indicare il motivo della transazione. Se vendi una porta, il codice è uno; se presti una consulenza, è un altro.",
+          "Firma digitale assente o non valida: il file XML deve essere firmato digitalmente. Se la firma è scaduta o assente, la fattura è rifiutata.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cosa Succede Se Fai Errori",
+        body: "Le sanzioni per non trasmissione della fattura partono da 250€ per fattura. Se la trasmetti ma con dati errati, la sanzione varia da 100€ a 200€ per ogni documento. Non sono cifre enormi prese singolarmente, ma se non stai attento puoi accumularne velocemente decine. Oltre alle sanzioni economiche, le fatture non trasmesse correttamente non vengono contabilizzate, il che significa che il tuo fatturato ufficiale sarà minore di quello reale — un problema se devi chiedere finanziamenti alle banche o se l'Agenzia delle Entrate nota discrepanze. La cosa migliore è usare un software che convalida la fattura prima di inviarla, in modo da catturare gli errori prima che raggiungano lo SDI.
+      {
+        type: "section",
+        heading: "Dove la Invii? Lo SDI e l'Agenzia delle Entrate",
+        body: "Non invii la fattura direttamente al cliente. La trasmetti allo SDI (Sistema di Interscambio), che è il gateway governativo italiano. Lo SDI riceve la fattura in formato XML, la convalida, controlla che il cliente esista e che i dati siano coerenti, e poi la inoltra. Se il cliente è un'azienda, la fattura rimane disponibile nello SDI per il ritiro. Se il cliente è un privato (come in molti cantieri edili dove fatturi a privati), la fattura viene inviata anche all'Agenzia delle Entrate, che notifica il cliente via email. Lo SDI è raggiungibile 24/7, ma la trasmissione ha orari di picco — il consiglio è non trasmettere tutto alle 23:59, ma distribuire le fatture durante il giorno. Se la trasmissione fallisce (timeout, server giù), il software di solito ritenta automaticamente. Ma se rimane bloccata per ore, devi contattare l'Agenzia delle Entrate.",
+      },
+      {
+        type: "section",
+        heading: "Conservazione e Archiviazione della Fattura Elettronica",
+        body: "Una volta trasmessa, devi conservare la fattura elettronica. Non è richiesto di stampare il documento e conservarlo in un archivio fisico — la conservazione digitale è quella ufficiale. È necessario mantenere una copia della fattura trasmessa, una copia della risposta dello SDI (con il numero di protocollazione), e una copia della ricevuta di consegna al cliente. Se il software che utilizzi è integrato con un conservatore digitale certificato (come molti gestionali moderni), la conservazione avviene automaticamente. Se non lo è, puoi usare servizi di conservazione digitale dedicati, che costano pochi euro al mese. Non conservare solo i PDF ricreati: conserva il file XML originale firmato, che è il documento legale ufficiale.",
+      },
+      {
+        type: "section",
+        heading: "Come Integrare la Fattura Elettronica nel Tuo Flusso di Lavoro",
+        body: "Se sei una piccola ditta edile che fattura 5 clienti al mese, il tempo aggiunto è minimo: emetti la fattura nel software, controlla che i dati siano corretti, trasmetti. Se sei un'impresa media che fattura 200 clienti al mese, devi avere un sistema robusto: un gestionale che generi fatture in batch, che validi automaticamente i dati prima della trasmissione, che registri gli errori e i rifiuti dello SDI in modo che tu possa agire velocemente. Le imprese edili strutturate hanno integrato il flusso così: chiusura cantiere → generazione fatture batch → validazione automatica → trasmissione → tracciamento consegna. Il tempo per fattura è ridotto a secondi, e il rischio di errori è quasi nullo. Se ancora stai inviando fatture cartacee, o stai usando Excel per generare dati da importare manualmente, il primo passo è migrare a un gestionale moderno — non è una spesa, è un investimento che ti fa risparmiare tempo e rischi.",
+      },
+      {
+        type: "list",
+        heading: "Checklist per Essere in Regola con la Fattura Elettronica",
+        items: [
+          "Hai un software certificato per la generazione di fatture elettroniche? Verifica che sia certificato dall'Agenzia delle Entrate.",
+          "I tuoi dati cliente (partita IVA, codice fiscale) sono sempre aggiornati e corretti?",
+          "Hai impostato le aliquote IVA corrette per ogni tipo di cliente (privato, azienda, estero)?",
+          "Controlli prima di inviare? La validazione pre-invio riduce drasticamente i rifiuti.",
+          "Conservi le fatture digitalmente? Non è obbligatorio un software specifico, ma è obbligatorio conservarle in modo integro.",
+          "Hai un piano di backup? Se il tuo software va down il giorno delle trasmissioni, hai ancora accesso ai dati?",
+          "Leggi gli errori dello SDI? Se una fattura è rifiutata, capisci il motivo prima di reinviarla?",
+        ],
+      },
+    ],
+  },
+  {
+    id: "11",
+    slug: "software-cantiere-edile-quale-scegliere",
+    title: "Software per Cantieri Edili: Quale Scegliere e Perché la Carta Non Basta Più",
+    excerpt:
+      "Fogli Excel, WhatsApp e i tuoi quaderni non sono un gestionale. Scopri come scegliere il software giusto per controllare i tuoi cantieri e perché costa meno che perdere il prossimo cantiere.",
+    category: "Strumenti & Tecnologia",
+    tags: ["software cantiere", "gestionale edile", "digitale cantiere", "organizzazione"],
+    publishedAt: "2026-04-21",
+    updatedAt: "2026-04-21",
+    readTime: 13,
+    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1516321318423-f06f70570b08?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La maggior parte dei cantieri italiani oggi è ancora gestita con carta, penne, quaderni di cantiere, email e WhatsApp. Nel 2026. Le imprese che usiamo come benchmark — quelle che crescono, che mantengono margini, che riescono a gestire più cantieri contemporaneamente — hanno tutte fatto il salto: un gestionale centralizzato, dati strutturati, visibilità a distanza. Il software non è un lusso per grandi aziende. È uno strumento di controllo che le piccole imprese possono permettersi più facilmente delle grandi, proprio perché non hanno overhead organizzativo a soportarlo. Questa guida ti aiuta a capire cosa cercare quando scegli il software per i tuoi cantieri, quali funzionalità sono obbligatorie e quali sono nice-to-have, e come valutare se il costo è davvero conveniente.",
+      },
+      {
+        type: "section",
+        heading: "Perché il Foglio Excel Non È Più Sufficiente",
+        body: "I fogli Excel hanno fatto il loro tempo. Sono ottimi per liste semplici, ma non sono adatti a gestire: dati in tempo reale da più persone contemporaneamente, file che crescono e rallentano con migliaia di righe, cronologia delle modifiche (chi ha cambiato cosa quando), validazione automatica dei dati, integrazione con altri sistemi (banca, fatturazione, fornitori), accesso da mobile mentre sei in cantiere, reportistica strutturata. Quando stai finendo un cantiere e devi capire quale è stato il margine e perché, non puoi dire 'aspetta che guardo in 5 fogli diversi'. Devi avere il dato in 5 secondi. Excel non lo fa. Inoltre, Excel è vulnerabile a errori umani: una formula copiata male, un foglio cancellato per errore, due persone che modificano lo stesso dato contemporaneamente e sovrascrivono il lavoro l'una dell'altra. Un gestionale riduce questi rischi a zero.",
+      },
+      {
+        type: "section",
+        heading: "Cosa Deve Fare un Gestionale Edile (Funzionalità Obbligatorie)",
+        body: "Non tutti i gestionali edili sono uguali. Quello che cerchi deve essere in grado di: 1) Gestire più cantieri contemporaneamente, con un dashboard che ti mostra a colpo d'occhio lo stato di tutti. 2) Tracciare le presenze per cantiere e per persona, con possibilità di esportare i dati per la busta paga. 3) Registrare i materiali in entrata e assegnarli a cantieri specifici, con tracciamento dei costi. 4) Generare fatture elettroniche secondo lo standard italiano, senza che tu debba fare lavoro manuale aggiuntivo. 5) Dare una visibilità in tempo reale a chi è in cantiere (app mobile) e a chi è in ufficio (web dashboard). 6) Permettere ai tuoi caposquadra di aggiornare lo stato del cantiere durante il giorno, senza doversi connettere a un PC. 7) Integrare il budget di commessa con i costi effettivi, in modo che tu possa vedere scostamenti in tempo reale. Se il gestionale non fa almeno 6 di queste 7 cose, non è abbastanza. Continuerai a gestire lo stesso livello di complessità a mano.",
+      },
+      {
+        type: "section",
+        heading: "Quale Software Scegliere? Cloud vs On-Premise",
+        body: "I software edili tradizionali sono 'on-premise': li installi sul tuo server, i dati risiedono localmente, e gestisci tu backup e aggiornamenti. Sono rigidi, costosi da mantenere, e spesso richiedono IT dedicato. I software moderni (incluso EdiliziaInCloud, che è il gestionale che abbiamo costruito specificamente per le imprese edili italiane) sono 'cloud': accedi via browser, i dati sono sempre accessibili, i backup sono automatici, gli aggiornamenti avvengono senza che tu debba fare nulla. Il cloud costa meno, è più flessibile, e permette ai tuoi operai di accedere da qualsiasi dispositivo — cosa essenziale quando stai in cantiere. Se stai ancora valutando on-premise nel 2026, non lo fare. È una soluzione del passato.",
+      },
+      {
+        type: "section",
+        heading: "Come Valutare il Costo: Total Cost of Ownership",
+        body: "Un gestionale costa tra 50€ e 500€ al mese, a seconda delle funzionalità e del numero di cantieri. Sembra una cifra, finché non la paragoni a quello che perdi se non lo usi. Una piccola impresa edile perde in media 15-20% di margine per problemi di organizzazione. Se hai un fatturato di 500.000€ all'anno e margini medi del 25%, stai guadagnando 125.000€ lordi. Il 15% di scostamento sono 18.750€ all'anno che svaniscono. Un gestionale che costa 200€ al mese (2.400€ all'anno) e riduce quello scostamento di un terzo (risparmiando 6.250€) ti paga da solo in 5 mesi. Dopo è puro guadagno. Inoltre, il gestionale ti permette di fatturare più velocemente (il ciclo incassi si riduce di 30 giorni in media), il che significa cash flow migliore. Non è una spesa. È un investimento con ROI dimostrabile.",
+      },
+      {
+        type: "list",
+        heading: "Le 5 Domande da Fare Prima di Scegliere il Gestionale",
+        items: [
+          "È stato costruito specificamente per imprese edili italiane, o è un gestionale generico tagliato per l'edilizia? La specificità conta. Un software costruito per l'edilizia conosce i SAL, la fatturazione per stato di avanzamento, il ciclo di cantiere italiano.",
+          "Ha un'app mobile che funziona offline? Se il cantiere è in zona montagna senza segnale stabile, l'app deve poter sincronizzare quando rientra online.",
+          "Integra la fatturazione elettronica italiana? Oppure devi usare un software separato? L'integrazione ti fa risparmiare tempo e errori.",
+          "Chi supporta il software? Esiste un supporto italiano? È importante avere qualcuno che capisca il tuo linguaggio, il tuo processo, il tuo problema.",
+          "I miei dati sono proprietà mia, non del software? Devo poter esportare tutto in qualsiasi momento, senza essere prigioniero di una piattaforma.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Implementazione: Come Non Fare Disastri",
+        body: "Passare da carta/Excel a un gestionale è un cambio di processo. Non è difficile, ma richiede pianificazione. I passi: 1) Prendi il team e spiega perché fate il cambio — non è 'dai più lavoro', è 'vi tolgo lavoro burocratico'. 2) Carica i dati storici (clienti, fornitori, cantieri chiusi) nel sistema. Non deve essere perfetto, ma deve essere completo. 3) Parti con un cantiere pilota: un cantiere piccolo dove il tuo caposquadra più affidabile prova il workflow. Vedrai subito cosa funziona e cosa no. 4) Solo dopo il test iniziale, passa i cantieri nuovi al sistema, uno per uno. Non far saltare tutto il team in gestionale il giorno 1 — il rischio è caos e abbandono. 5) Traccia i benefici: margini, tempi, errori. Dopo 3 mesi dovresti vedere miglioramenti. Se non li vedi, significa che il software non è quello giusto, oppure il team non lo sta usando correttamente. Aggiusta il tiro.",
+      },
+    ],
+  },
+];
+
+export default blogPosts; i lavori. Le imprese edili che lavorano bene hanno un tasso di margine effettivo vicino a quello preventivato. Quelle che lavorano male scoprono sempre lo stesso problema: i costi reali erano più alti di quelli stimati. La causa è quasi sempre nel preventivo, non nell'esecuzione.",
+      },
+      {
+        type: "list",
         heading: "Passo 1: Fai il Sopralluogo con Metodo",
-        body: "Il preventivo nasce dal sopralluogo. Misurazioni precise, foto documentate, note sui rischi e accordo chiaro sulle rifiniture.",
+        items: [
+          "Misura tutto, sempre: non fidarti delle planimetrie del cliente — hanno sempre errori. Porta il metro laser e prendi misure dirette.",
+          "Documenta con foto: ogni ambiente, ogni criticità, ogni punto che potrebbe generare costi aggiuntivi. Le foto del sopralluogo sono la tua prova se il cliente contesta varianti future.",
+          "Identifica i rischi prima di quotare: presenza di amianto, struttura portante da consolidare, impianti vetusti da adeguare, difficoltà di accesso. Ogni rischio identificato in sopralluogo è un costo che puoi includere nel preventivo. Ogni rischio scoperto durante i lavori è una perdita di margine.",
+          "Chiarisci le specifiche tecniche: che tipo di finiture vuole il cliente? Quale livello di rifiniture? Le piastrelle le fornisce lui o le includi tu? Accordi verbali vaghi generano contestazioni certe.",
+          "Verifica la presenza di vincoli: zona sismica, vincolo paesaggistico, condominio con regole specifiche. Queste informazioni cambiano il costo del lavoro.",
+        ],
       },
       {
         type: "list",
         heading: "Passo 2: Calcola i Costi con la Struttura Giusta",
         items: [
-          "Manodopera: ore previste × costo orario reale (includi il 30-35% di oneri sociali).",
-          "Materiali: quantità da computo metrico + 5-10% sfrido.",
-          "Subappaltatori e noli: a costo pieno + margine coordinamento 10-15%.",
-          "Margine commerciale: minimo 15-20% su lavori standard.",
+          "Manodopera: ore previste per ogni fase × costo orario reale del tuo personale. Il costo orario reale include stipendio, oneri sociali, contributi, TFR — solitamente il 30-35% in più del lordo. Per un muratore con costo aziendale di 28 euro/ora, il costo reale è circa 37-40 euro/ora tutto compreso.",
+          "Materiali: quantità da computo metrico + margine di sfrido del 5-10%. Non usare i prezzi di listino — usa i prezzi reali che paghi ai tuoi fornitori. Se non li conosci a memoria, richiedi preventivo prima di mandare la tua offerta.",
+          "Subappaltatori e noli: sempre a costo pieno + margine di coordinamento del 10-15%. Non passare a costo zero i subappaltatori: stai dedicando tempo a coordinare, gestire e garantire il loro lavoro.",
+          "Spese generali di cantiere: ponteggi, baracche di cantiere, smaltimento rifiuti, attrezzature specifiche. Queste voci vengono spesso dimenticate nel preventivo e mangiano il margine.",
+          "Margine commerciale: minimo 15-20% per lavori standard, 25-30% per lavori con rischio elevato o tempi stretti. Sotto il 15% stai lavorando senza rete di sicurezza per gli imprevisti.",
         ],
+      },
+      {
+        type: "section",
+        heading: "Il Costo degli Imprevisti: come Coprirli nel Preventivo",
+        body: "Ogni cantiere ha imprevisti. La differenza tra chi ci guadagna e chi ci perde è che il primo li aveva già previsti nel preventivo. La regola pratica: aggiungi un 5-10% come voce esplicita di 'imprevisti e varianti minori' al totale dei costi. Per cantieri con molte incognite (edifici storici, strutture non documentate, sottoservizi incerti) porta questa percentuale al 15%. Molti titolari di impresa evitano di inserire questa voce per paura che il cliente veda il preventivo troppo alto. Errore: il cliente che non accetta un preventivo trasparente e professionale probabilmente non è il cliente giusto. Quello che devi evitare è scoprire l'imprevisto durante i lavori senza copertura.",
+      },
+      {
+        type: "list",
+        heading: "Passo 3: Struttura il Documento in Modo Professionale",
+        items: [
+          "Intestazione con i tuoi dati completi: ragione sociale, P.IVA, indirizzo, contatti, logo. Un preventivo senza logo e dati aziendali comunica poca professionalità.",
+          "Dati del cliente e dell'immobile: chi è il cliente, dove si trovano i lavori, che titolo abilitativo è previsto.",
+          "Descrizione dettagliata delle lavorazioni: per ogni voce, una descrizione chiara di cosa include e cosa esclude. 'Posa piastrelle' non basta — specifica: quali piastrelle, qual è la fornitura, la preparazione del fondo è inclusa?",
+          "Prezzi unitari e totali per voce: questo aumenta la fiducia del cliente e ti permette di gestire varianti in modo pulito.",
+          "Termini di pagamento chiari: acconto alla firma, SAL intermedi, saldo a collaudo. Non lasciare i pagamenti aperti al negoziato post-firma.",
+          "Validità del preventivo: specifica che il preventivo è valido 30 giorni. I prezzi dei materiali cambiano — non puoi essere vincolato a tempo indeterminato.",
+          "Note e condizioni: cosa NON è incluso nel preventivo. Questa sezione ti protegge dalle contestazioni.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Passo 4: Gestisci le Obiezioni sul Prezzo",
+        body: "La domanda 'non si può fare a meno?' arriva sempre. Come rispondere dipende dalla situazione. Se il margine è già al minimo, la risposta è no — e devi saperla dare con fiducia. Se c'è spazio, puoi proporre una versione ridotta (meno rifinita, materiali di fascia diversa) con prezzo inferiore, ma mai abbassare il margine senza ridurre il lavoro. Le imprese edili che abbassano i prezzi 'per accontentare il cliente' spesso finiscono per lavorare con margini negativi. La verità è che un cliente che non riesce ad avere il tuo prezzo non era il tuo cliente — o il tuo preventivo aveva un problema strutturale. Il prezzo giusto è quello che ti permette di fare il lavoro bene e guadagnare. Non esiste clientela che vale meno di questo.",
+      },
+      {
+        type: "list",
+        heading: "Passo 5: Converti il Preventivo in Contratto",
+        items: [
+          "Non iniziare mai i lavori senza contratto firmato: il preventivo accettato verbalmente non protegge nessuno in caso di contestazione.",
+          "Il contratto deve includere: oggetto dei lavori, importo totale, termini di pagamento, tempistiche, penali per ritardi (sia tuoi che del committente), procedura per le varianti in corso d'opera.",
+          "Firma digitale: permette di far firmare il contratto in 5 minuti senza che il cliente debba venire in ufficio. Riduce i tempi di chiusura del lavoro di giorni.",
+          "Archivia preventivo e contratto insieme: quando arriva una contestazione — e arriva — devi poter recuperare in 30 secondi il preventivo firmato, il contratto, i SAL intermedi e ogni comunicazione scritta.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come Usare i Preventivi Passati per Migliorare Quelli Futuri",
+        body: "Il preventivo perfetto non si costruisce da zero ogni volta. Si costruisce partendo dai dati reali dei cantieri già fatti. Quanto hai speso davvero di manodopera per 100 mq di posa pavimento? Qual è il tuo tempo effettivo per una ristrutturazione bagno completa? Se hai questi dati, il preventivo diventa sempre più preciso con il tempo. Se non li hai, stai ricominciando da zero ogni volta. Il modo per costruire questo database interno è tracciare i costi reali per ogni cantiere — non solo i totali, ma per voce e per fase. In 12-18 mesi hai un dataset che vale più di qualsiasi listino prezzi.",
       },
       {
         type: "cta",
         heading: "Crea preventivi professionali in 5 minuti con Edilizia in Cloud",
-        body: "Calcolo automatico, template personalizzabili, conversione in contratto e firma digitale. Prova gratis 14 giorni.",
+        body: "Template personalizzabili, calcolo automatico dei margini, conversione in contratto e firma digitale integrata. Archivia automaticamente preventivo, contratto e SAL per ogni cantiere. Prova gratis 14 giorni.",
       },
     ],
   },
@@ -711,34 +869,92 @@ export const blogPosts: BlogPost[] = [
     slug: "alternativa-excel-cantieri",
     title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando",
     excerpt:
-      "Stai usando Excel per gestire i cantieri? Confronto diretto: Excel vs gestionale di cantiere nel 2026.",
+      "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026, con i numeri reali.",
     category: "Gestione Cantieri",
     tags: ["alternativa excel cantieri", "gestionale edilizia cloud", "software cantieri", "digitalizzazione edilizia"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 6,
+    readTime: 10,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
         type: "intro",
-        body: "Excel è il gestionale più usato dalle imprese edili italiane. Il problema è usarlo come alternativa a un gestionale di cantiere, un ruolo per cui non è stato progettato.",
+        body: "Excel è il gestionale più usato dalle imprese edili italiane. Secondo le nostre stime, oltre il 70% delle PMI edili con meno di 20 dipendenti usa fogli Excel come strumento principale per gestire cantieri, costi e presenze. Il problema non è Excel in sé — è il modo in cui viene usato come sostituto di un gestionale di cantiere, un ruolo per cui non è stato progettato. Ogni settimana parlo con titolari di impresa che mi raccontano la stessa storia: fogli diversi per ogni cantiere, versioni che nessuno aggiorna, calcoli manuali che diventano errori sui margini. In questo articolo ti mostro il confronto diretto — con numeri reali — su quanto ti costa davvero usare Excel per gestire un'impresa edile.",
+      },
+      {
+        type: "section",
+        heading: "Perché Tante Imprese Edili Usano Ancora Excel",
+        body: "La risposta è semplice: Excel è familiare, è già pagato (incluso in Office 365 da 9€/mese), e tutti sanno usarlo almeno a un livello base. Quando un'impresa cresce da 1 a 3 cantieri aperti contemporaneamente, il passaggio naturale è aprire una nuova scheda nel foglio. Poi un'altra. Poi un altro file. Poi una cartella che si chiama 'Cantieri 2025 v3 DEFINITIVO (2)'. Il problema è che questo approccio ha un costo nascosto molto più alto di qualsiasi alternativa software — e la maggior parte dei titolari non lo calcola mai perché è un costo sommerso, distribuito in migliaia di micro-perdite quotidiane.",
       },
       {
         type: "list",
-        heading: "Il Problema con Excel in Cantiere",
+        heading: "I 5 Problemi Reali di Excel in Cantiere",
         items: [
-          "Non è in tempo reale: aggiornare un foglio richiede che qualcuno lo apra e inserisca i dati.",
-          "Non funziona in squadra: versioni multiple, nessuno sa chi ha l'ultima.",
-          "Non funziona dal telefono: con le mani sporche di cemento è inutilizzabile.",
-          "Non tiene i margini in tempo reale: ti dice quanto hai speso, non se stai rispettando il budget.",
+          "Non è in tempo reale: per aggiornare un foglio, qualcuno deve aprirlo, inserire i dati, salvare e condividerlo. Nel frattempo, il capocantiere ha già speso altri 800 euro di materiali che non sono registrati da nessuna parte. Il dato che vedi è sempre vecchio di ore o giorni.",
+          "Non funziona in squadra: la versione di Mario è diversa da quella di Luigi. Chi ha quella giusta? Risposta: nessuno dei due, perché quella vera è quella sul desktop dell'ufficio. La moltiplicazione delle versioni è la norma, non l'eccezione.",
+          "Non funziona dal telefono in cantiere: con le mani sporche di cemento, il sole che batte sullo schermo e il telefono che non ha la giusta versione di Excel, inserire dati è praticamente impossibile. Risultato: i dati vengono inseriti il giorno dopo, o la settimana dopo, o mai.",
+          "Non tiene i margini in tempo reale: Excel ti dice quanto hai speso. Non ti dice se stai rispettando il budget di commessa. Non ti avvisa quando stai sforando. Ti dà la cronaca del passato, non la previsione del futuro.",
+          "Non integra fatturazione, DDT e presenze: hai 4 file separati — costi, presenze, DDT, fatture. Nessuno parla con l'altro. Per capire il margine reale di un cantiere, devi incrociare manualmente dati da 4 fonti diverse. Ci vuole un'ora. E i numeri non quadrano mai al primo tentativo.",
         ],
+      },
+      {
+        type: "section",
+        heading: "Quanto Ti Costa Davvero Usare Excel: i Numeri",
+        body: "Un titolare di impresa edile media — 5-15 dipendenti, 2-5 cantieri aperti — spende mediamente 8-12 ore a settimana a gestire fogli Excel: aggiornamento costi, calcolo presenze, riconciliazione DDT, preparazione report per la banca o il commercialista. Questo significa 400-600 ore l'anno. Valorizzate al costo opportunità di un titolare (almeno 40-50 euro/ora come tempo che potrebbe dedicare a vendere nuovi lavori), arriviamo a 16.000-30.000 euro l'anno di tempo improduttivo. A questo si aggiunge il costo degli errori: un errore di margine del 3% su un cantiere da 200.000 euro vale 6.000 euro di perdita secca. Bastano due cantieri all'anno così per capire che Excel ha un costo molto più alto di qualsiasi software gestionale disponibile sul mercato.",
+      },
+      {
+        type: "section",
+        heading: "Il Caso Reale: Cantiere da 80.000 Euro Gestito su Excel",
+        body: "Un'impresa edile di Brescia — 8 dipendenti, 4 cantieri attivi — gestiva tutto su un file Excel condiviso via WhatsApp. Risultato dopo 6 mesi: un cantiere da 80.000 euro chiuso con un margine del 4% invece del 22% previsto. La causa? Un errore di imputazione dei costi della manodopera (1.200 ore imputate al cantiere sbagliato) e materiali acquistati duplicati (due ordini per lo stesso cantiere da fornitori diversi, non coordinati perché ognuno aggiornava una versione diversa del file). Il costo dell'errore: circa 14.400 euro di margine perso. Il costo di un gestionale professionale come Edilizia in Cloud: 89 euro/mese. Il ROI si calcola da solo.",
+      },
+      {
+        type: "list",
+        heading: "Excel vs Gestionale di Cantiere: Confronto Diretto",
+        items: [
+          "Accesso mobile: Excel richiede app separata spesso inutilizzabile in cantiere (schermo piccolo, mani sporche, connessione instabile). Un gestionale nativo ha un'app progettata per essere usata con una mano sola, anche offline.",
+          "Collaborazione in tempo reale: Excel → un file, una persona per volta, versioni multiple che si contraddicono. Gestionale → tutti i collaboratori vedono gli stessi dati aggiornati istantaneamente, da qualsiasi dispositivo.",
+          "Controllo margini: Excel → calcolo manuale a fine mese, dopo che i danni sono fatti. Gestionale → margine di commessa aggiornato in tempo reale, con alert quando stai sforando il budget.",
+          "Gestione DDT e materiali: Excel → foglio separato, nessun collegamento diretto al cantiere. Gestionale → ogni DDT è associato al cantiere, alla fase e all'ordine fornitore. Zero doppi ordini.",
+          "Fatturazione integrata: Excel → devi aprire un altro programma per emettere fattura. Gestionale → dall'avanzamento lavori alla fattura SAL in 3 click, con invio diretto al SDI.",
+          "Costo visibile: Excel → sembra gratuito (incluso in Office). Costo reale: 16.000-30.000 euro/anno di ore improduttive + errori sui margini + stress.",
+          "Scalabilità: Excel crolla concettualmente a 3+ cantieri aperti. Il gestionale scala con te senza perdere il controllo, anche con 10 cantieri attivi.",
+        ],
+      },
+      {
+        type: "list",
+        heading: "Le 4 Illusioni di Chi Pensa di Usare Excel Bene",
+        items: [
+          "'Il mio Excel è organizzatissimo' — Forse. Ma quando sei in cantiere alle 7 di mattina e arriva una telefonata del fornitore, riesci ad aggiornarlo in tempo reale? E quando sei in ferie una settimana, chi gestisce il file?",
+          "'I miei dati sono sicuri su Excel' — Il file è sul tuo PC, sulla pendrive di Mario, o sul server della contabilità? Una formattazione accidentale, un PC rotto, o un virus ha cancellato anni di dati a più di un'impresa edile. Senza backup automatico su cloud, stai rischiando.",
+          "'Non ho tempo per imparare un nuovo software' — Un gestionale moderno e pensato per l'edilizia si impara in 2-3 giorni. Il tempo che recuperi nella prima settimana ripaga già l'investimento formativo. E dopo 30 giorni, nessuno vuole più tornare a Excel.",
+          "'Con Excel so sempre dove sono i soldi' — Davvero? Sai in questo momento il margine aggiornato di tutti i cantieri aperti? Quante ore hai sulla commessa X rispetto al budget? Quanto hai speso in materiali questa settimana, diviso per cantiere? Excel non te lo dice, a meno che tu non lo aggiorni manualmente ogni giorno — e sappiamo entrambi che non succede.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quando Excel Va Bene e Quando No",
+        body: "Excel va benissimo per: analisi una-tantum, calcoli esplorativi, export di dati per il commercialista, piccoli preventivi veloci per un cantiere semplice, report ad hoc per la banca. Excel NON va bene come sistema operativo della tua impresa quando hai più di 2 cantieri attivi contemporaneamente, una squadra di più di 3 persone, necessità di tracciare costi e presenze in tempo reale, o bisogno di integrare DDT, fatturazione e gestione subappalti. La linea di rottura è chiara: se hai 1 cantiere piccolo e lavori da solo, Excel può bastare. Non appena hai 2+ cantieri e una squadra, stai lasciando soldi sul tavolo ogni singolo giorno.",
+      },
+      {
+        type: "list",
+        heading: "Come Migrare da Excel a un Gestionale in 3 Passi (Senza Perdere Dati)",
+        items: [
+          "Passo 1 — Trasferisci solo i dati attivi: non migrare tutta la storia storica. Inizia solo con i cantieri aperti oggi: nome commessa, budget totale, costi sostenuti a oggi per voce. In Edilizia in Cloud puoi importare i dati da Excel con un file CSV in meno di 30 minuti.",
+          "Passo 2 — Forma la squadra in una sessione di 2 ore: dedica una mattinata a mostrare al tuo capocantiere come inserire le presenze e i costi dal telefono. Non servono corsi lunghi: il software è stato progettato per chi lavora in cantiere, non per un ufficio IT.",
+          "Passo 3 — Mantieni Excel in parallelo per 2 settimane: non buttare via tutto subito. Tieni il foglio come backup mentale mentre ti abitui al nuovo sistema. Dopo 2 settimane, il 90% dei titolari che hanno fatto questa transizione non ha più aperto Excel per la gestione cantieri.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cosa Guardare in un Gestionale Alternativo a Excel",
+        body: "Non tutti i gestionali sono uguali — e non tutti sono adatti alle imprese edili italiane. Quando valuti un'alternativa a Excel per la gestione cantieri, controlla questi 5 punti critici: primo, app mobile nativa progettata per il cantiere (non una versione ridotta del desktop). Secondo, gestione dei margini di commessa in tempo reale con alert. Terzo, integrazione diretta con la fatturazione elettronica SDI — senza dover usare un programma separato. Quarto, tracciamento ore e presenze integrato per cantiere. Quinto, gestione DDT e ordini fornitori collegata direttamente al cantiere. Edilizia in Cloud è stato costruito su questi 5 pilastri, specificamente per imprese edili italiane con 3-20 dipendenti e fatturato tra 500k e 5 milioni di euro.",
       },
       {
         type: "cta",
         heading: "Edilizia in Cloud: l'alternativa a Excel pensata per il cantiere",
-        body: "Gestione cantieri, presenze, costi e fatturazione in un'unica app cloud. Prova gratis 14 giorni — mai tornati a Excel.",
+        body: "Migrazione guidata da Excel inclusa. App mobile per il cantiere. Margini in tempo reale. Fatturazione SDI integrata. Prova gratis 14 giorni — nessuna carta di credito. Mai tornati a Excel.",
       },
     ],
   },
