@@ -67,6 +67,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           assignee:profiles!tickets_assigned_to_fkey(first_name, last_name)
         `, { count: "exact" })
         .eq("company_id", effectiveCompany?.id ?? "")
+        .eq("tipo", "supporto")
         .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (statusFilter !== "all") {
