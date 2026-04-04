@@ -148,7 +148,7 @@ export function InstallationPhotoCaptureModal({
 
             {photoBeforePreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={photoBeforePreview} alt="Prima" className="w-full h-auto rounded" />
+                <img src={photoBeforePreview} alt="Anteprima foto PRIMA dell'installazione" className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
                   ✓ Caricata
                 </div>
@@ -157,6 +157,7 @@ export function InstallationPhotoCaptureModal({
                   onClick={() => { setPhotoBefore(null); setPhotoBeforePreview(null); }}
                   className="absolute bottom-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isRecording}
+                  aria-label="Rimuovi foto Prima"
                 >
                   <X size={16} />
                 </button>
@@ -218,7 +219,7 @@ export function InstallationPhotoCaptureModal({
 
             {photoAfterPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={photoAfterPreview} alt="Dopo" className="w-full h-auto rounded" />
+                <img src={photoAfterPreview} alt="Anteprima foto DOPO l'installazione" className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
                   ✓ Caricata
                 </div>
@@ -227,6 +228,7 @@ export function InstallationPhotoCaptureModal({
                   onClick={() => { setPhotoAfter(null); setPhotoAfterPreview(null); }}
                   className="absolute bottom-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isRecording}
+                  aria-label="Rimuovi foto Dopo"
                 >
                   <X size={16} />
                 </button>

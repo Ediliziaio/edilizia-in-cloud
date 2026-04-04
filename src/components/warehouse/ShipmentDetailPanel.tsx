@@ -167,12 +167,13 @@ export function ShipmentDetailPanel({
 
             {loadingPhotoPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={loadingPhotoPreview} alt="Carico" className="w-full h-auto rounded" />
+                <img src={loadingPhotoPreview} alt="Anteprima foto carico caricata" className="w-full h-auto rounded" />
                 <button
                   type="button"
                   onClick={() => { setLoadingPhoto(null); setLoadingPhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isCreating}
+                  aria-label="Rimuovi foto carico"
                 >
                   <X size={16} />
                 </button>
@@ -226,12 +227,13 @@ export function ShipmentDetailPanel({
 
             {ddtPhotoPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={ddtPhotoPreview} alt="DDT" className="w-full h-auto rounded" />
+                <img src={ddtPhotoPreview} alt="Anteprima foto DDT trasporto caricata" className="w-full h-auto rounded" />
                 <button
                   type="button"
                   onClick={() => { setDdtPhoto(null); setDdtPhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isCreating}
+                  aria-label="Rimuovi foto DDT"
                 >
                   <X size={16} />
                 </button>

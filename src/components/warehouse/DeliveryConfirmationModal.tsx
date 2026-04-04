@@ -204,12 +204,13 @@ export function DeliveryConfirmationModal({
 
             {deliveryPhotoPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={deliveryPhotoPreview} alt="Consegna" className="w-full h-auto rounded" />
+                <img src={deliveryPhotoPreview} alt="Anteprima foto consegna caricata" className="w-full h-auto rounded" />
                 <button
                   type="button"
                   onClick={() => { setDeliveryPhoto(null); setDeliveryPhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isConfirming}
+                  aria-label="Rimuovi foto consegna"
                 >
                   <X size={16} />
                 </button>
@@ -263,12 +264,13 @@ export function DeliveryConfirmationModal({
 
             {signaturePhotoPreview ? (
               <div className="relative w-full bg-gray-100 rounded border h-40">
-                <img src={signaturePhotoPreview} alt="Firma" className="w-full h-full object-cover rounded" />
+                <img src={signaturePhotoPreview} alt="Anteprima firma digitale caricata" className="w-full h-full object-cover rounded" />
                 <button
                   type="button"
                   onClick={() => { setSignaturePhoto(null); setSignaturePhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isConfirming}
+                  aria-label="Rimuovi firma digitale"
                 >
                   <X size={16} />
                 </button>

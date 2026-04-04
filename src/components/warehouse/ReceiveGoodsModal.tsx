@@ -161,12 +161,13 @@ export function ReceiveGoodsModal({
 
             {ddtPhotoPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={ddtPhotoPreview} alt="DDT" className="w-full h-auto rounded" />
+                <img src={ddtPhotoPreview} alt="Anteprima foto DDT caricata" className="w-full h-auto rounded" />
                 <button
                   type="button"
                   onClick={() => { setDdtPhoto(null); setDdtPhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
                   disabled={isCreating}
+                  aria-label="Rimuovi foto DDT"
                 >
                   <X size={16} />
                 </button>
