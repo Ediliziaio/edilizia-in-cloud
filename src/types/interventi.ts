@@ -19,8 +19,8 @@ export interface Intervento {
   note_tecnico: string | null;
   created_at: string;
   // join fields
-  assigned_profile?: { full_name: string | null } | null;
-  customer?: { full_name: string | null } | null;
+  assigned_profile?: { first_name: string | null; last_name: string | null } | null;
+  customer?: { first_name: string | null; last_name: string | null } | null;
 }
 
 export interface RapportinoMateriale {

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Trash2, Eraser, PenTool, Package, Search } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import type { MaterialeUsato } from "@/types/interventi";
 
 interface Props {
@@ -189,7 +190,7 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
         const { error: matErr } = await supabase
           .from("rapportino_materiali")
           .insert(righe);
-        if (matErr) console.error("Errore salvataggio materiali tipizzati:", matErr);
+        if (matErr) logger.error("Errore salvataggio materiali tipizzati:", matErr);
         // Non è bloccante — il JSONB è già salvato
       }
 

@@ -31,7 +31,7 @@ export default function TecnicoInterventi() {
       let query = supabase
         .from("tickets")
         .select(
-          "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(full_name)",
+          "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(first_name, last_name)",
         )
         .eq("assigned_to", user!.id)
         .in("tipo", ["intervento", "emergenza"])
@@ -54,7 +54,7 @@ export default function TecnicoInterventi() {
     !search ||
     i.subject?.toLowerCase().includes(search.toLowerCase()) ||
     i.indirizzo_intervento?.toLowerCase().includes(search.toLowerCase()) ||
-    i.customer?.full_name?.toLowerCase().includes(search.toLowerCase()),
+    [i.customer?.first_name, i.customer?.last_name].filter(Boolean).join(" ").toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -132,7 +132,9 @@ export default function TecnicoInterventi() {
                   </div>
                   <p className="text-white font-semibold text-base leading-tight">{item.subject}</p>
                   {(item as any).customer && (
-                    <p className="text-slate-400 text-sm mt-1">{(item as any).customer.full_name}</p>
+                    <p className="text-slate-400 text-sm mt-1">
+                      {[(item as any).customer?.first_name, (item as any).customer?.last_name].filter(Boolean).join(" ")}
+                    </p>
                   )}
                   {item.indirizzo_intervento && (
                     <div className="flex items-center gap-1.5 mt-2">

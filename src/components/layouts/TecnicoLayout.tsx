@@ -34,7 +34,7 @@ export default function TecnicoLayout() {
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">
-              {profile?.full_name?.split(" ")[0] ?? "Tecnico"}
+              {profile?.first_name ?? "Tecnico"}
             </p>
             <p className="text-slate-400 text-xs leading-tight">App Tecnico</p>
           </div>

@@ -44,7 +44,7 @@ export default function ManutenzioneList() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("impianti_cliente")
-        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(full_name)")
+        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
@@ -60,7 +60,7 @@ export default function ManutenzioneList() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("contratti_manutenzione")
-        .select("*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(full_name)")
+        .select("*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -76,7 +76,7 @@ export default function ManutenzioneList() {
       const scadenza14 = addDays(new Date(), 14).toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("piani_manutenzione")
-        .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id, customer:profiles!contratti_manutenzione_customer_id_fkey(full_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(full_name)")
+        .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id, customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .lte("prossima_scadenza", scadenza14)
@@ -218,14 +218,19 @@ export default function ManutenzioneList() {
                     )}
                   </div>
                   <div className="text-sm text-gray-500 mt-1 flex gap-3 flex-wrap">
-                    {(piano.contratto as any)?.customer?.full_name && (
-                      <span className="flex items-center gap-1"><User className="h-3 w-3" />{(piano.contratto as any).customer.full_name}</span>
+                    {((piano.contratto as any)?.customer?.first_name || (piano.contratto as any)?.customer?.last_name) && (
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {[(piano.contratto as any).customer.first_name, (piano.contratto as any).customer.last_name].filter(Boolean).join(" ")}
+                      </span>
                     )}
                     {piano.prossima_scadenza && (
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: it })}</span>
                     )}
-                    {(piano.tecnico as any)?.full_name && (
-                      <span className="text-blue-600">{(piano.tecnico as any).full_name}</span>
+                    {((piano.tecnico as any)?.first_name || (piano.tecnico as any)?.last_name) && (
+                      <span className="text-blue-600">
+                        {[(piano.tecnico as any).first_name, (piano.tecnico as any).last_name].filter(Boolean).join(" ")}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -271,7 +276,7 @@ export default function ManutenzioneList() {
                       </div>
                       <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {impianto.customer?.full_name ?? "—"}
+                        {[impianto.customer?.first_name, impianto.customer?.last_name].filter(Boolean).join(" ") || "—"}
                       </div>
                     </div>
                   </div>
@@ -309,7 +314,7 @@ export default function ManutenzioneList() {
                     </Badge>
                   </div>
                   <div className="text-sm text-gray-500 mt-1">
-                    {contratto.customer?.full_name} · {contratto.impianto?.tipo_impianto?.replace('_', ' ')} {contratto.impianto?.marca}
+                    {[contratto.customer?.first_name, contratto.customer?.last_name].filter(Boolean).join(" ") || "—"} · {contratto.impianto?.tipo_impianto?.replace('_', ' ')} {contratto.impianto?.marca}
                   </div>
                 </div>
                 <div className="text-right">

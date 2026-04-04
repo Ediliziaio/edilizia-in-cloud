@@ -28,7 +28,7 @@ export default function TecnicoProfilo() {
         </div>
         <div className="text-center">
           <h2 className="text-white text-xl font-bold">
-            {profile?.full_name ?? "Tecnico"}
+            {([profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || undefined) ?? "Tecnico"}
           </h2>
           <p className="text-slate-400 text-sm mt-0.5">{user?.email}</p>
         </div>
@@ -36,12 +36,14 @@ export default function TecnicoProfilo() {
 
       {/* Info dettaglio */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl divide-y divide-slate-700">
-        {profile?.full_name && (
+        {([profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || undefined) && (
           <div className="flex items-center gap-3 p-4">
             <User className="h-5 w-5 text-slate-400" />
             <div>
               <p className="text-slate-400 text-xs">Nome</p>
-              <p className="text-white font-medium">{profile.full_name}</p>
+              <p className="text-white font-medium">
+                {[profile?.first_name, profile?.last_name].filter(Boolean).join(" ")}
+              </p>
             </div>
           </div>
         )}

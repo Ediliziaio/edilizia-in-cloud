@@ -72,10 +72,10 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, first_name, last_name")
         .eq("company_id", companyId)
         .eq("role", "cliente")
-        .order("full_name");
+        .order("first_name");
       return data ?? [];
     },
     enabled: !!companyId && open,
@@ -86,9 +86,9 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, first_name, last_name")
         .eq("company_id", companyId)
-        .order("full_name");
+        .order("first_name");
       return data ?? [];
     },
     enabled: !!companyId && open,
@@ -197,7 +197,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 <Select value={customerId} onValueChange={setCustomerId}>
                   <SelectTrigger><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
                   <SelectContent>
-                    {clienti.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                    {clienti.map((c: any) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -267,7 +267,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                       <SelectTrigger><SelectValue placeholder="Qualsiasi tecnico" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Qualsiasi tecnico</SelectItem>
-                        {tecnici.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>)}
+                        {tecnici.map((t: any) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

@@ -26,7 +26,7 @@ export default function TecnicoIntervento() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "*, customer:profiles!tickets_customer_id_fkey(id, full_name, phone, email)",
+          "*, customer:profiles!tickets_customer_id_fkey(id, first_name, last_name, phone, email)",
         )
         .eq("id", id!)
         .single();
@@ -117,7 +117,9 @@ export default function TecnicoIntervento() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-400 text-sm">Cliente</p>
-              <p className="text-white font-semibold text-lg">{customer.full_name}</p>
+              <p className="text-white font-semibold text-lg">
+                {[customer.first_name, customer.last_name].filter(Boolean).join(" ") || "—"}
+              </p>
             </div>
             {customer.phone && (
               <a

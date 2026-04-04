@@ -28,7 +28,7 @@ interface Intervento {
   tipo: string;
   indirizzo_intervento: string | null;
   data_intervento_prevista: string | null;
-  customer: { full_name: string; phone?: string } | null;
+  customer: { first_name: string; last_name: string; phone?: string } | null;
 }
 
 export default function TecnicoHome() {
@@ -39,13 +39,13 @@ export default function TecnicoHome() {
   const todayStr = format(today, "yyyy-MM-dd");
   const in2DaysStr = format(addDays(today, 3), "yyyy-MM-dd");
 
-  const { data: lavori = [], isLoading } = useQuery<Intervento[]>({
+  const { data: lavori = [], isLoading, isError } = useQuery<Intervento[]>({
     queryKey: ["tecnico-lavori", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(full_name)",
+          "id, subject, status, priority, tipo, indirizzo_intervento, data_intervento_prevista, customer:profiles!tickets_customer_id_fkey(first_name, last_name)",
         )
         .eq("assigned_to", user!.id)
         .in("tipo", ["intervento", "emergenza"])
@@ -94,7 +94,9 @@ export default function TecnicoHome() {
           </div>
           <p className="text-white font-semibold text-base leading-tight truncate">{item.subject}</p>
           {item.customer && (
-            <p className="text-slate-400 text-sm mt-1">{item.customer.full_name}</p>
+            <p className="text-slate-400 text-sm mt-1">
+              {[item.customer.first_name, item.customer.last_name].filter(Boolean).join(" ")}
+            </p>
           )}
           {item.indirizzo_intervento && (
             <div className="flex items-center gap-1.5 mt-2">
@@ -141,7 +143,12 @@ export default function TecnicoHome() {
           </h2>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 text-center">
+            <AlertCircle className="h-6 w-6 text-red-400 mx-auto mb-1" />
+            <p className="text-red-300 text-sm">Errore nel caricamento. Riprova.</p>
+          </div>
+        ) : isLoading ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
               <div key={i} className="bg-slate-800 rounded-xl p-4 animate-pulse h-24" />
