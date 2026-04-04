@@ -569,6 +569,7 @@ export const blogPosts: BlogPost[] = [
     ],
   },
 
+
   {
     id: "9",
     slug: "come-organizzare-cantiere-edile",
@@ -614,7 +615,7 @@ export const blogPosts: BlogPost[] = [
         heading: "Come Assegnare le Squadre al Cantiere",
         items: [
           "Ogni persona deve avere un'assegnazione cantiere chiara ogni mattina prima delle 8:00. Chi va dove, per fare cosa, con quali risorse.",
-          "Le assegnazioni devono essere visibili a til tuo caposquadra non sa che il Rossi è assegnato al cantiere di Via Garibaldi questa settimana, avrai conflitti e ritardi.",
+          "Le assegnazioni devono essere visibili a tutti i responsabili: se il tuo caposquadra non sa che il Rossi è assegnato al cantiere di Via Garibaldi questa settimana, avrai conflitti e ritardi.",
           "Traccia le presenze per cantiere, non solo per persona: sapere quante ore ha lavorato Mario in totale questa settimana non ti serve. Ti serve sapere quante ore ha lavorato SUL CANTIERE X — per imputare il costo alla commessa giusta.",
           "Gestisci le assenze in anticipo: ferie, malattie, cantieri bloccati per meteo. Un piano di cantiere che non prevede buffer per le assenze è un piano destinato a slittare.",
         ],
@@ -651,150 +652,153 @@ export const blogPosts: BlogPost[] = [
           "Verifica finale del budget vs costi sostenuti: qual è il margine effettivo? Dove hai sforato e perché? Queste informazioni devono alimentare il tuo database per preventivi futuri più precisi.",
           "Documentazione di chiusura: dichiarazione di conformità, certificato di regolare esecuzione, collaudo se richiesto. Non lasciare il cantiere aperto burocraticamente per mesi.",
           "Saldo finale cliente: il SAL finale deve includere tutte le varianti concordate. Non lasciare soldi sul tavolo per 'dimenticanze' contabili.",
-          "Valutazione interna: cos'ha funzionato? Cosa non ha funzionato? Quale fornitore ha rispetto di più? Quali fasi sono andate out of schedule e perché?",
+          "Valutazione interna: cos'ha funzionato? Cosa non ha funzionato? Quale fornitore ha rispettato i tempi? Quale subappaltatore ha avuto problemi? Queste note valgono oro per il prossimo cantiere.",
         ],
+      },
+      {
+        type: "section",
+        heading: "Il Ruolo del Software nella Gestione del Cantiere",
+        body: "Un gestionale di cantiere non sostituisce la tua esperienza — la amplifica. Ti dà visibilità in tempo reale su costi, avanzamento e margini senza aspettare che la contabilità chiuda il mese. Ti permette di delegare senza perdere il controllo: il tuo capocantiere inserisce le presenze dal telefono, il tuo commerciale vede lo stato di avanzamento del preventivo, tu vedi il margine aggiornato da qualsiasi posto tu sia. Edilizia in Cloud è stato progettato specificamente per questo: imprese edili italiane con 3-20 dipendenti e 2-8 cantieri attivi contemporaneamente. Ogni funzionalità nasce da un problema reale che le imprese edili italiane incontrano ogni giorno.",
+      },
+      {
+        type: "cta",
+        heading: "Edilizia in Cloud organizza il cantiere per te",
+        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Margine di commessa in tempo reale, presenze dal telefono, DDT collegati al cantiere. Prova gratis 14 giorni — nessuna carta di credito richiesta.",
       },
     ],
   },
+
   {
     id: "10",
-    slug: "fattura-elettronica-italiana-come-funziona",
-    title: "Fattura Elettronica Italiana: Come Funziona e Perché è Obbligatoria per le Aziende",
+    slug: "documentazione-obbligatoria-cantiere-2025",
+    title: "Documentazione Obbligatoria Cantiere 2025: Lista Completa per Imprese Edili",
     excerpt:
-      "La fattura elettronica obbligatoria dal 1° gennaio 2024 per tutte le imprese. Ma com'è fatta, dove la invii, e cosa succede se sbagli? Una guida completa senza tecnicismi.",
-    category: "Compliance & Fiscalità",
-    tags: ["fattura elettronica", "compliance", "fiscalità italiana", "agenzia delle entrate"],
+      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2025. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
+    category: "Normativa",
+    tags: ["documentazione cantiere 2025", "POS cantiere", "DURC", "normativa edilizia"],
     publishedAt: "2026-04-14",
     updatedAt: "2026-04-14",
     readTime: 11,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1554224311-beee415c201f?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
         type: "intro",
-        body: "Dal 1° gennaio 2024, la fattura cartacea è ufficialmente morta per tutte le aziende italiane — sia per le vendite tra aziende (B2B) che verso privati (B2C). Ora tutto deve essere elettronico, registrato su un sistema governativo, con standard XML specifici. Se la tua impresa non è ancora in regola, il rischio è semplice: le sanzioni partono da 250€ per ogni fattura non trasmessa correttamente. Non è una semplice norma da rispettare: è la struttura stessa di come la tassazione italiana funziona adesso. Questa guida ti spiega cosa è la fattura elettronica, come si crea, dove la invii, cosa succede se sbagli, e come le imprese edili strutturate l'hanno integrata nei loro processi senza diventare pazze.",
+        body: "La documentazione obbligatoria in cantiere nel 2025 non è cambiata radicalmente rispetto agli anni precedenti, ma le sanzioni per chi non la ha in ordine sono diventate più severe e i controlli degli ispettori più frequenti. Un cantiere senza il POS aggiornato rischia una multa fino a 6.400 euro e la sospensione immediata dei lavori. Un DURC scaduto del subappaltatore può bloccare il pagamento di uno stato avanzamento lavori da parte della committenza pubblica. In questa guida trovi la lista completa, aggiornata al 2025, di tutti i documenti obbligatori — divisi per fase del cantiere — con le sanzioni applicabili per chi non li ha in ordine.",
       },
       {
         type: "section",
-        heading: "Cos'è la Fattura Elettronica (e Cos'è l'XML)",
-        body: "La fattura elettronica non è un PDF con firma digitale. È un file in formato XML — uno standard informatico — che contiene i dati strutturati della tua fattura: numero, data, importo, dati cliente, causali, aliquote IVA, importi, e una firma digitale a garanzia dell'autenticità. Questo file viene inviato a un server governativo chiamato Sistema di Interscambio (SDI), che funge da intermediario tra te e i clienti B2B, oppure direttamente all'Agenzia delle Entrate se il cliente è un privato. L'XML non è qualcosa che scrivi a mano: lo genera il tuo software di contabilità, il tuo gestionale, o il tuo commercialista. Ma devi capire cosa contiene, perché gli errori nella struttura del file significano fatture rifiutate, ritardi nei pagamenti, e sanzioni.",
-      },
-      {
-        type: "section",
-        heading: "Chi Deve Fare la Fattura Elettronica",
-        body: "Ormai quasi tutti: imprese soggette a IVA, ditte individuali, professionisti. Ci sono solo 2 eccezioni: agricoltori in regime di esonero da IVA (esonerati fino a una certa soglia), e microscopiche eccezioni amministrative rare. Se emetti fatture in Italia, devi usare la fattura elettronica. Non è una scelta. È una regola.",
-      },
-      {
-        type: "section",
-        heading: "Come Funziona il Ciclo della Fattura Elettronica",
-        body: "Il processo è semplice in teoria: crei la fattura nel tuo software, il software la trasforma in XML, la trasmette allo SDI, lo SDI la controlla, e se non ha errori la invia al cliente. In pratica, pero, il cliente non riceve la fattura, ma riceve una notifica che la fattura è disponibile. Per il cliente privato, una email dell'Agenzia delle Entrate con il link per scaricare la fattura. Per il cliente azienda, una comunicazione che la fattura è pronta nello SDI. Se la fattura ha errori formali (malformazione XML, dati mancanti, colli non congruenti), lo SDI la rifiuta e te la restituisce con un codice di errore. A quel punto devi correggere e reinviare. Se il cliente è un'azienda privata (non soggetta a IVA, come molti professionisti), la fattura se la scarica in un secondo momento, ma la trasmissione deve avvenire comunque.",
+        heading: "Prima di Tutto: che Tipo di Lavori Stai Facendo?",
+        body: "La documentazione richiesta varia in base alla natura e all'entità dei lavori. I parametri che determinano gli obblighi documentali sono: tipo di intervento (manutenzione ordinaria, straordinaria, ristrutturazione, nuova costruzione), committenza (privata o pubblica), numero di lavoratori presenti in cantiere (soglie a 20 e 200 lavoratori), e durata del cantiere (soglia a 30 giorni lavorativi). Un errore comune delle imprese edili italiane è applicare la stessa checklist documentale a tutti i cantieri — ma un intervento di manutenzione ordinaria per un privato ha obblighi molto diversi da un appalto pubblico per opere strutturali.",
       },
       {
         type: "list",
-        heading: "I 5 Errori Più Comuni nelle Fatture Elettroniche (e Come Evitarli)",
+        heading: "Titoli Abilitativi: quale Serve per il tuo Cantiere",
         items: [
-          "Dati cliente incompleti o mal formattati: il cliente deve avere partita IVA (se azienda) o codice fiscale (se privato) esatto. Un errore anche di una cifra causa il rifiuto della fattura.",
-          "Aliquote IVA sbagliate: se applichi il 10% quando dovresti applicare il 22%, la fattura può essere ritenuta non conforme. Anche un'aliquota Intracomunitaria o estero richiede dichiarazioni specifiche.",
-          "Ritenute e contributi mal indicati: se il cliente è la Pubblica Amministrazione, la ritenuta 4% va indicata in modo specifico nell'XML. Non è opzionale.",
-          "Cause/Natura della Transazione mancante: per tutte le fatture, devi indicare il motivo della transazione. Se vendi una porta, il codice è uno; se presti una consulenza, è un altro.",
-          "Firma digitale assente o non valida: il file XML deve essere firmato digitalmente. Se la firma è scaduta o assente, la fattura è rifiutata.",
+          "CILA (Comunicazione di Inizio Lavori Asseverata): per lavori di manutenzione straordinaria che non riguardano le strutture portanti. Non richiede il permesso del Comune — basta la comunicazione firmata da un tecnico abilitato.",
+          "SCIA (Segnalazione Certificata di Inizio Attività): per ristrutturazioni edilizie, anche con modifica della distribuzione interna. Presentata prima dell'inizio lavori, il cantiere può partire subito.",
+          "Permesso di Costruire: obbligatorio per nuove costruzioni, ristrutturazioni con cambio di destinazione d'uso o incremento di volumetria. I tempi di rilascio variano da Comune a Comune: pianifica in anticipo.",
+          "Autorizzazione Paesaggistica: richiesta per interventi in zone vincolate (D.Lgs 42/2004). Attenzione: questo documento ha tempi di rilascio lunghi (anche 90-120 giorni) — considera la finestra nei tuoi contratti.",
+        ],
+      },
+      {
+        type: "list",
+        heading: "Documenti di Sicurezza Obbligatori in Cantiere",
+        items: [
+          "POS (Piano Operativo di Sicurezza): obbligatorio per ogni impresa esecutrice. Lo redige il datore di lavoro prima dell'inizio dei lavori. Deve essere aggiornato a ogni variazione significativa dell'organizzazione del cantiere. Sanzione per assenza: da 2.500 a 6.400 euro e arresto fino a 6 mesi (D.Lgs 81/2008, art. 89 e 159).",
+          "PSC (Piano di Sicurezza e Coordinamento): obbligatorio quando in cantiere lavorano più imprese. Lo redige il CSP (Coordinatore per la Sicurezza in fase di Progettazione), non l'impresa esecutrice. Spesso confuso con il POS — sono due documenti distinti.",
+          "DVR (Documento di Valutazione dei Rischi): documento aziendale che ogni impresa deve avere indipendentemente dal singolo cantiere. Non è specifico per il cantiere, ma deve essere disponibile su richiesta degli ispettori.",
+          "Nomina del RSPP (Responsabile del Servizio di Prevenzione e Protezione): obbligatoria per tutte le imprese con dipendenti. Il titolare può ricoprire il ruolo di RSPP per imprese fino a 30 dipendenti nel settore edile, previo corso di formazione specifico.",
+          "Registro degli Infortuni: dal 2017 in formato elettronico tramite il portale INAIL. Ogni infortunio sul lavoro superiore a 3 giorni di assenza deve essere registrato entro 24 ore.",
+        ],
+      },
+      {
+        type: "list",
+        heading: "Notifica Preliminare: quando è Obbligatoria",
+        items: [
+          "La notifica preliminare è obbligatoria quando il cantiere supera i 30 giorni lavorativi con presenza contemporanea di più di 20 lavoratori, oppure quando il totale delle giornate/uomo supera 500.",
+          "Va inviata alla ASL territorialmente competente e alla Direzione Territoriale del Lavoro, prima dell'inizio dei lavori. In molte Regioni è ora gestita in via telematica.",
+          "Deve contenere: data presunta di inizio lavori, committente, responsabili (imprese esecutrici, CSE, CSP), numero previsto di lavoratori in cantiere.",
+          "Se il cantiere subisce variazioni significative rispetto alla notifica inviata, la notifica deve essere aggiornata. Lavorare su un cantiere notificato con dati superati equivale a non avere notifica.",
         ],
       },
       {
         type: "section",
-        heading: "Cosa Succede Se Fai Errori",
-        body: "Le sanzioni per non trasmissione della fattura partono da 250€ per fattura. Se la trasmetti ma con dati errati, la sanzione varia da 100€ a 200€ per ogni documento. Non sono cifre enormi prese singolarmente, ma se non stai attento puoi accumularne velocemente decine. Oltre alle sanzioni economiche, le fatture non trasmesse correttamente non vengono contabilizzate, il che significa che il tuo fatturato ufficiale sarà minore di quello reale — un problema se devi chiedere finanziamenti alle banche o se l'Agenzia delle Entrate nota discrepanze. La cosa migliore è usare un software che convalida la fattura prima di inviarla, in modo da catturare gli errori prima che raggiungano lo SDI.
-      {
-        type: "section",
-        heading: "Dove la Invii? Lo SDI e l'Agenzia delle Entrate",
-        body: "Non invii la fattura direttamente al cliente. La trasmetti allo SDI (Sistema di Interscambio), che è il gateway governativo italiano. Lo SDI riceve la fattura in formato XML, la convalida, controlla che il cliente esista e che i dati siano coerenti, e poi la inoltra. Se il cliente è un'azienda, la fattura rimane disponibile nello SDI per il ritiro. Se il cliente è un privato (come in molti cantieri edili dove fatturi a privati), la fattura viene inviata anche all'Agenzia delle Entrate, che notifica il cliente via email. Lo SDI è raggiungibile 24/7, ma la trasmissione ha orari di picco — il consiglio è non trasmettere tutto alle 23:59, ma distribuire le fatture durante il giorno. Se la trasmissione fallisce (timeout, server giù), il software di solito ritenta automaticamente. Ma se rimane bloccata per ore, devi contattare l'Agenzia delle Entrate.",
-      },
-      {
-        type: "section",
-        heading: "Conservazione e Archiviazione della Fattura Elettronica",
-        body: "Una volta trasmessa, devi conservare la fattura elettronica. Non è richiesto di stampare il documento e conservarlo in un archivio fisico — la conservazione digitale è quella ufficiale. È necessario mantenere una copia della fattura trasmessa, una copia della risposta dello SDI (con il numero di protocollazione), e una copia della ricevuta di consegna al cliente. Se il software che utilizzi è integrato con un conservatore digitale certificato (come molti gestionali moderni), la conservazione avviene automaticamente. Se non lo è, puoi usare servizi di conservazione digitale dedicati, che costano pochi euro al mese. Non conservare solo i PDF ricreati: conserva il file XML originale firmato, che è il documento legale ufficiale.",
-      },
-      {
-        type: "section",
-        heading: "Come Integrare la Fattura Elettronica nel Tuo Flusso di Lavoro",
-        body: "Se sei una piccola ditta edile che fattura 5 clienti al mese, il tempo aggiunto è minimo: emetti la fattura nel software, controlla che i dati siano corretti, trasmetti. Se sei un'impresa media che fattura 200 clienti al mese, devi avere un sistema robusto: un gestionale che generi fatture in batch, che validi automaticamente i dati prima della trasmissione, che registri gli errori e i rifiuti dello SDI in modo che tu possa agire velocemente. Le imprese edili strutturate hanno integrato il flusso così: chiusura cantiere → generazione fatture batch → validazione automatica → trasmissione → tracciamento consegna. Il tempo per fattura è ridotto a secondi, e il rischio di errori è quasi nullo. Se ancora stai inviando fatture cartacee, o stai usando Excel per generare dati da importare manualmente, il primo passo è migrare a un gestionale moderno — non è una spesa, è un investimento che ti fa risparmiare tempo e rischi.",
+        heading: "DURC: il Documento che Blocca i Pagamenti",
+        body: "Il DURC (Documento Unico di Regolarità Contributiva) certifica che la tua impresa è in regola con i contributi INPS, INAIL e Cassa Edile. Senza DURC regolare non puoi partecipare ad appalti pubblici, non puoi ricevere pagamenti da committenze pubbliche, e rischi che il tuo cliente privato trattenga il pagamento. Validità del DURC: 120 giorni dalla data di emissione. Verifica sempre la scadenza prima di presentarlo: un DURC scaduto di un solo giorno vale come assenza del documento. Il DURC lo ottieni online tramite il portale INPS 'DURCOnline' — richiede circa 72 ore lavorative se sei in regola. Controlla anche il DURC dei tuoi subappaltatori: se un sub non è in regola, la responsabilità può ricadere su di te.",
       },
       {
         type: "list",
-        heading: "Checklist per Essere in Regola con la Fattura Elettronica",
+        heading: "DDT e Documenti per i Materiali in Cantiere",
         items: [
-          "Hai un software certificato per la generazione di fatture elettroniche? Verifica che sia certificato dall'Agenzia delle Entrate.",
-          "I tuoi dati cliente (partita IVA, codice fiscale) sono sempre aggiornati e corretti?",
-          "Hai impostato le aliquote IVA corrette per ogni tipo di cliente (privato, azienda, estero)?",
-          "Controlli prima di inviare? La validazione pre-invio riduce drasticamente i rifiuti.",
-          "Conservi le fatture digitalmente? Non è obbligatorio un software specifico, ma è obbligatorio conservarle in modo integro.",
-          "Hai un piano di backup? Se il tuo software va down il giorno delle trasmissioni, hai ancora accesso ai dati?",
-          "Leggi gli errori dello SDI? Se una fattura è rifiutata, capisci il motivo prima di reinviarla?",
+          "DDT (Documento di Trasporto): accompagna ogni consegna di merci. Deve contenere mittente, destinatario, cantiere di destinazione, descrizione e quantità della merce. Va conservato e associato al cantiere specifico.",
+          "Formulario di Identificazione dei Rifiuti (FIR): obbligatorio per il trasporto di rifiuti edili (macerie, inerti, materiali pericolosi). Ogni trasporto di rifiuti senza FIR è un illecito ambientale con sanzioni pesanti.",
+          "Dichiarazione di conformità degli impianti (D.M. 22/01/2008): per i lavori su impianti elettrici, idraulici, termici. La firma l'installatore qualificato entro 30 giorni dalla fine dei lavori.",
+          "Schede di sicurezza dei prodotti: per ogni prodotto chimico usato in cantiere (pitture, solventi, adesivi, prodotti per il calcestruzzo) deve essere disponibile la scheda di sicurezza in lingua italiana.",
         ],
+      },
+      {
+        type: "list",
+        heading: "Documentazione per i Subappaltatori",
+        items: [
+          "Contratto di subappalto: obbligatorio per iscritto. Per i lavori pubblici, il subappalto deve essere autorizzato dalla committenza. Per i privati, è comunque buona pratica avere un contratto firmato.",
+          "DURC del subappaltatore: deve essere valido nel momento in cui il sub è in cantiere. Verifica la scadenza prima di far iniziare i lavori.",
+          "POS del subappaltatore: ogni impresa esecutrice, inclusi i subappaltatori, deve avere il proprio POS aggiornato.",
+          "Patente a Punti in edilizia (dal 1° ottobre 2024): tutte le imprese e i lavoratori autonomi che operano in cantieri soggetti ad obbligo di notifica preliminare devono possedere la patente a crediti. Il punteggio minimo per operare è 15 punti su 100.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "La Patente a Crediti in Edilizia: cosa Cambia dal 2024",
+        body: "Dal 1° ottobre 2024, le imprese e i lavoratori autonomi che operano nei cantieri temporanei o mobili soggetti a notifica preliminare devono possedere la 'patente a crediti' (D.Lgs 81/2008, art. 27 aggiornato dal D.Lgs 135/2024). La patente si richiede tramite il portale dell'Ispettorato Nazionale del Lavoro. Il punteggio iniziale è 30 punti. Per operare nei cantieri è necessario mantenere almeno 15 punti. I punti vengono sottratti in caso di violazioni della normativa sulla sicurezza (infortuni, violazioni POS, ecc.) e possono essere recuperati con formazione specifica. Il tuo subappaltatore senza patente a crediti valida non può lavorare in cantiere dal 1° ottobre 2024.",
+      },
+      {
+        type: "list",
+        heading: "Documentazione per la Chiusura del Cantiere",
+        items: [
+          "Certificato di Regolare Esecuzione o Collaudo: per lavori pubblici è obbligatorio. Per i privati è facoltativo ma altamente raccomandato — tutela te da contestazioni future.",
+          "Agibilità (ex Certificato di Agibilità): per nuove costruzioni o ristrutturazioni significative. Viene rilasciata dal Comune su richiesta del committente o del costruttore.",
+          "Fascicolo dell'Opera: documento che raccoglie tutte le informazioni sull'edificio utili per interventi futuri (strutturale, impianti, materiali utilizzati). Obbligatorio per i cantieri soggetti a notifica preliminare.",
+          "Chiusura del cantiere INAIL: se hai avuto lavoratori in cantiere, aggiorna la posizione INAIL alla chiusura del cantiere. È un adempimento spesso dimenticato con conseguenze sulla regolarità contributiva.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come Tenere la Documentazione Organizzata",
+        body: "La documentazione di cantiere va tenuta in ordine fisicamente in cantiere (POS, notifica preliminare, documentazione di sicurezza) e in forma digitale archiviata per almeno 10 anni (per alcune tipologie, anche 20 anni). Il problema delle imprese edili italiane non è avere i documenti — è trovarli quando servono. Un ispezione dell'ispettorato del lavoro o dell'ASL non ti dà tempo per 'cercarli nell'archivio'. Edilizia in Cloud include un modulo di archiviazione documentale cantiere: ogni documento è associato al cantiere specifico, con data di scadenza e alert automatici per i rinnovi (DURC, POS, contratti subappalto).",
+      },
+      {
+        type: "cta",
+        heading: "Edilizia in Cloud archivia la documentazione di ogni cantiere",
+        body: "POS, DURC, contratti, DDT e SAL sempre disponibili in un click. Alert automatici per scadenze. Accesso da telefono anche offline. Prova gratis 14 giorni.",
       },
     ],
   },
+
   {
     id: "11",
-    slug: "software-cantiere-edile-quale-scegliere",
-    title: "Software per Cantieri Edili: Quale Scegliere e Perché la Carta Non Basta Più",
+    slug: "come-fare-preventivo-edilizia",
+    title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine)",
     excerpt:
-      "Fogli Excel, WhatsApp e i tuoi quaderni non sono un gestionale. Scopri come scegliere il software giusto per controllare i tuoi cantieri e perché costa meno che perdere il prossimo cantiere.",
-    category: "Strumenti & Tecnologia",
-    tags: ["software cantiere", "gestionale edile", "digitale cantiere", "organizzazione"],
+      "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili che vogliono smettere di lavorare gratis.",
+    category: "Preventivi",
+    tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
     publishedAt: "2026-04-21",
     updatedAt: "2026-04-21",
-    readTime: 13,
+    readTime: 11,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1516321318423-f06f70570b08?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
         type: "intro",
-        body: "La maggior parte dei cantieri italiani oggi è ancora gestita con carta, penne, quaderni di cantiere, email e WhatsApp. Nel 2026. Le imprese che usiamo come benchmark — quelle che crescono, che mantengono margini, che riescono a gestire più cantieri contemporaneamente — hanno tutte fatto il salto: un gestionale centralizzato, dati strutturati, visibilità a distanza. Il software non è un lusso per grandi aziende. È uno strumento di controllo che le piccole imprese possono permettersi più facilmente delle grandi, proprio perché non hanno overhead organizzativo a soportarlo. Questa guida ti aiuta a capire cosa cercare quando scegli il software per i tuoi cantieri, quali funzionalità sono obbligatorie e quali sono nice-to-have, e come valutare se il costo è davvero conveniente.",
+        body: "Il preventivo è la prima cosa che il cliente vede di te. Se arriva tardi, il lavoro è già andato a un concorrente. Se non tiene conto dei costi reali, vinci il lavoro e perdi i soldi. Le imprese edili italiane perdono mediamente il 12-18% del margine sui preventivi per tre motivi: sopralluogo non strutturato, calcolo dei costi approssimativo, e nessun sistema per tenere traccia di quanto hanno effettivamente guadagnato su lavori simili in passato. In questa guida ti mostro il metodo in 5 passi per fare un preventivo edilizia professionale — uno che vince i lavori E protegge i tuoi margini.",
       },
       {
         type: "section",
-        heading: "Perché il Foglio Excel Non È Più Sufficiente",
-        body: "I fogli Excel hanno fatto il loro tempo. Sono ottimi per liste semplici, ma non sono adatti a gestire: dati in tempo reale da più persone contemporaneamente, file che crescono e rallentano con migliaia di righe, cronologia delle modifiche (chi ha cambiato cosa quando), validazione automatica dei dati, integrazione con altri sistemi (banca, fatturazione, fornitori), accesso da mobile mentre sei in cantiere, reportistica strutturata. Quando stai finendo un cantiere e devi capire quale è stato il margine e perché, non puoi dire 'aspetta che guardo in 5 fogli diversi'. Devi avere il dato in 5 secondi. Excel non lo fa. Inoltre, Excel è vulnerabile a errori umani: una formula copiata male, un foglio cancellato per errore, due persone che modificano lo stesso dato contemporaneamente e sovrascrivono il lavoro l'una dell'altra. Un gestionale riduce questi rischi a zero.",
-      },
-      {
-        type: "section",
-        heading: "Cosa Deve Fare un Gestionale Edile (Funzionalità Obbligatorie)",
-        body: "Non tutti i gestionali edili sono uguali. Quello che cerchi deve essere in grado di: 1) Gestire più cantieri contemporaneamente, con un dashboard che ti mostra a colpo d'occhio lo stato di tutti. 2) Tracciare le presenze per cantiere e per persona, con possibilità di esportare i dati per la busta paga. 3) Registrare i materiali in entrata e assegnarli a cantieri specifici, con tracciamento dei costi. 4) Generare fatture elettroniche secondo lo standard italiano, senza che tu debba fare lavoro manuale aggiuntivo. 5) Dare una visibilità in tempo reale a chi è in cantiere (app mobile) e a chi è in ufficio (web dashboard). 6) Permettere ai tuoi caposquadra di aggiornare lo stato del cantiere durante il giorno, senza doversi connettere a un PC. 7) Integrare il budget di commessa con i costi effettivi, in modo che tu possa vedere scostamenti in tempo reale. Se il gestionale non fa almeno 6 di queste 7 cose, non è abbastanza. Continuerai a gestire lo stesso livello di complessità a mano.",
-      },
-      {
-        type: "section",
-        heading: "Quale Software Scegliere? Cloud vs On-Premise",
-        body: "I software edili tradizionali sono 'on-premise': li installi sul tuo server, i dati risiedono localmente, e gestisci tu backup e aggiornamenti. Sono rigidi, costosi da mantenere, e spesso richiedono IT dedicato. I software moderni (incluso EdiliziaInCloud, che è il gestionale che abbiamo costruito specificamente per le imprese edili italiane) sono 'cloud': accedi via browser, i dati sono sempre accessibili, i backup sono automatici, gli aggiornamenti avvengono senza che tu debba fare nulla. Il cloud costa meno, è più flessibile, e permette ai tuoi operai di accedere da qualsiasi dispositivo — cosa essenziale quando stai in cantiere. Se stai ancora valutando on-premise nel 2026, non lo fare. È una soluzione del passato.",
-      },
-      {
-        type: "section",
-        heading: "Come Valutare il Costo: Total Cost of Ownership",
-        body: "Un gestionale costa tra 50€ e 500€ al mese, a seconda delle funzionalità e del numero di cantieri. Sembra una cifra, finché non la paragoni a quello che perdi se non lo usi. Una piccola impresa edile perde in media 15-20% di margine per problemi di organizzazione. Se hai un fatturato di 500.000€ all'anno e margini medi del 25%, stai guadagnando 125.000€ lordi. Il 15% di scostamento sono 18.750€ all'anno che svaniscono. Un gestionale che costa 200€ al mese (2.400€ all'anno) e riduce quello scostamento di un terzo (risparmiando 6.250€) ti paga da solo in 5 mesi. Dopo è puro guadagno. Inoltre, il gestionale ti permette di fatturare più velocemente (il ciclo incassi si riduce di 30 giorni in media), il che significa cash flow migliore. Non è una spesa. È un investimento con ROI dimostrabile.",
-      },
-      {
-        type: "list",
-        heading: "Le 5 Domande da Fare Prima di Scegliere il Gestionale",
-        items: [
-          "È stato costruito specificamente per imprese edili italiane, o è un gestionale generico tagliato per l'edilizia? La specificità conta. Un software costruito per l'edilizia conosce i SAL, la fatturazione per stato di avanzamento, il ciclo di cantiere italiano.",
-          "Ha un'app mobile che funziona offline? Se il cantiere è in zona montagna senza segnale stabile, l'app deve poter sincronizzare quando rientra online.",
-          "Integra la fatturazione elettronica italiana? Oppure devi usare un software separato? L'integrazione ti fa risparmiare tempo e errori.",
-          "Chi supporta il software? Esiste un supporto italiano? È importante avere qualcuno che capisca il tuo linguaggio, il tuo processo, il tuo problema.",
-          "I miei dati sono proprietà mia, non del software? Devo poter esportare tutto in qualsiasi momento, senza essere prigioniero di una piattaforma.",
-        ],
-      },
-      {
-        type: "section",
-        heading: "Implementazione: Come Non Fare Disastri",
-        body: "Passare da carta/Excel a un gestionale è un cambio di processo. Non è difficile, ma richiede pianificazione. I passi: 1) Prendi il team e spiega perché fate il cambio — non è 'dai più lavoro', è 'vi tolgo lavoro burocratico'. 2) Carica i dati storici (clienti, fornitori, cantieri chiusi) nel sistema. Non deve essere perfetto, ma deve essere completo. 3) Parti con un cantiere pilota: un cantiere piccolo dove il tuo caposquadra più affidabile prova il workflow. Vedrai subito cosa funziona e cosa no. 4) Solo dopo il test iniziale, passa i cantieri nuovi al sistema, uno per uno. Non far saltare tutto il team in gestionale il giorno 1 — il rischio è caos e abbandono. 5) Traccia i benefici: margini, tempi, errori. Dopo 3 mesi dovresti vedere miglioramenti. Se non li vedi, significa che il software non è quello giusto, oppure il team non lo sta usando correttamente. Aggiusta il tiro.",
-      },
-    ],
-  },
-];
-
-export default blogPosts; i lavori. Le imprese edili che lavorano bene hanno un tasso di margine effettivo vicino a quello preventivato. Quelle che lavorano male scoprono sempre lo stesso problema: i costi reali erano più alti di quelli stimati. La causa è quasi sempre nel preventivo, non nell'esecuzione.",
+        heading: "Perché il Preventivo è la Decisione più Importante dell'Impresa",
+        body: "Il preventivo non è solo un documento che mandi al cliente. È la decisione con cui definisci a che prezzo lavorerai per i prossimi mesi. Un preventivo sbagliato del 5% su un cantiere da 200.000 euro significa 10.000 euro di margine perso — e non puoi recuperarli durante i lavori. Le imprese edili che lavorano bene hanno un tasso di margine effettivo vicino a quello preventivato. Quelle che lavorano male scoprono sempre lo stesso problema: i costi reali erano più alti di quelli stimati. La causa è quasi sempre nel preventivo, non nell'esecuzione.",
       },
       {
         type: "list",
