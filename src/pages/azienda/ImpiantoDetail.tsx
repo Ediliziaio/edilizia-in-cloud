@@ -31,7 +31,7 @@ export default function ImpiantoDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("impianti_cliente")
-        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, full_name, email)")
+        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, first_name, last_name, email)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -59,7 +59,7 @@ export default function ImpiantoDetail() {
       if (!contratto?.id) return [];
       const { data, error } = await supabase
         .from("piani_manutenzione")
-        .select("*, tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(full_name)")
+        .select("*, tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(first_name, last_name)")
         .eq("contratto_id", contratto.id)
         .order("prossima_scadenza", { ascending: true });
       if (error) throw error;
@@ -143,7 +143,7 @@ export default function ImpiantoDetail() {
         </Button>
         <div>
           <h1 className="text-xl font-bold capitalize">{impianto.tipo_impianto?.replace("_", " ")} {impianto.marca && `— ${impianto.marca}`}</h1>
-          <p className="text-sm text-gray-500">{(impianto.customer as any)?.full_name}</p>
+          <p className="text-sm text-gray-500">{[(impianto.customer as any)?.first_name, (impianto.customer as any)?.last_name].filter(Boolean).join(" ") || ""}</p>
         </div>
       </div>
 
@@ -238,7 +238,7 @@ export default function ImpiantoDetail() {
         <TabsContent value="interventi" className="mt-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Interventi su questo impianto</h3>
-            <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/interventi/nuovo?impianto_id=${id}`)} className="gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/assistenza/nuovo?tipo=intervento&impianto_id=${id}`)} className="gap-2">
               <Plus className="h-4 w-4" /> Nuovo Intervento
             </Button>
           </div>

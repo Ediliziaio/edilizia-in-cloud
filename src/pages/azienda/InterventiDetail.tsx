@@ -44,16 +44,16 @@ export default function InterventiDetail() {
           tipo, indirizzo_intervento, data_intervento_prevista,
           data_intervento_effettiva, durata_ore, assigned_to, note_tecnico, created_at,
           internal_notes,
-          assigned_profile:profiles!tickets_assigned_to_fkey(id, full_name),
-          customer:profiles!tickets_customer_id_fkey(id, full_name, email, phone)
+          assigned_profile:profiles!tickets_assigned_to_fkey(id, first_name, last_name),
+          customer:profiles!tickets_customer_id_fkey(id, first_name, last_name, email, phone)
         `)
         .eq("id", id)
         .single();
       if (error) throw error;
       return data as Intervento & {
         internal_notes: string | null;
-        customer: { id: string; full_name: string | null; email: string | null; phone: string | null } | null;
-        assigned_profile: { id: string; full_name: string | null } | null;
+        customer: { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null } | null;
+        assigned_profile: { id: string; first_name: string | null; last_name: string | null } | null;
       };
     },
     enabled: !!id,
@@ -79,9 +79,9 @@ export default function InterventiDetail() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, role")
+        .select("id, first_name, last_name, role")
         .eq("company_id", effectiveCompany.id)
-        .order("full_name");
+        .order("first_name");
       if (error) throw error;
       return data ?? [];
     },
@@ -216,7 +216,7 @@ export default function InterventiDetail() {
             {intervento.customer && (
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-700">{(intervento.customer as { full_name: string | null }).full_name ?? "—"}</span>
+                <span className="text-gray-700">{[intervento.customer?.first_name, intervento.customer?.last_name].filter(Boolean).join(" ") || "—"}</span>
               </div>
             )}
             {intervento.indirizzo_intervento && (
@@ -266,7 +266,7 @@ export default function InterventiDetail() {
               <SelectContent>
                 <SelectItem value="">Nessuno</SelectItem>
                 {tecnici.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.full_name ?? t.id}</SelectItem>
+                  <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

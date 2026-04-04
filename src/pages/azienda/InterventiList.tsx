@@ -46,8 +46,8 @@ export default function InterventiList() {
           id, company_id, customer_id, order_id, subject, status, priority,
           tipo, indirizzo_intervento, data_intervento_prevista,
           data_intervento_effettiva, durata_ore, assigned_to, note_tecnico, created_at,
-          assigned_profile:profiles!tickets_assigned_to_fkey(full_name),
-          customer:profiles!tickets_customer_id_fkey(full_name)
+          assigned_profile:profiles!tickets_assigned_to_fkey(first_name, last_name),
+          customer:profiles!tickets_customer_id_fkey(first_name, last_name)
         `)
         .eq("company_id", effectiveCompany.id)
         .in("tipo", ["intervento", "emergenza"])
@@ -205,7 +205,12 @@ export default function InterventiList() {
                     {intervento.assigned_to ? (
                       <div className="flex items-center gap-1 text-xs text-gray-500">
                         <User className="h-3 w-3" />
-                        <span>{(intervento.assigned_profile as { full_name: string | null } | null)?.full_name ?? "Tecnico"}</span>
+                        <span>{
+                          (() => {
+                            const p = intervento.assigned_profile as { first_name?: string | null; last_name?: string | null } | null;
+                            return [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Tecnico";
+                          })()
+                        }</span>
                       </div>
                     ) : (
                       <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">

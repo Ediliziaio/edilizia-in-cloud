@@ -256,7 +256,7 @@ export default function TecnicoRapportino() {
       if (firmaBase64) {
         await supabase
           .from("tickets")
-          .update({ status: "risolto" })
+          .update({ status: "in_lavorazione" })
           .eq("id", id!);
       }
 

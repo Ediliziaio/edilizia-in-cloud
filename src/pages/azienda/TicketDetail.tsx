@@ -67,7 +67,7 @@ export default function TicketDetail() {
       const { data, error } = await supabase
         .from("tickets")
         .select(`
-          id, subject, status, priority, created_at, customer_id, order_id,
+          id, subject, status, priority, tipo, created_at, customer_id, order_id,
           assigned_to, category, internal_notes,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
           order:orders(id, description)
@@ -150,9 +150,9 @@ export default function TicketDetail() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, first_name, last_name")
         .eq("company_id", effectiveCompany.id)
-        .order("full_name");
+        .order("first_name");
       if (error) throw error;
       return data ?? [];
     },
@@ -496,7 +496,7 @@ export default function TicketDetail() {
                 <SelectContent>
                   <SelectItem value="">Nessuno</SelectItem>
                   {tecnici.map((t: any) => (
-                    <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
+                    <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
