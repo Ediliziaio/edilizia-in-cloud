@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, GitBranch, Loader2, Copy, ExternalLink, CheckCircle, XCircle, Clock, Ban, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, GitBranch, Loader2, Copy, ExternalLink, CheckCircle, XCircle, Clock, Ban, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
@@ -53,6 +53,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<OdVForm>(EMPTY_FORM);
   const [expandedOdvId, setExpandedOdvId] = useState<string | null>(null);
+  const [invioEmailLoading, setInvioEmailLoading] = useState<string | null>(null);
 
   const { data: odvList = [], isLoading } = useQuery({
     queryKey: ["ordini-variazione", orderId],
@@ -229,7 +230,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                         )}
                       </div>
                       {odv.status === "in_attesa" && odv.firma_token && (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -241,8 +242,35 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-7 text-xs text-blue-600 hover:text-blue-700"
+                            disabled={invioEmailLoading === odv.id}
+                            onClick={async () => {
+                              setInvioEmailLoading(odv.id);
+                              try {
+                                const { error } = await supabase.functions.invoke("invia-odv", {
+                                  body: { odv_id: odv.id },
+                                });
+                                if (error) throw error;
+                                toast.success("Email inviata al cliente");
+                                queryClient.invalidateQueries({ queryKey: ["ordini-variazione", orderId] });
+                              } catch (e: any) {
+                                toast.error(e.message || "Errore nell'invio email");
+                              } finally {
+                                setInvioEmailLoading(null);
+                              }
+                            }}
+                          >
+                            {invioEmailLoading === odv.id
+                              ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              : <Send className="h-3 w-3 mr-1" />}
+                            Invia per email
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-7 text-xs"
                             onClick={() => window.open(`/firma-odv/${odv.firma_token}`, "_blank")}
+                            aria-label="Apri link firma"
                           >
                             <ExternalLink className="h-3 w-3" />
                           </Button>
