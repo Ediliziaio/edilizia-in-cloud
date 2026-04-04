@@ -26,6 +26,20 @@ const navItems: NavItem[] = [
   { label: "Prezzi", type: "link", to: "/prezzi" },
 ];
 
+function PromoBanner() {
+  return (
+    <Link
+      to="/demo"
+      className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden hover:bg-[#e8650e] transition-colors"
+    >
+      <span className="absolute inset-0" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite linear" }} />
+      <span className="relative flex items-center justify-center gap-2 text-xs md:text-sm font-bold tracking-wide">
+        🎁 PROVA GRATUITA DI 31 GIORNI — NESSUN PAGAMENTO RICHIESTO
+      </span>
+    </Link>
+  );
+}
+
 export default function LandingNavbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -70,6 +84,8 @@ export default function LandingNavbar() {
   }`;
 
   return (
+    <>
+    <PromoBanner />
     <nav
       className={`fixed top-9 left-0 right-0 z-50 transition-all duration-300 ${
         isWhiteBg ? "bg-white/95 backdrop-blur-md shadow-sm" : "bg-transparent"
@@ -303,5 +319,6 @@ export default function LandingNavbar() {
         </div>
       )}
     </nav>
+    </>
   );
 }

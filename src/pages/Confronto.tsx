@@ -6,23 +6,6 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 
-function PromoBanner() {
-  return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-[#F97415] text-white py-2 text-center overflow-hidden">
-      <span
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)",
-          backgroundSize: "200% 100%",
-        }}
-      />
-      <span className="relative flex items-center justify-center gap-2 text-xs md:text-sm font-bold tracking-wide">
-        SE NON TI FA GUADAGNARE, IL PROGRAMMA È GRATIS PER SEMPRE
-      </span>
-    </div>
-  );
-}
 
 type CellType = "check" | "cross" | "partial" | "text";
 
@@ -215,7 +198,6 @@ export default function Confronto() {
           }
         ]
       }} />
-      <PromoBanner />
       <LandingNavbar />
 
       {/* ── HERO ── */}

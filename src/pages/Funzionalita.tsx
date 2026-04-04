@@ -665,14 +665,6 @@ export default function Funzionalita() {
         ]
       }} />
 
-      {/* ── PROMO BANNER ──────────────────────────────────────────────────── */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-[#1E3A5F] text-white py-2 text-center overflow-hidden">
-        <span className="relative flex items-center justify-center gap-2 text-xs md:text-sm font-bold tracking-wide">
-          SE NON TI FA GUADAGNARE, IL PROGRAMMA È{" "}
-          <span className="text-[#F97415]">GRATIS PER SEMPRE</span>
-        </span>
-      </div>
-
       <LandingNavbar />
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
