@@ -43,8 +43,6 @@ export default function TecnicoFurgone() {
 
   const segnalaRiordineMutation = useMutation({
     mutationFn: async (scorta: any) => {
-      setSegnalazioneId(scorta.id);
-      // Get company_id from user profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("company_id")
@@ -54,10 +52,11 @@ export default function TecnicoFurgone() {
       const { error } = await supabase.from("tasks").insert({
         company_id: profile?.company_id,
         title: `Riordino: ${scorta.nome_materiale}`,
-        description: `Scorta in esaurimento sul furgone del tecnico. Quantità attuale: ${scorta.quantita_attuale} ${scorta.unita_misura ?? "pz"}`,
+        notes: `Scorta in esaurimento sul furgone del tecnico. Quantità attuale: ${scorta.quantita_attuale} ${scorta.unita_misura ?? "pz"}`,
         category: "riordino_materiali",
         assigned_to: user!.id,
-        status: "aperta",
+        created_by: user!.id,
+        status: "da_fare",
         priority: "alta",
       });
       if (error) throw error;
@@ -154,7 +153,7 @@ export default function TecnicoFurgone() {
 
                 {scarso && (
                   <button
-                    onClick={() => segnalaRiordineMutation.mutate(s)}
+                    onClick={() => { setSegnalazioneId(s.id); segnalaRiordineMutation.mutate(s); }}
                     disabled={segnalazioneId === s.id}
                     className="mt-3 w-full bg-amber-500/20 border border-amber-500/40 text-amber-300 py-2.5 rounded-xl text-sm font-medium active:bg-amber-500/30 flex items-center justify-center gap-2 disabled:opacity-60"
                   >

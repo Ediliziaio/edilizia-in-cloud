@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,8 +31,9 @@ const STATO_CONFIG: Record<string, { label: string; color: string }> = {
 export default function InterventiList() {
   const { effectiveCompany } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [tipoFilter, setTipoFilter] = useState<string>("all");
+  const [tipoFilter, setTipoFilter] = useState<string>(searchParams.get("tipo") ?? "all");
   const [statoFilter, setStatoFilter] = useState<string>("all");
 
   const { data: interventi = [], isLoading, isError } = useQuery({
@@ -77,9 +78,9 @@ export default function InterventiList() {
     daFatturare: interventi.filter((i) => i.status === "risolto").length,
   };
 
-  if (isError) {
-    toast.error("Errore nel caricamento degli interventi");
-  }
+  useEffect(() => {
+    if (isError) toast.error("Errore nel caricamento degli interventi");
+  }, [isError]);
 
   return (
     <div className="p-6 space-y-6">
