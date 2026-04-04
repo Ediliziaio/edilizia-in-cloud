@@ -99,6 +99,8 @@ const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
 const InterventiList = lazy(() => import("@/pages/azienda/InterventiList"));
 const InterventiDetail = lazy(() => import("@/pages/azienda/InterventiDetail"));
+const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
+const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
 
 // Marketing
 const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/MarketingDashboard"));
@@ -182,6 +184,8 @@ export function companyRoutes() {
         <Route path="assistenza/:id" element={<TicketDetail />} />
         <Route path="interventi" element={<InterventiList />} />
         <Route path="interventi/:id" element={<InterventiDetail />} />
+        <Route path="manutenzione" element={<ManutenzioneList />} />
+        <Route path="manutenzione/impianto/:id" element={<ImpiantoDetail />} />
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
