@@ -142,22 +142,36 @@ export default function FirmaOdV() {
     }
 
     setPageStatus("submitting");
-    const { error } = await supabase
-      .from("ordini_variazione")
-      .update({
-        status: "approvato",
-        firma_cliente: firmaData,
-        firmato_da: firmatoDa.trim() || null,
-        firmato_il: new Date().toISOString(),
-      })
-      .eq("firma_token", token)
-      .eq("status", "in_attesa");
 
-    if (error) {
-      toast.error("Errore durante il salvataggio. Riprova.");
-      setPageStatus("ready");
-      return;
+    // Chiama firma-odv-webhook che aggiorna OdV + importo ordine + activity log
+    const { error: webhookError } = await supabase.functions.invoke("firma-odv-webhook", {
+      body: {
+        token,
+        firma_data_base64: firmaData,
+        firmato_da: firmatoDa.trim() || null,
+      },
+    });
+
+    if (webhookError) {
+      // Fallback: aggiorna direttamente
+      const { error } = await supabase
+        .from("ordini_variazione")
+        .update({
+          status: "approvato",
+          firma_cliente: firmaData,
+          firmato_da: firmatoDa.trim() || null,
+          firmato_il: new Date().toISOString(),
+        })
+        .eq("firma_token", token)
+        .eq("status", "in_attesa");
+
+      if (error) {
+        toast.error("Errore durante il salvataggio. Riprova.");
+        setPageStatus("ready");
+        return;
+      }
     }
+
     setPageStatus("approved");
   };
 

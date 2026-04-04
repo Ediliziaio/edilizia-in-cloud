@@ -58,6 +58,7 @@
     "dompurify": "^3.3.3",
     "exceljs": "^4.4.0",
     "ibantools": "^4.5.1",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
