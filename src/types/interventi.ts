@@ -21,6 +21,7 @@ export interface Intervento {
   // join fields
   assigned_profile?: { first_name: string | null; last_name: string | null } | null;
   customer?: { first_name: string | null; last_name: string | null } | null;
+  order?: { id: string; description: string | null; order_code: string | null } | null;
 }
 
 export interface RapportinoMateriale {

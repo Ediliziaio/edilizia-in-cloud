@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wrench, Plus, Search, AlertCircle, Clock, CheckCircle2, User, MapPin, Calendar } from "lucide-react";
+import { Wrench, Plus, Search, AlertCircle, Clock, CheckCircle2, User, MapPin, Calendar, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import type { Intervento, TipoIntervento } from "@/types/interventi";
+import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDialog";
 
 const TIPO_LABELS: Record<TipoIntervento, string> = {
   supporto: "Supporto",
@@ -30,11 +31,12 @@ const STATO_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default function InterventiList() {
   const { effectiveCompany } = useAuth();
-  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>(searchParams.get("tipo") ?? "all");
   const [statoFilter, setStatoFilter] = useState<string>("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: interventi = [], isLoading, isError } = useQuery({
     queryKey: ["interventi", effectiveCompany?.id, tipoFilter, statoFilter],
@@ -47,7 +49,8 @@ export default function InterventiList() {
           tipo, indirizzo_intervento, data_intervento_prevista,
           data_intervento_effettiva, durata_ore, assigned_to, note_tecnico, created_at,
           assigned_profile:profiles!tickets_assigned_to_fkey(first_name, last_name),
-          customer:profiles!tickets_customer_id_fkey(first_name, last_name)
+          customer:profiles!tickets_customer_id_fkey(first_name, last_name),
+          order:orders!tickets_order_id_fkey(id, description, order_code)
         `)
         .eq("company_id", effectiveCompany.id)
         .in("tipo", ["intervento", "emergenza"])
@@ -79,10 +82,18 @@ export default function InterventiList() {
     enabled: !!effectiveCompany?.id,
   });
 
-  const filtered = interventi.filter((i) =>
-    i.subject.toLowerCase().includes(search.toLowerCase()) ||
-    (i.indirizzo_intervento ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = interventi.filter((i) => {
+    const q = search.toLowerCase();
+    if (!q) return true;
+    const customerName = [i.customer?.first_name, i.customer?.last_name].filter(Boolean).join(" ").toLowerCase();
+    const orderLabel = [(i.order as any)?.order_code, (i.order as any)?.description].filter(Boolean).join(" ").toLowerCase();
+    return (
+      i.subject.toLowerCase().includes(q) ||
+      (i.indirizzo_intervento ?? "").toLowerCase().includes(q) ||
+      customerName.includes(q) ||
+      orderLabel.includes(q)
+    );
+  });
 
   const stats = {
     oggi: interventi.filter((i) => {
@@ -109,7 +120,7 @@ export default function InterventiList() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">Gestione interventi tecnici e assistenza in campo</p>
         </div>
-        <Button onClick={() => navigate("/azienda/assistenza/nuovo?tipo=intervento")} className="gap-2">
+        <Button onClick={() => setDialogOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
           Nuovo Intervento
         </Button>
@@ -178,7 +189,7 @@ export default function InterventiList() {
           <Wrench className="h-12 w-12 text-gray-300 mb-3" />
           <p className="font-medium text-gray-700">Nessun intervento trovato</p>
           <p className="text-sm mt-1">Crea il primo intervento con il pulsante in alto a destra</p>
-          <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate("/azienda/assistenza/nuovo?tipo=intervento")}>
+          <Button variant="outline" className="mt-4 gap-2" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Nuovo Intervento
           </Button>
@@ -203,6 +214,22 @@ export default function InterventiList() {
                       <Badge className={`text-xs ${stato.color}`}>{stato.label}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
+                      {/* Customer name */}
+                      {(intervento.customer?.first_name || intervento.customer?.last_name) && (
+                        <span className="flex items-center gap-1 font-medium text-gray-700">
+                          <User className="h-3 w-3 text-gray-400" />
+                          {[intervento.customer.first_name, intervento.customer.last_name].filter(Boolean).join(" ")}
+                        </span>
+                      )}
+                      {/* Order association */}
+                      {(intervento.order as any) && (
+                        <span className="flex items-center gap-1">
+                          <ClipboardList className="h-3 w-3" />
+                          {(intervento.order as any).order_code
+                            ? `${(intervento.order as any).order_code}`
+                            : (intervento.order as any).description?.substring(0, 40)}
+                        </span>
+                      )}
                       {intervento.indirizzo_intervento && (
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
@@ -240,6 +267,15 @@ export default function InterventiList() {
           })}
         </div>
       )}
+
+      <NuovoInterventoDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["interventi", effectiveCompany?.id] });
+          queryClient.invalidateQueries({ queryKey: ["rapportini-firmati-count", effectiveCompany?.id] });
+        }}
+      />
     </div>
   );
 }

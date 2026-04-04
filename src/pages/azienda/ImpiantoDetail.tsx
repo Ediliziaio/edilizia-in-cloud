@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ export default function ImpiantoDetail() {
   const [esecuzioneOpen, setEsecuzioneOpen] = useState(false);
   const [selectedPianoId, setSelectedPianoId] = useState<string | null>(null);
   const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toISOString().split("T")[0], esito: "ok", note: "" });
+  const [nuovoInterventoOpen, setNuovoInterventoOpen] = useState(false);
 
   const { data: impianto, isLoading } = useQuery({
     queryKey: ["impianto", id],
@@ -238,7 +240,7 @@ export default function ImpiantoDetail() {
         <TabsContent value="interventi" className="mt-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Interventi su questo impianto</h3>
-            <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/assistenza/nuovo?tipo=intervento&impianto_id=${id}`)} className="gap-2">
+            <Button size="sm" variant="outline" onClick={() => setNuovoInterventoOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nuovo Intervento
             </Button>
           </div>
@@ -304,6 +306,17 @@ export default function ImpiantoDetail() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Dialog nuovo intervento */}
+      <NuovoInterventoDialog
+        open={nuovoInterventoOpen}
+        onClose={() => setNuovoInterventoOpen(false)}
+        defaultCustomerId={(impianto?.customer as any)?.id}
+        defaultImpiantoId={id}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["interventi-impianto", id] });
+        }}
+      />
 
       {/* Dialog esecuzione */}
       <Dialog open={esecuzioneOpen} onOpenChange={setEsecuzioneOpen}>

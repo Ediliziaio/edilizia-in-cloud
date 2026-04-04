@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LifeBuoy, Wrench, Settings, Plus, ChevronRight, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { format, addDays, isToday, isTomorrow } from "date-fns";
 import { it } from "date-fns/locale";
+import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDialog";
 
 // ── TicketColumn subcomponent ─────────────────────────────────────────────────
 interface ColumnItem {
@@ -94,6 +96,8 @@ function TicketColumn({
 export default function AssistenzaLavoriHub() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
   const in7Days = addDays(new Date(), 7).toISOString().split("T")[0];
@@ -213,7 +217,7 @@ export default function AssistenzaLavoriHub() {
           <h1 className="text-2xl font-bold">Assistenza & Lavori</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Panoramica ticket, interventi e manutenzioni</p>
         </div>
-        <Button onClick={() => navigate("/azienda/assistenza/nuovo?tipo=intervento")} className="gap-2">
+        <Button onClick={() => setDialogOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
           Nuovo Intervento
         </Button>
@@ -281,7 +285,7 @@ export default function AssistenzaLavoriHub() {
           count={interventi.length}
           items={interventiItems}
           accentColor="bg-orange-500"
-          onNewClick={() => navigate("/azienda/assistenza/nuovo?tipo=intervento")}
+          onNewClick={() => setDialogOpen(true)}
           newLabel="Intervento"
           isLoading={loadingInterventi}
         />
@@ -312,6 +316,14 @@ export default function AssistenzaLavoriHub() {
           <Clock className="h-3.5 w-3.5" /> Calendario
         </Button>
       </div>
+
+      <NuovoInterventoDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["hub-interventi", effectiveCompany?.id] });
+        }}
+      />
     </div>
   );
 }
