@@ -63,6 +63,22 @@ export default function InterventiList() {
     enabled: !!effectiveCompany?.id,
   });
 
+  // Query rapportini firmati non ancora fatturati (per KPI "Da fatturare")
+  const { data: rapportiniFirmati = [] } = useQuery({
+    queryKey: ["rapportini-firmati-count", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("rapportini_intervento")
+        .select("id, ticket_id")
+        .eq("company_id", effectiveCompany.id)
+        .eq("stato", "firmato");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
   const filtered = interventi.filter((i) =>
     i.subject.toLowerCase().includes(search.toLowerCase()) ||
     (i.indirizzo_intervento ?? "").toLowerCase().includes(search.toLowerCase())
@@ -75,7 +91,7 @@ export default function InterventiList() {
     }).length,
     urgenti: interventi.filter((i) => i.tipo === "emergenza").length,
     inCorso: interventi.filter((i) => i.status === "in_lavorazione").length,
-    daFatturare: interventi.filter((i) => i.status === "risolto").length,
+    daFatturare: rapportiniFirmati.length, // rapportini firmati ma non ancora fatturati
   };
 
   useEffect(() => {
