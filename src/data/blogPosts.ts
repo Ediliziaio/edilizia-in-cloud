@@ -565,6 +565,180 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+
+  {
+    id: "9",
+    slug: "come-organizzare-cantiere-edile",
+    title: "Come Organizzare un Cantiere Edile: la Guida Pratica per Titolari d'Impresa",
+    excerpt:
+      "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere senza fogli Excel e senza perdere il controllo dei margini.",
+    category: "Gestione Cantieri",
+    tags: ["organizzare cantiere edile", "gestione cantieri", "impresa edile", "margini cantiere"],
+    publishedAt: "2026-04-07",
+    updatedAt: "2026-04-07",
+    readTime: 12,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO" },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Hai due cantieri aperti, la squadra che chiama ogni mezz'ora, e un cliente che vuole sapere quando finisce. Non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso fino ad oggi. Il problema non è la tua squadra. Il problema è che organizzare un cantiere edile senza un sistema non si può fare. In questa guida trovi il metodo completo — dalla partenza alla chiusura — senza fogli Excel sparsi e senza perdere il controllo dei margini.",
+      },
+      {
+        type: "list",
+        heading: "Prima di Aprire il Cantiere: i 5 Passi Obbligatori",
+        items: [
+          "Definisci il budget di commessa interno: quanto puoi spendere in manodopera, materiali e noli per stare in utile? La regola: il costo previsto non deve superare il 70% del valore contrattuale.",
+          "Pianifica le fasi di lavoro: ogni fase ha un nome, una data di inizio e fine, le risorse assegnate e i materiali da ordinare.",
+          "Controlla la documentazione prima di iniziare: notifica preliminare, POS, DURC di tutti i subappaltatori, contratti firmati e permessi edilizi. Mancano? Il cantiere non parte.",
+          "Ordina i materiali con 10-15 giorni di anticipo rispetto alla fase in cui servono. Il ritardo materiali è la causa numero uno di scostamento sui tempi.",
+          "Assegna un responsabile di cantiere: anche se sei sempre in giro, ogni cantiere ha bisogno di una persona di riferimento in loco.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come Assegnare le Squadre al Cantiere",
+        body: "Ogni mattina, prima delle 8, devi sapere: quante persone hai disponibili, dove sono assegnate, se ci sono assenze o imprevisti.",
+      },
+      {
+        type: "section",
+        heading: "Come Controllare l'Avanzamento Lavori Senza Essere in Cantiere",
+        body: "Il report di avanzamento lavori è lo strumento che ti dà visibilità a distanza. Deve rispondere a 3 domande: siamo in linea con i tempi previsti? Siamo in linea con il budget? Ci sono problemi da escalare?",
+      },
+      {
+        type: "list",
+        heading: "I 4 Costi da Monitorare in Tempo Reale",
+        items: [
+          "Manodopera: quante ore lavorate, a che costo orario, su quale fase.",
+          "Materiali: ogni acquisto deve essere imputato al cantiere e alla fase specifica.",
+          "Noli e attrezzature: traccia quando entrano e quando escono.",
+          "Subappaltatori: i SAL che devi pagare ai sub devono corrispondere all'avanzamento reale.",
+        ],
+      },
+      {
+        type: "cta",
+        heading: "Edilizia in Cloud organizza il cantiere per te",
+        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Prova gratis 14 giorni.",
+      },
+    ],
+  },
+
+  {
+    id: "10",
+    slug: "documentazione-obbligatoria-cantiere-2025",
+    title: "Documentazione Obbligatoria Cantiere 2025: Lista Completa per Imprese Edili",
+    excerpt:
+      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2025. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
+    category: "Normativa",
+    tags: ["documentazione cantiere 2025", "POS cantiere", "DURC", "normativa edilizia"],
+    publishedAt: "2026-04-14",
+    updatedAt: "2026-04-14",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO" },
+    coverImage:
+      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La documentazione obbligatoria in cantiere nel 2025 non è cambiata radicalmente, ma le sanzioni per chi non la ha in ordine sono diventate più severe.",
+      },
+      {
+        type: "list",
+        heading: "I Documenti Obbligatori Prima di Iniziare i Lavori",
+        items: [
+          "Titolo Abilitativo: CILA, SCIA o Permesso di Costruire.",
+          "Notifica Preliminare: obbligatoria per cantieri che superano 30 giorni lavorativi con più di 20 lavoratori.",
+          "PSC e POS: il POS lo redigi tu. Non avere il POS = multa da 2.500 a 6.400 euro.",
+          "DURC: il tuo e quello di ogni subappaltatore. Validità 120 giorni.",
+        ],
+      },
+      {
+        type: "cta",
+        heading: "Edilizia in Cloud archivia la documentazione di ogni cantiere",
+        body: "POS, DURC, contratti, DDT e SAL sempre disponibili. Prova gratis 14 giorni.",
+      },
+    ],
+  },
+
+  {
+    id: "11",
+    slug: "come-fare-preventivo-edilizia",
+    title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine)",
+    excerpt:
+      "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili.",
+    category: "Preventivi",
+    tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
+    publishedAt: "2026-04-21",
+    updatedAt: "2026-04-21",
+    readTime: 9,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO" },
+    coverImage:
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il preventivo è la prima cosa che il cliente vede di te. Se arriva tardi, è perso. Se non tiene conto dei costi reali, vinci il lavoro e perdi i soldi.",
+      },
+      {
+        type: "section",
+        heading: "Passo 1: Fai il Sopralluogo con Metodo",
+        body: "Il preventivo nasce dal sopralluogo. Misurazioni precise, foto documentate, note sui rischi e accordo chiaro sulle rifiniture.",
+      },
+      {
+        type: "list",
+        heading: "Passo 2: Calcola i Costi con la Struttura Giusta",
+        items: [
+          "Manodopera: ore previste × costo orario reale (includi il 30-35% di oneri sociali).",
+          "Materiali: quantità da computo metrico + 5-10% sfrido.",
+          "Subappaltatori e noli: a costo pieno + margine coordinamento 10-15%.",
+          "Margine commerciale: minimo 15-20% su lavori standard.",
+        ],
+      },
+      {
+        type: "cta",
+        heading: "Crea preventivi professionali in 5 minuti con Edilizia in Cloud",
+        body: "Calcolo automatico, template personalizzabili, conversione in contratto e firma digitale. Prova gratis 14 giorni.",
+      },
+    ],
+  },
+
+  {
+    id: "12",
+    slug: "alternativa-excel-cantieri",
+    title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando",
+    excerpt:
+      "Stai usando Excel per gestire i cantieri? Confronto diretto: Excel vs gestionale di cantiere nel 2026.",
+    category: "Gestione Cantieri",
+    tags: ["alternativa excel cantieri", "gestionale edilizia cloud", "software cantieri", "digitalizzazione edilizia"],
+    publishedAt: "2026-04-28",
+    updatedAt: "2026-04-28",
+    readTime: 6,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO" },
+    coverImage:
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Excel è il gestionale più usato dalle imprese edili italiane. Il problema è usarlo come alternativa a un gestionale di cantiere, un ruolo per cui non è stato progettato.",
+      },
+      {
+        type: "list",
+        heading: "Il Problema con Excel in Cantiere",
+        items: [
+          "Non è in tempo reale: aggiornare un foglio richiede che qualcuno lo apra e inserisca i dati.",
+          "Non funziona in squadra: versioni multiple, nessuno sa chi ha l'ultima.",
+          "Non funziona dal telefono: con le mani sporche di cemento è inutilizzabile.",
+          "Non tiene i margini in tempo reale: ti dice quanto hai speso, non se stai rispettando il budget.",
+        ],
+      },
+      {
+        type: "cta",
+        heading: "Edilizia in Cloud: l'alternativa a Excel pensata per il cantiere",
+        body: "Gestione cantieri, presenze, costi e fatturazione in un'unica app cloud. Prova gratis 14 giorni — mai tornati a Excel.",
+      },
+    ],
+  },
 ];
 
 export const categories = [
