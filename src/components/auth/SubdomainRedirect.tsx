@@ -11,19 +11,34 @@
  * For "app" / default     — falls through to RoleBasedRedirect.
  */
 
+import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
-// Eager import — Home is the first thing www users see; lazy-loading it
-// created a second dynamic import reference that caused infinite retry loops
-// when the chunk failed to load (React Suspense without ErrorBoundary).
-import Home from "@/pages/Home";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+
+const Home = lazy(() => import("@/pages/Home"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 export function SubdomainRedirect() {
   const { subdomain } = useSubdomainRoute();
 
   // www.ediliziaincloud.com or bare ediliziaincloud.com → landing page
   if (subdomain === "www") {
-    return <Home />;
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Home />
+        </Suspense>
+      </ErrorBoundary>
+    );
   }
 
   // admin, clienti, app, other — role-based routing handles it

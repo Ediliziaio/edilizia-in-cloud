@@ -65,9 +65,11 @@ export default defineConfig(() => ({
         // by Cloudflare edge (immutable, 1 year). Precaching them in the SW
         // causes stale-cache blank-page crashes whenever a new deploy ships.
         globPatterns: ["**/*.{ico,png,svg,woff2}"],
-        // SPA fallback: offline navigation returns index.html
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/auth\//, /^\/assets\//],
+        // NO navigateFallback: Cloudflare Pages handles SPA routing server-side
+        // via _redirects (/* /index.html 200). Caching index.html in the SW
+        // causes stale chunk-hash references after deploys → "Failed to fetch
+        // dynamically imported module" loop. Let navigation always hit the network
+        // so the browser always gets the fresh index.html with correct chunk hashes.
         cleanupOutdatedCaches: true,
         // skipWaiting: true — force the new SW to take over immediately.
         // The old SW had NetworkFirst for assets which poisoned the assets-runtime
@@ -104,6 +106,22 @@ export default defineConfig(() => ({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        // Consolidate date-fns and react-day-picker into a single named chunk.
+        // Previously these were split into dozens of tiny per-function files
+        // (addDays-*.js, endOfDay-*.js, en-US-*.js, dist-*.js …) whose hashes
+        // got Cloudflare-CDN-cached as HTML (via _redirects SPA fallback) after
+        // a bad deploy. The poisoned cache entries break the module graph for
+        // any chunk that imports them. Merging into "vendor-dates" forces a new
+        // URL that has never been poisoned.
+        manualChunks(id) {
+          if (id.includes("date-fns") || id.includes("react-day-picker")) {
+            return "vendor-dates";
+          }
+        },
+      },
+    },
   },
 }));
