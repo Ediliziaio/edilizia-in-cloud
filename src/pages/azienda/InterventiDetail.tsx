@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, MapPin, User, Calendar, Clock, FileText,
-  ExternalLink, Wrench, Plus, AlertCircle, CheckCircle2
+  ExternalLink, Wrench, Plus, AlertCircle, CheckCircle2, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -116,6 +116,39 @@ export default function InterventiDetail() {
       queryClient.invalidateQueries({ queryKey: ["intervento", id] });
     },
     onError: () => toast.error("Errore nella chiusura dell'intervento"),
+  });
+
+  const generaCostoMutation = useMutation({
+    mutationFn: async (rapportino: RapportinoIntervento) => {
+      if (!effectiveCompany?.id) throw new Error("Company mancante");
+      // Calcola importo: ore * tariffa base (50€/h default)
+      const TARIFFA_ORARIA_DEFAULT = 50;
+      const totale = (rapportino.ore_lavoro ?? 0) * TARIFFA_ORARIA_DEFAULT;
+      const { error } = await supabase.from("company_costs").insert({
+        company_id: effectiveCompany.id,
+        name: `Intervento: ${intervento?.subject ?? "Senza titolo"}`,
+        amount: totale,
+        category: "Interventi",
+        cost_type: "variabile",
+        due_date: new Date().toISOString().split("T")[0],
+        is_paid: false,
+        recurrence: "nessuna",
+        recurrence_auto: false,
+        order_id: intervento?.order_id ?? null,
+        notes: `Rapportino #${rapportino.numero} · ${rapportino.ore_lavoro}h di lavoro`,
+      });
+      if (error) throw error;
+      // Aggiorna stato rapportino a 'fatturato'
+      await supabase
+        .from("rapportini_intervento")
+        .update({ stato: "fatturato" })
+        .eq("id", rapportino.id);
+    },
+    onSuccess: () => {
+      toast.success("Costo registrato nei Costi Aziendali");
+      queryClient.invalidateQueries({ queryKey: ["rapportini", id] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Errore nella generazione del costo"),
   });
 
   if (isLoading) {
@@ -301,9 +334,26 @@ export default function InterventiDetail() {
                         <span>{format(new Date(r.data_intervento), "dd MMM yyyy", { locale: it })}</span>
                       </div>
                     </div>
-                    {r.firma_cliente && (
-                      <img src={r.firma_cliente} alt="Firma cliente" className="h-12 w-24 object-contain border rounded" />
-                    )}
+                    <div className="flex flex-col items-end gap-2">
+                      {r.firma_cliente && (
+                        <img src={r.firma_cliente} alt="Firma cliente" className="h-12 w-24 object-contain border rounded" />
+                      )}
+                      {r.stato === "firmato" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs text-green-700 border-green-300 hover:bg-green-50"
+                          onClick={() => generaCostoMutation.mutate(r)}
+                          disabled={generaCostoMutation.isPending}
+                        >
+                          {generaCostoMutation.isPending
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <CheckCircle2 className="h-3 w-3" />
+                          }
+                          Registra Costo
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

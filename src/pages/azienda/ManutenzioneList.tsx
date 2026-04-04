@@ -76,7 +76,7 @@ export default function ManutenzioneList() {
       const scadenza14 = addDays(new Date(), 14).toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("piani_manutenzione")
-        .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, customer:profiles!contratti_manutenzione_customer_id_fkey(full_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(full_name)")
+        .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id, customer:profiles!contratti_manutenzione_customer_id_fkey(full_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(full_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .lte("prossima_scadenza", scadenza14)
@@ -88,7 +88,7 @@ export default function ManutenzioneList() {
   });
 
   const pianificaMutation = useMutation({
-    mutationFn: async (piano: { id: string; titolo: string; contratto: { customer_id: string; nome_contratto: string } | null; tecnico_preferito: string | null; frequenza_tipo: string; frequenza_giorni: number | null }) => {
+    mutationFn: async (piano: { id: string; titolo: string; contratto: { customer_id: string; nome_contratto: string; impianto_id?: string | null } | null; tecnico_preferito: string | null; frequenza_tipo: string; frequenza_giorni: number | null }) => {
       // Calcola prossima scadenza in base alla frequenza
       const oggi = new Date();
       const FREQ_GIORNI: Record<string, number> = {
@@ -101,7 +101,7 @@ export default function ManutenzioneList() {
       const customerId = piano.contratto?.customer_id;
       if (!customerId || !effectiveCompany?.id) throw new Error("Dati mancanti");
 
-      const { error: ticketErr } = await supabase.from("tickets").insert({
+      const { data: ticketData, error: ticketErr } = await supabase.from("tickets").insert({
         company_id: effectiveCompany.id,
         customer_id: customerId,
         subject: `Manutenzione programmata: ${piano.titolo}`,
@@ -109,8 +109,21 @@ export default function ManutenzioneList() {
         status: "aperto",
         priority: "normale",
         assigned_to: piano.tecnico_preferito || null,
-      });
+        impianto_id: (piano.contratto as any)?.impianto_id ?? null,
+      }).select("id").single();
       if (ticketErr) throw ticketErr;
+
+      // --- AGGIUNTA: scrivi esecuzione_manutenzione ---
+      if (ticketData?.id) {
+        await supabase.from("esecuzioni_manutenzione").insert({
+          piano_id: piano.id,
+          ticket_id: ticketData.id,
+          data_esecuzione: oggi.toISOString().split("T")[0],
+          esito: "ok",
+          note: "Pianificata automaticamente da sistema",
+        });
+      }
+      // --- FINE AGGIUNTA ---
 
       // Aggiorna prossima_scadenza e ultima_esecuzione
       const { error: pianoErr } = await supabase

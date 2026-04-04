@@ -6,6 +6,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   ArrowLeft, Package, User, Mail, Phone,
-  AlertCircle, RefreshCw, Save, ChevronDown,
+  AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2,
 } from "lucide-react";
 import {
   formatRelativeTime,
@@ -43,6 +46,12 @@ export default function TicketDetail() {
   const [internalNotes, setInternalNotes] = useState<string>("");
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  // Escalation
+  const [escalationOpen, setEscalationOpen] = useState(false);
+  const [escalationIndirizzo, setEscalationIndirizzo] = useState("");
+  const [escalationData, setEscalationData] = useState("");
+  const [escalationTecnicoId, setEscalationTecnicoId] = useState("");
+  const [escalationNote, setEscalationNote] = useState("");
   const { markTicketAsRead } = useUnreadTicketCounts();
 
   // Mark ticket as read when opening
@@ -135,6 +144,47 @@ export default function TicketDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: tecnici = [] } = useQuery({
+    queryKey: ["tecnici-escalation", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("company_id", effectiveCompany.id)
+        .order("full_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
+  const escalationMutation = useMutation({
+    mutationFn: async () => {
+      if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
+      const { error } = await supabase
+        .from("tickets")
+        .update({
+          tipo: "intervento" as const,
+          indirizzo_intervento: escalationIndirizzo.trim() || null,
+          data_intervento_prevista: escalationData
+            ? new Date(escalationData).toISOString()
+            : null,
+          assigned_to: escalationTecnicoId || null,
+          note_tecnico: escalationNote.trim() || null,
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Ticket convertito in Intervento");
+      setEscalationOpen(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
+      navigate(`/azienda/interventi/${id}`);
+    },
+    onError: () => toast.error("Errore nella conversione"),
+  });
+
   const updateTicketMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       const { error } = await supabase
@@ -225,6 +275,17 @@ export default function TicketDetail() {
             Aperto {formatRelativeTime(ticket.created_at)}
           </p>
         </div>
+        {/* Bottone Escalation — visibile solo se tipo non è già intervento/emergenza */}
+        {!["intervento", "emergenza"].includes((ticket as any).tipo ?? "supporto") && (
+          <Button
+            variant="outline"
+            className="gap-2 text-orange-700 border-orange-300 hover:bg-orange-50 shrink-0"
+            onClick={() => setEscalationOpen(true)}
+          >
+            <Wrench className="h-4 w-4" />
+            Converti in Intervento
+          </Button>
+        )}
       </div>
 
       <Separator className="mb-4" />
@@ -401,6 +462,68 @@ export default function TicketDetail() {
           />
         </div>
       </div>
+
+      {/* Dialog Escalation Ticket → Intervento */}
+      <Dialog open={escalationOpen} onOpenChange={setEscalationOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5 text-orange-500" />
+              Converti in Intervento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Indirizzo intervento</Label>
+              <Input
+                placeholder="Via Roma 1, Milano..."
+                value={escalationIndirizzo}
+                onChange={(e) => setEscalationIndirizzo(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data/ora prevista</Label>
+              <Input
+                type="datetime-local"
+                value={escalationData}
+                onChange={(e) => setEscalationData(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assegna tecnico</Label>
+              <Select value={escalationTecnicoId} onValueChange={setEscalationTecnicoId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona tecnico..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nessuno</SelectItem>
+                  {tecnici.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Note per il tecnico</Label>
+              <Textarea
+                placeholder="Istruzioni specifiche per il tecnico..."
+                value={escalationNote}
+                onChange={(e) => setEscalationNote(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEscalationOpen(false)}>Annulla</Button>
+            <Button
+              onClick={() => escalationMutation.mutate()}
+              disabled={escalationMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {escalationMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Converti in Intervento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

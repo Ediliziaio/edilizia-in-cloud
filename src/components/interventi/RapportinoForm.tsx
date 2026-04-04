@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2, Eraser, PenTool } from "lucide-react";
+import { Loader2, Plus, Trash2, Eraser, PenTool, Package, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { MaterialeUsato } from "@/types/interventi";
 
@@ -19,17 +20,55 @@ interface Props {
   onSuccess: () => void;
 }
 
+interface ArticoloMagazzino {
+  id: string;
+  name: string;
+  quantity: number;
+  unit_cost: number;
+}
+
+interface MaterialeConId extends MaterialeUsato {
+  stock_item_id?: string | null;
+  prezzo_unitario?: number | null;
+}
+
 export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero, onSuccess }: Props) {
+  const { effectiveCompany } = useAuth();
   const [descrizione, setDescrizione] = useState("");
   const [oreLavoro, setOreLavoro] = useState("1");
   const [firmatoDa, setFirmatoDa] = useState("");
-  const [materiali, setMateriali] = useState<MaterialeUsato[]>([]);
+  const [materiali, setMateriali] = useState<MaterialeConId[]>([]);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  // Picker magazzino
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchArticoli, setSearchArticoli] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
 
-  // ── Canvas drawing (pattern identico a FirmaOdV.tsx) ──────────
+  // Query articoli magazzino
+  const { data: articoli = [] } = useQuery({
+    queryKey: ["warehouse-stock-picker", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("id, name, quantity, unit_cost")
+        .eq("company_id", effectiveCompany.id)
+        .gt("quantity", 0)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as ArticoloMagazzino[];
+    },
+    enabled: !!effectiveCompany?.id && open,
+  });
+
+  const articoliFiltrati = articoli.filter((a) =>
+    a.name.toLowerCase().includes(searchArticoli.toLowerCase())
+  );
+
+  // ── Canvas drawing ────────────────────────────────────────────
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -89,6 +128,18 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
     setMateriali((prev) => [...prev, { descrizione: "", quantita: 1, unita: "pz" }]);
   };
 
+  const addMaterialeFromStock = (articolo: ArticoloMagazzino) => {
+    setMateriali((prev) => [...prev, {
+      descrizione: articolo.name,
+      quantita: 1,
+      unita: "pz",
+      stock_item_id: articolo.id,
+      prezzo_unitario: articolo.unit_cost,
+    }]);
+    setPickerOpen(false);
+    setSearchArticoli("");
+  };
+
   const updateMateriale = (idx: number, field: keyof MaterialeUsato, value: string | number) => {
     setMateriali((prev) => prev.map((m, i) => i === idx ? { ...m, [field]: value } : m));
   };
@@ -104,20 +155,43 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
 
       const firmaData = hasDrawn ? canvasRef.current?.toDataURL("image/png") ?? null : null;
 
-      const { error } = await supabase.from("rapportini_intervento").insert({
-        ticket_id: ticketId,
-        company_id: companyId,
-        numero: nextNumero,
-        descrizione: descrizione.trim(),
-        ore_lavoro: parseFloat(oreLavoro) || 0,
-        materiali_usati: materiali,
-        firma_cliente: firmaData,
-        firmato_da: firmatoDa.trim() || null,
-        firmato_il: firmaData ? new Date().toISOString() : null,
-        stato: firmaData ? "firmato" : "bozza",
-      });
+      const { data: rapportino, error } = await supabase
+        .from("rapportini_intervento")
+        .insert({
+          ticket_id: ticketId,
+          company_id: companyId,
+          numero: nextNumero,
+          descrizione: descrizione.trim(),
+          ore_lavoro: parseFloat(oreLavoro) || 0,
+          materiali_usati: materiali,
+          firma_cliente: firmaData,
+          firmato_da: firmatoDa.trim() || null,
+          firmato_il: firmaData ? new Date().toISOString() : null,
+          stato: firmaData ? "firmato" : "bozza",
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      // Salva anche nella tabella tipizzata rapportino_materiali (per articoli con FK magazzino)
+      const materialiConId = materiali.filter((m) => m.stock_item_id);
+      if (materialiConId.length > 0 && rapportino?.id) {
+        const righe = materialiConId.map((m) => ({
+          rapportino_id: rapportino.id,
+          company_id: companyId,
+          stock_item_id: m.stock_item_id!,
+          descrizione: m.descrizione,
+          quantita: m.quantita,
+          unita_misura: m.unita,
+          prezzo_unitario: m.prezzo_unitario ?? null,
+        }));
+        const { error: matErr } = await supabase
+          .from("rapportino_materiali")
+          .insert(righe);
+        if (matErr) console.error("Errore salvataggio materiali tipizzati:", matErr);
+        // Non è bloccante — il JSONB è già salvato
+      }
 
       // Aggiorna ticket: in_lavorazione se firmato
       if (firmaData) {
@@ -138,6 +212,8 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
     setFirmatoDa("");
     setMateriali([]);
     setHasDrawn(false);
+    setPickerOpen(false);
+    setSearchArticoli("");
     clearCanvas();
     onClose();
   };
@@ -185,12 +261,71 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Materiali usati</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addMateriale} disabled={mutation.isPending} className="gap-1">
-                <Plus className="h-3 w-3" />
-                Aggiungi
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPickerOpen((v) => !v)}
+                  disabled={mutation.isPending}
+                  className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50"
+                >
+                  <Package className="h-3 w-3" />
+                  Da Magazzino
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addMateriale}
+                  disabled={mutation.isPending}
+                  className="gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Manuale
+                </Button>
+              </div>
             </div>
-            {materiali.length === 0 && (
+
+            {/* Picker articoli magazzino */}
+            {pickerOpen && (
+              <div className="border rounded-lg p-3 bg-blue-50/50 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    placeholder="Cerca articolo..."
+                    value={searchArticoli}
+                    onChange={(e) => setSearchArticoli(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                    autoFocus
+                  />
+                </div>
+                {articoliFiltrati.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-2">
+                    {articoli.length === 0 ? "Nessun articolo in magazzino" : "Nessun risultato"}
+                  </p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {articoliFiltrati.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => addMaterialeFromStock(a)}
+                        className="w-full text-left px-3 py-2 rounded-md hover:bg-blue-100 transition-colors text-sm flex items-center justify-between"
+                      >
+                        <span className="font-medium">{a.name}</span>
+                        <span className="text-xs text-gray-500">
+                          {a.quantity} disponibili
+                          {a.unit_cost > 0 && ` · €${a.unit_cost.toFixed(2)}`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {materiali.length === 0 && !pickerOpen && (
               <p className="text-xs text-gray-400">Nessun materiale aggiunto</p>
             )}
             {materiali.map((m, i) => (
@@ -218,6 +353,9 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
                   disabled={mutation.isPending}
                   className="w-16"
                 />
+                {(m as MaterialeConId).stock_item_id && (
+                  <Package className="h-4 w-4 text-blue-500 shrink-0" title="Dal magazzino" />
+                )}
                 <Button
                   type="button"
                   variant="ghost"
