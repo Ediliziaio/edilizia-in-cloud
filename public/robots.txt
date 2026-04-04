@@ -36,4 +36,4 @@ Allow: /
 User-agent: LinkedInBot
 Allow: /
 
-Sitemap: https://ediliziaincloud.com/sitemap.xml
+Sitemap: https://www.ediliziaincloud.com/sitemap.xml
