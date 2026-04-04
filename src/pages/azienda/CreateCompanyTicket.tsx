@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, X, Wrench } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -22,6 +22,7 @@ const ACCEPTED_FORMATS = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx";
 
 export default function CreateCompanyTicket() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState<string>("");
@@ -31,6 +32,17 @@ export default function CreateCompanyTicket() {
   const [priority, setPriority] = useState<TicketPriority>("normale");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Intervento fields
+  const rawTipo = searchParams.get("tipo") ?? "supporto";
+  const [tipo, setTipo] = useState<string>(["intervento", "emergenza", "supporto"].includes(rawTipo) ? rawTipo : "supporto");
+  const [indirizzoIntervento, setIndirizzoIntervento] = useState("");
+  const [dataInterventoPrevista, setDataInterventoPrevista] = useState("");
+  const [durataOre, setDurataOre] = useState("");
+  const [tecnicoId, setTecnicoId] = useState("");
+  const [impiantoId, setImpiantoId] = useState("");
+
+  const isIntervento = tipo === "intervento" || tipo === "emergenza";
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -84,6 +96,34 @@ export default function CreateCompanyTicket() {
     enabled: !!customerId && !!effectiveCompany?.id,
   });
 
+  // Tecnici (per interventi)
+  const { data: tecnici = [] } = useQuery({
+    queryKey: ["tecnici-create-ticket", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", effectiveCompany!.id)
+        .order("last_name");
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id && isIntervento,
+  });
+
+  // Impianti del cliente selezionato (per interventi)
+  const { data: impianti = [] } = useQuery({
+    queryKey: ["impianti-customer-ticket", customerId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("impianti_cliente")
+        .select("id, tipo_impianto, marca, modello")
+        .eq("customer_id", customerId)
+        .order("tipo_impianto");
+      return data ?? [];
+    },
+    enabled: !!customerId && isIntervento,
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => {
       // Create ticket
@@ -95,8 +135,15 @@ export default function CreateCompanyTicket() {
           order_id: (orderId && orderId !== "none") ? orderId : null,
           subject,
           priority,
+          tipo,
           status: "aperto" as const,
-          assigned_to: user?.id ?? "",
+          assigned_to: tecnicoId || (user?.id ?? ""),
+          ...(isIntervento && {
+            indirizzo_intervento: indirizzoIntervento.trim() || null,
+            data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
+            durata_ore: durataOre ? parseFloat(durataOre) : null,
+            impianto_id: impiantoId || null,
+          }),
         })
         .select("id")
         .single();
@@ -138,8 +185,8 @@ export default function CreateCompanyTicket() {
       return ticket.id;
     },
     onSuccess: (ticketId) => {
-      toast({ title: "Ticket creato", description: "Il ticket è stato creato con successo." });
-      navigate(`/azienda/assistenza/${ticketId}`);
+      toast({ title: isIntervento ? "Intervento creato" : "Ticket creato", description: "Creato con successo." });
+      navigate(isIntervento ? `/azienda/interventi/${ticketId}` : `/azienda/assistenza/${ticketId}`);
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile creare il ticket.", variant: "destructive" });
@@ -151,18 +198,24 @@ export default function CreateCompanyTicket() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(isIntervento ? "/azienda/interventi" : "/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <h1 className="text-xl font-bold">Crea Ticket</h1>
-          <p className="text-sm text-muted-foreground">Apri un ticket per conto di un cliente</p>
+        <div className="flex items-center gap-2">
+          {isIntervento && <Wrench className="h-5 w-5 text-orange-500" />}
+          <div>
+            <h1 className="text-xl font-bold">{isIntervento ? "Crea Intervento" : "Crea Ticket"}</h1>
+            <p className="text-sm text-muted-foreground">{isIntervento ? "Pianifica un intervento tecnico" : "Apri un ticket per conto di un cliente"}</p>
+          </div>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Nuovo Ticket</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            {isIntervento && <Wrench className="h-4 w-4 text-orange-500" />}
+            {isIntervento ? "Nuovo Intervento" : "Nuovo Ticket"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Customer */}
@@ -212,6 +265,21 @@ export default function CreateCompanyTicket() {
             />
           </div>
 
+          {/* Tipo */}
+          <div className="space-y-2">
+            <Label>Tipo</Label>
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="supporto">Supporto</SelectItem>
+                <SelectItem value="intervento">Intervento tecnico</SelectItem>
+                <SelectItem value="emergenza">Emergenza</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Priority */}
           <div className="space-y-2">
             <Label>Priorità</Label>
@@ -227,6 +295,77 @@ export default function CreateCompanyTicket() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Campi specifici intervento */}
+          {isIntervento && (
+            <>
+              <div className="space-y-2">
+                <Label>Tecnico assegnato</Label>
+                <Select value={tecnicoId} onValueChange={setTecnicoId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona tecnico..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tecnici.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.first_name} {t.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Indirizzo intervento</Label>
+                <Input
+                  value={indirizzoIntervento}
+                  onChange={(e) => setIndirizzoIntervento(e.target.value)}
+                  placeholder="Via, città..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Data e ora prevista</Label>
+                  <Input
+                    type="datetime-local"
+                    value={dataInterventoPrevista}
+                    onChange={(e) => setDataInterventoPrevista(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Durata stimata (ore)</Label>
+                  <Input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={durataOre}
+                    onChange={(e) => setDurataOre(e.target.value)}
+                    placeholder="Es. 2"
+                  />
+                </div>
+              </div>
+
+              {customerId && impianti.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Impianto collegato (opzionale)</Label>
+                  <Select value={impiantoId} onValueChange={setImpiantoId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona impianto..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nessun impianto</SelectItem>
+                      {impianti.map((im: any) => (
+                        <SelectItem key={im.id} value={im.id}>
+                          {im.tipo_impianto?.replace("_", " ")}{im.marca ? ` — ${im.marca}` : ""}{im.modello ? ` ${im.modello}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Message */}
           <div className="space-y-2">
@@ -268,7 +407,7 @@ export default function CreateCompanyTicket() {
             {createMutation.isPending ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Creazione...</>
             ) : (
-              "Crea Ticket"
+              isIntervento ? "Crea Intervento" : "Crea Ticket"
             )}
           </Button>
         </CardContent>
