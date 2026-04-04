@@ -14,6 +14,7 @@ export interface WarehouseItem {
   notes: string | null;
   updated_at?: string | null;
   section_id?: string | null;
+  fulfillment_status?: 'not_started' | 'received' | 'shipped' | 'delivered' | 'installed' | null;
   order: {
     id: string;
     order_code: string | null;

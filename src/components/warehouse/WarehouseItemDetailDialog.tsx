@@ -9,7 +9,13 @@ import {
   PackageCheck,
   StickyNote,
   Clock,
+  PackageOpen,
+  Wrench,
+  Truck,
+  CheckCircle2,
 } from "lucide-react";
+import { ReceiveGoodsModal } from "@/components/warehouse/ReceiveGoodsModal";
+import { InstallationPhotoCaptureModal } from "@/components/warehouse/InstallationPhotoCaptureModal";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +67,8 @@ export default function WarehouseItemDetailDialog({
 }: WarehouseItemDetailDialogProps) {
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   if (!item) return null;
 
@@ -82,6 +90,7 @@ export default function WarehouseItemDetailDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -237,6 +246,67 @@ export default function WarehouseItemDetailDialog({
             )}
           </div>
 
+          {/* ── Workflow Magazzino ─────────────────────── */}
+          <Separator />
+          <div>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Workflow tracciabilità</span>
+            <div className="mt-2 space-y-2">
+              {/* FASE 1: Ricevi merce */}
+              {(!item.fulfillment_status || item.fulfillment_status === 'not_started') && (
+                <Button
+                  size="sm"
+                  className="w-full justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => setReceiveOpen(true)}
+                >
+                  <PackageOpen className="h-4 w-4" />
+                  Ricevi Merce in Magazzino
+                </Button>
+              )}
+
+              {/* FASE 2: In attesa di spedizione */}
+              {item.fulfillment_status === 'received' && (
+                <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200 text-sm text-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                  <div>
+                    <p className="font-medium">Merce ricevuta ✓</p>
+                    <p className="text-xs text-green-600">Usa la pagina Ordine per spedire al cantiere</p>
+                  </div>
+                </div>
+              )}
+
+              {/* FASE 3: In spedizione */}
+              {item.fulfillment_status === 'shipped' && (
+                <div className="flex items-center gap-2 p-2 bg-amber-50 rounded border border-amber-200 text-sm text-amber-800">
+                  <Truck className="h-4 w-4 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="font-medium">In transito verso cantiere</p>
+                    <p className="text-xs text-amber-600">In attesa di conferma consegna</p>
+                  </div>
+                </div>
+              )}
+
+              {/* FASE 4: Installa */}
+              {item.fulfillment_status === 'delivered' && (
+                <Button
+                  size="sm"
+                  className="w-full justify-start gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => setInstallOpen(true)}
+                >
+                  <Wrench className="h-4 w-4" />
+                  Registra Installazione (foto prima/dopo)
+                </Button>
+              )}
+
+              {/* COMPLETATO */}
+              {item.fulfillment_status === 'installed' && (
+                <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200 text-sm text-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                  <p className="font-medium">Installazione completata ✓</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Last updated */}
           {item.updated_at && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2">
@@ -247,5 +317,20 @@ export default function WarehouseItemDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Modali workflow */}
+    <ReceiveGoodsModal
+      open={receiveOpen}
+      onOpenChange={setReceiveOpen}
+      orderItemId={item.id}
+      orderItemName={item.name}
+    />
+    <InstallationPhotoCaptureModal
+      open={installOpen}
+      onOpenChange={setInstallOpen}
+      orderItemId={item.id}
+      orderItemName={item.name}
+    />
+  </>
   );
 }

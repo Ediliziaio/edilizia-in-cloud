@@ -144,6 +144,7 @@ export function useWarehouseData() {
           updated_at,
           section_id,
           destination_warehouse_id,
+          fulfillment_status,
           order:orders!inner(
             id,
             order_code,
