@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Settings, AlertCircle, Plus, CheckCircle2, User, Calendar, Loader2 } from "lucide-react";
+import { ArrowLeft, Settings, AlertCircle, Plus, CheckCircle2, User, Calendar, Loader2, Wrench } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -66,6 +66,21 @@ export default function ImpiantoDetail() {
       return data ?? [];
     },
     enabled: !!contratto?.id,
+  });
+
+  const { data: interventiImpianto = [] } = useQuery({
+    queryKey: ["interventi-impianto", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id, subject, status, priority, tipo, data_intervento_prevista, created_at, assigned_to")
+        .eq("impianto_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id,
   });
 
   const { data: esecuzioni = [] } = useQuery({
@@ -136,6 +151,7 @@ export default function ImpiantoDetail() {
         <TabsList>
           <TabsTrigger value="scheda">Scheda Tecnica</TabsTrigger>
           <TabsTrigger value="piano">Piano Manutenzione ({piani.length})</TabsTrigger>
+          <TabsTrigger value="interventi">Interventi ({interventiImpianto.length})</TabsTrigger>
           <TabsTrigger value="contratto">Contratto</TabsTrigger>
         </TabsList>
 
@@ -214,6 +230,50 @@ export default function ImpiantoDetail() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Interventi collegati all'impianto */}
+        <TabsContent value="interventi" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Interventi su questo impianto</h3>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/interventi/nuovo?impianto_id=${id}`)} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuovo Intervento
+            </Button>
+          </div>
+          {interventiImpianto.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Wrench className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>Nessun intervento registrato per questo impianto</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {interventiImpianto.map((iv: any) => (
+                <div
+                  key={iv.id}
+                  className="bg-white rounded-lg border p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => navigate(`/azienda/interventi/${iv.id}`)}
+                >
+                  <div className="flex items-center gap-3">
+                    <Wrench className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div>
+                      <div className="font-medium text-sm">{iv.subject}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {iv.tipo ?? "supporto"} · {format(new Date(iv.created_at), "dd MMM yyyy", { locale: it })}
+                        {iv.data_intervento_prevista && ` · Previsto: ${format(new Date(iv.data_intervento_prevista), "dd MMM yyyy", { locale: it })}`}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge className={
+                    iv.status === "risolto" ? "bg-green-100 text-green-800 text-xs" :
+                    iv.status === "in_lavorazione" ? "bg-blue-100 text-blue-800 text-xs" :
+                    "bg-gray-100 text-gray-600 text-xs"
+                  }>
+                    {iv.status === "risolto" ? "Risolto" : iv.status === "in_lavorazione" ? "In lavorazione" : "Aperto"}
+                  </Badge>
+                </div>
+              ))}
             </div>
           )}
         </TabsContent>

@@ -6,6 +6,7 @@ export interface Intervento {
   company_id: string;
   customer_id: string | null;
   order_id: string | null;
+  impianto_id: string | null;
   subject: string;
   status: string;
   priority: string;
@@ -20,6 +21,18 @@ export interface Intervento {
   // join fields
   assigned_profile?: { full_name: string | null } | null;
   customer?: { full_name: string | null } | null;
+}
+
+export interface RapportinoMateriale {
+  id: string;
+  rapportino_id: string;
+  company_id: string;
+  stock_item_id: string | null;
+  descrizione: string;
+  quantita: number;
+  unita_misura: string;
+  prezzo_unitario: number | null;
+  created_at: string;
 }
 
 export interface MaterialeUsato {

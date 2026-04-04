@@ -18,10 +18,12 @@ export interface TicketListItem {
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
+  tipo?: string | null;
   created_at: string;
   updated_at: string;
   last_message_at: string | null;
   order_id: string | null;
+  impianto_id?: string | null;
   assigned_to: string | null;
   category: string | null;
   customer?: {
@@ -43,9 +45,11 @@ export interface TicketDetail {
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
+  tipo?: string | null;
   created_at: string;
   customer_id: string;
   order_id: string | null;
+  impianto_id?: string | null;
   assigned_to: string | null;
   category: string | null;
   internal_notes: string | null;
