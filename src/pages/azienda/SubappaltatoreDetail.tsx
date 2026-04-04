@@ -205,7 +205,7 @@ export default function SubappaltatoreDetail() {
     numero_sal: '',
     data_emissione: format(new Date(), 'yyyy-MM-dd'),
     importo_lordo: '',
-    ritenuta_pct: contratto?.ritenuta_garanzia_pct?.toString() ?? '5',
+    ritenuta_pct: contratto?.ritenuta_garanzia_pct != null ? contratto.ritenuta_garanzia_pct.toString() : '5',
     note: '',
     stato: 'ricevuto' as StatoSALSub,
   });
@@ -213,7 +213,11 @@ export default function SubappaltatoreDetail() {
   const saveSalMutation = useMutation({
     mutationFn: async () => {
       if (!contratto?.id) throw new Error('Contratto non trovato');
-      const { error } = await (supabase as any)
+      const importoLordo = parseFloat(salForm.importo_lordo) || 0;
+      const ritenutaPct = parseFloat(salForm.ritenuta_pct) || 5;
+      const importoRitenuta = Math.round(importoLordo * ritenutaPct) / 100;
+
+      const { data: salData, error: salError } = await (supabase as any)
         .from('sal_subappaltatori')
         .insert({
           company_id: companyId,
@@ -222,12 +226,28 @@ export default function SubappaltatoreDetail() {
           order_id: sub?.order_id,
           numero_sal: parseInt(salForm.numero_sal) || (salList.length + 1),
           data_emissione: salForm.data_emissione,
-          importo_lordo: parseFloat(salForm.importo_lordo) || 0,
-          ritenuta_pct: parseFloat(salForm.ritenuta_pct) || 5,
+          importo_lordo: importoLordo,
+          ritenuta_pct: ritenutaPct,
           stato: salForm.stato,
           note: salForm.note.trim() || null,
-        });
-      if (error) throw new Error(error.message);
+        })
+        .select('id')
+        .single();
+      if (salError) throw new Error(salError.message);
+
+      // Auto-create ritenuta record if ritenuta > 0
+      if (importoRitenuta > 0 && salData?.id) {
+        const { error: ritError } = await (supabase as any)
+          .from('ritenute_garanzia')
+          .insert({
+            company_id: companyId,
+            contratto_id: contratto.id,
+            sal_id: salData.id,
+            importo: importoRitenuta,
+            stato: 'trattenuta',
+          });
+        if (ritError) throw new Error(ritError.message);
+      }
     },
     onSuccess: () => {
       toast.success('SAL aggiunto');
@@ -299,10 +319,16 @@ export default function SubappaltatoreDetail() {
 
       <Tabs defaultValue="anagrafica">
         <TabsList className="w-full grid grid-cols-4 h-auto">
-          <TabsTrigger value="anagrafica" className="text-xs py-2">Anagrafica</TabsTrigger>
+          <TabsTrigger value="anagrafica" className="text-xs py-2">
+            <span className="hidden sm:inline">Anagrafica</span>
+            <span className="sm:hidden">Dati</span>
+          </TabsTrigger>
           <TabsTrigger value="contratto" className="text-xs py-2">Contratto</TabsTrigger>
           <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-          <TabsTrigger value="ritenute" className="text-xs py-2">Ritenute</TabsTrigger>
+          <TabsTrigger value="ritenute" className="text-xs py-2">
+            <span className="hidden sm:inline">Ritenute</span>
+            <span className="sm:hidden">Rit.</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
@@ -380,6 +406,14 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4">
+          {!sub?.order_id && (
+            <Alert className="border-amber-300 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-sm">
+                Questo subappaltatore non è collegato a nessun cantiere/ordine. Per creare un contratto, associalo prima a un ordine dall'elenco subappaltatori.
+              </AlertDescription>
+            </Alert>
+          )}
           {!contratto ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-4">
@@ -388,7 +422,7 @@ export default function SubappaltatoreDetail() {
                   <p className="font-semibold">Nessun contratto</p>
                   <p className="text-sm text-muted-foreground mt-1">Crea il contratto di subappalto per iniziare a tracciare SAL e ritenute.</p>
                 </div>
-                <Button onClick={() => setContrattoDialog(true)}>
+                <Button onClick={() => setContrattoDialog(true)} disabled={!sub?.order_id}>
                   <Plus className="h-4 w-4 mr-2" />
                   Crea contratto
                 </Button>
@@ -470,7 +504,7 @@ export default function SubappaltatoreDetail() {
               size="sm"
               disabled={!contratto}
               onClick={() => {
-                setSalForm(f => ({ ...f, ritenuta_pct: contratto?.ritenuta_garanzia_pct?.toString() ?? '5', numero_sal: (salList.length + 1).toString() }));
+                setSalForm(f => ({ ...f, ritenuta_pct: contratto?.ritenuta_garanzia_pct != null ? contratto.ritenuta_garanzia_pct.toString() : '5', numero_sal: (salList.length + 1).toString() }));
                 setSalDialog(true);
               }}
             >
@@ -480,9 +514,11 @@ export default function SubappaltatoreDetail() {
           </div>
 
           {!contratto && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>Crea prima un contratto per aggiungere SAL.</AlertDescription>
+            <Alert className="border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                Vai prima nel tab <strong>Contratto</strong> per creare il contratto di subappalto.
+              </AlertDescription>
             </Alert>
           )}
 
@@ -767,20 +803,26 @@ export default function SubappaltatoreDetail() {
                 />
               </div>
             </div>
-            {salForm.importo_lordo && (
-              <div className="bg-muted rounded-lg p-3 text-sm">
-                <div className="flex justify-between">
-                  <span>Ritenuta trattenuta:</span>
-                  <span className="font-medium text-amber-600">
-                    €{(parseFloat(salForm.importo_lordo) * parseFloat(salForm.ritenuta_pct) / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-semibold mt-1">
-                  <span>Netto da pagare:</span>
-                  <span className="text-green-600">
-                    €{(parseFloat(salForm.importo_lordo) * (1 - parseFloat(salForm.ritenuta_pct) / 100)).toFixed(2)}
-                  </span>
-                </div>
+            {salForm.importo_lordo && parseFloat(salForm.importo_lordo) > 0 && (
+              <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                {(() => {
+                  const lordo = parseFloat(salForm.importo_lordo) || 0;
+                  const pct = parseFloat(salForm.ritenuta_pct) || 0;
+                  const ritenuta = Math.round(lordo * pct / 100 * 100) / 100;
+                  const netto = Math.round((lordo - ritenuta) * 100) / 100;
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Ritenuta trattenuta:</span>
+                        <span className="font-medium text-amber-600">€{ritenuta.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold border-t pt-1">
+                        <span>Netto da pagare:</span>
+                        <span className="text-green-600">€{netto.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
             <div className="space-y-1.5">

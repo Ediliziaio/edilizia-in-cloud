@@ -254,8 +254,10 @@ export default function SubappaltatoriPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((sub) => {
-            const pct = sub.importo_contrattuale > 0
-              ? Math.min(100, Math.round((sub.totale_sal_lordo / sub.importo_contrattuale) * 100))
+            const lordo = sub.totale_sal_lordo ?? 0;
+            const contratto = sub.importo_contrattuale ?? 0;
+            const pct = contratto > 0
+              ? Math.min(100, Math.round((lordo / contratto) * 100))
               : 0;
             return (
               <Card key={sub.id} className="hover:border-primary/50 transition-colors">
@@ -289,15 +291,15 @@ export default function SubappaltatoriPage() {
                             {(sub as any).telefono}
                           </a>
                         )}
-                        {sub.ritenute_in_corso > 0 && (
+                        {(sub.ritenute_in_corso ?? 0) > 0 && (
                           <span className="text-amber-600 font-medium">
                             <Euro className="inline h-3 w-3 mr-0.5" />
-                            {sub.ritenute_in_corso.toLocaleString('it-IT')} in garanzia
+                            {(sub.ritenute_in_corso ?? 0).toLocaleString('it-IT')} in garanzia
                           </span>
                         )}
                       </div>
 
-                      {sub.importo_contrattuale > 0 && (
+                      {contratto > 0 && (
                         <div className="mt-3 space-y-1">
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>Contratto eseguito</span>
@@ -310,8 +312,8 @@ export default function SubappaltatoriPage() {
                             />
                           </div>
                           <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>€{sub.totale_sal_lordo.toLocaleString('it-IT')} eseguiti</span>
-                            <span>€{sub.importo_contrattuale.toLocaleString('it-IT')} totale</span>
+                            <span>€{lordo.toLocaleString('it-IT')} eseguiti</span>
+                            <span>€{contratto.toLocaleString('it-IT')} totale</span>
                           </div>
                         </div>
                       )}
@@ -345,7 +347,7 @@ export default function SubappaltatoriPage() {
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Ragione sociale *</Label>
+              <Label>Ragione sociale <span className="text-destructive">*</span></Label>
               <Input
                 value={form.ragione_sociale}
                 onChange={(e) => setForm(f => ({ ...f, ragione_sociale: e.target.value }))}

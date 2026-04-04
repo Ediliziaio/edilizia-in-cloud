@@ -636,6 +636,13 @@ export default function GiornaleLavori() {
               </div>
             )}
 
+            {/* Hint se ordine non selezionato */}
+            {!selectedOrderId && !editingEntry?.id && (
+              <p className="text-xs text-amber-600 text-center">
+                Seleziona un cantiere prima di salvare.
+              </p>
+            )}
+
             {/* Save button / Close button */}
             {editingEntry?.id ? (
               <Button
@@ -651,7 +658,7 @@ export default function GiornaleLavori() {
                 className="w-full"
                 size="lg"
                 onClick={() => saveEntry.mutate()}
-                disabled={saveEntry.isPending || !formData.lavorazioni_eseguite.trim()}
+                disabled={saveEntry.isPending || !formData.lavorazioni_eseguite.trim() || !selectedOrderId}
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>

@@ -71,8 +71,10 @@ export function SubappaltatoriOrderCard({ orderId, companyId }: Props) {
       </CardHeader>
       <CardContent className="space-y-3">
         {subappaltatori.map((sub) => {
-          const pct = sub.importo_contrattuale > 0
-            ? Math.min(100, Math.round((sub.totale_sal_lordo / sub.importo_contrattuale) * 100))
+          const lordo = sub.totale_sal_lordo ?? 0;
+          const contr = sub.importo_contrattuale ?? 0;
+          const pct = contr > 0
+            ? Math.min(100, Math.round((lordo / contr) * 100))
             : 0;
           return (
             <div key={sub.id} className="border rounded-lg p-3 space-y-2">
@@ -88,7 +90,7 @@ export function SubappaltatoriOrderCard({ orderId, companyId }: Props) {
                 </div>
               </div>
 
-              {sub.importo_contrattuale > 0 && (
+              {contr > 0 && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Contratto eseguito</span>
@@ -101,7 +103,7 @@ export function SubappaltatoriOrderCard({ orderId, companyId }: Props) {
                     />
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>€{sub.totale_sal_lordo.toLocaleString('it-IT')} / €{sub.importo_contrattuale.toLocaleString('it-IT')}</span>
+                    <span>€{lordo.toLocaleString('it-IT')} / €{contr.toLocaleString('it-IT')}</span>
                     {sub.ritenute_in_corso > 0 && (
                       <span className="text-amber-600 font-medium">
                         €{sub.ritenute_in_corso.toLocaleString('it-IT')} ritenuta

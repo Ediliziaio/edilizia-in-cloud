@@ -1,5 +1,5 @@
 // src/components/orders/TimelineCantiere.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -135,7 +135,7 @@ function EventCard({ ev }: { ev: TimelineEvent }) {
                     rel="noreferrer"
                     className="block w-16 h-16 rounded-md overflow-hidden border hover:opacity-80 transition-opacity"
                   >
-                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
                   </a>
                 ))}
                 {ev.photos.length > 8 && (
@@ -243,15 +243,15 @@ export function TimelineCantiere({ orderId, adminView = false }: TimelineCantier
     );
   }
 
-  // 5. Merge e sort tutti gli eventi
-  const events: TimelineEvent[] = [
+  // 5. Merge e sort tutti gli eventi — memoizzato per evitare re-sort ad ogni render
+  const events: TimelineEvent[] = useMemo(() => [
     ...statusHistory.map(s => ({
       id: `stato-${s.id}`,
       type: 'stato' as EventType,
       date: s.changed_at,
       title: `Stato aggiornato: ${(s.status as any)?.name ?? ''}`,
-      badge: (s.status as any)?.name,
-      badgeColor: (s.status as any)?.color,
+      badge: (s.status as any)?.name as string | undefined,
+      badgeColor: (s.status as any)?.color as string | undefined,
     })),
     ...giornale.map(g => ({
       id: `lavori-${g.id}`,
@@ -261,31 +261,35 @@ export function TimelineCantiere({ orderId, adminView = false }: TimelineCantier
       progressPct: (g as any).avanzamento_percentuale ?? undefined,
       operai: (g as any).personale_presente ?? undefined,
       meteo: g.condizioni_meteo ?? undefined,
-      photos: ((g as any).foto as any[])?.map((f: any) => f.url).filter(Boolean) ?? [],
+      // Estrae URL in modo sicuro anche se foto non è array
+      photos: Array.isArray((g as any).foto)
+        ? ((g as any).foto as any[]).map((f: any) => f?.url).filter(Boolean)
+        : [],
     })),
     ...sal.map(s => ({
       id: `sal-${s.id}`,
       type: 'sal' as EventType,
       date: s.data_emissione,
       title: `SAL #${s.numero_sal} — €${Number(s.importo_totale).toLocaleString('it-IT')}`,
-      badge: s.stato,
+      badge: s.stato as string | undefined,
       badgeColor: s.stato === 'pagato' ? '#16A34A' : '#CA8A04',
       amount: s.importo_totale,
     })),
     ...varianti
-      .filter(v => v.firmato_il || v.richiesto_il)
+      .filter(v => !!(v.firmato_il || v.richiesto_il))
       .map(v => ({
         id: `odv-${v.id}`,
         type: 'variante' as EventType,
-        date: (v.firmato_il ?? v.richiesto_il)!,
+        date: (v.firmato_il ?? v.richiesto_il) as string,
         title: v.titolo ?? 'Variante ordine',
         badge: v.status === 'approvata' ? 'Approvata' : 'Rifiutata',
         badgeColor: v.status === 'approvata' ? '#16A34A' : '#DC2626',
-        amount: v.status === 'approvata' ? v.impatto_economico : undefined,
+        amount: v.status === 'approvata' ? (v.impatto_economico ?? undefined) : undefined,
       })),
   ]
     .filter(e => !!e.date)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+  [statusHistory, giornale, sal, varianti]);
 
   if (events.length === 0) {
     return (
