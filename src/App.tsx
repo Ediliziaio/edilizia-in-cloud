@@ -16,6 +16,7 @@ import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRout
 import { adminRoutes } from "@/routes/adminRoutes";
 import { companyRoutes } from "@/routes/companyRoutes";
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
+import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
 
 // Suspense fallback
 const PageLoader = () => (
@@ -166,6 +167,7 @@ const App = () => (
               {employeeRoutes()}
               {salespersonRoutes()}
               {partnerRoutes()}
+              {tecnicoRoutes()}
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
