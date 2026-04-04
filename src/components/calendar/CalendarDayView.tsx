@@ -11,14 +11,14 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car, Settings } from "lucide-react";
 import { useOperativeTravelLegs } from "@/hooks/useOperativeTravelLegs";
 import { cn } from "@/lib/utils";
 import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { toast } from "sonner";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
@@ -34,6 +34,8 @@ interface CalendarDayViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  interventi?: CalendarIntervento[];
+  manutenzioni?: CalendarManutenzione[];
 }
 
 export function CalendarDayView({
@@ -46,6 +48,8 @@ export function CalendarDayView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
   weatherForecast,
+  interventi = [],
+  manutenzioni = [],
 }: CalendarDayViewProps) {
   const queryClient = useQueryClient();
   const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -83,8 +87,22 @@ export function CalendarDayView({
         if (currentDate >= start && currentDate <= end) events.push({ type: "leave", leave: lr });
       });
     }
+    if (!hiddenEventTypes.has("intervento")) {
+      interventi.forEach(iv => {
+        if (iv.data_intervento_prevista && iv.data_intervento_prevista.split("T")[0] === dateStr) {
+          events.push({ type: "intervento", intervento: iv } as any);
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("manutenzione")) {
+      manutenzioni.forEach(mn => {
+        if (mn.prossima_scadenza && mn.prossima_scadenza.split("T")[0] === dateStr) {
+          events.push({ type: "manutenzione", manutenzione: mn } as any);
+        }
+      });
+    }
     return events;
-  }, [orders, busySlots, approvedLeaves, hiddenEventTypes, dateStr, currentDate]);
+  }, [orders, busySlots, approvedLeaves, hiddenEventTypes, dateStr, currentDate, interventi, manutenzioni]);
 
   // Timed appointments for this day
   const timedAppointments = useMemo(() => {
@@ -192,7 +210,23 @@ export function CalendarDayView({
       {allDayEvents.length > 0 && (
         <div className="mb-3 p-2 bg-muted/30 rounded-lg border space-y-1">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Tutto il giorno</p>
-          {allDayEvents.map((evt, idx) => {
+          {allDayEvents.map((evt: any, idx) => {
+            if (evt.type === "intervento" && evt.intervento) {
+              return (
+                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5" style={{ backgroundColor: "#E87722", color: "white" }}>
+                  <Wrench className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{evt.intervento.subject}</span>
+                </div>
+              );
+            }
+            if (evt.type === "manutenzione" && evt.manutenzione) {
+              return (
+                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5" style={{ backgroundColor: "#3B82F6", color: "white" }}>
+                  <Settings className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{evt.manutenzione.titolo}</span>
+                </div>
+              );
+            }
             const o = evt.order;
             const lr = evt.leave;
             const label = lr

@@ -29,7 +29,7 @@ import {
 import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X } from "lucide-react";
 import { exportAppointmentsIcal } from "@/lib/icalExport";
 import { cn } from "@/lib/utils";
-import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot, CalendarWarehouseInfo } from "@/types/calendar";
+import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -65,11 +65,13 @@ function CalendarInner() {
     showGoogleBusy: savedPrefs.showGoogleBusy ?? true,
     showLeaves: savedPrefs.showLeaves ?? true,
     showWeather: savedPrefs.showWeather ?? true,
+    showInterventi: savedPrefs.showInterventi ?? true,
+    showManutenzioni: savedPrefs.showManutenzioni ?? true,
   });
   const setLayer = useCallback((layer: keyof typeof layerVisibility, v: boolean) => {
     setLayerVisibility(prev => ({ ...prev, [layer]: v }));
   }, []);
-  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showWeather } = layerVisibility;
+  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
@@ -303,6 +305,49 @@ function CalendarInner() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch interventi (tickets tipo=intervento with data_intervento_prevista in range)
+  const { data: calInterventi = [] } = useQuery({
+    queryKey: ["cal-interventi", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id, subject, data_intervento_prevista, status, assigned_to")
+        .eq("company_id", effectiveCompany.id)
+        .eq("tipo", "intervento")
+        .not("data_intervento_prevista", "is", null)
+        .gte("data_intervento_prevista", calendarRangeStart)
+        .lte("data_intervento_prevista", calendarRangeEnd)
+        .order("data_intervento_prevista");
+      if (error) throw error;
+      return (data ?? []) as CalendarIntervento[];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+
+  // Fetch piani manutenzione con prossima_scadenza in range
+  const { data: calManutenzioni = [] } = useQuery({
+    queryKey: ["cal-manutenzioni", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("piani_manutenzione")
+        .select("id, titolo, prossima_scadenza, stato")
+        .eq("company_id", effectiveCompany.id)
+        .not("prossima_scadenza", "is", null)
+        .gte("prossima_scadenza", calendarRangeStart)
+        .lte("prossima_scadenza", calendarRangeEnd)
+        .order("prossima_scadenza");
+      if (error) throw error;
+      return (data ?? []) as CalendarManutenzione[];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
@@ -433,8 +478,10 @@ function CalendarInner() {
     if (!showMerce) hidden.add("merce");
     if (!showGoogleBusy) hidden.add("google_busy");
     if (!showLeaves) hidden.add("leaves");
+    if (!showInterventi) hidden.add("intervento");
+    if (!showManutenzioni) hidden.add("manutenzione");
     return hidden;
-  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves]);
+  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showInterventi, showManutenzioni]);
 
   // Effective visible sets for layer panel
   const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
@@ -648,6 +695,8 @@ function CalendarInner() {
                 showGoogleBusy={showGoogleBusy}
                 showLeaves={showLeaves}
                 showWeather={showWeather}
+                showInterventi={showInterventi}
+                showManutenzioni={showManutenzioni}
                 onToggleEmployee={(id) => {
                   const next = new Set(effectiveVisibleEmployees);
                   if (next.has(id)) next.delete(id); else next.add(id);
@@ -671,6 +720,8 @@ function CalendarInner() {
                 onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
                 onToggleLeaves={(v) => setLayer("showLeaves", v)}
                 onToggleWeather={(v) => setLayer("showWeather", v)}
+                onToggleInterventi={(v) => setLayer("showInterventi", v)}
+                onToggleManutenzioni={(v) => setLayer("showManutenzioni", v)}
               />
             </div>
           </SheetContent>
@@ -808,6 +859,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              interventi={showInterventi ? calInterventi : []}
+              manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
           ) : view === "week" ? (
             <CalendarWeekView
@@ -821,6 +874,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              interventi={showInterventi ? calInterventi : []}
+              manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
           ) : view === "day" ? (
             <CalendarDayView
@@ -834,6 +889,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              interventi={showInterventi ? calInterventi : []}
+              manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
@@ -866,6 +923,8 @@ function CalendarInner() {
             showGoogleBusy={showGoogleBusy}
             showLeaves={showLeaves}
             showWeather={showWeather}
+            showInterventi={showInterventi}
+            showManutenzioni={showManutenzioni}
             onToggleEmployee={(id) => {
               const next = new Set(effectiveVisibleEmployees);
               if (next.has(id)) next.delete(id); else next.add(id);
@@ -889,6 +948,8 @@ function CalendarInner() {
             onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
             onToggleLeaves={(v) => setLayer("showLeaves", v)}
             onToggleWeather={(v) => setLayer("showWeather", v)}
+            onToggleInterventi={(v) => setLayer("showInterventi", v)}
+            onToggleManutenzioni={(v) => setLayer("showManutenzioni", v)}
           />
         )}
       </div>

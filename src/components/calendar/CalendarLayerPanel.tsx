@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud } from "lucide-react";
+import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -40,6 +40,10 @@ interface CalendarLayerPanelProps {
   onToggleLeaves: (v: boolean) => void;
   showWeather: boolean;
   onToggleWeather: (v: boolean) => void;
+  showInterventi: boolean;
+  onToggleInterventi: (v: boolean) => void;
+  showManutenzioni: boolean;
+  onToggleManutenzioni: (v: boolean) => void;
 }
 
 export function CalendarLayerPanel({
@@ -65,6 +69,10 @@ export function CalendarLayerPanel({
   onToggleLeaves,
   showWeather,
   onToggleWeather,
+  showInterventi,
+  onToggleInterventi,
+  showManutenzioni,
+  onToggleManutenzioni,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
 
@@ -79,7 +87,7 @@ export function CalendarLayerPanel({
   const allEmployeesVisible = employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
   const allTeamsVisible = externalTeams.length > 0 && externalTeams.every((t) => visibleTeams.has(t.id));
 
-  const allLayersHidden = !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves;
+  const allLayersHidden = !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves && !showInterventi && !showManutenzioni;
 
   return (
     <div className="w-64 shrink-0 border rounded-lg bg-card p-3 space-y-3">
@@ -232,6 +240,33 @@ export function CalendarLayerPanel({
             />
           </div>
 
+          {/* Assistenza / Interventi / Manutenzioni */}
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+              <div className="flex items-center gap-1.5">
+                <Wrench className="h-3.5 w-3.5 text-orange-500" />
+                <span>Assistenza</span>
+              </div>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pl-2 space-y-1 pt-1">
+              <LayerCheckbox
+                checked={showInterventi}
+                onCheckedChange={onToggleInterventi}
+                icon={<Wrench className="h-3 w-3 text-orange-500" />}
+                label="Interventi"
+                colorDot="bg-orange-500"
+              />
+              <LayerCheckbox
+                checked={showManutenzioni}
+                onCheckedChange={onToggleManutenzioni}
+                icon={<Settings className="h-3 w-3 text-blue-500" />}
+                label="Manutenzioni"
+                colorDot="bg-blue-500"
+              />
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Meteo */}
           <div className="pt-1">
             <LayerCheckbox
@@ -276,6 +311,18 @@ export function CalendarLayerPanel({
             <CalendarClock className="h-2 w-2 text-white" />
           </div>
           <span className="text-[10px] text-muted-foreground">Appuntamenti</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-orange-500 flex items-center justify-center shrink-0">
+            <Wrench className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Interventi</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded bg-blue-500 flex items-center justify-center shrink-0">
+            <Settings className="h-2 w-2 text-white" />
+          </div>
+          <span className="text-[10px] text-muted-foreground">Manutenzioni</span>
         </div>
         <div className="flex items-center gap-1.5 px-1">
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />

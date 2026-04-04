@@ -17,7 +17,7 @@ import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, MapPin, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, MapPin, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check, Settings } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -27,17 +27,19 @@ import {
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface CalendarEvent {
-  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave";
+  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave" | "intervento" | "manutenzione";
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
   busySlot?: GoogleBusySlot;
   leave?: ApprovedLeave;
+  intervento?: CalendarIntervento;
+  manutenzione?: CalendarManutenzione;
   color: string;
 }
 
@@ -53,6 +55,8 @@ interface CalendarMonthViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  interventi?: CalendarIntervento[];
+  manutenzioni?: CalendarManutenzione[];
 }
 
 export function CalendarMonthView({
@@ -66,6 +70,8 @@ export function CalendarMonthView({
   hiddenEventTypes = new Set(),
   warehouseInfo,
   weatherForecast,
+  interventi = [],
+  manutenzioni = [],
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -121,6 +127,20 @@ export function CalendarMonthView({
         const lrEnd = parseISO(lr.end_date);
         if (day >= lrStart && day <= lrEnd) {
           events.push({ type: "leave", leave: lr, color: "#F59E0B" });
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("intervento")) {
+      interventi.forEach((iv) => {
+        if (iv.data_intervento_prevista && isSameDay(parseISO(iv.data_intervento_prevista), day)) {
+          events.push({ type: "intervento", intervento: iv, color: "#E87722" });
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("manutenzione")) {
+      manutenzioni.forEach((mn) => {
+        if (mn.prossima_scadenza && isSameDay(parseISO(mn.prossima_scadenza), day)) {
+          events.push({ type: "manutenzione", manutenzione: mn, color: "#3B82F6" });
         }
       });
     }
@@ -270,6 +290,46 @@ export function CalendarMonthView({
                       );
                     }
 
+                    if (event.type === "intervento" && event.intervento) {
+                      return (
+                        <Tooltip key={`iv-${event.intervento.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white truncate cursor-default"
+                              style={{ backgroundColor: event.color }}
+                            >
+                              <Wrench className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate font-medium">{event.intervento.subject}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">Intervento</p>
+                            <p className="text-sm">{event.intervento.subject}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{event.intervento.status}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+                    if (event.type === "manutenzione" && event.manutenzione) {
+                      return (
+                        <Tooltip key={`mn-${event.manutenzione.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white truncate cursor-default"
+                              style={{ backgroundColor: event.color }}
+                            >
+                              <Settings className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate font-medium">{event.manutenzione.titolo}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">Manutenzione</p>
+                            <p className="text-sm">{event.manutenzione.titolo}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{event.manutenzione.stato}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
                     if (!event.order) return null;
                     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
                     const initials = getEmployeeInitials(event.order);

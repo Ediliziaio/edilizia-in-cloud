@@ -74,6 +74,21 @@ export interface CalendarWarehouseInfo {
   items: Array<{ id: string; name: string; status: string }>;
 }
 
+export interface CalendarIntervento {
+  id: string;
+  subject: string;
+  data_intervento_prevista: string | null;
+  status: string;
+  assigned_to: string | null;
+}
+
+export interface CalendarManutenzione {
+  id: string;
+  titolo: string;
+  prossima_scadenza: string | null;
+  stato: string;
+}
+
 export interface CalendarAppointment {
   id: string;
   title: string;

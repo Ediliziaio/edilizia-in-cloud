@@ -14,7 +14,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { DndContext, DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
@@ -22,7 +22,7 @@ import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { WeatherBadge } from "./WeatherBadge";
 import type { WeatherDay } from "@/hooks/useWeatherForecast";
 
@@ -40,6 +40,8 @@ interface CalendarWeekViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  interventi?: CalendarIntervento[];
+  manutenzioni?: CalendarManutenzione[];
 }
 
 // ── Draggable wrapper ──
@@ -72,6 +74,8 @@ export function CalendarWeekView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
   weatherForecast,
+  interventi = [],
+  manutenzioni = [],
 }: CalendarWeekViewProps) {
   const queryClient = useQueryClient();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -134,9 +138,19 @@ export function CalendarWeekView({
         }
       });
     }
+    if (!hiddenEventTypes.has("intervento")) {
+      interventi.forEach(iv => {
+        if (iv.data_intervento_prevista) addEvent(iv.data_intervento_prevista.split("T")[0], { type: "intervento", intervento: iv });
+      });
+    }
+    if (!hiddenEventTypes.has("manutenzione")) {
+      manutenzioni.forEach(mn => {
+        if (mn.prossima_scadenza) addEvent(mn.prossima_scadenza.split("T")[0], { type: "manutenzione", manutenzione: mn });
+      });
+    }
 
     return map;
-  }, [orders, busySlots, approvedLeaves, hiddenEventTypes]);
+  }, [orders, busySlots, approvedLeaves, hiddenEventTypes, interventi, manutenzioni]);
 
   // Group timed appointments per day
   const timedByDate = useMemo(() => {
@@ -205,6 +219,23 @@ export function CalendarWeekView({
       : o
         ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
         : evt.busySlot?.summary || "Occupato";
+    // Handle intervento and manutenzione types
+    if (evt.type === "intervento" && evt.intervento) {
+      return (
+        <div key={`iv-${evt.intervento.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1" style={{ backgroundColor: "#E87722", color: "white" }}>
+          <Wrench className="h-3 w-3 shrink-0" />
+          <span className="truncate">{evt.intervento.subject}</span>
+        </div>
+      );
+    }
+    if (evt.type === "manutenzione" && evt.manutenzione) {
+      return (
+        <div key={`mn-${evt.manutenzione.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1" style={{ backgroundColor: "#3B82F6", color: "white" }}>
+          <Settings className="h-3 w-3 shrink-0" />
+          <span className="truncate">{evt.manutenzione.titolo}</span>
+        </div>
+      );
+    }
     const colorMap: Record<string, string> = {
       posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
       lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
