@@ -675,7 +675,7 @@ export const blogPosts: BlogPost[] = [
     excerpt:
       "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
     category: "Normativa",
-    tags: ["documentazione cantiere 2022026"POS cantiere", "DURC", "normativa edilizia"],
+    tags: ["documentazione cantiere 2026", "POS cantiere", "DURC", "normativa edilizia"],
     publishedAt: "2026-04-14",
     updatedAt: "2026-04-14",
     readTime: 11,
