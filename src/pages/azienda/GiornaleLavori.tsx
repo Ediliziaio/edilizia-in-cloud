@@ -48,6 +48,7 @@ export default function GiornaleLavori() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasFirma, setHasFirma] = useState(false);
+  const [visibileCliente, setVisibileCliente] = useState(true);
   const [fotoPreview, setFotoPreview] = useState<FotoPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +116,7 @@ export default function GiornaleLavori() {
       return [];
     });
     setHasFirma(false);
+    setVisibileCliente(true);
     setEditingEntry(null);
     // Clear canvas
     if (canvasRef.current) {
@@ -228,6 +230,7 @@ export default function GiornaleLavori() {
           firma_capocantiere: firmaBase64,
           firmato_da: formData.firmato_da || null,
           firmato_il: hasFirma ? new Date().toISOString() : null,
+          visibile_cliente: visibileCliente,
           created_by: userId,
         })
         .select()
@@ -511,6 +514,20 @@ export default function GiornaleLavori() {
                 rows={2}
                 className="resize-none"
               />
+            </div>
+
+            {/* Visibilità cliente */}
+            <div className="flex items-center gap-2 p-3 rounded-lg border">
+              <input
+                type="checkbox"
+                id="visibile_cliente"
+                checked={visibileCliente}
+                onChange={(e) => setVisibileCliente(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="visibile_cliente" className="text-sm font-normal cursor-pointer">
+                Visibile nel portale cliente
+              </Label>
             </div>
 
             {/* GPS */}
