@@ -357,7 +357,7 @@ export default function CompanyDashboard() {
         <div className="space-y-2">
           {financialAlerts.map((alert, index) => (
             <div
-              key={alert.message ?? index}
+              key={`alert-${alert.type}-${index}`}
               className={`flex items-center gap-3 p-3 rounded-lg border ${
                 alert.type === "error"
                   ? "bg-destructive/10 border-destructive/30 text-destructive"

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useSiteDelivery } from '@/hooks/warehouse/useSiteDelivery';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface DeliveryItem {
   name: string;
@@ -52,7 +53,7 @@ export function DeliveryConfirmationModal({
       setCameraMode(mode);
     } catch (err) {
       console.error('Camera error:', err);
-      alert('Impossibile accedere alla fotocamera');
+      toast.error('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
     }
   };
 
@@ -101,13 +102,13 @@ export function DeliveryConfirmationModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!receivedByName) { alert('Nome ricevente obbligatorio'); return; }
-    if (!deliveryPhoto) { alert('Foto consegna obbligatoria'); return; }
-    if (!signaturePhoto) { alert('Firma obbligatoria'); return; }
-    if (!quantityDelivered) { alert('Quantità consegnata obbligatoria'); return; }
+    if (!receivedByName) { toast.error('Inserire il nome del ricevente'); return; }
+    if (!deliveryPhoto) { toast.error('La foto di consegna è obbligatoria'); return; }
+    if (!signaturePhoto) { toast.error('La firma digitale è obbligatoria'); return; }
+    if (!quantityDelivered) { toast.error('Inserire la quantità consegnata'); return; }
 
     const qty = parseInt(quantityDelivered);
-    if (isNaN(qty) || qty <= 0) { alert('Quantità non valida'); return; }
+    if (isNaN(qty) || qty <= 0) { toast.error('Quantità non valida — deve essere maggiore di zero'); return; }
 
     try {
       await confirmDelivery({

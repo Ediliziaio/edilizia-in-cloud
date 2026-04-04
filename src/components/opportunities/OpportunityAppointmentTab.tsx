@@ -285,15 +285,16 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       });
       if (error) throw error;
 
-      // Sync address to contact
+      // Sync address to contact (non-blocking: log error but don't throw)
       if (contactId && addressData.address_line) {
-        await supabase.from("marketing_contacts").update({
+        const { error: syncError } = await supabase.from("marketing_contacts").update({
           address: addressData.address_line,
           city: addressData.address_city || null,
           postal_code: addressData.address_postal_code || null,
           province: addressData.address_province || null,
           country: addressData.address_country || "Italia",
         }).eq("id", contactId);
+        if (syncError) console.error("Sync indirizzo contatto fallito:", syncError.message);
       }
     },
     onSuccess: () => {

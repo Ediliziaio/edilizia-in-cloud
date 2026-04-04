@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useInstallation } from '@/hooks/warehouse/useInstallation';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface InstallationPhotoCaptureModalProps {
   open: boolean;
@@ -45,7 +46,7 @@ export function InstallationPhotoCaptureModal({
       setCameraMode(mode);
     } catch (err) {
       console.error('Camera error:', err);
-      alert('Impossibile accedere alla fotocamera');
+      toast.error('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
     }
   };
 
@@ -94,8 +95,8 @@ export function InstallationPhotoCaptureModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!photoBefore) { alert('Foto prima è obbligatoria'); return; }
-    if (!photoAfter) { alert('Foto dopo è obbligatoria'); return; }
+    if (!photoBefore) { toast.error("La foto PRIMA dell'installazione è obbligatoria"); return; }
+    if (!photoAfter) { toast.error("La foto DOPO l'installazione è obbligatoria"); return; }
 
     try {
       await recordInstallation({

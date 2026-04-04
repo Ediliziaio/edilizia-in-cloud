@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useShipmentToSite } from '@/hooks/warehouse/useShipmentToSite';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface ShipmentItem {
   order_item_id: string;
@@ -48,7 +49,7 @@ export function ShipmentDetailPanel({
       setCameraMode(mode);
     } catch (err) {
       console.error('Camera error:', err);
-      alert('Impossibile accedere alla fotocamera');
+      toast.error('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
     }
   };
 
@@ -98,7 +99,7 @@ export function ShipmentDetailPanel({
     e.preventDefault();
 
     if (!loadingPhoto) {
-      alert('Foto carico è obbligatoria');
+      toast.error('La foto del carico è obbligatoria');
       return;
     }
 

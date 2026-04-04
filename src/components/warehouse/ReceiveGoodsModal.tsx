@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useGoodsReceipt } from '@/hooks/warehouse/useGoodsReceipt';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface ReceiveGoodsModalProps {
   open: boolean;
@@ -45,7 +46,7 @@ export function ReceiveGoodsModal({
       setCameraOpen(true);
     } catch (err) {
       console.error('Camera error:', err);
-      alert('Impossibile accedere alla fotocamera');
+      toast.error('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
     }
   };
 
@@ -86,12 +87,12 @@ export function ReceiveGoodsModal({
     e.preventDefault();
 
     if (!quantityReceived) {
-      alert('Inserire la quantità ricevuta');
+      toast.error('Inserire la quantità ricevuta');
       return;
     }
     const qty = parseInt(quantityReceived);
     if (isNaN(qty) || qty <= 0) {
-      alert('Quantità non valida');
+      toast.error('Quantità non valida — deve essere maggiore di zero');
       return;
     }
 

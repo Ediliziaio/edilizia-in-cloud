@@ -98,6 +98,11 @@ export function useAdminDashboardData() {
           .limit(5000),
       ]);
 
+      // Log non-critical query errors without throwing (dashboard partial data is OK)
+      [companiesRes, ordersAggRes, customersRes, ticketsRes, recentCompaniesRes,
+       recentOrdersRes, recentTicketsRes, allCompaniesRes, dacRes, wacRes]
+        .forEach((res, i) => { if (res.error) console.error(`Admin dashboard query [${i}] error:`, res.error.message); });
+
       const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
       const totalOrders = Number(aggRow?.total_count) || 0;
       const totalValue = Number(aggRow?.total_value) || 0;
