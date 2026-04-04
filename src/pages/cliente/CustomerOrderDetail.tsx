@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
-import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
+import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
 import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText, AlertCircle } from "lucide-react";
@@ -187,12 +187,20 @@ export default function CustomerOrderDetail() {
         </CardContent>
       </Card>
 
-      {/* Customer Dates */}
-      <CustomerDatesCard
-        warehouseArrivalDate={order.warehouse_arrival_date}
-        workStartDate={order.work_start_date}
-        workEndDate={order.work_end_date}
-      />
+      {/* Timeline cantiere — aggrega stati, lavori, SAL, varianti */}
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-lg font-semibold">Aggiornamenti Cantiere</h2>
+          <p className="text-sm text-muted-foreground">
+            Tutti gli aggiornamenti in tempo reale sul tuo ordine.
+          </p>
+        </div>
+        <TimelineCantiere
+          orderId={order.id}
+          companyId={order.company_id}
+          adminView={false}
+        />
+      </div>
 
       {/* Varianti d'ordine */}
       <VariantiCard orderId={order.id} companyId={order.company_id} readOnly />
@@ -209,41 +217,7 @@ export default function CustomerOrderDetail() {
         hasBuildingBonus={order.has_building_bonus}
       />
 
-      {/* Status History Timeline */}
-      {statusHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Storico aggiornamenti
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {statusHistory.map((item, index) => {
-                const status = item.status as { name: string; color: string; icon: string } | null;
-                return (
-                  <div key={item.id} className="flex items-start gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: status?.color || "hsl(var(--muted))" }} />
-                      {index < statusHistory.length - 1 && <div className="w-0.5 h-8 bg-muted mt-1" />}
-                    </div>
-                    <div className="flex-1 -mt-0.5">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" style={{ backgroundColor: `${status?.color}20`, color: status?.color }}>
-                          {status?.name || "Stato sconosciuto"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">{formatDateTime(item.changed_at)}</p>
-                    </div>
-                    {index === 0 && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Storico stati ora incluso nella TimelineCantiere sopra */}
     </div>
   );
 }

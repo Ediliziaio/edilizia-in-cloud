@@ -48,6 +48,7 @@ export default function GiornaleLavori() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasFirma, setHasFirma] = useState(false);
+  const [visibileCliente, setVisibileCliente] = useState(true);
   const [fotoPreview, setFotoPreview] = useState<FotoPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +116,7 @@ export default function GiornaleLavori() {
       return [];
     });
     setHasFirma(false);
+    setVisibileCliente(true);
     setEditingEntry(null);
     // Clear canvas
     if (canvasRef.current) {
@@ -228,6 +230,7 @@ export default function GiornaleLavori() {
           firma_capocantiere: firmaBase64,
           firmato_da: formData.firmato_da || null,
           firmato_il: hasFirma ? new Date().toISOString() : null,
+          visibile_cliente: visibileCliente,
           created_by: userId,
         })
         .select()
@@ -513,6 +516,20 @@ export default function GiornaleLavori() {
               />
             </div>
 
+            {/* Visibilità cliente */}
+            <div className="flex items-center gap-2 p-3 rounded-lg border">
+              <input
+                type="checkbox"
+                id="visibile_cliente"
+                checked={visibileCliente}
+                onChange={(e) => setVisibileCliente(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="visibile_cliente" className="text-sm font-normal cursor-pointer">
+                Visibile nel portale cliente
+              </Label>
+            </div>
+
             {/* GPS */}
             <div className="flex items-center gap-3 p-3 rounded-lg border">
               <MapPin className={`h-5 w-5 shrink-0 ${gpsStatus === "success" ? "text-green-500" : "text-muted-foreground"}`} />
@@ -619,6 +636,13 @@ export default function GiornaleLavori() {
               </div>
             )}
 
+            {/* Hint se ordine non selezionato */}
+            {!selectedOrderId && !editingEntry?.id && (
+              <p className="text-xs text-amber-600 text-center">
+                Seleziona un cantiere prima di salvare.
+              </p>
+            )}
+
             {/* Save button / Close button */}
             {editingEntry?.id ? (
               <Button
@@ -634,7 +658,7 @@ export default function GiornaleLavori() {
                 className="w-full"
                 size="lg"
                 onClick={() => saveEntry.mutate()}
-                disabled={saveEntry.isPending || !formData.lavorazioni_eseguite.trim()}
+                disabled={saveEntry.isPending || !formData.lavorazioni_eseguite.trim() || !selectedOrderId}
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>

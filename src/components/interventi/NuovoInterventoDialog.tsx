@@ -118,6 +118,7 @@ export function NuovoInterventoDialog({
     mutationFn: async () => {
       if (!customerId) throw new Error("Seleziona un cliente");
       if (!subject.trim()) throw new Error("L'oggetto è obbligatorio");
+      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
 
       const { data: ticket, error } = await supabase
         .from("tickets")

@@ -44,6 +44,8 @@ import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
+import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
+import { SubappaltatoriOrderCard } from "@/components/orders/SubappaltatoriOrderCard";
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
@@ -699,11 +701,12 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-5 h-auto">
+            <TabsList className="w-full grid grid-cols-6 h-auto">
               <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
               <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
+              <TabsTrigger value="cantiere" className="text-xs py-2">Cantiere</TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
             </TabsList>
 
@@ -844,7 +847,24 @@ function OrderDetailInner() {
               )}
             </TabsContent>
 
-            {/* Tab 5: Altro */}
+            {/* Tab 5: Cantiere */}
+            <TabsContent value="cantiere" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <div>
+                  <h2 className="text-base font-semibold">Timeline Cantiere</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
+                  </p>
+                </div>
+                <TimelineCantiere
+                  orderId={id!}
+                  companyId={effectiveCompany?.id || ""}
+                  adminView={true}
+                />
+              </div>
+            </TabsContent>
+
+            {/* Tab 6: Altro */}
             <TabsContent value="altro" className="space-y-4 mt-4">
               <OrdineNote
                 notes={order.internal_notes}
@@ -858,6 +878,9 @@ function OrderDetailInner() {
               />
               <OrdineManodopera orderId={id!} editable={true} />
               <OrderErrors orderId={id!} />
+              {effectiveCompany?.id && (
+                <SubappaltatoriOrderCard orderId={id!} companyId={effectiveCompany.id} />
+              )}
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
               <OrdineAcquisto
