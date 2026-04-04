@@ -124,16 +124,16 @@ export function NuovoInterventoDialog({
         .insert({
           company_id: effectiveCompany?.id ?? "",
           customer_id: customerId,
-          order_id: orderId || null,
+          order_id: (orderId && orderId !== "none") ? orderId : null,
           subject: subject.trim(),
           tipo,
           priority,
           status: "aperto",
-          assigned_to: tecnicoId || user?.id || null,
+          assigned_to: (tecnicoId && tecnicoId !== "none") ? tecnicoId : (user?.id || null),
           indirizzo_intervento: indirizzo.trim() || null,
           data_intervento_prevista: dataOra ? new Date(dataOra).toISOString() : null,
           durata_ore: durataOre ? parseFloat(durataOre) : null,
-          impianto_id: impiantoId || null,
+          impianto_id: (impiantoId && impiantoId !== "none") ? impiantoId : null,
         })
         .select("id")
         .single();
@@ -255,12 +255,12 @@ export function NuovoInterventoDialog({
           {/* Tecnico */}
           <div className="space-y-1.5">
             <Label>Tecnico assegnato</Label>
-            <Select value={tecnicoId} onValueChange={setTecnicoId}>
+            <Select value={tecnicoId || "none"} onValueChange={(v) => setTecnicoId(v === "none" ? "" : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleziona tecnico..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nessuno (assegnato a me)</SelectItem>
+                <SelectItem value="none">Nessuno (assegnato a me)</SelectItem>
                 {tecnici.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {[t.first_name, t.last_name].filter(Boolean).join(" ")}
@@ -311,15 +311,15 @@ export function NuovoInterventoDialog({
             <div className="space-y-1.5">
               <Label>Impianto collegato</Label>
               <Select
-                value={impiantoId}
-                onValueChange={setImpiantoId}
+                value={impiantoId || "none"}
+                onValueChange={(v) => setImpiantoId(v === "none" ? "" : v)}
                 disabled={!!defaultImpiantoId}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona impianto..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun impianto</SelectItem>
+                  <SelectItem value="none">Nessun impianto</SelectItem>
                   {impianti.map((im: any) => (
                     <SelectItem key={im.id} value={im.id}>
                       {im.tipo_impianto?.replace("_", " ")}
@@ -336,12 +336,12 @@ export function NuovoInterventoDialog({
           {customerId && ordini.length > 0 && (
             <div className="space-y-1.5">
               <Label>Ordine collegato (opzionale)</Label>
-              <Select value={orderId} onValueChange={setOrderId}>
+              <Select value={orderId || "none"} onValueChange={(v) => setOrderId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Nessun ordine" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun ordine</SelectItem>
+                  <SelectItem value="none">Nessun ordine</SelectItem>
                   {ordini.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.order_code ? `${o.order_code} — ` : ""}
