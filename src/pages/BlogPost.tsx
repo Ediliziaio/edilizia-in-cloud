@@ -300,6 +300,9 @@ export default function BlogPost() {
               {post.title}
             </h1>
             <div className="mt-4 flex items-center gap-3 text-sm text-white/60">
+              {post.author.avatar && (
+                <img src={post.author.avatar} alt={post.author.name} className="w-8 h-8 rounded-full object-cover border border-white/30" />
+              )}
               <span className="font-medium text-white/80">{post.author.name}</span>
               <span>·</span>
               <span>{post.author.role}</span>
@@ -443,11 +446,19 @@ export default function BlogPost() {
 
             {/* Author card */}
             <div className="mt-10 bg-[#111111]/5 rounded-2xl p-6 flex items-start gap-5">
-              <div className="w-14 h-14 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-[#F97415] font-bold text-xl">
-                  {post.author.name.charAt(0)}
-                </span>
-              </div>
+              {post.author.avatar ? (
+                <img
+                  src={post.author.avatar}
+                  alt={post.author.name}
+                  className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-[#F97415]/30"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#F97415] font-bold text-xl">
+                    {post.author.name.charAt(0)}
+                  </span>
+                </div>
+              )}
               <div>
                 <p className="font-bold text-[#111111]">{post.author.name}</p>
                 <p className="text-sm text-gray-500 mb-2">{post.author.role}</p>
