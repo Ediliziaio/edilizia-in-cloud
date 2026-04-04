@@ -93,6 +93,8 @@ const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaK
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
+const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
+const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
 // MarginalitaCantieri now rendered as tab inside OrdersList — lazy import removed
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
@@ -224,6 +226,8 @@ export function companyRoutes() {
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
         <Route path="sicurezza-cantiere" element={<SicurezzaCantiere />} />
         <Route path="giornale-lavori" element={<GiornaleLavori />} />
+        <Route path="subappaltatori" element={<SubappaltatoriPage />} />
+        <Route path="subappaltatori/:id" element={<SubappaltatoreDetail />} />
         <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}
         <Route path="automazioni" element={<AutomazioniUnified />} />

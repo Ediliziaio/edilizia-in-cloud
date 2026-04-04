@@ -45,6 +45,7 @@ import { OrdineNote } from "@/components/orders/OrdineNote";
 import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
+import { SubappaltatoriOrderCard } from "@/components/orders/SubappaltatoriOrderCard";
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
@@ -877,6 +878,9 @@ function OrderDetailInner() {
               />
               <OrdineManodopera orderId={id!} editable={true} />
               <OrderErrors orderId={id!} />
+              {effectiveCompany?.id && (
+                <SubappaltatoriOrderCard orderId={id!} companyId={effectiveCompany.id} />
+              )}
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
               <OrdineAcquisto
