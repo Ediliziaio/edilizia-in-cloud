@@ -91,7 +91,7 @@ export default function Demo() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
           { "@type": "ListItem", "position": 2, "name": "Demo", "item": "https://ediliziaincloud.com/demo" }
         ]
       }} />
@@ -175,7 +175,7 @@ export default function Demo() {
                   Controlla la tua email per conferma.
                 </p>
                 <Link
-                  to="/home"
+                  to="/"
                   className="inline-block px-6 py-3 rounded-full text-white text-sm font-bold transition-all hover:opacity-90"
                   style={{ background: "#F97415" }}
                 >

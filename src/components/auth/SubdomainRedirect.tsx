@@ -30,8 +30,8 @@ function PageLoader() {
 export function SubdomainRedirect() {
   const { subdomain } = useSubdomainRoute();
 
-  // www.ediliziaincloud.com or bare ediliziaincloud.com → landing page
-  if (subdomain === "www") {
+  // www.ediliziaincloud.com, bare domain, localhost → mostra landing
+  if (subdomain === "www" || subdomain === "" || subdomain === "localhost") {
     return (
       <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>

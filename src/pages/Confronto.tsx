@@ -164,7 +164,7 @@ export default function Confronto() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
           { "@type": "ListItem", "position": 2, "name": "Confronto Software Edilizia", "item": "https://ediliziaincloud.com/confronto" }
         ]
       }} />

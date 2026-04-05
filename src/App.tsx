@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
@@ -120,7 +120,7 @@ const App = () => (
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
-              <Route path="/home" element={<Home />} />
+              <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />

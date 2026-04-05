@@ -24,7 +24,7 @@ export interface SubdomainConfig {
 const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
   www: {
     subdomain: "www",
-    defaultPath: "/home",
+    defaultPath: "/",
     loginPath: "/login",
     title: "Edilizia in Cloud",
   },

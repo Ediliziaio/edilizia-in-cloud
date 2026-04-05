@@ -152,8 +152,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/home" },
-          { "@type": "ListItem", "position": 2, "name": "Dedicato a", "item": "https://ediliziaincloud.com/home" },
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Dedicato a", "item": "https://ediliziaincloud.com/" },
           { "@type": "ListItem", "position": 3, "name": config.badge, "item": `https://ediliziaincloud.com${config.seoCanonical}` },
         ]
       }} />

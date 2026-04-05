@@ -72,7 +72,7 @@ export default function LandingNavbar() {
     e.preventDefault();
     setMobileOpen(false);
     if (!isHome) {
-      window.location.href = `/home${href}`;
+      window.location.href = `/${href}`;
       return;
     }
     const el = document.querySelector(href);
@@ -108,7 +108,7 @@ export default function LandingNavbar() {
             />
           </a>
         ) : (
-          <Link to="/home">
+          <Link to="/">
             <img src={logo} alt="Edilizia in Cloud" className="h-9" />
           </Link>
         )}
