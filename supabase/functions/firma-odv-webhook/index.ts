@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         firma_cliente: firma_data_base64,
         firmato_da: firmato_da || null,
         firmato_il: new Date().toISOString(),
-        status: "approvato",
+        status: "approvata",
       })
       .eq("firma_token", token)
       .eq("status", "in_attesa");
