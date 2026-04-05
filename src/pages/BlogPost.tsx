@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import GaranzieSection from "@/components/landing/GaranzieSection";
 import { blogPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -467,6 +468,11 @@ export default function BlogPost() {
                 </p>
               </div>
             </div>
+
+            {/* Garanzie inline article */}
+            <div className="mt-12 pt-8 border-t border-gray-200">
+              <GaranzieSection variant="compact" />
+            </div>
           </article>
 
           {/* Sidebar */}
@@ -480,7 +486,7 @@ export default function BlogPost() {
                 Prova Edilizia in Cloud Gratis
               </h3>
               <p className="text-white/60 text-sm mb-5 leading-relaxed">
-                14 giorni di prova gratuita, nessuna carta di credito richiesta.
+                31 giorni di prova gratuita. Nessuna carta di credito. Onboarding 1:1 incluso.
               </p>
               <Link
                 to="/demo"

@@ -4,6 +4,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import GaranzieSection from "@/components/landing/GaranzieSection";
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 
 
@@ -119,7 +120,7 @@ const faqItems = [
   },
   {
     q: "Avete un periodo di prova gratuito?",
-    a: "Sì. Offriamo una demo personalizzata gratuita (30 minuti con un consulente del controllo) + 14 giorni di accesso completo senza carta di credito. Inizia e vedi i risultati prima di decidere.",
+    a: "Sì. Offriamo una demo personalizzata gratuita (30 minuti con un consulente del controllo) + 31 giorni di accesso completo senza carta di credito. Inizia e vedi i risultati prima di decidere.",
   },
 ];
 
@@ -594,6 +595,8 @@ export default function Confronto() {
         </div>
       </section>
 
+      <GaranzieSection />
+
       {/* ── CTA FINALE ── */}
       <section
         className="py-20 px-4 text-center"
@@ -614,7 +617,7 @@ export default function Confronto() {
             Prenota la tua demo gratuita
             <ArrowRight className="w-5 h-5" />
           </Link>
-          <p className="text-blue-300/50 text-xs mt-5">Nessuna carta di credito · Risposta entro 2 ore · 14 giorni di prova completa</p>
+          <p className="text-blue-300/50 text-xs mt-5">Nessuna carta di credito · Risposta entro 2 ore · 31 giorni di prova completa</p>
         </div>
       </section>
 

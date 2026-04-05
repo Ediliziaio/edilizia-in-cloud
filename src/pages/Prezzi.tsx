@@ -4,6 +4,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import GaranzieSection from "@/components/landing/GaranzieSection";
 import {
   Check,
   X,
@@ -755,6 +756,8 @@ export default function Prezzi() {
           </div>
         </div>
       </section>
+
+      <GaranzieSection />
 
       {/* ── 8. CTA FINALE ───────────────────────────────────────────────────── */}
       <section

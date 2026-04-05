@@ -429,8 +429,8 @@ export const blogPosts: BlogPost[] = [
       "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto di Excel: tempo perso, errori, opportunità mancate e rischio di conformità fiscale.",
     category: "Digitalizzazione",
     tags: ["excel edilizia", "software gestionale", "costi nascosti", "digitalizzazione"],
-    publishedAt: "2026-12-20",
-    updatedAt: "2026-12-20",
+    publishedAt: "2026-02-05",
+    updatedAt: "2026-02-05",
     readTime: 6,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -491,8 +491,8 @@ export const blogPosts: BlogPost[] = [
       "piano digitale",
       "software edilizia",
     ],
-    publishedAt: "2026-12-05",
-    updatedAt: "2026-12-05",
+    publishedAt: "2026-01-28",
+    updatedAt: "2026-01-28",
     readTime: 9,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -578,8 +578,8 @@ export const blogPosts: BlogPost[] = [
       "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere senza fogli Excel e senza perdere il controllo dei margini.",
     category: "Gestione Cantieri",
     tags: ["organizzare cantiere edile", "gestione cantieri", "impresa edile", "margini cantiere"],
-    publishedAt: "2026-04-07",
-    updatedAt: "2026-04-07",
+    publishedAt: "2026-03-22",
+    updatedAt: "2026-03-22",
     readTime: 12,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -663,7 +663,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud organizza il cantiere per te",
-        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Margine di commessa in tempo reale, presenze dal telefono, DDT collegati al cantiere. Prova gratis 14 giorni — nessuna carta di credito richiesta.",
+        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Margine di commessa in tempo reale, presenze dal telefono, DDT collegati al cantiere. Prova gratis 31 giorni — nessuna carta di credito richiesta.",
       },
     ],
   },
@@ -676,8 +676,8 @@ export const blogPosts: BlogPost[] = [
       "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
     category: "Normativa",
     tags: ["documentazione cantiere 2026", "POS cantiere", "DURC", "normativa edilizia"],
-    publishedAt: "2026-04-14",
-    updatedAt: "2026-04-14",
+    publishedAt: "2026-03-15",
+    updatedAt: "2026-03-15",
     readTime: 11,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -771,7 +771,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud archivia la documentazione di ogni cantiere",
-        body: "POS, DURC, contratti, DDT e SAL sempre disponibili in un click. Alert automatici per scadenze. Accesso da telefono anche offline. Prova gratis 14 giorni.",
+        body: "POS, DURC, contratti, DDT e SAL sempre disponibili in un click. Alert automatici per scadenze. Accesso da telefono anche offline. Prova gratis 31 giorni — nessuna carta di credito.",
       },
     ],
   },
@@ -784,8 +784,8 @@ export const blogPosts: BlogPost[] = [
       "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili che vogliono smettere di lavorare gratis.",
     category: "Preventivi",
     tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
-    publishedAt: "2026-04-21",
-    updatedAt: "2026-04-21",
+    publishedAt: "2026-03-08",
+    updatedAt: "2026-03-08",
     readTime: 11,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -863,7 +863,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Crea preventivi professionali in 5 minuti con Edilizia in Cloud",
-        body: "Template personalizzabili, calcolo automatico dei margini, conversione in contratto e firma digitale integrata. Archivia automaticamente preventivo, contratto e SAL per ogni cantiere. Prova gratis 14 giorni.",
+        body: "Template personalizzabili, calcolo automatico dei margini, conversione in contratto e firma digitale integrata. Archivia automaticamente preventivo, contratto e SAL per ogni cantiere. Prova gratis 31 giorni — nessuna carta di credito.",
       },
     ],
   },
@@ -876,8 +876,8 @@ export const blogPosts: BlogPost[] = [
       "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026, con i numeri reali.",
     category: "Gestione Cantieri",
     tags: ["alternativa excel cantieri", "gestionale edilizia cloud", "software cantieri", "digitalizzazione edilizia"],
-    publishedAt: "2026-04-28",
-    updatedAt: "2026-04-28",
+    publishedAt: "2026-03-01",
+    updatedAt: "2026-03-01",
     readTime: 10,
     author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -958,7 +958,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud: l'alternativa a Excel pensata per il cantiere",
-        body: "Migrazione guidata da Excel inclusa. App mobile per il cantiere. Margini in tempo reale. Fatturazione SDI integrata. Prova gratis 14 giorni — nessuna carta di credito. Mai tornati a Excel.",
+        body: "Migrazione guidata da Excel inclusa. App mobile per il cantiere. Margini in tempo reale. Fatturazione SDI integrata. Prova gratis 31 giorni — nessuna carta di credito. Mai tornati a Excel.",
       },
     ],
   },
