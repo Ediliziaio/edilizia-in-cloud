@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { RapportinoForm } from "@/components/interventi/RapportinoForm";
+import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import type { Intervento, RapportinoIntervento } from "@/types/interventi";
 
 const STATO_CONFIG: Record<string, { label: string; color: string }> = {
@@ -233,6 +234,11 @@ export default function InterventiDetail() {
           <TabsTrigger value="rapportini">
             Rapportini {rapportini.length > 0 && <span className="ml-1 text-xs bg-blue-100 text-blue-700 rounded-full px-1.5">{rapportini.length}</span>}
           </TabsTrigger>
+          {intervento.order_id && (
+            <TabsTrigger value="cronologia">
+              Cronologia Cantiere
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="info" className="space-y-4 mt-4">
@@ -409,6 +415,21 @@ export default function InterventiDetail() {
             </div>
           )}
         </TabsContent>
+
+        {intervento.order_id && (
+          <TabsContent value="cronologia" className="mt-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Aggiornamenti del cantiere collegato a questo intervento.
+              </p>
+              <TimelineCantiere
+                orderId={intervento.order_id}
+                companyId={effectiveCompany?.id ?? ''}
+                adminView={true}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <RapportinoForm
