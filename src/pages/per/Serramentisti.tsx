@@ -17,8 +17,8 @@ const config: PerTipoConfig = {
     </>
   ),
   heroSubtitle:
-    "Produttori e installatori di infissi, porte, finestre e schermature solari: smettila di perdere ore sui listini cartacei del fornitore. Con Edilizia in Cloud generi preventivi configurati al millimetro in 20 minuti, gestisci gli ordini ai fornitori e pianifichi ogni installazione senza sovrapposizioni.",
-  heroImage: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1400&q=80",
+    "Ogni finestra ha il suo profilo, il suo RAL, la sua finitura. Un preventivo su misura fatto a mano richiede 2 ore e rischia errori nell'ordine di produzione. Con Edilizia in Cloud configuri la finestra, generi il preventivo e mandi l'ordine al fornitore in 20 minuti — con le misure giuste.",
+  heroImage: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof
   socialProof: [
@@ -29,9 +29,9 @@ const config: PerTipoConfig = {
   ],
 
   // Problems
-  problemsTitle: "Questi problemi ti suonano familiari?",
+  problemsTitle: "Sai quanti preventivi perdi ogni settimana per i tempi di risposta?",
   problemsSubtitle:
-    "Ogni serramentista che abbiamo incontrato ci ha raccontato le stesse cose. Se riconosci anche solo uno di questi scenari, stai perdendo tempo e margine ogni giorno.",
+    "Il cliente chiede un preventivo per 6 finestre il lunedì mattina. Se non risponde entro 48 ore, ha già chiamato il concorrente. Questi sono i problemi che rallentano ogni preventivo.",
   problems: [
     {
       emoji: "📐",
@@ -204,15 +204,49 @@ const config: PerTipoConfig = {
     },
   ],
 
+  verticalFeatures: [
+    {
+      icon: Ruler,
+      problem: "Preventivi su misura in 2-3 ore: troppo lenti per stare sul mercato",
+      solution: "Il configuratore preventivi di Edilizia in Cloud importa i listini dei tuoi fornitori (PVC, alluminio, legno). Inserisci larghezza, altezza, profilo, colore RAL, tipo di vetro: il prezzo si calcola in automatico. Preventivo pronto in 20 minuti — completo, firmabile via link.",
+      economicBenefit: "×3 preventivi",
+      benefitLabel: "generati nella stessa giornata rispetto a prima",
+    },
+    {
+      icon: Package,
+      problem: "Ordini ai fornitori con misure sbagliate: resi, ritardi, cantieri bloccati",
+      solution: "L'ordine fornitore si genera direttamente dal preventivo approvato: le misure sono quelle del preventivo, il codice articolo è quello del listino. Zero trascrizioni manuali. Zero errori di misura. L'ordine parte in 1 click.",
+      economicBenefit: "−90%",
+      benefitLabel: "resi e rilavorazioni per errori di ordinazione",
+    },
+    {
+      icon: Calendar,
+      problem: "Calendario installazioni: sovrapposizioni, squadre sbagliate, clienti non avvisati",
+      solution: "Il planning installazioni mostra tutti gli interventi su mappa e calendario: chi è dove, quante finestre, tempi stimati. Aggiunta di una posa: trovi il primo slot disponibile per quella zona geografica in 30 secondi. Il cliente riceve notifica automatica.",
+      economicBenefit: "+2 pose/sett",
+      benefitLabel: "pianificate senza sovrapporre squadre",
+    },
+    {
+      icon: FileText,
+      problem: "Consegna senza firma: il cliente dice che manca qualcosa — e non puoi dimostrare nulla",
+      solution: "Al termine dell'installazione, l'operaio fa firmare al cliente il verbale di consegna direttamente sull'app: data, articoli installati, foto del lavoro finito, firma digitale. Archiviato sulla commessa. Fine delle contestazioni post-posa.",
+      economicBenefit: "€ 0",
+      benefitLabel: "contestazioni post-consegna non documentate",
+    },
+  ],
+  verticalFeaturesTitle: "Dal preventivo alla firma di consegna — senza errori e senza perdere tempo",
+  verticalFeaturesSubtitle: "Configuratore preventivi, ordini fornitori integrati, planning installazioni, verbale di consegna firmato. Tutto connesso. Tutto tracciato.",
+  demoLabel: "Vedi come un serramentista genera 8 preventivi in una mattinata — con ordine fornitore incluso",
+
   // CTA
   ctaTitle: (
     <>
-      <span className="text-white">Smetti di fare preventivi</span>{" "}
-      <span className="text-[#F97415]">la sera con la calcolatrice.</span>
+      <span className="text-white">Preventivi in 20 minuti.</span>{" "}
+      <span className="text-[#F97415]">Ordini senza errori di misura.</span>
     </>
   ),
   ctaSubtitle:
-    "Prova Edilizia in Cloud gratis per 30 giorni. Setup completo in 48h con il tuo listino fornitore già importato.",
+    "30 minuti di demo: ti mostriamo come configurare un preventivo su misura con il tuo listino fornitore — dalla finestra all'ordine, senza ricopiare niente.",
 
   // Schema FAQ
   schemaFaq: [

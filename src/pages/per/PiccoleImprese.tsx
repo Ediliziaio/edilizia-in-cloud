@@ -17,7 +17,7 @@ const config: PerTipoConfig = {
     </>
   ),
   heroSubtitle:
-    "Sei un muratore, un imbianchino, un artigiano edile con 1-10 dipendenti. La burocrazia ti ruba 3 ore al giorno che potresti passare in cantiere o con la famiglia. Edilizia in Cloud fa la burocrazia al posto tuo — fattura elettronica, preventivi, F24, scadenze. Tu pensa ai lavori.",
+    "Sei in 3-4 persone. Il cantiere lo gestisci tu. Le fatture le fai tu. I preventivi li scrivi a mano. La domenica sera finisci con Excel e la pila di scontrini davanti. Con Edilizia in Cloud la burocrazia si fa in 30 minuti al giorno — e tu torni a essere un imprenditore, non un impiegato.",
   heroImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof
@@ -203,15 +203,49 @@ const config: PerTipoConfig = {
     },
   ],
 
+  verticalFeatures: [
+    {
+      icon: FileText,
+      problem: "Fattura elettronica SDI: ogni mese è una sofferenza tra XML, codici e rigetti",
+      solution: "Con Edilizia in Cloud crei la fattura elettronica in 3 clic: cliente, importo, IVA. Il sistema genera l'XML FatturaPA 1.2 e la invia automaticamente all'SDI tramite Aruba. Ricevi la ricevuta direttamente nella dashboard. Nessun software di terze parti. Nessun commercialista per le fatture ordinarie.",
+      economicBenefit: "−3h/mese",
+      benefitLabel: "di tempo su fatturazione elettronica e riconciliazioni",
+    },
+    {
+      icon: Calculator,
+      problem: "Preventivi scritti a mano: sbagliati, lenti, e il cliente li confronta con altri",
+      solution: "Il preventivo si crea in 10 minuti: seleziona le lavorazioni dal listino personalizzato, inserisci le quantità, il sistema calcola tutto. Il PDF professionale viene inviato via link al cliente — che lo legge, approva e firma digitalmente dal telefono. Senza carta.",
+      economicBenefit: "×2,5 preventivi",
+      benefitLabel: "mandati nella stessa settimana rispetto a prima",
+    },
+    {
+      icon: BarChart3,
+      problem: "Non sai quanto hai guadagnato questo mese — lo scopri quando chiami il commercialista",
+      solution: "Il cruscotto semplificato mostra: fatturato del mese, spese registrate, margine stimato, fatture da incassare. Aggiornato ogni volta che inserisci un costo o emetti una fattura. Nessun Excel. Nessuna telefonata al commercialista per sapere 'come stiamo'.",
+      economicBenefit: "€ 1.200",
+      benefitLabel: "risparmiati l'anno in consulenze commercialista evitabili",
+    },
+    {
+      icon: Smartphone,
+      problem: "Devi essere sempre reperibile — anche in cantiere, anche il sabato",
+      solution: "L'app mobile ti permette di emettere una fattura, inviare un preventivo, o controllare un incasso direttamente dal telefono — anche offline. Sei in cantiere? Fai una foto, aggiungi il costo materiali, salva. Ci vogliono 60 secondi. La domenica puoi stare con la famiglia.",
+      economicBenefit: "−8h/sett",
+      benefitLabel: "di burocrazia fatta fuori orario di lavoro",
+    },
+  ],
+  verticalFeaturesTitle: "Fatture, preventivi, cantieri: tutto in 30 minuti al giorno",
+  verticalFeaturesSubtitle: "Pensato per chi lavora da solo o con pochi dipendenti. Semplice abbastanza da usare dal telefono. Completo abbastanza da tenerti fuori dai guai con il fisco.",
+  demoLabel: "Vedi come un artigiano edile con 3 dipendenti azzera la burocrazia del weekend e torna a fare l'imprenditore",
+
   // CTA
   ctaTitle: (
     <>
-      <span className="text-white">Smetti di fare le fatture</span>{" "}
-      <span className="text-[#F97415]">la domenica sera.</span>
+      <span className="text-white">La domenica sera</span>{" "}
+      <span className="text-[#F97415]">torna tua.</span>
     </>
   ),
   ctaSubtitle:
-    "Prova Edilizia in Cloud gratis per 30 giorni. Nessuna carta di credito, nessun impegno. Setup guidato in 48 ore con il tuo commercialista già collegato.",
+    "30 minuti di demo: ti mostriamo come gestire fatture, preventivi e cantieri in meno di 30 minuti al giorno. Nessun contratto. Nessuna carta di credito.",
 
   // Schema FAQ
   schemaFaq: [

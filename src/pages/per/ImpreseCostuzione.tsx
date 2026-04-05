@@ -1,4 +1,4 @@
-import { Building2, BarChart3, Users, FileText, TrendingUp, Smartphone } from "lucide-react";
+import { Building2, BarChart3, Users, FileText, TrendingUp, Smartphone, Shield } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
@@ -11,12 +11,12 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Ogni cantiere che chiudi</span>{" "}
-      <span className="text-[#F97415]">ti ha davvero guadagnato?</span>
+      <span className="text-white">Sai davvero quanto hai guadagnato</span>{" "}
+      <span className="text-[#F97415]">su ogni cantiere che stai chiudendo?</span>
     </>
   ),
   heroSubtitle:
-    "L'80% delle imprese edili scopre le perdite a cantiere chiuso — quando non c'è più niente da fare. Con Edilizia in Cloud vedi margini, SAL e costi reali per ogni commessa in tempo reale. Prima che sia troppo tardi.",
+    "Il 78% delle imprese edili scopre le perdite solo a cantiere chiuso. Con Edilizia in Cloud vedi margini reali, SAL aggiornati, costi per commessa e ore di ogni squadra in tempo reale — ogni settimana, non solo a fine lavori.",
   heroImage:
     "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
 
@@ -176,14 +176,48 @@ const config: PerTipoConfig = {
     },
   ],
 
+  verticalFeatures: [
+    {
+      icon: BarChart3,
+      problem: "Non sai se stai guadagnando — finché non finisci il cantiere",
+      solution: "Il SAL Avanzamento Lavori si aggiorna in tempo reale: ogni costo registrato (materiali, subappaltatori, ore operai) scala automaticamente sul budget di commessa. Vedi il margine residuo ogni giorno, non a consuntivo.",
+      economicBenefit: "€ 28.000",
+      benefitLabel: "margine recuperato in media nel 1° anno",
+    },
+    {
+      icon: Users,
+      problem: "I tuoi operai e subappaltatori: dove sono, cosa fanno, quanto costano",
+      solution: "Ogni squadra timbra entrata e uscita dal cantiere via app — con geolocalizzazione opzionale. Il timesheet è automatico. I costi di manodopera si imputano alla commessa giusta. Zero fogli firma cartacei.",
+      economicBenefit: "−4h/sett",
+      benefitLabel: "in recupero dati presenze e inserimento manuale",
+    },
+    {
+      icon: FileText,
+      problem: "Varianti in corso d'opera mai formalizzate — il cliente non le riconosce a fine lavori",
+      solution: "Ogni variante viene creata nel sistema, firmata digitalmente dal cliente via app o link SMS, archiviata sulla commessa. Nessuna contestazione possibile. Nessuna perdita di lavoro extra non fatturato.",
+      economicBenefit: "+ 15%",
+      benefitLabel: "di lavori extra recuperati e fatturati",
+    },
+    {
+      icon: Shield,
+      problem: "Sicurezza cantiere: cartelli, DVR, PSC, DPI — tutto su carta o su WhatsApp",
+      solution: "Il modulo sicurezza gestisce cartelli digitali, consegna DPI con firma operaio, scadenze visite mediche, PSC allegato alla commessa. In caso di ispezione, hai tutto in 30 secondi dal telefono.",
+      economicBenefit: "€ 0",
+      benefitLabel: "sanzioni per documentazione sicurezza mancante",
+    },
+  ],
+  verticalFeaturesTitle: "Il gestionale costruito per chi fa cantieri veri",
+  verticalFeaturesSubtitle: "Non uno strumento per ufficio. Un sistema che va in cantiere con te e con le tue squadre — e ti dice ogni giorno se stai guadagnando o perdendo.",
+  demoLabel: "Vedi come un general contractor gestisce 6 cantieri da un'unica dashboard — senza un call ogni mattina",
+
   ctaTitle: (
     <>
-      <span className="text-white">Smetti di scoprire le perdite</span>{" "}
-      <span className="text-[#F97415]">a cantiere chiuso.</span>
+      <span className="text-white">I margini di ogni cantiere.</span>{" "}
+      <span className="text-[#F97415]">Visibili. In tempo reale.</span>
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo gratuita: ti mostriamo i margini reali di un cantiere tipo. Nessun impegno, nessuna carta di credito.",
+    "30 minuti di demo: ti mostriamo i margini reali su un cantiere tipo, con i tuoi numeri. Nessun impegno. Nessuna carta di credito.",
 
   schemaFaq: [
     {

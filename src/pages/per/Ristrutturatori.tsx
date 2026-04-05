@@ -1,9 +1,9 @@
-import { FileText, Calculator, FolderOpen, Users, Clock, TrendingUp } from "lucide-react";
+import { FileText, Calculator, FolderOpen, Users, Clock, TrendingUp, ClipboardList, MapPin, Shield } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Ristrutturazione — Superbonus, Ecobonus, Varianti | Edilizia in Cloud",
-  seoDescription: "Il gestionale per ristrutturatori che gestisce varianti in corso d'opera, documentazione Superbonus 110%, Ecobonus, Sismabonus, SAL e cessione credito. Ogni pratica tracciata, ogni bonus incassato. Prova gratis 30 giorni.",
+  seoTitle: "Gestionale per Imprese di Ristrutturazione — Varianti, Margini e Cantieri Sotto Controllo | Edilizia in Cloud",
+  seoDescription: "Il gestionale per ristrutturatori: tieni sotto controllo varianti in corso d'opera, SAL, costi reali e margini per cantiere. Rapportini digitali, firma cliente, GPS squadre. Prova gratis 31 giorni.",
   seoKeywords: "software gestionale ristrutturazione, gestionale impresa ristrutturazioni, software preventivi ristrutturazione, gestionale bonus edilizi, software superbonus 110, gestionale ecobonus, software sismabonus, gestionale varianti cantiere, cessione credito software, documentazione SAL ristrutturazione",
   seoCanonical: "/per/ristrutturatori",
 
@@ -11,13 +11,13 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Basta perdere bonus edilizi</span>{" "}
-      <span className="text-[#F97415]">per un documento mancante.</span>
+      <span className="text-white">Le varianti ti mangiano il margine.</span>{" "}
+      <span className="text-[#F97415]">In silenzio. Ogni giorno.</span>
     </>
   ),
-  heroSubtitle: "Superbonus 110%, Ecobonus, Sismabonus, SAL, varianti, CILA, SCIA, APE: tutta la documentazione delle detrazioni in un unico gestionale. Smetti di gestire le pratiche bonus su cartelle condivise e WhatsApp — prima che un cliente perda l'agevolazione.",
+  heroSubtitle: "Il preventivo iniziale è già un ricordo dopo la prima settimana. Il cliente cambia il parquet, aggiunge la controparete, sposta la cucina. Ogni variante non tracciata è margine che sparisce. Con Edilizia in Cloud ogni modifica è firmata dal cliente e aggiornata sul conto economico del cantiere — in tempo reale.",
 
-  heroImage: "https://images.unsplash.com/photo-1503387837-b154d5074bd2?auto=format&fit=crop&w=1400&q=80",
+  heroImage: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
 
   socialProof: [
     { initials: "RM", name: "Ristrutturazioni Marchetti", city: "Bologna", months: 14, gradient: "from-[#0d8f79] to-[#0a6b5a]" },
@@ -26,29 +26,29 @@ const config: PerTipoConfig = {
     { initials: "TR", name: "Tecnoristruttura Snc", city: "Torino", months: 11, gradient: "from-[#7c3aed] to-[#5b21b6]" },
   ],
 
-  problemsTitle: "La documentazione bonus ti sta mangiando vivo",
-  problemsSubtitle: "Ogni ristrutturatore con più di 3 cantieri attivi riconosce almeno due di questi problemi. Se li riconosci tutti e quattro, continua a leggere.",
+  problemsTitle: "Il vero problema dei ristrutturatori non è trovare lavoro. È guadagnarlo.",
+  problemsSubtitle: "I lavori arrivano. I clienti ci sono. Ma a fine cantiere i conti non tornano mai come avrebbero dovuto. Ecco perché.",
 
   problems: [
     {
       emoji: "📝",
-      title: "Varianti fuori controllo: il preventivo è già un ricordo",
-      desc: "Il cliente cambia idea, il geometra richiede modifiche, il cantiere riserva sorprese. Ogni variante finisce su WhatsApp o su un foglietto. A fine lavori non sai più quale versione del preventivo è quella finale — e il cliente nemmeno.",
+      title: "Varianti non tracciate: ogni modifica è margine che sparisce",
+      desc: "Il cliente vuole cambiare il pavimento. Poi aggiunge la controparete. Poi sposta le prese. Ogni variante viaggia su WhatsApp. A fine lavori non sai più cosa era nel preventivo originale — e il cliente nemmeno. Il risultato? Paghi tu la differenza.",
     },
     {
-      emoji: "💰",
-      title: "Documentazione bonus caotica: Superbonus, Ecobonus, Sismabonus",
-      desc: "Ogni tipo di detrazione ha la sua documentazione, i suoi SAL, la sua APE pre e post, i suoi massimali. Le normative cambiano ogni 6 mesi. Chi nella tua impresa sa con certezza quali documenti mancano per non perdere il bonus del cantiere aperto a gennaio?",
+      emoji: "💸",
+      title: "I costi reali superano il preventivo — e te ne accorgi troppo tardi",
+      desc: "Il parquet costa il 20% in più rispetto a tre mesi fa. Il muratore ha fatto 6 ore di straordinario. Il fabbro è tornato due volte perché le misure erano cambiate. Questi costi non tracciati diventano perdita netta. E tu lo scopri solo quando emetti l'ultima fattura.",
     },
     {
-      emoji: "🔄",
-      title: "SAL e cessione credito: tempi dilatati per colpa della burocrazia",
-      desc: "Il SAL va prodotto al momento giusto, la documentazione per la cessione del credito deve essere ineccepibile, lo sconto in fattura va gestito con il cessionario. Un passo falso e il cliente non incassa l'incentivo — e la colpa ricade su di te.",
+      emoji: "📋",
+      title: "Rapportini giornalieri: nessuno li compila, non li ha mai compilati",
+      desc: "La legge li richiede. Il cliente li vuole per capire l'avanzamento. Tu li vorresti per sapere quante ore ci sono volute davvero. Ma i tuoi operai finiscono il turno e tornano a casa. Il rapportino si fa il venerdì pomeriggio a memoria — e non vale niente.",
     },
     {
       emoji: "😤",
-      title: "Clienti che ti chiamano ogni giorno chiedendo aggiornamenti",
-      desc: "CILA presentata? SCIA approvata? L'APE è pronta? Quando iniziamo il secondo SAL? Ogni telefonata ti toglie 20 minuti di lavoro reale. E se non rispondi subito, il cliente pensa che stai nascondendo qualcosa.",
+      title: "Clienti che chiamano ogni giorno: 'A che punto siamo? Quando finite?'",
+      desc: "Ogni telefonata ti toglie 20 minuti di lavoro. Se non rispondi, il cliente pensa che stai nascondendo qualcosa. Se non hai i dati aggiornati, improvvisi una risposta che poi smentisce la realtà. È una rincorsa infinita — e logora il rapporto.",
     },
   ],
 
@@ -179,13 +179,47 @@ const config: PerTipoConfig = {
     },
   ],
 
+  verticalFeatures: [
+    {
+      icon: FileText,
+      problem: "Varianti non formalizzate: il cliente non riconosce i lavori extra a fine cantiere",
+      solution: "Ogni variante viene creata in Edilizia in Cloud con descrizione, importo aggiuntivo e fotografia. Il cliente riceve un link su WhatsApp, legge, approva e firma digitalmente. La variante si aggiunge automaticamente al totale commessa. Fine delle discussioni a saldo.",
+      economicBenefit: "+ 18%",
+      benefitLabel: "di lavori extra recuperati e fatturati rispetto a prima",
+    },
+    {
+      icon: ClipboardList,
+      problem: "Rapportini giornalieri: non li compila nessuno — e costa caro in caso di dispute",
+      solution: "Il rapportino si fa dall'app in 3 minuti a fine turno: ore lavorate, materiali usati, foto avanzamento, note. Il cantiere ha uno storico cronologico completo. In caso di contestazione del cliente, hai tutto documentato con timestamp e geolocalizzazione.",
+      economicBenefit: "€ 0",
+      benefitLabel: "rischi legali per mancata documentazione SAL",
+    },
+    {
+      icon: MapPin,
+      problem: "Non sai dove sono le tue squadre — e se stanno davvero lavorando",
+      solution: "L'app mostra la posizione dell'operaio quando timbra l'entrata/uscita dal cantiere (geofencing opzionale). Non serve il GPS permanente — solo la conferma di presenze reale. Ore pagate = ore in cantiere. Il controllo torna a te.",
+      economicBenefit: "−22%",
+      benefitLabel: "ore pagate non in cantiere nel primo trimestre di utilizzo",
+    },
+    {
+      icon: Shield,
+      problem: "Sicurezza: cartelli, DVR, DPI, PSC — tutto su carta, sempre incompleto",
+      solution: "Il modulo sicurezza gestisce: cartelli di cantiere digitali, consegna DPI firmata dall'operaio via app, scadenze visite mediche con alert automatico, PSC allegato alla commessa. In caso di ispezione ASL hai tutto in 30 secondi.",
+      economicBenefit: "−100%",
+      benefitLabel: "sanzioni per documentazione sicurezza mancante",
+    },
+  ],
+  verticalFeaturesTitle: "Gestionale ristrutturazione: dal preventivo alla firma finale",
+  verticalFeaturesSubtitle: "Rapportini, varianti, GPS squadre, sicurezza cantiere, SAL, firma digitale. Tutto in un unico sistema — usato dagli operai in cantiere e da te dall'ufficio o da casa.",
+  demoLabel: "Vedi come un'impresa di ristrutturazione protegge i margini su 5 cantieri attivi con varianti e rapportini digitali",
+
   ctaTitle: (
     <>
       <span className="text-white">Ogni variante documentata.</span>{" "}
-      <span className="text-[#F97415]">Ogni bonus incassato.</span>
+      <span className="text-[#F97415]">Ogni margine protetto.</span>
     </>
   ),
-  ctaSubtitle: "Vedi in 30 minuti come gestire ristrutturazioni, bonus fiscali e clienti privati — tutto da un unico posto, senza più cartelle condivise e WhatsApp.",
+  ctaSubtitle: "30 minuti di demo: ti mostriamo come tracciare varianti, rapportini e costi reali sul tuo tipo di cantiere — con i tuoi numeri. Nessun impegno.",
 
   schemaFaq: [
     {

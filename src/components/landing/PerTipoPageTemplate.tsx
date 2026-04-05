@@ -9,7 +9,7 @@ import {
   CheckCircle2, ArrowRight, Star, TrendingUp, Clock, Shield,
   ChevronDown, ChevronUp, XCircle, Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 
 
@@ -43,6 +43,14 @@ export interface CaseStudy {
 export interface FaqItem {
   q: string;
   a: string;
+}
+
+export interface VerticalFeature {
+  icon: LucideIcon;
+  problem: string;
+  solution: string;
+  economicBenefit: string;
+  benefitLabel: string;
 }
 
 export interface RoiData {
@@ -98,6 +106,12 @@ export interface PerTipoConfig {
   // CTA
   ctaTitle: JSX.Element;
   ctaSubtitle: string;
+  // Vertical features — required on all pages
+  verticalFeatures: VerticalFeature[];
+  verticalFeaturesTitle?: string;
+  verticalFeaturesSubtitle?: string;
+  // CTA customization
+  demoLabel?: string;
   // Schema
   schemaFaq: Array<{ q: string; a: string }>;
 }
@@ -124,16 +138,60 @@ function FaqAccordion({ item }: { item: FaqItem }) {
   );
 }
 
+function useCountUp(end: number, duration: number, trigger: boolean): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!trigger) return;
+    let frame = 0;
+    const totalFrames = Math.round(duration / 16);
+    const increment = end / totalFrames;
+    const timer = setInterval(() => {
+      frame++;
+      const next = Math.round(increment * frame);
+      if (frame >= totalFrames) {
+        setCount(end);
+        clearInterval(timer);
+      } else {
+        setCount(next);
+      }
+    }, 16);
+    return () => clearInterval(timer);
+  }, [trigger, end, duration]);
+  return count;
+}
+
+function parseStatValue(value: string): { prefix: string; num: number; suffix: string } {
+  const match = value.match(/^([^0-9]*)(\d+(?:\.\d+)?)([^0-9]*)$/);
+  if (!match) return { prefix: "", num: 0, suffix: value };
+  return { prefix: match[1], num: parseFloat(match[2]), suffix: match[3] };
+}
+
+function StatCounter({ value, trigger }: { value: string; trigger: boolean }) {
+  const parsed = parseStatValue(value);
+  const count = useCountUp(parsed.num, 1800, trigger);
+  if (parsed.num === 0) return <>{value}</>;
+  return <>{parsed.prefix}{count}{parsed.suffix}</>;
+}
+
 export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig }) {
   const heroAnim = useScrollAnimation();
   const socialAnim = useScrollAnimation({ threshold: 0.1 });
   const problemsAnim = useScrollAnimation();
+  const featuresAnim = useScrollAnimation();
   const roiAnim = useScrollAnimation();
   const transAnim = useScrollAnimation();
   const statsAnim = useScrollAnimation({ threshold: 0.2 });
   const modulesAnim = useScrollAnimation();
   const caseAnim = useScrollAnimation();
+  const garantieAnim = useScrollAnimation();
   const faqAnim = useScrollAnimation();
+
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useSEO({
     title: config.seoTitle,
@@ -170,11 +228,19 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
       <LandingNavbar />
 
       {/* ── HERO ── */}
+      <style>{`
+        @keyframes float { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-20px)} }
+        @keyframes float2 { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-14px)} }
+        @keyframes float3 { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-10px)} }
+        .hero-particle-1{animation:float 7s ease-in-out infinite}
+        .hero-particle-2{animation:float2 5s ease-in-out infinite 1s}
+        .hero-particle-3{animation:float3 9s ease-in-out infinite 2s}
+      `}</style>
       <section className="relative overflow-hidden pt-20 md:pt-32 pb-16 md:pb-28 bg-[#0d0d0d]">
-        {/* Background image */}
+        {/* Background image with parallax */}
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.13]"
-          style={{ backgroundImage: `url(${config.heroImage})` }}
+          style={{ backgroundImage: `url(${config.heroImage})`, transform: `translateY(${scrollY * 0.25}px)` }}
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(13,13,13,0.3) 0%, rgba(13,13,13,0.8) 60%, rgba(13,13,13,1) 100%)" }} />
@@ -182,6 +248,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
         <div className="absolute top-10 right-0 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.20) 0%, transparent 65%)" }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
+        {/* Floating particle orbs */}
+        <div className="hero-particle-1 absolute top-[15%] left-[8%] w-3 h-3 rounded-full bg-[#F97415]/40 blur-sm pointer-events-none" />
+        <div className="hero-particle-2 absolute top-[30%] right-[12%] w-2 h-2 rounded-full bg-[#F97415]/30 blur-sm pointer-events-none" />
+        <div className="hero-particle-3 absolute bottom-[20%] left-[20%] w-4 h-4 rounded-full bg-[#F97415]/20 blur-md pointer-events-none" />
 
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
@@ -263,11 +333,14 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             {config.problems.map((p, i) => (
               <div
                 key={i}
-                className={`flex gap-4 p-5 md:p-6 rounded-2xl bg-white border border-gray-200 hover:border-[#F97415]/30 hover:shadow-md transition-all duration-500 ${problemsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`relative flex gap-4 p-5 md:p-6 rounded-2xl bg-white border border-gray-200 hover:border-[#F97415]/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ${problemsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${150 + i * 80}ms` }}
               >
-                <span className="text-2xl flex-shrink-0 mt-0.5">{p.emoji}</span>
-                <div>
+                <span className="absolute top-3 right-4 text-[42px] font-extrabold text-gray-100 leading-none pointer-events-none select-none">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="text-2xl flex-shrink-0 mt-0.5 relative z-10">{p.emoji}</span>
+                <div className="relative z-10">
                   <h3 className="text-[#111111] font-bold text-sm md:text-base mb-1">{p.title}</h3>
                   <p className="text-gray-500 text-sm leading-relaxed">{p.desc}</p>
                 </div>
@@ -281,6 +354,53 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
         </div>
       </section>
+
+      {/* ── FEATURES VERTICALI (optional) ── */}
+      {config.verticalFeatures && config.verticalFeatures.length > 0 && (
+        <section className="py-16 md:py-28 bg-white">
+          <div ref={featuresAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6">
+            <div className={`text-center mb-14 transition-all duration-700 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+              <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+                Funzionalità per il tuo settore
+              </span>
+              <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">
+                {config.verticalFeaturesTitle ?? "Non un gestionale generico. Il tuo."}
+              </h2>
+              <p className="text-gray-500 text-lg max-w-2xl mx-auto">
+                {config.verticalFeaturesSubtitle ?? "Ogni funzionalità è stata costruita attorno a come lavora davvero la tua impresa — non attorno a come funziona il software."}
+              </p>
+            </div>
+            <div className="space-y-6">
+              {config.verticalFeatures.map((feat, i) => (
+                <div
+                  key={i}
+                  className={`grid md:grid-cols-12 gap-0 rounded-2xl border border-gray-200 overflow-hidden hover:border-[#F97415]/30 hover:shadow-lg transition-all duration-500 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  style={{ transitionDelay: `${150 + i * 100}ms` }}
+                >
+                  {/* Left: icon + problem */}
+                  <div className="md:col-span-3 bg-[#f8f9fa] p-6 md:p-8 flex flex-col items-start justify-center gap-4 border-b md:border-b-0 md:border-r border-gray-200">
+                    <div className="w-12 h-12 rounded-xl bg-[#F97415]/10 flex items-center justify-center">
+                      <feat.icon className="w-6 h-6 text-[#F97415]" />
+                    </div>
+                    <p className="text-[#111111] font-extrabold text-sm uppercase tracking-wide leading-snug">
+                      {feat.problem}
+                    </p>
+                  </div>
+                  {/* Center: solution */}
+                  <div className="md:col-span-6 p-6 md:p-8 flex items-center">
+                    <p className="text-gray-600 text-sm md:text-base leading-relaxed">{feat.solution}</p>
+                  </div>
+                  {/* Right: economic benefit */}
+                  <div className="md:col-span-3 bg-[#111111] p-6 md:p-8 flex flex-col items-center justify-center text-center gap-2">
+                    <p className="text-[#F97415] text-2xl md:text-3xl font-extrabold">{feat.economicBenefit}</p>
+                    <p className="text-white/50 text-xs uppercase tracking-widest">{feat.benefitLabel}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── ROI — QUANTO STAI PERDENDO ── */}
       <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
@@ -411,7 +531,9 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 className={`transition-all duration-700 ${statsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
                 style={{ transitionDelay: `${i * 120}ms` }}
               >
-                <p className="text-4xl md:text-5xl font-extrabold text-[#F97415] mb-2">{s.value}</p>
+                <p className="text-4xl md:text-5xl font-extrabold text-[#F97415] mb-2">
+                  <StatCounter value={s.value} trigger={statsAnim.isVisible} />
+                </p>
                 <p className="text-white font-bold text-sm mb-1">{s.label}</p>
                 <p className="text-white/40 text-xs">{s.sublabel}</p>
               </div>
@@ -514,6 +636,103 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         </div>
       </section>
 
+      {/* ── GARANZIE ── */}
+      <section className="py-16 md:py-24 bg-[#f8f9fa] relative">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className={`text-center mb-12 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-green-700 bg-green-100 border border-green-200">
+              Garanzie — senza asterischi
+            </span>
+            <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111]">
+              Il rischio è nostro. Non tuo.
+            </h2>
+            <p className="text-gray-500 text-lg mt-3 max-w-2xl mx-auto">
+              Puoi provare Edilizia in Cloud senza mettere soldi sul tavolo.<br />
+              Se non funziona per te, esci. Punto.
+            </p>
+          </div>
+          <div ref={garantieAnim.ref as React.RefObject<HTMLDivElement>} className="grid md:grid-cols-2 gap-4">
+            {/* GARANZIA 1 */}
+            <div className={`rounded-2xl border-2 border-green-200 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "0ms" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-xl">🔓</div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-700">Garanzia 1</p>
+                  <p className="font-extrabold text-[#111111] text-lg leading-tight">Prova 31 Giorni</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-gray-600 text-sm leading-relaxed">
+                <p>31 giorni gratis. <strong className="text-[#111111]">Nessuna carta di credito.</strong></p>
+                <p>Nessun commerciale che ti chiama.</p>
+                <p>Entri, lo usi, decidi tu.</p>
+                <p className="mt-3 pt-3 border-t border-gray-100">
+                  Se non fa per te — esci.<br />
+                  <strong className="text-[#111111]">Nessuno ti chiede perché.</strong>
+                </p>
+              </div>
+            </div>
+            {/* GARANZIA 2 */}
+            <div className={`rounded-2xl border-2 border-blue-200 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "100ms" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">⚙️</div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Garanzia 2</p>
+                  <p className="font-extrabold text-[#111111] text-lg leading-tight">Onboarding Dedicato</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-gray-600 text-sm leading-relaxed">
+                <p><strong className="text-[#111111]">Non ti lasciamo da solo davanti a uno schermo.</strong></p>
+                <p>Entro 48 ore dall'attivazione, un nostro tecnico configura tutto con te: cantieri, squadre, clienti, fornitori.</p>
+                <p className="mt-3 pt-3 border-t border-gray-100">
+                  Sei operativo dal primo giorno.<br />
+                  <strong className="text-[#111111]">O non ti addebitiamo nulla finché non lo sei.</strong>
+                </p>
+              </div>
+            </div>
+            {/* GARANZIA 3 */}
+            <div className={`rounded-2xl border-2 border-[#F97415]/30 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "200ms" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-[#F97415]/10 flex items-center justify-center text-xl">🎯</div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#F97415]">Garanzia 3</p>
+                  <p className="font-extrabold text-[#111111] text-lg leading-tight">Risultato 60 Giorni</p>
+                </div>
+              </div>
+              <div className="space-y-1.5 text-gray-600 text-sm leading-relaxed">
+                <p className="font-semibold text-[#111111]">Entro 60 giorni sai esattamente:</p>
+                <p>→ Quanto hai speso su ogni cantiere aperto</p>
+                <p>→ Dove sono le tue squadre e cosa stanno facendo</p>
+                <p>→ Quante ore hai pagato e quante erano in cantiere</p>
+                <p>→ Cosa devi incassare e da chi — senza aprire Excel</p>
+                <p>→ Se stai guadagnando o perdendo su ogni lavoro</p>
+                <p className="mt-3 pt-3 border-t border-gray-100">
+                  <strong className="text-[#111111]">Se dopo 60 giorni non hai tutto questo —<br />ti rimborsiamo ogni centesimo. Senza discussioni.</strong>
+                </p>
+              </div>
+            </div>
+            {/* GARANZIA 4 */}
+            <div className={`rounded-2xl border-2 border-purple-200 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "300ms" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-xl">🔄</div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-purple-700">Garanzia 4</p>
+                  <p className="font-extrabold text-[#111111] text-lg leading-tight">Rottamazione</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-gray-600 text-sm leading-relaxed">
+                <p><strong className="text-[#111111]">Stai già pagando un altro gestionale?</strong></p>
+                <p>Mandaci la prova dell'abbonamento attivo.</p>
+                <p>Pensiamo noi a tutto — importiamo i tuoi dati, configuriamo insieme, ti mettiamo operativo senza perdere un giorno.</p>
+                <p className="mt-3 pt-3 border-t border-gray-100">
+                  E per ringraziarti del coraggio di cambiare,<br />
+                  <strong className="text-[#111111]">accedi a Edilizia in Cloud con uno sconto dedicato.<br />Cambi. Non perdi niente.</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── FAQ ── */}
       <section className="py-16 md:py-24 bg-[#f8f9fa]">
         <div ref={faqAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-3xl mx-auto px-6">
@@ -533,17 +752,25 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.12) 0%, transparent 100%)" }} />
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
+          {/* Urgency row */}
+          <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/30 bg-[#F97415]/10">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
+            <p className="text-[#F97415] text-sm font-bold">
+              ⏰ 31 giorni gratis + onboarding dedicato incluso — senza carta di credito
+            </p>
+          </div>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">{config.ctaTitle}</h2>
           <p className="text-white/50 text-lg mb-10">{config.ctaSubtitle}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <Link to="/demo" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
-              Richiedi Demo Gratuita <ArrowRight size={18} />
+              Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
             <Link to="/prezzi" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all">
               Vedi i Prezzi
             </Link>
           </div>
-          <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+          {/* Trust icons row */}
+          <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-6">
             {[
               { Icon: Shield, label: "Dati al sicuro", sub: "Server europei · GDPR" },
               { Icon: Clock, label: "Setup in 48h", sub: "Il team ti configura tutto" },
@@ -558,6 +785,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               </div>
             ))}
           </div>
+          {/* Micro-copy garanzia */}
+          <p className="text-white/25 text-xs">
+            Nessuna carta di credito. Nessun contratto. Cancelli quando vuoi — senza spiegazioni.
+          </p>
         </div>
       </section>
 

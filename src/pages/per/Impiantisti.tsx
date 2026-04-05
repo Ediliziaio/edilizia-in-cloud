@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
     </>
   ),
   heroSubtitle:
-    "I tuoi tecnici passano metà della giornata ad aspettare istruzioni o a tornare in magazzino per un pezzo mancante. Con Edilizia in Cloud ogni tecnico sa dove andare, cosa portare e cosa fare — senza chiamarti ogni cinque minuti.",
+    "I tuoi tecnici ti chiamano 4-5 volte al giorno per sapere dove andare e cosa portare. Il furgone parte senza il pressostato giusto. Le ore di trasferta non vengono mai fatturate. Con Edilizia in Cloud ogni tecnico sa tutto prima di uscire dal magazzino — e tu smetti di essere il collo di bottiglia della tua azienda.",
   heroImage:
     "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1400&q=80",
 
@@ -176,14 +176,48 @@ const config: PerTipoConfig = {
     },
   ],
 
+  verticalFeatures: [
+    {
+      icon: Wrench,
+      problem: "Ordini di lavoro su WhatsApp: il tecnico arriva senza le informazioni giuste",
+      solution: "Crea l'ordine di lavoro in 2 minuti: indirizzo, tipo impianto, storico interventi, materiali previsti, note tecniche. Il tecnico lo vede sull'app prima di partire. Alla chiusura carica foto e fa firmare il cliente. Zero telefonate.",
+      economicBenefit: "+3 interventi/gg",
+      benefitLabel: "con lo stesso numero di tecnici",
+    },
+    {
+      icon: Package,
+      problem: "Magazzino ricambi: il tecnico arriva senza il pezzo giusto, torna indietro, perdi 2 ore",
+      solution: "Ogni pezzo è tracciato: magazzino centrale + magazzino furgone tecnico. Quando un ricambio viene usato in un intervento, si scala automaticamente. Alert quando scendi sotto la scorta minima. Zero uscite a vuoto.",
+      economicBenefit: "€ 6.500",
+      benefitLabel: "risparmiati l'anno in viaggi a vuoto e ricambi sbagliati",
+    },
+    {
+      icon: Clock,
+      problem: "Ore di trasferta, collaudo, attesa: nessuno le registra — e non vengono fatturate",
+      solution: "Il timesheet parte automaticamente quando il tecnico arriva sul posto e si chiude quando firma la fine intervento. Ore, trasferta e straordinario vengono imputati alla commessa. Nessuna ora persa. Nessuna perdita in fattura.",
+      economicBenefit: "€ 9.360",
+      benefitLabel: "di ore non fatturate recuperate ogni anno",
+    },
+    {
+      icon: BarChart3,
+      problem: "Contratti di manutenzione: le scadenze si dimenticano, i rinnovi si perdono",
+      solution: "Il modulo manutenzioni gestisce i contratti ricorrenti con scadenzario automatico, alert pre-scadenza, SAL periodici e fatturazione automatica a canone. Le entrate ricorrenti sono pianificate. Zero dimenticanze.",
+      economicBenefit: "−100%",
+      benefitLabel: "contratti manutenzione persi per scadenza dimenticata",
+    },
+  ],
+  verticalFeaturesTitle: "Gestionale impiantisti: dal primo intervento al contratto di manutenzione",
+  verticalFeaturesSubtitle: "Non un CRM. Non un calendario. Un sistema operativo completo per chi ha tecnici in campo ogni giorno — costruito attorno a come funziona davvero un'impresa impiantistica.",
+  demoLabel: "Vedi come un'impresa con 8 tecnici in campo elimina le telefonate operative e aumenta gli interventi del 30%",
+
   ctaTitle: (
     <>
-      <span className="text-white">I tuoi tecnici in campo.</span>{" "}
-      <span className="text-[#F97415]">I tuoi soldi in cassa.</span>
+      <span className="text-white">Meno telefonate dei tecnici.</span>{" "}
+      <span className="text-[#F97415]">Più interventi che rendono.</span>
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo gratuita: ti mostriamo come un tuo tecnico userebbe l'app domani mattina e quanti interventi in più puoi gestire già questa settimana.",
+    "30 minuti di demo: ti mostriamo come un tuo tecnico userebbe l'app domani mattina — e quanti interventi in più riesci a gestire già questa settimana.",
 
   schemaFaq: [
     {
