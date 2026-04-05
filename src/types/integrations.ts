@@ -1,6 +1,6 @@
 // Types for the Meta Lead Ads integration module
 
-export type IntegrationProvider = "meta" | "google_calendar";
+export type IntegrationProvider = "meta" | "google_calendar" | "apple_calendar";
 
 export type IntegrationStatus = "connected" | "disconnected" | "error" | "token_expired";
 

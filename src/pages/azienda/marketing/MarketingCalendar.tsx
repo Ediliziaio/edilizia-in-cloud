@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -55,9 +56,10 @@ export default function MarketingCalendar() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const { isGoogleConnected } = useGoogleCalendarSync();
+  const { isAppleConnected } = useAppleCalendarSync();
 
   // Fetch Google busy slots for marketing calendar overlay
-  const { data: busySlots = [] } = useQuery({
+  const { data: googleBusySlots = [] } = useQuery({
     queryKey: ["gcal-busy-slots", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -70,6 +72,27 @@ export default function MarketingCalendar() {
     enabled: !!companyId && isGoogleConnected,
     staleTime: 2 * 60 * 1000,
   });
+
+  // Fetch Apple Calendar busy slots for marketing calendar overlay
+  const { data: appleBusySlots = [] } = useQuery({
+    queryKey: ["apple-busy-slots", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("apple_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
+        .eq("company_id", companyId);
+      return (data || []).map((s: any) => ({
+        ...s,
+        google_calendar_id: s.caldav_calendar_url,
+        provider: "apple",
+      }));
+    },
+    enabled: !!companyId && isAppleConnected,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const busySlots = [...googleBusySlots, ...appleBusySlots];
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   const [calendarView, setCalendarView] = useState<CalendarView>("week");

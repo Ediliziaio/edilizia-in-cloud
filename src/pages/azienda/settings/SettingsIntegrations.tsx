@@ -106,6 +106,21 @@ export default function SettingsIntegrations() {
     enabled: !!companyId && !!userId,
   });
 
+  const { data: appleCalConnection } = useQuery({
+    queryKey: ["apple-calendar-connection", companyId, userId],
+    queryFn: async () => {
+      if (!companyId || !userId) return null;
+      const { data } = await supabase
+        .from("apple_calendar_connections")
+        .select("id, status, apple_id_email, updated_at")
+        .eq("company_id", companyId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId && !!userId,
+  });
+
   const { data: waConfig } = useQuery({
     queryKey: ["whatsapp-config-status", companyId],
     queryFn: async () => {
@@ -178,6 +193,22 @@ export default function SettingsIntegrations() {
       }
     : null;
 
+  const appleCalIntegrationLike: Integration | null = appleCalConnection
+    ? {
+        id: appleCalConnection.id,
+        company_id: companyId,
+        provider: "apple_calendar" as const,
+        status: appleCalConnection.status as IntegrationStatus,
+        connected_by: null,
+        health: "ok" as IntegrationHealth,
+        last_sync_at: null,
+        last_error_code: null,
+        last_error_message: null,
+        created_at: "",
+        updated_at: appleCalConnection.updated_at,
+      }
+    : null;
+
   const mainIntegrations = useMemo(() => {
     const items = [
       {
@@ -192,6 +223,13 @@ export default function SettingsIntegrations() {
         name: "Google Calendar",
         description: "Sincronizza appuntamenti e blocca slot occupati.",
         integration: gcalIntegrationLike,
+        stats: null as { pages: number; forms: number } | null,
+      },
+      {
+        provider: "apple_calendar" as const,
+        name: "Apple Calendar (iCloud)",
+        description: "Sincronizza appuntamenti e blocca slot occupati tramite CalDAV/iCloud.",
+        integration: appleCalIntegrationLike,
         stats: null as { pages: number; forms: number } | null,
       },
     ];
@@ -281,14 +319,14 @@ export default function SettingsIntegrations() {
             integration={item.integration}
             stats={item.stats}
             onConnect={() => {
-              if (item.provider === "google_calendar") {
+              if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
                 handleMetaConnect();
               }
             }}
             onManage={() => {
-              if (item.provider === "google_calendar") {
+              if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
                 handleMetaConnect();

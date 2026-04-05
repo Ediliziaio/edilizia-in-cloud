@@ -206,10 +206,14 @@ export default function MarketingCalendarWeekView({
                         {slotBusy.map((busy, bi) => (
                           <Tooltip key={`busy-${bi}`}>
                             <TooltipTrigger asChild>
-                              <div className="absolute inset-0 bg-red-100/60 dark:bg-red-900/20 border-l-2 border-red-400/60 pointer-events-none z-0" />
+                              <div className={`absolute inset-0 pointer-events-none z-0 border-l-2 ${
+                                busy.provider === "apple"
+                                  ? "bg-gray-100/60 dark:bg-gray-800/20 border-gray-400/60"
+                                  : "bg-red-100/60 dark:bg-red-900/20 border-red-400/60"
+                              }`} />
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                              <span className="text-xs">{busy.summary || "Occupato (Google)"}</span>
+                              <span className="text-xs">{busy.summary || (busy.provider === "apple" ? "Occupato (Apple)" : "Occupato (Google)")}</span>
                             </TooltipContent>
                           </Tooltip>
                         ))}

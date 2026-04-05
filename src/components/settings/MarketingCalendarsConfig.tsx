@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CalendarDialog from "./CalendarDialog";
 import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
+import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
 
 type MarketingCalendar = {
   id: string;
@@ -652,8 +653,9 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: COLLEGAMENTI */}
-        <TabsContent value="connections" className="space-y-4">
+        <TabsContent value="connections" className="space-y-6">
           <GoogleCalendarConnectionTab />
+          <AppleCalendarConnectionTab />
         </TabsContent>
       </Tabs>
 

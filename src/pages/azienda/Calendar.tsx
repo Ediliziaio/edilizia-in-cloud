@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
@@ -42,6 +43,7 @@ function CalendarInner() {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { isGoogleConnected, pullBusySlots, reconcileSync, syncMode } = useGoogleCalendarSync();
+  const { isAppleConnected } = useAppleCalendarSync();
   const [view, setView] = useState<CalendarViewType>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -193,7 +195,7 @@ function CalendarInner() {
   });
 
   // Fetch Google Calendar busy slots
-  const { data: busySlots = [] } = useQuery({
+  const { data: googleBusySlots = [] } = useQuery({
     queryKey: ["gcal-busy-slots", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -207,6 +209,27 @@ function CalendarInner() {
     enabled: !!effectiveCompany?.id && isGoogleConnected,
     staleTime: 2 * 60 * 1000,
   });
+
+  // Fetch Apple Calendar busy slots
+  const { data: appleBusySlots = [] } = useQuery({
+    queryKey: ["apple-busy-slots", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data } = await supabase
+        .from("apple_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
+        .eq("company_id", effectiveCompany.id);
+      return (data || []).map((s: any) => ({
+        ...s,
+        google_calendar_id: s.caldav_calendar_url,
+        provider: "apple",
+      })) as GoogleBusySlot[];
+    },
+    enabled: !!effectiveCompany?.id && isAppleConnected,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const busySlots = [...googleBusySlots, ...appleBusySlots];
 
   // Fetch synced appointment IDs for badge display
   const { data: syncedAppointmentIds } = useQuery({
@@ -591,6 +614,12 @@ function CalendarInner() {
             <Badge variant="outline" className="gap-1 text-green-600 border-green-300 hidden sm:flex">
               <CheckCircle2 className="h-3 w-3" />
               <span className="text-xs">Google Sync</span>
+            </Badge>
+          )}
+          {isAppleConnected && (
+            <Badge variant="outline" className="gap-1 text-gray-600 border-gray-300 hidden sm:flex">
+              <CheckCircle2 className="h-3 w-3" />
+              <span className="text-xs">Apple Sync</span>
             </Badge>
           )}
 
