@@ -46,6 +46,7 @@ import {
   Image,
   Wrench,
   Settings,
+  MousePointerClick,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -156,6 +157,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewMarketingOpportunities" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
+      { title: "Google Ads", url: "/azienda/marketing/google-ads", icon: MousePointerClick, permissionKey: "canViewMarketingReports" },
     ],
   },
 
@@ -214,4 +216,5 @@ export const marketingNavItems: NavItem[] = [
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
+  { title: "Google Ads", url: "/azienda/marketing/google-ads", icon: MousePointerClick, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
 ];
