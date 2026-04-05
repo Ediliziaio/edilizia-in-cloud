@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
         },
         body: JSON.stringify({
-          action: "sync",
+          action: "full-sync",
           userId: conn.user_id,
           companyId: conn.company_id,
         }),
@@ -75,28 +75,59 @@ Deno.serve(async (req) => {
   if (action === "register_watch") {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    
-    const { data: { user } } = await admin.auth.getUser(token);
-    if (!user) return json({ error: "Unauthorized" }, 401);
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const body = await req.json();
-    const { companyId } = body;
+    const { companyId, userId: bodyUserId } = body;
     if (!companyId) return json({ error: "companyId required" }, 400);
+
+    let resolvedUserId: string;
+
+    if (token === serviceRoleKey) {
+      // Called from handleCallback (auto-register after OAuth): find the just-connected user
+      if (bodyUserId) {
+        resolvedUserId = bodyUserId;
+      } else {
+        // Find the most recently connected user for this company
+        const { data: latestConn } = await admin
+          .from("google_calendar_connections")
+          .select("user_id")
+          .eq("company_id", companyId)
+          .eq("status", "connected")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!latestConn) return json({ error: "No connected Google Calendar" }, 404);
+        resolvedUserId = latestConn.user_id;
+      }
+    } else {
+      const { data: { user } } = await admin.auth.getUser(token);
+      if (!user) return json({ error: "Unauthorized" }, 401);
+      resolvedUserId = user.id;
+    }
 
     const { data: conn } = await admin
       .from("google_calendar_connections")
       .select("*")
       .eq("company_id", companyId)
-      .eq("user_id", user.id)
+      .eq("user_id", resolvedUserId)
       .eq("status", "connected")
       .maybeSingle();
 
     if (!conn) return json({ error: "No connected Google Calendar" }, 404);
 
+    // B13 Fix: use primary_calendar_id from settings, not the non-existent calendar_id field
+    const { data: settings } = await admin
+      .from("google_calendar_settings")
+      .select("primary_calendar_id")
+      .eq("company_id", companyId)
+      .eq("user_id", resolvedUserId)
+      .maybeSingle();
+
     const encKey = getEncryptionKey();
     const accessToken = decrypt(conn.access_token_encrypted, encKey);
 
-    const calendarId = conn.calendar_id || "primary";
+    const calendarId = settings?.primary_calendar_id || "primary";
     const channelId = crypto.randomUUID();
     const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-webhook`;
     const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -200,7 +231,7 @@ Deno.serve(async (req) => {
 
     const { data: expiring } = await admin
       .from("google_calendar_connections")
-      .select("id, user_id, company_id, calendar_id, access_token_encrypted, refresh_token_encrypted, webhook_channel_id, webhook_resource_id")
+      .select("id, user_id, company_id, access_token_encrypted, refresh_token_encrypted, webhook_channel_id, webhook_resource_id")
       .eq("status", "connected")
       .not("webhook_channel_id", "is", null)
       .lt("webhook_expiry_at", cutoff);
@@ -228,9 +259,15 @@ Deno.serve(async (req) => {
             }).catch(() => {}); // Ignore errors on stop
           }
 
-          // Register new watch
+          // Register new watch — B13 Fix: fetch primary_calendar_id from settings
+          const { data: connSettings } = await admin
+            .from("google_calendar_settings")
+            .select("primary_calendar_id")
+            .eq("company_id", conn.company_id)
+            .eq("user_id", conn.user_id)
+            .maybeSingle();
           const accessToken = decrypt(conn.access_token_encrypted, encKey);
-          const calendarId = conn.calendar_id || "primary";
+          const calendarId = connSettings?.primary_calendar_id || "primary";
           const newChannelId = crypto.randomUUID();
           const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-webhook`;
           const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000;

@@ -494,6 +494,11 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
       }
     } else if (allowImport) {
       // New Google-only event → import to CRM
+      // B12 Fix: only import events with [CRM] prefix unless import_all_google_events is enabled
+      const importAll = (settings as any)?.import_all_google_events || false;
+      const hasCrmPrefix = (gEvent.summary || "").startsWith("[CRM]");
+      if (!importAll && !hasCrmPrefix) continue;
+
       const fields = parseGoogleEventToCrmFields(gEvent);
       const { data: newApt } = await admin
         .from("appointments")
@@ -776,32 +781,43 @@ Deno.serve(async (req) => {
       return cronFullSync();
     }
 
-    // All other actions require authenticated user
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
+    // Service-role calls (from DB trigger): accept userId from body
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: claimsErr } = await supabase.auth.getUser(token);
-    if (claimsErr || !user) {
-      return json({ error: "Unauthorized" }, 401);
-    }
-
-    const userId = user.id;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    let userId: string;
     const { companyId, appointmentId } = body;
+
+    if (token === serviceRoleKey) {
+      // Called from PostgreSQL trigger via pg_net with service_role_key
+      userId = body.userId;
+      if (!userId) return json({ error: "userId required for service calls" }, 400);
+    } else {
+      // Standard authenticated user call
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+
+      const { data: { user }, error: claimsErr } = await supabase.auth.getUser(token);
+      if (claimsErr || !user) {
+        return json({ error: "Unauthorized" }, 401);
+      }
+      userId = user.id;
+    }
 
     if (!companyId) return json({ error: "companyId required" }, 400);
 
-    // P0 Security: Validate companyId matches authenticated user's profile
-    const { data: profile } = await getSupabaseAdmin()
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    if (!profile || profile.company_id !== companyId) {
-      return json({ error: "Company mismatch" }, 403);
+    // P0 Security: Validate companyId matches authenticated user's profile (skip for service_role calls)
+    if (token !== serviceRoleKey) {
+      const { data: profile } = await getSupabaseAdmin()
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+      if (!profile || profile.company_id !== companyId) {
+        return json({ error: "Company mismatch" }, 403);
+      }
     }
 
     switch (action) {

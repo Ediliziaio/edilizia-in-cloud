@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
+import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
@@ -20,6 +21,7 @@ interface Props {
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
   slotDurationMinutes?: number;
   onResizeAppointment?: (id: string, newEndTime: string) => void;
+  busySlots?: GoogleBusySlot[];
 }
 
 const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
@@ -43,6 +45,7 @@ export default function MarketingCalendarWeekView({
   onDropAppointment,
   slotDurationMinutes = 30,
   onResizeAppointment,
+  busySlots = [],
 }: Props) {
   const justDragged = useRef(false);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
@@ -70,6 +73,20 @@ export default function MarketingCalendarWeekView({
     });
     return maps;
   }, [travelLegs]);
+
+  const getBusySlotsForDayHour = (day: Date, slotTime: string): GoogleBusySlot[] => {
+    const slotStart = timeToMin(slotTime);
+    const slotEnd = slotStart + slotDurationMinutes;
+    const dayStr = format(day, "yyyy-MM-dd");
+    return busySlots.filter((s) => {
+      if (s.is_all_day) return false;
+      const sDate = s.start_at.slice(0, 10);
+      if (sDate !== dayStr) return false;
+      const sMin = timeToMin(s.start_at.slice(11, 16));
+      const eMin = timeToMin(s.end_at.slice(11, 16));
+      return sMin < slotEnd && eMin > slotStart;
+    });
+  };
 
   const getAppointmentsForSlot = (day: Date, slotTime: string) => {
     const slotStart = timeToMin(slotTime);
@@ -172,6 +189,7 @@ export default function MarketingCalendarWeekView({
                     const slotApts = getAppointmentsForSlot(day, slotTime);
                     const dateKey = format(day, "yyyy-MM-dd");
                     const dayLegMap = travelLegMaps[dateKey] || {};
+                    const slotBusy = getBusySlotsForDayHour(day, slotTime);
 
                     return (
                       <DroppableSlot
@@ -185,6 +203,16 @@ export default function MarketingCalendarWeekView({
                         )}
                         onClick={() => { if (!justDragged.current) onClickSlot(day, h, m); }}
                       >
+                        {slotBusy.map((busy, bi) => (
+                          <Tooltip key={`busy-${bi}`}>
+                            <TooltipTrigger asChild>
+                              <div className="absolute inset-0 bg-red-100/60 dark:bg-red-900/20 border-l-2 border-red-400/60 pointer-events-none z-0" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <span className="text-xs">{busy.summary || "Occupato (Google)"}</span>
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
                         {slotApts.map((apt) => {
                           const leg = dayLegMap[apt.id];
                           const hasNoCoords = apt.lat == null || apt.lng == null;

@@ -26,7 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import { exportAppointmentsIcal } from "@/lib/icalExport";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -211,13 +212,15 @@ function CalendarInner() {
   const { data: syncedAppointmentIds } = useQuery({
     queryKey: ["gcal-synced-ids", effectiveCompany?.id],
     queryFn: async () => {
-      if (!effectiveCompany?.id) return new Set<string>();
+      if (!effectiveCompany?.id) return { synced: new Set<string>(), googleImported: new Set<string>() };
       const { data, error } = await supabase
         .from("google_calendar_event_map")
-        .select("appointment_id")
+        .select("appointment_id, source")
         .eq("company_id", effectiveCompany.id);
       if (error) throw error;
-      return new Set((data || []).map((r: any) => r.appointment_id));
+      const synced = new Set((data || []).map((r: any) => r.appointment_id as string));
+      const googleImported = new Set((data || []).filter((r: any) => r.source === "google").map((r: any) => r.appointment_id as string));
+      return { synced, googleImported };
     },
     enabled: !!effectiveCompany?.id && isGoogleConnected,
     staleTime: 2 * 60 * 1000,
@@ -584,6 +587,13 @@ function CalendarInner() {
             <span className="hidden sm:inline">Appuntamento</span>
           </Button>
 
+          {isGoogleConnected && (
+            <Badge variant="outline" className="gap-1 text-green-600 border-green-300 hidden sm:flex">
+              <CheckCircle2 className="h-3 w-3" />
+              <span className="text-xs">Google Sync</span>
+            </Badge>
+          )}
+
           {/* Secondary actions dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -604,9 +614,19 @@ function CalendarInner() {
                   disabled={syncing}
                   onSelect={async () => {
                     setSyncing(true);
-                    await pullBusySlots();
-                    queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
-                    setSyncing(false);
+                    try {
+                      const result = await pullBusySlots();
+                      queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
+                      queryClient.invalidateQueries({ queryKey: ["gcal-synced-ids"] });
+                      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+                      toast.success("Sincronizzazione completata", {
+                        description: `${(result as any)?.pulled ?? 0} eventi importati`,
+                      });
+                    } catch {
+                      toast.error("Errore sincronizzazione Google Calendar");
+                    } finally {
+                      setSyncing(false);
+                    }
                   }}
                   className="gap-2"
                 >
@@ -854,7 +874,7 @@ function CalendarInner() {
               busySlots={showGoogleBusy ? busySlots : []}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              syncedAppointmentIds={syncedAppointmentIds}
+              syncedAppointmentIds={syncedAppointmentIds?.synced}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
@@ -869,7 +889,7 @@ function CalendarInner() {
               busySlots={showGoogleBusy ? busySlots : []}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              syncedAppointmentIds={syncedAppointmentIds}
+              syncedAppointmentIds={syncedAppointmentIds?.synced}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
@@ -884,7 +904,7 @@ function CalendarInner() {
               busySlots={showGoogleBusy ? busySlots : []}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              syncedAppointmentIds={syncedAppointmentIds}
+              syncedAppointmentIds={syncedAppointmentIds?.synced}
               hiddenEventTypes={hiddenEventTypes}
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}

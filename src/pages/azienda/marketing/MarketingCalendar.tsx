@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -53,6 +54,22 @@ export default function MarketingCalendar() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const { isGoogleConnected } = useGoogleCalendarSync();
+
+  // Fetch Google busy slots for marketing calendar overlay
+  const { data: busySlots = [] } = useQuery({
+    queryKey: ["gcal-busy-slots", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("google_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
+        .eq("company_id", companyId);
+      return data || [];
+    },
+    enabled: !!companyId && isGoogleConnected,
+    staleTime: 2 * 60 * 1000,
+  });
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
@@ -619,6 +636,7 @@ export default function MarketingCalendar() {
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
+                busySlots={busySlots}
               />
             )}
             {calendarView === "day" && (
@@ -632,6 +650,7 @@ export default function MarketingCalendar() {
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
+                busySlots={busySlots}
               />
             )}
             {calendarView === "month" && (

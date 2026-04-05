@@ -25,7 +25,7 @@ async function getRedirectUri(): Promise<string> {
 
 // ---- ACTION HANDLERS ----
 
-async function handleStart(userId: string, companyId: string): Promise<Response> {
+async function handleStart(req: Request, userId: string, companyId: string): Promise<Response> {
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
   if (!clientId) {
     return new Response(JSON.stringify({ error: "Google Calendar non configurato. Contatta l'amministratore." }), {
@@ -158,10 +158,26 @@ async function handleCallback(req: Request): Promise<Response> {
       .eq("user_id", state.userId);
   }
 
+  // FASE 4: Auto-register webhook watch after successful OAuth
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    await fetch(`${supabaseUrl}/functions/v1/google-calendar-webhook?action=register_watch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ companyId: state.companyId, userId: state.userId }),
+    });
+  } catch (e) {
+    console.warn("Auto watch registration failed (non-critical):", e);
+  }
+
   return buildCallbackHtml("success");
 }
 
-async function handleDisconnect(userId: string, companyId: string): Promise<Response> {
+async function handleDisconnect(req: Request, userId: string, companyId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
 
   // Try to revoke token first
@@ -193,7 +209,7 @@ async function handleDisconnect(userId: string, companyId: string): Promise<Resp
   });
 }
 
-async function handleRefresh(userId: string, companyId: string): Promise<Response> {
+async function handleRefresh(req: Request, userId: string, companyId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
   const encKey = getEncryptionKey();
 
@@ -256,7 +272,7 @@ async function handleRefresh(userId: string, companyId: string): Promise<Respons
   });
 }
 
-async function handleListCalendars(userId: string, companyId: string): Promise<Response> {
+async function handleListCalendars(req: Request, userId: string, companyId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
   const encKey = getEncryptionKey();
 
@@ -277,7 +293,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
   // Check if token needs refresh
   let accessToken = decrypt(conn.access_token_encrypted, encKey);
   if (conn.token_expires_at && new Date(conn.token_expires_at) < new Date()) {
-    const refreshRes = await handleRefresh(userId, companyId);
+    const refreshRes = await handleRefresh(req, userId, companyId);
     if (!refreshRes.ok) {
       return refreshRes;
     }
@@ -319,7 +335,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
   });
 }
 
-function buildCallbackHtml(status: string, error?: string): Response {
+function buildCallbackHtml(status: string, error?: string, req?: Request): Response {
   // Use Supabase URL origin as a safe fallback for postMessage target
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   // Extract the project ref to build the preview/published origins
@@ -340,9 +356,8 @@ function buildCallbackHtml(status: string, error?: string): Response {
     }
     window.close();
   </script><p>${status === "success" ? "Connesso! Puoi chiudere questa finestra." : "Errore: " + (error || "sconosciuto")}</p></body></html>`;
-  return new Response(html, {
-    headers: { ...getCorsHeaders(req), "Content-Type": "text/html" },
-  });
+  const headers = req ? { ...getCorsHeaders(req), "Content-Type": "text/html" } : { "Content-Type": "text/html" };
+  return new Response(html, { headers });
 }
 
 // ---- MAIN HANDLER ----
@@ -409,13 +424,13 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "start":
-        return handleStart(userId, companyId);
+        return handleStart(req, userId, companyId);
       case "disconnect":
-        return handleDisconnect(userId, companyId);
+        return handleDisconnect(req, userId, companyId);
       case "refresh":
-        return handleRefresh(userId, companyId);
+        return handleRefresh(req, userId, companyId);
       case "list-calendars":
-        return handleListCalendars(userId, companyId);
+        return handleListCalendars(req, userId, companyId);
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,

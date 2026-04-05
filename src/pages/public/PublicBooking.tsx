@@ -52,8 +52,40 @@ export default function PublicBooking() {
     enabled: !!calendar?.id,
   });
 
-  // Fetch existing appointments for the selected date
+  // Fetch Google Calendar busy slots for the calendar owner (if they have block_busy_slots enabled)
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+  const { data: googleBusySlots = [] } = useQuery({
+    queryKey: ["public-gcal-busy", calendar?.id, dateStr],
+    queryFn: async () => {
+      if (!calendar?.id || !dateStr) return [];
+      // Get the calendar owner
+      const { data: cal } = await supabase
+        .from("marketing_calendars")
+        .select("owner_id, company_id")
+        .eq("id", calendar.id)
+        .single();
+      if (!cal?.owner_id) return [];
+      // Check if the owner has block_busy_slots enabled
+      const { data: prefs } = await supabase
+        .from("user_calendar_preferences")
+        .select("block_busy_slots")
+        .eq("user_id", cal.owner_id)
+        .maybeSingle();
+      if (!prefs?.block_busy_slots) return [];
+      const dayStart = `${dateStr}T00:00:00Z`;
+      const dayEnd = `${dateStr}T23:59:59Z`;
+      const { data } = await supabase
+        .from("google_calendar_busy_slots")
+        .select("start_at, end_at")
+        .eq("user_id", cal.owner_id)
+        .gte("start_at", dayStart)
+        .lte("end_at", dayEnd);
+      return data || [];
+    },
+    enabled: !!calendar?.id && !!dateStr,
+  });
+
+  // Fetch existing appointments for the selected date
   const { data: existingAppointments = [] } = useQuery({
     queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
     queryFn: async () => {
@@ -68,6 +100,18 @@ export default function PublicBooking() {
     },
     enabled: !!calendar?.id && !!dateStr,
   });
+
+  // Check if a time slot overlaps with any Google busy slot
+  const isSlotGoogleBusy = (slotTime: string, durationMinutes: number): boolean => {
+    if (!selectedDate || googleBusySlots.length === 0) return false;
+    const slotStart = parse(slotTime, "HH:mm", selectedDate);
+    const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+    return googleBusySlots.some((busy) => {
+      const bStart = new Date(busy.start_at);
+      const bEnd = new Date(busy.end_at);
+      return slotStart < bEnd && slotEnd > bStart;
+    });
+  };
 
   // Calculate available slots for selected date
   const slots = useMemo(() => {
@@ -105,14 +149,14 @@ export default function PublicBooking() {
           );
           return slotTime < aptEnd && slotEndTime > aptStart;
         });
-        if (!isOccupied) {
+        if (!isOccupied && !isSlotGoogleBusy(slotTime, duration)) {
           allSlots.push(slotTime);
         }
         current = new Date(current.getTime() + duration * 60000);
       }
     }
     return [...new Set(allSlots)].sort();
-  }, [selectedDate, availability, existingAppointments, calendar]);
+  }, [selectedDate, availability, existingAppointments, calendar, googleBusySlots]);
 
   // Disable dates with no availability
   const isDateDisabled = (date: Date) => {

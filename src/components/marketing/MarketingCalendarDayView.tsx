@@ -5,9 +5,11 @@ import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type Dra
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
+import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   date: Date;
@@ -19,6 +21,7 @@ interface Props {
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
   slotDurationMinutes?: number;
   onResizeAppointment?: (id: string, newEndTime: string) => void;
+  busySlots?: GoogleBusySlot[];
 }
 
 const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
@@ -42,6 +45,7 @@ export default function MarketingCalendarDayView({
   onDropAppointment,
   slotDurationMinutes = 30,
   onResizeAppointment,
+  busySlots = [],
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const justDragged = useRef(false);
@@ -65,6 +69,19 @@ export default function MarketingCalendarDayView({
     travelLegs.forEach((leg) => { map[leg.toId] = leg; });
     return map;
   }, [travelLegs]);
+
+  const getBusySlotsForHour = (slotTime: string): GoogleBusySlot[] => {
+    const slotStart = timeToMin(slotTime);
+    const slotEnd = slotStart + slotDurationMinutes;
+    const dayStr = format(date, "yyyy-MM-dd");
+    return busySlots.filter((s) => {
+      if (s.is_all_day) return false;
+      if (s.start_at.slice(0, 10) !== dayStr) return false;
+      const sMin = timeToMin(s.start_at.slice(11, 16));
+      const eMin = timeToMin(s.end_at.slice(11, 16));
+      return sMin < slotEnd && eMin > slotStart;
+    });
+  };
 
   const getAppointmentsForSlot = (slotTime: string) => {
     const slotStart = timeToMin(slotTime);
@@ -148,6 +165,7 @@ export default function MarketingCalendarDayView({
             const isHour = slotTime.endsWith(":00");
             const [h, m] = slotTime.split(":").map(Number);
             const slotApts = getAppointmentsForSlot(slotTime);
+            const slotBusy = getBusySlotsForHour(slotTime);
             const showLabel = slotDurationMinutes >= 60 || isHour;
             return (
               <div key={slotTime} className="contents">
@@ -167,6 +185,16 @@ export default function MarketingCalendarDayView({
                   )}
                   onClick={() => { if (!justDragged.current) onClickSlot(date, h, m); }}
                 >
+                  {slotBusy.map((busy, bi) => (
+                    <Tooltip key={`busy-${bi}`}>
+                      <TooltipTrigger asChild>
+                        <div className="absolute inset-0 bg-red-100/60 dark:bg-red-900/20 border-l-2 border-red-400/60 pointer-events-none z-0" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <span className="text-xs">{busy.summary || "Occupato (Google)"}</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
                     const hasNoCoords = apt.lat == null || apt.lng == null;
