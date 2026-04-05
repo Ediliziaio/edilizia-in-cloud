@@ -114,6 +114,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const GoogleAdsPage = lazy(() => import("@/pages/azienda/marketing/google-ads/index"));
+const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
@@ -261,6 +262,7 @@ export function companyRoutes() {
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
         <Route path="marketing/google-ads" element={<GoogleAdsPage />} />
+        <Route path="marketing/sms" element={<SmsMarketingPage />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
