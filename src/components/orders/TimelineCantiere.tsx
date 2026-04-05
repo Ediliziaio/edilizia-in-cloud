@@ -7,7 +7,7 @@ import { it } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import {
-  RefreshCw, Hammer, Camera, Euro, GitBranch, Cloud, ChevronDown, ChevronUp,
+  RefreshCw, Hammer, Camera, Euro, GitBranch, Cloud, ChevronDown, ChevronUp, Wrench,
 } from 'lucide-react';
 
 interface TimelineCantiereProp {
@@ -17,7 +17,7 @@ interface TimelineCantiereProp {
   adminView?: boolean;
 }
 
-type EventType = 'stato' | 'lavori' | 'sal' | 'variante';
+type EventType = 'stato' | 'lavori' | 'sal' | 'variante' | 'rapportino';
 
 interface TimelineEvent {
   id: string;
@@ -38,7 +38,8 @@ const typeConfig = {
   stato:    { Icon: RefreshCw,  color: 'bg-blue-500',   label: 'Stato' },
   lavori:   { Icon: Hammer,     color: 'bg-orange-500', label: 'Lavori' },
   sal:      { Icon: Euro,       color: 'bg-green-600',  label: 'SAL' },
-  variante: { Icon: GitBranch,  color: 'bg-purple-600', label: 'Variante' },
+  variante:   { Icon: GitBranch,  color: 'bg-purple-600', label: 'Variante' },
+  rapportino: { Icon: Wrench,     color: 'bg-slate-600',  label: 'Rapportino' },
 };
 
 function safeParseDate(dateStr: string): Date | null {
@@ -159,7 +160,7 @@ function EventCard({ ev }: { ev: TimelineEvent }) {
   );
 }
 
-export function TimelineCantiere({ orderId, adminView = false }: TimelineCantiereProp) {
+export function TimelineCantiere({ orderId, companyId, adminView = false }: TimelineCantiereProp) {
   // 1. Fetch status history
   const { data: statusHistory = [], isLoading: loadingStati } = useQuery({
     queryKey: ['timeline-stati', orderId],
@@ -228,7 +229,35 @@ export function TimelineCantiere({ orderId, adminView = false }: TimelineCantier
     enabled: !!orderId,
   });
 
-  const isLoading = loadingStati || loadingGiornale || loadingSal || loadingVarianti;
+  // 5. Fetch rapportini intervento firmati con foto
+  // Join in 2 step: rapportini.ticket_id -> tickets.order_id
+  const { data: rapportini = [], isLoading: loadingRapportini } = useQuery({
+    queryKey: ['timeline-rapportini', orderId, companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      // Step A: trova tutti i ticket_id collegati a questo ordine
+      const { data: ticketRows, error: tErr } = await supabase
+        .from('tickets')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('company_id', companyId);
+      if (tErr || !ticketRows?.length) return [];
+      const ticketIds = ticketRows.map((t: { id: string }) => t.id);
+      // Step B: rapportini firmati di quei ticket con foto
+      const { data, error } = await (supabase as any)
+        .from('rapportini_intervento')
+        .select('id, numero, descrizione, data_intervento, firmato_da, foto_urls, ore_lavoro')
+        .in('ticket_id', ticketIds)
+        .eq('stato', 'firmato')
+        .order('data_intervento', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: !!orderId && !!companyId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const isLoading = loadingStati || loadingGiornale || loadingSal || loadingVarianti || loadingRapportini;
 
   if (isLoading) {
     return (
@@ -286,10 +315,21 @@ export function TimelineCantiere({ orderId, adminView = false }: TimelineCantier
         badgeColor: v.status === 'approvata' ? '#16A34A' : '#DC2626',
         amount: v.status === 'approvata' ? (v.impatto_economico ?? undefined) : undefined,
       })),
+    ...rapportini.map((r: any) => ({
+      id: `rapportino-${r.id as string}`,
+      type: 'rapportino' as EventType,
+      date: r.data_intervento as string,
+      title: `Rapportino #${r.numero as number}: ` +
+        `${((r.descrizione as string) ?? '').substring(0, 70)}` +
+        `${((r.descrizione as string)?.length ?? 0) > 70 ? '...' : ''}`,
+      badge: r.firmato_da ? `Firmato da ${r.firmato_da as string}` : 'Firmato',
+      badgeColor: '#475569',
+      photos: Array.isArray(r.foto_urls) ? (r.foto_urls as string[]).filter(Boolean) : [],
+    })),
   ]
     .filter(e => !!e.date)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-  [statusHistory, giornale, sal, varianti]);
+  [statusHistory, giornale, sal, varianti, rapportini]);
 
   if (events.length === 0) {
     return (
