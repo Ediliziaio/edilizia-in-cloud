@@ -137,13 +137,13 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
         contrattoId = contratto.id;
       }
 
-      // 3. Crea piano se richiesto (richiede contratto)
-      if (hasPiano && contrattoId && titoloManutenzione.trim()) {
+      // 3. Crea piano se richiesto (contratto opzionale)
+      if (hasPiano && titoloManutenzione.trim()) {
         const { error: pianoErr } = await supabase
           .from("piani_manutenzione")
           .insert({
             company_id: companyId,
-            contratto_id: contrattoId,
+            contratto_id: contrattoId ?? null,
             titolo: titoloManutenzione.trim(),
             frequenza_tipo: frequenza,
             prossima_scadenza: primaManutenzione || null,
@@ -245,6 +245,10 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                   <div className="space-y-1.5">
                     <Label>Titolo piano</Label>
                     <Input value={titoloManutenzione} onChange={(e) => setTitoloManutenzione(e.target.value)} />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Puoi aggiungere un contratto a pagamento nel passo successivo.
+                      Il piano funziona anche senza contratto.
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">

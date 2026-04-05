@@ -203,15 +203,28 @@ export default function TecnicoRapportino() {
 
       // Upload foto
       const fotoUrls: string[] = [];
+      const fotoUploadErrors: string[] = [];
       for (const file of fotoFiles) {
-        const fileName = `rapportini/${id}/${Date.now()}_${file.name}`;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `rapportini/${id}/${Date.now()}_${safeName}`;
         const { error: uploadErr } = await supabase.storage
           .from("rapportini")
           .upload(fileName, file, { contentType: file.type });
-        if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from("rapportini").getPublicUrl(fileName);
-          fotoUrls.push(urlData.publicUrl);
+        if (uploadErr) {
+          console.error('[TecnicoRapportino] upload foto:', uploadErr.message);
+          fotoUploadErrors.push(file.name);
+          continue; // salta questa foto, continua con le altre
         }
+        const { data: urlData } = supabase.storage.from("rapportini").getPublicUrl(fileName);
+        if (urlData?.publicUrl) fotoUrls.push(urlData.publicUrl);
+      }
+      // Avvisa l'utente se alcune foto non sono state caricate
+      if (fotoUploadErrors.length > 0) {
+        toast.warning(
+          `Rapportino salvato. ${fotoUploadErrors.length} foto non caricate: ` +
+          fotoUploadErrors.join(', '),
+          { duration: 6000 }
+        );
       }
 
       // Firma

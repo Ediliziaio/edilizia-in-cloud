@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { RapportinoForm } from "@/components/interventi/RapportinoForm";
+import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import type { Intervento, RapportinoIntervento } from "@/types/interventi";
 
 const STATO_CONFIG: Record<string, { label: string; color: string }> = {
@@ -88,6 +89,28 @@ export default function InterventiDetail() {
     enabled: !!effectiveCompany?.id,
   });
 
+  // Query tariffa oraria dalla configurazione aziendale
+  // Cerca tipo='posa' unita='h' (manodopera oraria)
+  const { data: tariffaOraria } = useQuery({
+    queryKey: ['tariffa-oraria-interventi', effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return null;
+      const { data } = await (supabase as any)
+        .from('tariffe_aziendali')
+        .select('prezzo_vendita, nome')
+        .eq('company_id', effectiveCompany.id)
+        .eq('tipo', 'posa')
+        .eq('unita', 'h')
+        .eq('attiva', true)
+        .order('prezzo_vendita', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data?.prezzo_vendita as number | null) ?? null;
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const assegnaTecnicoMutation = useMutation({
     mutationFn: async (tecnicoId: string) => {
       const { error } = await supabase
@@ -121,9 +144,9 @@ export default function InterventiDetail() {
   const generaCostoMutation = useMutation({
     mutationFn: async (rapportino: RapportinoIntervento) => {
       if (!effectiveCompany?.id) throw new Error("Company mancante");
-      // Calcola importo: ore * tariffa base (50€/h default)
-      const TARIFFA_ORARIA_DEFAULT = 50;
-      const totale = (rapportino.ore_lavoro ?? 0) * TARIFFA_ORARIA_DEFAULT;
+      // Tariffa da Impostazioni > Tariffe (tipo posa, unita h), fallback 50
+      const tariffaH = tariffaOraria ?? 50;
+      const totale = Math.round((rapportino.ore_lavoro ?? 0) * tariffaH * 100) / 100;
       const { error } = await supabase.from("company_costs").insert({
         company_id: effectiveCompany.id,
         name: `Intervento: ${intervento?.subject ?? "Senza titolo"}`,
@@ -145,7 +168,9 @@ export default function InterventiDetail() {
         .eq("id", rapportino.id);
     },
     onSuccess: () => {
-      toast.success("Costo registrato nei Costi Aziendali");
+      toast.success(
+        `Costo registrato: ${rapportino.ore_lavoro}h × €${tariffaOraria ?? 50}/h = €${totale.toFixed(2)}`
+      );
       queryClient.invalidateQueries({ queryKey: ["rapportini", id] });
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["rapportini-firmati-count"] });
@@ -209,6 +234,11 @@ export default function InterventiDetail() {
           <TabsTrigger value="rapportini">
             Rapportini {rapportini.length > 0 && <span className="ml-1 text-xs bg-blue-100 text-blue-700 rounded-full px-1.5">{rapportini.length}</span>}
           </TabsTrigger>
+          {intervento.order_id && (
+            <TabsTrigger value="cronologia">
+              Cronologia Cantiere
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="info" className="space-y-4 mt-4">
@@ -307,6 +337,29 @@ export default function InterventiDetail() {
             </Button>
           </div>
 
+          {/* Info tariffa applicata */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded px-3 py-2">
+            <Clock className="h-3 w-3 text-blue-400 shrink-0" />
+            {tariffaOraria != null ? (
+              <span>
+                Tariffa applicata:{' '}
+                <strong className="text-blue-700">€{tariffaOraria}/h</strong>
+                {' '}(Impostazioni &gt; Tariffe)
+              </span>
+            ) : (
+              <span>
+                Tariffa non configurata — verranno usati{' '}
+                <strong>€50/h</strong> di default.{' '}
+                <Link
+                  to="/azienda/impostazioni/tariffe"
+                  className="text-blue-600 underline hover:text-blue-800"
+                >
+                  Configura ora
+                </Link>
+              </span>
+            )}
+          </div>
+
           {rapportini.length === 0 ? (
             <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
               <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
@@ -362,6 +415,21 @@ export default function InterventiDetail() {
             </div>
           )}
         </TabsContent>
+
+        {intervento.order_id && (
+          <TabsContent value="cronologia" className="mt-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Aggiornamenti del cantiere collegato a questo intervento.
+              </p>
+              <TimelineCantiere
+                orderId={intervento.order_id}
+                companyId={effectiveCompany?.id ?? ''}
+                adminView={true}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <RapportinoForm
