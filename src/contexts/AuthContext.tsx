@@ -296,6 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "company_admin",
         "company_staff",
         "employee",
+        "subcontractor",
         "customer",
       ];
       const userRoles = (rolesData || []).map(r => r.role as AppRole);

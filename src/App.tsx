@@ -17,6 +17,7 @@ import { adminRoutes } from "@/routes/adminRoutes";
 import { companyRoutes } from "@/routes/companyRoutes";
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
 import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
+import { campoRoutes } from "@/routes/campoRoutes";
 
 // Suspense fallback
 const PageLoader = () => (
@@ -168,6 +169,7 @@ const App = () => (
               {salespersonRoutes()}
               {partnerRoutes()}
               {tecnicoRoutes()}
+              {campoRoutes()}
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />

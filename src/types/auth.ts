@@ -6,6 +6,7 @@ export type AppRole =
   | "company_staff"
   | "customer"
   | "employee"
+  | "subcontractor" // ruolo subappaltatore — accesso area campo
   | "salesperson"
   | "call_center"
   | "referrer"
@@ -15,6 +16,12 @@ export type AppRole =
   | "platform_marketing"
   | "platform_implementation"
   | "multi_company_user";
+
+/** Ruoli con accesso all'area campo (lavori.ediliziaincloud.com) */
+export type CampoRole = "employee" | "subcontractor";
+export const CAMPO_ROLES: CampoRole[] = ["employee", "subcontractor"];
+export const OPERAIO_ROLES: AppRole[] = ["employee"];
+export const SUBCONTRACTOR_ROLES: AppRole[] = ["subcontractor"];
 
 export type PlatformRole =
   | "platform_manager"

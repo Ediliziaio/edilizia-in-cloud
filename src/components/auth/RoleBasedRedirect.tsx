@@ -99,7 +99,8 @@ export function RoleBasedRedirect() {
     case "customer":
       return <Navigate to="/cliente" replace />;
     case "employee":
-      return <Navigate to="/dipendente" replace />;
+    case "subcontractor":
+      return <Navigate to="/campo" replace />;
     case "salesperson":
       return <Navigate to="/venditore" replace />;
     case "call_center":

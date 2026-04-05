@@ -153,5 +153,17 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addUtilities }: any) {
+      addUtilities({
+        ".pt-safe": { paddingTop: "env(safe-area-inset-top)" },
+        ".pb-safe": { paddingBottom: "env(safe-area-inset-bottom)" },
+        ".pl-safe": { paddingLeft: "env(safe-area-inset-left)" },
+        ".pr-safe": { paddingRight: "env(safe-area-inset-right)" },
+        ".mt-safe": { marginTop: "env(safe-area-inset-top)" },
+        ".mb-safe": { marginBottom: "env(safe-area-inset-bottom)" },
+      });
+    },
+  ],
 } satisfies Config;
