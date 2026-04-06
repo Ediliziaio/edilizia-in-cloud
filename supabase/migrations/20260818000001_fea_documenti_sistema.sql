@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.documento_sessioni (
     CHECK (stato IN ('bozza','generato','in_firma','firmato','archiviato')),
   order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
   quote_id UUID REFERENCES public.quotes(id) ON DELETE SET NULL,
-  contact_id UUID REFERENCES public.contacts(id) ON DELETE SET NULL,
+  contact_id UUID REFERENCES public.marketing_contacts(id) ON DELETE SET NULL,
   note TEXT,
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
