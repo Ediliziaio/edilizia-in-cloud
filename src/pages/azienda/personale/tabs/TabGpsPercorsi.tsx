@@ -6,8 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLiveTecnici, STALE_THRESHOLD_SEC } from "@/hooks/useLiveTecnici";
 import { useGeofence } from "@/hooks/useGeofence";
+import { useGeofenceAlert } from "@/hooks/useGeofenceAlert";
 import { PercorsoTecnico } from "@/components/fleet/PercorsoTecnico";
 import { GeofenceEditor } from "@/components/fleet/GeofenceEditor";
+import { GeofenceAlertBanner } from "@/components/fleet/GeofenceAlertBanner";
+import { ExportPercorsiButton } from "@/components/fleet/ExportPercorsiButton";
+import type { GpsPositionExport } from "@/lib/gps/exportExcel";
 
 // Lazy load della mappa live per non bloccare il bundle
 const MappaLiveAdmin = lazy(() =>
@@ -34,15 +38,25 @@ export function TabGpsPercorsi() {
 
   const { tecnici, isLoading: tecniciLoading, refresh } = useLiveTecnici(companyId);
   const { geofences } = useGeofence(companyId);
+  const { ultimaViolazione, dismissViolazione } = useGeofenceAlert(companyId);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"live" | "storico" | "geofence">("live");
+  const [storicoPos, setStoricoPos] = useState<GpsPositionExport[]>([]);
+  const [storicoNomeTecnico, setStoricoNomeTecnico] = useState<string>('');
+  const [storicoData, setStoricoData] = useState<string>('');
 
   const onlineTecnici = tecnici.filter((t) => t.staleSec <= STALE_THRESHOLD_SEC);
   const selectedTecnico = tecnici.find((t) => t.userId === selectedUserId) ?? null;
 
   return (
     <div className="space-y-5">
+      {ultimaViolazione && (
+        <GeofenceAlertBanner
+          violazione={ultimaViolazione}
+          onDismiss={() => dismissViolazione(ultimaViolazione.id)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -180,11 +194,25 @@ export function TabGpsPercorsi() {
           </div>
 
           {selectedTecnico && (
-            <PercorsoTecnico
-              companyId={companyId}
-              userId={selectedTecnico.userId}
-              fullName={selectedTecnico.fullName}
-            />
+            <>
+              <div className="flex justify-end">
+                <ExportPercorsiButton
+                  posizioni={storicoPos}
+                  nomeTecnico={storicoNomeTecnico}
+                  data={storicoData}
+                />
+              </div>
+              <PercorsoTecnico
+                companyId={companyId}
+                userId={selectedTecnico.userId}
+                fullName={selectedTecnico.fullName}
+                onPositionsLoaded={(positions, nomeTecnico, data) => {
+                  setStoricoPos(positions);
+                  setStoricoNomeTecnico(nomeTecnico);
+                  setStoricoData(data);
+                }}
+              />
+            </>
           )}
         </TabsContent>
 

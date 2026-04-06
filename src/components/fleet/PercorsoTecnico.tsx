@@ -1,10 +1,11 @@
-import { useState, Suspense, lazy } from "react";
+import { useState, Suspense, lazy, useEffect } from "react";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Route, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePercorsoGiornaliero } from "@/hooks/usePercorsoGiornaliero";
+import type { GpsPositionExport } from "@/lib/gps/exportExcel";
 
 // Lazy-load della mappa percorso per non bloccare il bundle
 const PercorsoMap = lazy(() =>
@@ -16,6 +17,7 @@ interface PercorsoTecnicoProps {
   userId: string;
   fullName: string;
   className?: string;
+  onPositionsLoaded?: (positions: GpsPositionExport[], nomeTecnico: string, data: string) => void;
 }
 
 /**
@@ -26,6 +28,7 @@ export function PercorsoTecnico({
   userId,
   fullName,
   className,
+  onPositionsLoaded,
 }: PercorsoTecnicoProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -36,6 +39,23 @@ export function PercorsoTecnico({
     userId,
     dateStr
   );
+
+  useEffect(() => {
+    if (!isLoading && onPositionsLoaded) {
+      onPositionsLoaded(
+        positions.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          speed: p.speed ?? null,
+          accuracy: p.accuracy ?? null,
+          recorded_at: p.recorded_at,
+        })),
+        fullName,
+        dateStr
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions, isLoading, dateStr]);
 
   const prevDay = () => setSelectedDate((d) => subDays(d, 1));
   const nextDay = () => {

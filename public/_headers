@@ -30,3 +30,8 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /workbox-*.js
   Cache-Control: no-cache, no-store, must-revalidate
+
+/sw-fleet-track.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /
+  Content-Type: application/javascript
