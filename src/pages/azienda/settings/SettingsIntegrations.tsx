@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, MousePointerClick } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,6 +121,8 @@ export default function SettingsIntegrations() {
     enabled: !!companyId && !!userId,
   });
 
+  const googleAdsIntegration = integrations.find((i) => i.provider === "google_ads");
+
   const { data: waConfig } = useQuery({
     queryKey: ["whatsapp-config-status", companyId],
     queryFn: async () => {
@@ -232,6 +234,13 @@ export default function SettingsIntegrations() {
         integration: appleCalIntegrationLike,
         stats: null as { pages: number; forms: number } | null,
       },
+      {
+        provider: "google_ads" as const,
+        name: "Google Ads",
+        description: "Importa statistiche campagne Google Ads e monitora CPC, impressioni e conversioni nella Reportistica.",
+        integration: googleAdsIntegration || null,
+        stats: null as { pages: number; forms: number } | null,
+      },
     ];
     if (!search.trim()) return items;
     const q = search.toLowerCase();
@@ -321,6 +330,8 @@ export default function SettingsIntegrations() {
             onConnect={() => {
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
+              } else if (item.provider === "google_ads") {
+                toast.info("L'integrazione Google Ads viene configurata dall'amministratore della piattaforma. Contatta il supporto per abilitarla.");
               } else {
                 handleMetaConnect();
               }
@@ -328,6 +339,8 @@ export default function SettingsIntegrations() {
             onManage={() => {
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
+              } else if (item.provider === "google_ads") {
+                navigate("/azienda/marketing/reportistica");
               } else {
                 handleMetaConnect();
               }
