@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
         const newStatus = statusMap[eventType] || "unknown";
         const costAmount = record?.cost?.amount ? parseFloat(record.cost.amount) : 0;
 
+        // Aggiorna sms_logs (campagne marketing)
         await supabase
           .from("sms_logs")
           .update({
@@ -102,6 +103,17 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString(),
           })
           .eq("telnyx_message_id", telnyxMsgId);
+
+        // Aggiorna sms_messages (SMS transazionali)
+        const updateFields: Record<string, unknown> = { status: newStatus };
+        if (newStatus === "delivered") updateFields.delivered_at = new Date().toISOString();
+        if (newStatus === "failed") {
+          updateFields.error_message = JSON.stringify(record?.errors || []).slice(0, 500);
+        }
+        await supabase
+          .from("sms_messages")
+          .update(updateFields)
+          .eq("telnyx_id", telnyxMsgId);
 
         break;
       }
@@ -142,7 +154,7 @@ Deno.serve(async (req) => {
           contactId = contact?.id || null;
         }
 
-        // Save inbound SMS
+        // Save inbound SMS in sms_logs (campagne) e sms_messages (transazionali)
         if (companyId) {
           await supabase.from("sms_logs").insert({
             company_id: companyId,
@@ -153,6 +165,18 @@ Deno.serve(async (req) => {
             body,
             status: "received",
             telnyx_message_id: telnyxMsgId || null,
+          });
+
+          await supabase.from("sms_messages").insert({
+            company_id: companyId,
+            direction: "inbound",
+            status: "received",
+            from_number: fromNumber,
+            to_number: String(toNumber),
+            body,
+            telnyx_id: telnyxMsgId || null,
+            trigger_type: "api",
+            received_at: new Date().toISOString(),
           });
         }
 

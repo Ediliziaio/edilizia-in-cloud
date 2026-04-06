@@ -119,6 +119,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
+const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
@@ -274,6 +275,11 @@ export function companyRoutes() {
         <Route path="sms-marketing/campagne" element={<SmsMarketingPage defaultTab="campagne" />} />
         <Route path="sms-marketing/contatti" element={<SmsMarketingPage defaultTab="contatti" />} />
         <Route path="sms-marketing/template" element={<SmsMarketingPage defaultTab="template" />} />
+        {/* SMS Transazionale — messaggi individuali + automazioni */}
+        <Route path="sms" element={<SmsPage />} />
+        <Route path="sms/invio" element={<SmsPage defaultTab="invio" />} />
+        <Route path="sms/storico" element={<SmsPage defaultTab="storico" />} />
+        <Route path="sms/automazioni" element={<SmsPage defaultTab="automazioni" />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
