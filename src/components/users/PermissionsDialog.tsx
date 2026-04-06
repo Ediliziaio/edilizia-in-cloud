@@ -36,6 +36,10 @@ export interface StaffPermissions {
   can_export_clients: boolean;
   can_view_tickets: boolean;
   can_edit_tickets: boolean;
+  can_view_interventi: boolean;
+  can_view_manutenzione: boolean;
+  can_view_sicurezza_cantiere: boolean;
+  can_view_subappaltatori: boolean;
   // ── Finanza ────────────────────────────────────────────
   can_view_billing: boolean;
   can_view_scadenzario: boolean;
@@ -51,6 +55,8 @@ export interface StaffPermissions {
   can_view_persone: boolean;
   can_view_employees: boolean;
   can_view_users: boolean;
+  can_view_giornale_lavori: boolean;
+  can_view_messaggi_esterni: boolean;
   // ── Marketing & Vendita ────────────────────────────────
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
@@ -67,6 +73,10 @@ export interface StaffPermissions {
   // ── Automazioni & AI ───────────────────────────────────
   can_view_marketing_automations: boolean;
   can_view_marketing_ai_agent: boolean;
+  can_view_automazioni: boolean;
+  can_view_render_ai: boolean;
+  can_view_sales_os: boolean;
+  can_view_sms_marketing: boolean;
   // ── Impostazioni (legacy aggregate – auto-computed on save) ───────────
   can_view_settings: boolean;
   can_edit_settings: boolean;

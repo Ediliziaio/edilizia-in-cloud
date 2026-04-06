@@ -3,7 +3,7 @@ import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
-type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center";
+type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "worker" | "subcontractor";
 
 function resolveRoles(roleType: ValidRoleType): string[] {
   switch (roleType) {
@@ -13,6 +13,10 @@ function resolveRoles(roleType: ValidRoleType): string[] {
       return ["salesperson", "company_staff"];
     case "call_center":
       return ["call_center", "company_staff"];
+    case "worker":
+      return ["worker", "company_staff"];
+    case "subcontractor":
+      return ["subcontractor", "company_staff"];
     case "company_staff":
     default:
       return ["company_staff"];
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
       .eq("id", callerId)
       .single();
 
-    const { first_name, last_name, email, company_id, role_type } = await req.json();
+    const { first_name, last_name, email, company_id, role_type, password } = await req.json();
 
     const targetCompanyId = callerRole.role === "super_admin" && company_id
       ? company_id
@@ -80,12 +84,14 @@ Deno.serve(async (req) => {
     }
 
     // Validate and resolve roles
-    const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center"];
+    const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center", "worker", "subcontractor"];
     const effectiveRoleType: ValidRoleType = validRoleTypes.includes(role_type) ? role_type : "company_staff";
     const rolesToAssign = resolveRoles(effectiveRoleType);
 
-    // Secure password generation
-    const temporaryPassword = generateSecurePassword(12);
+    // Secure password generation (use provided password if valid, otherwise generate one)
+    const temporaryPassword = (password && password.trim().length >= 8)
+      ? password.trim()
+      : generateSecurePassword(12);
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,

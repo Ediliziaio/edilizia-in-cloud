@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone,
   ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, AlertTriangle, Settings,
+  Eye, EyeOff, Lock, HardHat,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
@@ -28,6 +29,7 @@ export interface WizardUserFormData {
   first_name: string;
   last_name: string;
   email: string;
+  password?: string;
   role_type: StaffRoleType;
   permissions?: StaffPermissions;
 }
@@ -44,9 +46,11 @@ const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; 
   { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, color: "text-slate-600 bg-slate-500/10 border-slate-500/20" },
   { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, color: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" },
   { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, color: "text-orange-600 bg-orange-500/10 border-orange-500/20" },
+  { value: "worker", label: "Operaio / Tecnico", description: "Accesso cantiere — solo attività assegnate", icon: HardHat, color: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
+  { value: "subcontractor", label: "Subappaltatore", description: "Commesse assegnate — visibilità limitata", icon: Building2, color: "text-purple-600 bg-purple-500/10 border-purple-500/20" },
 ];
 
-const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center"];
+const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "worker", "subcontractor"];
 
 const ROLE_LABELS: Record<StaffRoleType, string> = {
   company_admin: "Amministratore", company_staff: "Operatore",
@@ -129,6 +133,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
   const totalSteps = showPermissions ? 4 : 3;
@@ -140,6 +146,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setRoleType("company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setTemporaryPassword(null); setCopied(false);
+    setPassword(""); setShowPassword(false);
   };
 
   const handleClose = () => { resetForm(); onOpenChange(false); };
@@ -210,6 +217,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
+        password: password.trim() || undefined,
         role_type: roleType,
         permissions: finalPerms,
       });
@@ -331,6 +339,30 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="mario.rossi@azienda.it" />
                 <p className="text-xs text-muted-foreground">
                   Verrà usata per il login. La password temporanea sarà generata automaticamente.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Password (opzionale)</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Lascia vuoto per generare automaticamente"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {password
+                    ? "Password personalizzata. L'utente potrà cambiarla dopo il primo accesso."
+                    : "Verrà generata automaticamente una password sicura."}
                 </p>
               </div>
             </div>

@@ -52,6 +52,16 @@ export interface Permissions {
   canViewMarketingEmail: boolean;
   canViewMarketingWhatsapp: boolean;
   canViewMarketingReports: boolean;
+  canViewInterventi: boolean;
+  canViewManutenzione: boolean;
+  canViewSicurezzaCantiere: boolean;
+  canViewSubappaltatori: boolean;
+  canViewGiornaleLavori: boolean;
+  canViewMessaggiEsterni: boolean;
+  canViewAutomazioni: boolean;
+  canViewRenderAi: boolean;
+  canViewSalesOs: boolean;
+  canViewSmsMarketing: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
@@ -80,6 +90,11 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketingAppointments: true, canViewMarketingAutomations: true,
   canViewMarketingAiAgent: true, canViewMarketingEmail: true,
   canViewMarketingWhatsapp: true, canViewMarketingReports: true,
+  canViewInterventi: true, canViewManutenzione: true,
+  canViewSicurezzaCantiere: true, canViewSubappaltatori: true,
+  canViewGiornaleLavori: true, canViewMessaggiEsterni: true,
+  canViewAutomazioni: true, canViewRenderAi: true,
+  canViewSalesOs: true, canViewSmsMarketing: true,
   isAdmin: true, isLoading: false, onlyAssigned: false,
 };
 
@@ -106,6 +121,11 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketingAppointments: false, canViewMarketingAutomations: false,
   canViewMarketingAiAgent: false, canViewMarketingEmail: false,
   canViewMarketingWhatsapp: false, canViewMarketingReports: false,
+  canViewInterventi: false, canViewManutenzione: false,
+  canViewSicurezzaCantiere: false, canViewSubappaltatori: false,
+  canViewGiornaleLavori: false, canViewMessaggiEsterni: false,
+  canViewAutomazioni: false, canViewRenderAi: false,
+  canViewSalesOs: false, canViewSmsMarketing: false,
   isAdmin: false, isLoading: false, onlyAssigned: false,
 };
 
@@ -113,7 +133,7 @@ export function usePermissions(): Permissions {
   const { role, user, isImpersonating, isImpersonationReady, impersonatedCompanyId, impersonationToken } = useAuth();
   const queryClient = useQueryClient();
 
-  const isStaffRole = ["company_staff", "salesperson", "call_center"].includes(role || "");
+  const isStaffRole = ["company_staff", "salesperson", "call_center", "worker", "subcontractor"].includes(role || "");
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -176,7 +196,7 @@ export function usePermissions(): Permissions {
   }
 
   // Staff: return permissions from database
-  if (["company_staff", "salesperson", "call_center"].includes(role || "")) {
+  if (["company_staff", "salesperson", "call_center", "worker", "subcontractor"].includes(role || "")) {
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }
@@ -235,6 +255,16 @@ export function usePermissions(): Permissions {
       canViewMarketingEmail: permissions?.can_view_marketing_email ?? false,
       canViewMarketingWhatsapp: permissions?.can_view_marketing_whatsapp ?? false,
       canViewMarketingReports: permissions?.can_view_marketing_reports ?? false,
+      canViewInterventi:        permissions?.can_view_interventi          ?? false,
+      canViewManutenzione:      permissions?.can_view_manutenzione        ?? false,
+      canViewSicurezzaCantiere: permissions?.can_view_sicurezza_cantiere  ?? false,
+      canViewSubappaltatori:    permissions?.can_view_subappaltatori       ?? false,
+      canViewGiornaleLavori:    permissions?.can_view_giornale_lavori     ?? false,
+      canViewMessaggiEsterni:   permissions?.can_view_messaggi_esterni    ?? false,
+      canViewAutomazioni:       permissions?.can_view_automazioni         ?? false,
+      canViewRenderAi:          permissions?.can_view_render_ai           ?? false,
+      canViewSalesOs:           permissions?.can_view_sales_os            ?? false,
+      canViewSmsMarketing:      permissions?.can_view_sms_marketing       ?? false,
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,
