@@ -86,21 +86,34 @@ export class ErrorBoundary extends React.Component<Props, State> {
         return <>{this.props.fallback}</>;
       }
 
-      // ChunkLoadError = new deploy, old chunk hashes gone → force reload
+      // ChunkLoadError = new deploy, old chunk hashes gone → auto-reload once
       if (this.isChunkError(this.state.error)) {
+        const reloadKey = '_chunk_err_reload';
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, '1');
+          // Clear SW caches then hard-reload so the fresh index.html is served
+          const doReload = () => window.location.reload();
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations()
+              .then(regs => Promise.all(regs.map(r => r.unregister())))
+              .then(() => typeof caches !== 'undefined'
+                ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+                : Promise.resolve())
+              .then(doReload)
+              .catch(doReload);
+          } else {
+            setTimeout(doReload, 50);
+          }
+        }
         return (
           <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
             <div className="p-4 rounded-full bg-blue-50 mb-4">
-              <RefreshCw className="h-10 w-10 text-blue-500" />
+              <RefreshCw className="h-10 w-10 text-blue-500 animate-spin" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Aggiornamento disponibile</h2>
+            <h2 className="text-xl font-semibold mb-2">Aggiornamento in corso…</h2>
             <p className="text-muted-foreground text-sm mb-6 max-w-md">
-              È stato rilasciato un aggiornamento. Ricarica la pagina per continuare.
+              La pagina si ricaricherà automaticamente.
             </p>
-            <Button onClick={() => window.location.reload()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Ricarica pagina
-            </Button>
           </div>
         );
       }
