@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -10,13 +11,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Pencil, X, Loader2, Phone, CreditCard, MapPin, HardHat, Calendar } from "lucide-react";
+import { Pencil, X, Loader2, Phone, CreditCard, MapPin, HardHat, Calendar, ExternalLink } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { queryKeys } from "@/lib/queryKeys";
+
+interface LinkedContact {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  source: string | null;
+  lead_score: number | null;
+  attr_campaign: string | null;
+  tags: string[] | null;
+}
 
 interface CustomerProfileCardProps {
   customer: {
@@ -33,6 +44,7 @@ interface CustomerProfileCardProps {
     salesperson_id: string | null;
     marketing_contact_id?: string | null;
   };
+  linkedContact?: LinkedContact | null;
   onSaved?: () => void;
 }
 
@@ -51,9 +63,10 @@ function InfoRow({ icon: Icon, value, placeholder }: {
   );
 }
 
-export function CustomerProfileCard({ customer, onSaved }: CustomerProfileCardProps) {
+export function CustomerProfileCard({ customer, linkedContact, onSaved }: CustomerProfileCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -250,8 +263,71 @@ export function CustomerProfileCard({ customer, onSaved }: CustomerProfileCardPr
               </>
             )}
 
-            {/* PLACEHOLDER per Sprint 2 — Origine Marketing */}
-            {/* TODO Sprint 2: aggiungere qui <OrigineMarketingSection contactId={customer.marketing_contact_id} /> */}
+            {/* Origine Marketing — popolato da Sprint 2 */}
+            {linkedContact && (
+              <>
+                <Separator className="my-3" />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Origine Marketing
+                    </h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() =>
+                        navigate(
+                          `/azienda/marketing/contatti/${customer.marketing_contact_id}`,
+                        )
+                      }
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Apri
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1.5 text-sm">
+                    {linkedContact.source && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground min-w-[60px]">Fonte</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {linkedContact.source}
+                        </Badge>
+                      </div>
+                    )}
+                    {linkedContact.lead_score != null && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground min-w-[60px]">Lead score</span>
+                        <span className="text-xs font-semibold">
+                          {linkedContact.lead_score}/100
+                        </span>
+                      </div>
+                    )}
+                    {linkedContact.attr_campaign && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground min-w-[60px]">Campagna</span>
+                        <span className="text-xs truncate max-w-[120px]">
+                          {linkedContact.attr_campaign}
+                        </span>
+                      </div>
+                    )}
+                    {linkedContact.tags && linkedContact.tags.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground min-w-[60px] mt-0.5">Tag</span>
+                        <div className="flex flex-wrap gap-1">
+                          {linkedContact.tags.slice(0, 3).map((tag: string) => (
+                            <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </CardContent>

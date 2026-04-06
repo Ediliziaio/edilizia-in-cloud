@@ -1,12 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -227,6 +228,21 @@ export default function CompanyCustomerDetail() {
     enabled: orderIds.length > 0,
   });
 
+  // ── Contatto marketing collegato ─────────────────────────────────────────────
+  const { data: linkedContact } = useQuery({
+    queryKey: ["linked-marketing-contact", customer?.marketing_contact_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, source, lead_score, contact_type, created_at, attr_campaign, tags")
+        .eq("id", customer!.marketing_contact_id!)
+        .single();
+      return data;
+    },
+    enabled: !!customer?.marketing_contact_id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // ── Computed values ──────────────────────────────────────────────────────────
   const orderCount = orders.length;
   const totalOrderValue = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
@@ -383,6 +399,7 @@ export default function CompanyCustomerDetail() {
         <div className="lg:col-span-2 space-y-4">
           <CustomerProfileCard
             customer={customer}
+            linkedContact={linkedContact}
             onSaved={() => refetchCustomer()}
           />
           <CustomerDiaryPanel

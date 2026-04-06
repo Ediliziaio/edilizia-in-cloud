@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Search,
   Bell, User, X, Filter,
-  Loader2, AlertCircle, MessageSquare, Smartphone, Merge,
+  Loader2, AlertCircle, MessageSquare, Smartphone, Merge, UserCheck,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -857,6 +857,24 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             )}
           </div>
         </div>
+
+        {/* Banner: contatto convertito in cliente */}
+        {contact.customer_profile_id && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border-b border-emerald-200 text-xs shrink-0">
+            <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="text-emerald-700 font-medium flex-1">
+              Contatto convertito in cliente
+            </span>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs text-emerald-700 underline"
+              onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
+            >
+              Apri scheda cliente
+            </Button>
+          </div>
+        )}
 
         {/* Unified Timeline */}
         <div className="flex-1 overflow-hidden">

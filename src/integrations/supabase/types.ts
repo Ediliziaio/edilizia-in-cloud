@@ -12772,6 +12772,7 @@ export type Database = {
           contact_type: string
           country: string | null
           created_at: string
+          customer_profile_id: string | null
           date_of_birth: string | null
           email: string | null
           first_name: string
@@ -12820,6 +12821,7 @@ export type Database = {
           contact_type?: string
           country?: string | null
           created_at?: string
+          customer_profile_id?: string | null
           date_of_birth?: string | null
           email?: string | null
           first_name: string
@@ -12868,6 +12870,7 @@ export type Database = {
           contact_type?: string
           country?: string | null
           created_at?: string
+          customer_profile_id?: string | null
           date_of_birth?: string | null
           email?: string | null
           first_name?: string
@@ -16330,6 +16333,7 @@ export type Database = {
           last_login_ip: unknown
           last_name: string
           locked_until: string | null
+          marketing_contact_id: string | null
           notes: string | null
           password_changed_at: string | null
           phone: string | null
@@ -16352,6 +16356,7 @@ export type Database = {
           last_login_ip?: unknown
           last_name: string
           locked_until?: string | null
+          marketing_contact_id?: string | null
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null
@@ -16374,6 +16379,7 @@ export type Database = {
           last_login_ip?: unknown
           last_name?: string
           locked_until?: string | null
+          marketing_contact_id?: string | null
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null

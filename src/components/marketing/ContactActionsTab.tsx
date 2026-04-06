@@ -1,13 +1,14 @@
 import { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageSquare, Smartphone, Phone, ArrowRight, Bot, Loader2 } from "lucide-react";
+import { Mail, MessageSquare, Smartphone, Phone, ArrowRight, Bot, Loader2, UserCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
 
 interface ContactActionsTabProps {
   contact: any;
@@ -17,9 +18,11 @@ interface ContactActionsTabProps {
 export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabProps>(function ContactActionsTab({ contact, companyId }, ref) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [showAICallDialog, setShowAICallDialog] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [callingAI, setCallingAI] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const { data: aiAgents = [] } = useQuery({
     queryKey: ["ai-agents-for-call", companyId],
@@ -123,6 +126,47 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
 
   return (
     <div ref={ref} className="space-y-2">
+
+      {/* ══════════ SEZIONE CONVERSIONE CLIENTE ══════════ */}
+      <div className="mb-3 pb-3 border-b">
+
+        {/* STATO: non ancora convertito */}
+        {!contact.customer_profile_id && (
+          <div className="space-y-1">
+            <Button
+              className="w-full justify-start h-9 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
+              size="sm"
+              onClick={() => setConvertOpen(true)}
+            >
+              <UserCheck className="h-3.5 w-3.5 mr-2" />
+              Converti in Cliente
+            </Button>
+            <p className="text-[9px] text-muted-foreground px-0.5">
+              Crea account portale con accesso area riservata
+            </p>
+          </div>
+        )}
+
+        {/* STATO: già convertito */}
+        {contact.customer_profile_id && (
+          <div className="flex items-center gap-1.5 p-2 rounded-md bg-emerald-50 border border-emerald-200">
+            <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-emerald-700">Cliente attivo</p>
+              <p className="text-[9px] text-emerald-600">Account portale creato</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-[9px] text-emerald-700"
+              onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
+            >
+              Apri scheda
+            </Button>
+          </div>
+        )}
+      </div>
+
       <p className="text-xs font-semibold">Azioni rapide</p>
       <div className="space-y-1.5">
         {actions.map((action) => (
@@ -149,6 +193,31 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           </Button>
         ))}
       </div>
+
+      {/* Dialog conversione */}
+      <ConvertToCustomerDialog
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        contact={{
+          id: contact.id,
+          first_name: contact.first_name || "",
+          last_name: contact.last_name || null,
+          email: contact.email || null,
+          phone: contact.phone || null,
+          address: contact.address || null,
+          city: contact.city || null,
+          province: contact.province || null,
+          postal_code: contact.postal_code || null,
+          fiscal_code: contact.fiscal_code || null,
+          vat_number: contact.vat_number || null,
+          company_name: contact.company_name || null,
+        }}
+        companyId={companyId}
+        onSuccess={(_id) => {
+          queryClient.invalidateQueries({ queryKey: ["marketing_contact", contact.id] });
+          toast.success("Cliente creato con successo!");
+        }}
+      />
 
       <Dialog open={showAICallDialog} onOpenChange={setShowAICallDialog}>
         <DialogContent className="sm:max-w-md">
