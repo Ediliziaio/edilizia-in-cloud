@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat } from "lucide-react";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +47,8 @@ import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { SubappaltatoriOrderCard } from "@/components/orders/SubappaltatoriOrderCard";
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
+import { OrdineAssegnazioniCampo } from "@/components/orders/OrdineAssegnazioniCampo";
+import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -701,12 +703,18 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-6 h-auto">
+            <TabsList className="w-full grid grid-cols-7 h-auto">
               <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
               <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
               <TabsTrigger value="cantiere" className="text-xs py-2">Cantiere</TabsTrigger>
+              <TabsTrigger value="campo" className="text-xs py-2">
+                <div className="flex items-center gap-1">
+                  <HardHat className="w-3 h-3" />
+                  Campo
+                </div>
+              </TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
             </TabsList>
 
@@ -862,6 +870,12 @@ function OrderDetailInner() {
                   adminView={true}
                 />
               </div>
+            </TabsContent>
+
+            {/* Tab Campo: assegnazioni operai + rapportini */}
+            <TabsContent value="campo" className="space-y-4 mt-4">
+              <OrdineAssegnazioniCampo orderId={id!} companyId={effectiveCompany?.id ?? ""} />
+              <OrdineRapportiniCampo orderId={id!} />
             </TabsContent>
 
             {/* Tab 6: Altro */}

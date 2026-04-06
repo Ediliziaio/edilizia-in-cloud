@@ -23,7 +23,16 @@ export default function CampoTesserino() {
 
     import("qrcode")
       .then(QRCode => {
-        QRCode.toCanvas(canvasRef.current!, user.id, {
+        // Payload strutturato con versione schema e scadenza 24h
+        const qrPayload = JSON.stringify({
+          v: 1,
+          uid: user.id,
+          cid: profile?.company_id,
+          nome: `${profile?.first_name} ${profile?.last_name}`,
+          ruolo: isSubappaltatore ? "subcontractor" : "employee",
+          exp: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        QRCode.toCanvas(canvasRef.current!, qrPayload, {
           width: 180,
           margin: 1,
           color: { dark: "#0f172a", light: "#f1f5f9" },

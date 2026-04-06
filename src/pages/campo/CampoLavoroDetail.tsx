@@ -279,17 +279,7 @@ export default function CampoLavoroDetail() {
 
         {/* ── Tab: Chat ── */}
         {activeTab === "chat" && (
-          <div className="flex flex-col items-center py-12 gap-3 text-center">
-            <button
-              onClick={() => navigate("/campo/chat")}
-              className="bg-amber-500 text-black font-bold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform"
-            >
-              Apri chat cantiere
-            </button>
-            <p className="text-xs text-slate-400">
-              Canale: cantiere-{order?.order_code}
-            </p>
-          </div>
+          <ChatCantiere orderId={orderId!} orderCode={order?.order_code ?? ""} />
         )}
 
         {/* ── Tab: Documenti ── */}
@@ -324,6 +314,63 @@ export default function CampoLavoroDetail() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Componente inline: link al canale chat del cantiere ──────────────────────
+function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: string }) {
+  const navigate = useNavigate();
+  const channelName = "cantiere-" + orderCode.toLowerCase().replace(/\s+/g, "-");
+
+  const { data: canale, isLoading } = useQuery({
+    queryKey: ["campo-canale-cantiere", orderId, orderCode],
+    queryFn: async () => {
+      if (!orderCode) return null;
+      const { data } = await supabase
+        .from("chat_channels")
+        .select("id, name")
+        .eq("name", channelName)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!orderCode,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center py-12 gap-3 text-center">
+      {canale ? (
+        <>
+          <button
+            onClick={() => navigate(`/campo/chat/${canale.id}`)}
+            className="bg-amber-500 text-black font-bold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform"
+          >
+            Apri chat cantiere
+          </button>
+          <p className="text-xs text-slate-400">Canale: {canale.name}</p>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => navigate("/campo/chat")}
+            className="bg-slate-800 text-white font-semibold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform border border-slate-700"
+          >
+            Vai alla chat
+          </button>
+          <p className="text-xs text-slate-500">
+            Il canale {channelName} verrà creato automaticamente{"\n"}
+            quando l&apos;ufficio ti assegna a questo cantiere.
+          </p>
+        </>
+      )}
     </div>
   );
 }

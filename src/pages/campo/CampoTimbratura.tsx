@@ -22,7 +22,7 @@ type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
 interface Timbratura {
   id: string;
   tipo: TipoTimbratura;
-  timestamp_timbro: string;
+  timestamp_evento: string;
   lat?: number;
   lng?: number;
   indirizzo?: string;
@@ -50,9 +50,9 @@ export default function CampoTimbratura() {
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
-        .gte("timestamp_timbro", `${today}T00:00:00`)
-        .lte("timestamp_timbro", `${today}T23:59:59`)
-        .order("timestamp_timbro", { ascending: true });
+        .gte("timestamp_evento", `${today}T00:00:00`)
+        .lte("timestamp_evento", `${today}T23:59:59`)
+        .order("timestamp_evento", { ascending: true });
       return (data ?? []) as Timbratura[];
     },
     enabled: !!user?.id,
@@ -68,8 +68,8 @@ export default function CampoTimbratura() {
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
-        .gte("timestamp_timbro", from.toISOString())
-        .order("timestamp_timbro", { ascending: false });
+        .gte("timestamp_evento", from.toISOString())
+        .order("timestamp_evento", { ascending: false });
       return (data ?? []) as Timbratura[];
     },
     enabled: !!user?.id,
@@ -89,16 +89,16 @@ export default function CampoTimbratura() {
     const next = timbratureOggi[i + 1];
     if (curr.tipo === "pausa_inizio" && next.tipo === "pausa_fine") {
       minutiPausa += differenceInMinutes(
-        parseISO(next.timestamp_timbro),
-        parseISO(curr.timestamp_timbro)
+        parseISO(next.timestamp_evento),
+        parseISO(curr.timestamp_evento)
       );
     }
   }
   const entrata = timbratureOggi.find(t => t.tipo === "entrata");
   const uscita = timbratureOggi.find(t => t.tipo === "uscita");
   if (entrata) {
-    const end = uscita ? parseISO(uscita.timestamp_timbro) : new Date();
-    oreLavorate = Math.max(0, differenceInMinutes(end, parseISO(entrata.timestamp_timbro)) - minutiPausa) / 60;
+    const end = uscita ? parseISO(uscita.timestamp_evento) : new Date();
+    oreLavorate = Math.max(0, differenceInMinutes(end, parseISO(entrata.timestamp_evento)) - minutiPausa) / 60;
   }
 
   const timbraMutation = useMutation({
@@ -108,11 +108,11 @@ export default function CampoTimbratura() {
         user_id: user!.id,
         company_id: companyId,
         tipo,
-        timestamp_timbro: new Date().toISOString(),
-        lat: gpsReady ? lat : null,
-        lng: gpsReady ? lng : null,
-        accuracy_mt: gpsReady ? Math.round(accuracy) : null,
-        indirizzo: address ?? null,
+        timestamp_evento: new Date().toISOString(),
+        gps_lat: gpsReady ? lat : null,
+        gps_lng: gpsReady ? lng : null,
+        gps_accuracy: gpsReady ? Math.round(accuracy) : null,
+        note: address ? `GPS: ${address}` : null,
         fonte: "app",
       });
       if (error) throw error;
@@ -151,7 +151,7 @@ export default function CampoTimbratura() {
   // Group storico by day
   const storicoByDay: Record<string, Timbratura[]> = {};
   storico.forEach(t => {
-    const day = format(parseISO(t.timestamp_timbro), "yyyy-MM-dd");
+    const day = format(parseISO(t.timestamp_evento), "yyyy-MM-dd");
     if (!storicoByDay[day]) storicoByDay[day] = [];
     storicoByDay[day].push(t);
   });
@@ -203,7 +203,7 @@ export default function CampoTimbratura() {
                       {t.tipo.replace("_", " ")}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {format(parseISO(t.timestamp_timbro), "HH:mm")}
+                      {format(parseISO(t.timestamp_evento), "HH:mm")}
                     </span>
                   </div>
                 </div>
@@ -274,8 +274,8 @@ export default function CampoTimbratura() {
                 for (let i = 0; i < items.length - 1; i++) {
                   if (items[i].tipo === "pausa_inizio" && items[i + 1].tipo === "pausa_fine") {
                     pauseMins += differenceInMinutes(
-                      parseISO(items[i + 1].timestamp_timbro),
-                      parseISO(items[i].timestamp_timbro)
+                      parseISO(items[i + 1].timestamp_evento),
+                      parseISO(items[i].timestamp_evento)
                     );
                   }
                 }
@@ -283,8 +283,8 @@ export default function CampoTimbratura() {
                 const usc = items.find(t => t.tipo === "uscita");
                 if (ent && usc) {
                   mins = Math.max(0, differenceInMinutes(
-                    parseISO(usc.timestamp_timbro),
-                    parseISO(ent.timestamp_timbro)
+                    parseISO(usc.timestamp_evento),
+                    parseISO(ent.timestamp_evento)
                   ) - pauseMins);
                 }
                 const ore = (mins / 60).toFixed(1);
@@ -301,13 +301,13 @@ export default function CampoTimbratura() {
                       {ent && (
                         <span className="text-xs text-slate-400 flex items-center gap-1">
                           <LogIn className="w-3 h-3 text-green-400" />
-                          {format(parseISO(ent.timestamp_timbro), "HH:mm")}
+                          {format(parseISO(ent.timestamp_evento), "HH:mm")}
                         </span>
                       )}
                       {usc && (
                         <span className="text-xs text-slate-400 flex items-center gap-1">
                           <LogOut className="w-3 h-3 text-red-400" />
-                          {format(parseISO(usc.timestamp_timbro), "HH:mm")}
+                          {format(parseISO(usc.timestamp_evento), "HH:mm")}
                         </span>
                       )}
                     </div>

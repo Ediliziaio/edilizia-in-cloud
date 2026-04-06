@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock, HardHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
@@ -32,7 +32,7 @@ interface UserDetail {
   require_2fa: boolean;
   last_login_at: string | null;
   last_login_ip: string | null;
-  role: "company_admin" | "company_staff" | "salesperson" | "call_center" | undefined;
+  role: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
   permissions: StaffPermissions | null;
 }
 
@@ -96,13 +96,15 @@ export default function SettingsUserDetail() {
         .select("role")
         .eq("user_id", userId!);
 
-      // Determine effective role with priority: company_admin > salesperson > call_center > company_staff
+      // Determine effective role with priority: company_admin > salesperson > call_center > company_staff > employee > subcontractor
       const roleSet = new Set(roles?.map(r => r.role) || []);
-      let effectiveRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | undefined;
+      let effectiveRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
       if (roleSet.has("company_admin")) effectiveRole = "company_admin";
       else if (roleSet.has("salesperson")) effectiveRole = "salesperson";
       else if (roleSet.has("call_center")) effectiveRole = "call_center";
       else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
+      else if (roleSet.has("employee")) effectiveRole = "employee";
+      else if (roleSet.has("subcontractor")) effectiveRole = "subcontractor";
 
       let permissions: StaffPermissions | null = null;
       // Load staff_permissions for any non-admin role (staff, salesperson, call_center all use it)
@@ -287,6 +289,23 @@ export default function SettingsUserDetail() {
         </div>
       </div>
 
+      {/* Area Campo banner */}
+      {(userData.role === "employee" || userData.role === "subcontractor") && (
+        <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <HardHat className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <p className="font-medium">Utente Area Campo</p>
+            <p className="text-amber-700 text-xs mt-0.5">
+              Questo utente accede tramite{" "}
+              <a href="https://lavori.ediliziaincloud.com" target="_blank" rel="noreferrer" className="underline font-medium">
+                lavori.ediliziaincloud.com
+              </a>
+              {" "}— non dal portale principale.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Mobile: horizontal scrollable tabs */}
       <div className="md:hidden overflow-x-auto -mx-1 px-1">
         <div className="flex gap-1 min-w-max pb-2">
@@ -346,7 +365,12 @@ export default function SettingsUserDetail() {
           {activeTab === "permissions" && (
             <UserRolesPermissionsTab
               key={`perms-${userData.id}-${userData.role}`}
-              user={userData}
+              user={{
+                ...userData,
+                role: (["company_admin", "company_staff", "salesperson", "call_center"] as const).includes(userData.role as any)
+                  ? (userData.role as "company_admin" | "company_staff" | "salesperson" | "call_center")
+                  : undefined,
+              }}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
               onChangeRole={(role) => changeRoleMutation.mutate(role)}
               isLoading={savePermissionsMutation.isPending}

@@ -52,6 +52,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [fonteFilter, setFonteFilter] = useState<string>("tutti");
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
   const { data: queryResult, isLoading, isError, refetch } = useQuery({
@@ -60,7 +61,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       let query = supabase
         .from("tickets")
         .select(`
-          id, subject, status, priority, created_at, updated_at, last_message_at,
+          id, subject, status, priority, fonte, created_at, updated_at, last_message_at,
           order_id, assigned_to, category,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email),
           order:orders(description),
@@ -89,6 +90,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const tickets = queryResult?.tickets ?? [];
 
   const filteredTickets = tickets.filter((ticket) => {
+    if (fonteFilter !== "tutti" && ticket.fonte !== fonteFilter) return false;
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -248,6 +250,22 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
           </Select>
+          {/* Filtro fonte */}
+          <Select value={fonteFilter} onValueChange={setFonteFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="Tutte le fonti" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte le fonti</SelectItem>
+              <SelectItem value="ufficio">Da ufficio</SelectItem>
+              <SelectItem value="campo">
+                <span className="flex items-center gap-1">
+                  📍 Da campo
+                </span>
+              </SelectItem>
+              <SelectItem value="cliente">Da cliente</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -351,6 +369,11 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <p className="font-medium line-clamp-1">{ticket.subject}</p>
+                        {ticket.fonte === "campo" && (
+                          <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600 ml-1">
+                            📍 Da campo
+                          </Badge>
+                        )}
                         {unreadByTicket[ticket.id] > 0 && (
                           <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
                             {unreadByTicket[ticket.id]}

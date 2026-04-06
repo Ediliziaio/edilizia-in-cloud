@@ -9,18 +9,20 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Users, UserCheck, HardHat, UsersRound, Loader2 } from "lucide-react";
+import { Users, UserCheck, HardHat, UsersRound, Loader2, Building2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
+import { OperaiCampoList } from "@/components/settings/OperaiCampoList";
+import { SubappaltatoreCampoList } from "@/components/settings/SubappaltatoreCampoList";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "venditori" | "staff" | "team";
+type PeopleTab = "utenti" | "venditori" | "staff" | "team" | "operai" | "subappaltatori";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "venditori", "staff", "team"];
+const VALID_TABS: PeopleTab[] = ["utenti", "venditori", "staff", "team", "operai", "subappaltatori"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -94,6 +96,18 @@ export default function SettingsPeople() {
             <span>Team</span>
           </TabsTrigger>
         )}
+        {isAdmin && (
+          <>
+            <TabsTrigger value="operai" className="flex items-center gap-2">
+              <HardHat className="h-4 w-4" />
+              <span>Operai</span>
+            </TabsTrigger>
+            <TabsTrigger value="subappaltatori" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              <span>Subappaltatori campo</span>
+            </TabsTrigger>
+          </>
+        )}
       </TabsList>
 
       {canViewUsers && (
@@ -118,6 +132,17 @@ export default function SettingsPeople() {
         <TabsContent value="team">
           <SettingsTeams />
         </TabsContent>
+      )}
+
+      {isAdmin && (
+        <>
+          <TabsContent value="operai">
+            <OperaiCampoList />
+          </TabsContent>
+          <TabsContent value="subappaltatori">
+            <SubappaltatoreCampoList />
+          </TabsContent>
+        </>
       )}
     </Tabs>
   );

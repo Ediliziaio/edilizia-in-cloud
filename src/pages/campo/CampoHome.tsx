@@ -89,10 +89,17 @@ export default function CampoHome() {
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
         `)
-        .eq("user_id", user!.id)
-        .or(`data_inizio.lte.${today},data_inizio.is.null`)
-        .or(`data_fine_prevista.gte.${today},data_fine_prevista.is.null`);
-      return data ?? [];
+        .eq("user_id", user!.id);
+      // Filtro client-side: include lavori attivi oggi o senza date definite
+      const oggi = new Date();
+      oggi.setHours(0, 0, 0, 0);
+      return (data ?? []).filter((a: any) => {
+        const inizio = a.data_inizio ? new Date(a.data_inizio) : null;
+        const fine = a.data_fine_prevista ? new Date(a.data_fine_prevista) : null;
+        if (inizio && inizio > oggi && fine && fine < oggi) return false;
+        if (fine && fine < oggi) return false;
+        return true;
+      });
     },
     enabled: !!user?.id && isOperaio,
   });

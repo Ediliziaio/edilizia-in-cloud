@@ -17,19 +17,28 @@ export default function CampoLayout() {
   const { profile, user } = useAuth();
   const { isOperaio } = useIsCampo();
 
-  // Conta messaggi non letti per badge
+  // Conta messaggi non letti nelle ultime 24h nei canali di appartenenza
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["campo-unread", user?.id],
     queryFn: async () => {
-      if (!user?.id) return 0;
-      // Conta canali con messaggi non letti dall'utente
-      const { data } = await supabase
-        .from("chat_channels")
-        .select("id, chat_messages(id)")
-        .eq("company_id", profile?.company_id ?? "")
-        .limit(1);
-      // Ritorna 0 come placeholder — implementazione completa nel CampoChat
-      return 0;
+      if (!user?.id || !profile?.company_id) return 0;
+      // Recupera i canali di cui l'utente è membro
+      const { data: membership } = await supabase
+        .from("chat_channel_members")
+        .select("channel_id")
+        .eq("user_id", user.id);
+      if (!membership?.length) return 0;
+      const channelIds = membership.map((m: any) => m.channel_id);
+      // Conta messaggi altrui nelle ultime 24h
+      const since = new Date();
+      since.setDate(since.getDate() - 1);
+      const { count } = await supabase
+        .from("chat_messages")
+        .select("id", { count: "exact", head: true })
+        .in("channel_id", channelIds)
+        .neq("sender_id", user.id)
+        .gte("created_at", since.toISOString());
+      return count ?? 0;
     },
     refetchInterval: 30000,
     enabled: !!user?.id && !!profile?.company_id,

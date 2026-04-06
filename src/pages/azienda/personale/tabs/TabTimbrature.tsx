@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTimbratureAdmin, useLiveStatus } from "@/hooks/useTimbratura";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Clock, LogIn, LogOut, Coffee, MapPin } from "lucide-react";
+import { Clock, LogIn, LogOut, Coffee, MapPin, Loader2 } from "lucide-react";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
   entrata: { icon: LogIn, label: "Entrata", color: "text-emerald-600" },
@@ -23,8 +26,29 @@ export function TabTimbrature() {
   const [dateTo, setDateTo] = useState(today);
   const [filterName, setFilterName] = useState("");
 
+  const companyId = useEffectiveCompanyId();
+
   const { data: timbrature = [], isLoading } = useTimbratureAdmin(dateFrom, dateTo);
   const { data: liveStatus = [] } = useLiveStatus();
+
+  const { data: timbratureCampo = [], isLoading: loadingCampo } = useQuery({
+    queryKey: ["campo-timbrature-admin", companyId, dateFrom, dateTo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("campo_timbrature")
+        .select(`
+          *,
+          profile:profiles(first_name, last_name),
+          order:orders(order_code, description)
+        `)
+        .eq("company_id", companyId)
+        .gte("timestamp_evento", `${dateFrom}T00:00:00`)
+        .lte("timestamp_evento", `${dateTo}T23:59:59`)
+        .order("timestamp_evento", { ascending: false });
+      return data ?? [];
+    },
+    enabled: !!companyId,
+  });
 
   const filtered = timbrature.filter((t: any) => {
     if (!filterName) return true;
@@ -185,6 +209,67 @@ export function TabTimbrature() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Sezione Timbrature App Campo */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-base font-semibold">Timbrature App Campo</h3>
+          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+            {timbratureCampo.length} timbrature
+          </Badge>
+        </div>
+        {loadingCampo ? (
+          <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
+        ) : timbratureCampo.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Nessuna timbratura dall'app campo nel periodo selezionato
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Operaio</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Orario</TableHead>
+                <TableHead className="hidden md:table-cell">Cantiere</TableHead>
+                <TableHead className="hidden lg:table-cell">GPS</TableHead>
+                <TableHead>Fonte</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {timbratureCampo.map((t: any) => (
+                <TableRow key={t.id}>
+                  <TableCell className="font-medium text-sm">
+                    {t.profile?.first_name} {t.profile?.last_name}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize text-[11px]">
+                      {t.tipo.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {new Date(t.timestamp_evento).toLocaleString("it-IT", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                    {t.order?.order_code ?? "—"}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                    {t.gps_lat ? `${t.gps_lat.toFixed(4)}, ${t.gps_lng?.toFixed(4)}` : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">
+                      App Campo
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   );
 }

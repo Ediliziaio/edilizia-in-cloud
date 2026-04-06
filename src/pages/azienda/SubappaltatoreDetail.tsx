@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Shield, Loader2, Plus,
-  Upload, AlertTriangle, CheckCircle2, ExternalLink,
+  Upload, AlertTriangle, CheckCircle2, ExternalLink, Check,
 } from 'lucide-react';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,
@@ -273,6 +273,42 @@ export default function SubappaltatoreDetail() {
       queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ── Approva / Contesta SAL ───────────────────────────────────────────────
+  const [contestaNote, setContestaNote] = useState("");
+  const [contestaSALId, setContestaId] = useState<string | null>(null);
+
+  const approvaSALMutation = useMutation({
+    mutationFn: async (salId: string) => {
+      const { error } = await supabase
+        .from("sal_subappaltatori")
+        .update({ stato: "verificato" })
+        .eq("id", salId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("SAL approvato");
+      queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
+    },
+    onError: () => toast.error("Errore durante l'approvazione"),
+  });
+
+  const contestaSALMutation = useMutation({
+    mutationFn: async ({ id, note }: { id: string; note: string }) => {
+      const { error } = await supabase
+        .from("sal_subappaltatori")
+        .update({ stato: "contestato", note: note })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("SAL contestato");
+      setContestaId(null);
+      setContestaNote("");
+      queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
+    },
+    onError: () => toast.error("Errore durante la contestazione"),
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -557,6 +593,25 @@ export default function SubappaltatoreDetail() {
                       </div>
                     </div>
                     {sal.note && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">{sal.note}</p>}
+                    {sal.stato === "ricevuto" && (
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="sm" variant="outline"
+                          className="text-green-700 border-green-300 hover:bg-green-50"
+                          onClick={() => approvaSALMutation.mutate(sal.id)}
+                          disabled={approvaSALMutation.isPending}
+                        >
+                          <Check className="h-3 w-3 mr-1" /> Approva
+                        </Button>
+                        <Button
+                          size="sm" variant="outline"
+                          className="text-red-700 border-red-300 hover:bg-red-50"
+                          onClick={() => setContestaId(sal.id)}
+                        >
+                          Contesta
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -751,6 +806,35 @@ export default function SubappaltatoreDetail() {
             <Button onClick={() => saveContrattoMutation.mutate()} disabled={saveContrattoMutation.isPending || !contrattoForm.descrizione_lavori.trim()}>
               {saveContrattoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salva contratto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog contestazione SAL */}
+      <Dialog open={!!contestaSALId} onOpenChange={() => { setContestaId(null); setContestaNote(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Contesta SAL</DialogTitle>
+            <DialogDescription>Inserisci le motivazioni della contestazione.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label>Note contestazione</Label>
+            <Textarea
+              value={contestaNote}
+              onChange={e => setContestaNote(e.target.value)}
+              placeholder="Es: Importo non corretto, mancano documenti..."
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContestaId(null)}>Annulla</Button>
+            <Button
+              variant="destructive"
+              onClick={() => contestaSALMutation.mutate({ id: contestaSALId!, note: contestaNote })}
+              disabled={!contestaNote || contestaSALMutation.isPending}
+            >
+              Conferma contestazione
             </Button>
           </DialogFooter>
         </DialogContent>
