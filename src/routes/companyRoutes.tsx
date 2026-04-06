@@ -64,6 +64,8 @@ const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
 const RenderGalleryDetail = lazy(() => import("@/pages/azienda/RenderGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
+const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
+const NuovoTemplate = lazy(() => import("@/pages/azienda/firma-elettronica/nuovo-template"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
@@ -325,6 +327,10 @@ export function companyRoutes() {
           <Route path="form-builder" element={<SettingsFormBuilder />} />
           <Route path="numeri-telefono" element={<SettingsPhoneNumbers />} />
         </Route>
+
+        {/* FEA — Firma Elettronica Avanzata + Documenti */}
+        <Route path="firma-elettronica" element={<FirmaElettronicaHub />} />
+        <Route path="firma-elettronica/nuovo-template" element={<NuovoTemplate />} />
       </Route>
     </>
   );

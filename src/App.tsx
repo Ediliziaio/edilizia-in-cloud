@@ -57,6 +57,7 @@ const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
+const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
@@ -151,6 +152,7 @@ const App = () => (
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
+              <Route path="/firma-fea/:token" element={<FirmaDocumento />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
