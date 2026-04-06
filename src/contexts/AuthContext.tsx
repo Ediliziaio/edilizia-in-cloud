@@ -294,9 +294,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "salesperson",
         "call_center",
         "company_admin",
-        "company_staff",
-        "employee",
-        "subcontractor",
+        "employee",       // operaio: employee + company_staff → effective = employee
+        "subcontractor",  // subappaltatore: subcontractor + company_staff → effective = subcontractor
+        "company_staff",  // dipendente ufficio: solo company_staff → effective = company_staff
         "customer",
       ];
       const userRoles = (rolesData || []).map(r => r.role as AppRole);
