@@ -42,6 +42,28 @@ export default function CampoHome() {
 
   const isDentro = ultimaTimbratura?.tipo === "entrata" || ultimaTimbratura?.tipo === "pausa_fine";
 
+  // ── Task assegnate (operaio + subappaltatore) ──────────────────────────
+  const { data: myTasks = [] } = useQuery({
+    queryKey: ["campo-my-tasks", user?.id, today],
+    queryFn: async () => {
+      if (!user?.id || !profile?.company_id) return [];
+      const { data } = await supabase
+        .from("tasks")
+        .select(`
+          id, title, priority, due_date, status,
+          order:orders!tasks_order_id_fkey(order_code)
+        `)
+        .eq("company_id", profile.company_id)
+        .eq("assigned_to", user.id)
+        .neq("status", "completata")
+        .order("priority", { ascending: false })
+        .limit(5);
+      return data ?? [];
+    },
+    enabled: !!user?.id && !!profile?.company_id,
+    staleTime: 60_000,
+  });
+
   // Ore lavorate oggi (calcolo da prima entrata)
   const { data: oreLavorate } = useQuery({
     queryKey: ["campo-ore-oggi", user?.id, today],
@@ -379,6 +401,43 @@ export default function CampoHome() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── BLOCCO 5: Task assegnate ── */}
+      {myTasks.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Le mie attività
+          </h2>
+          <div className="space-y-2">
+            {myTasks.map((t: any) => {
+              const dotClass =
+                t.priority === "urgente" ? "bg-red-500" :
+                t.priority === "alta"    ? "bg-orange-500" :
+                t.priority === "normale" ? "bg-blue-500" :
+                "bg-slate-500";
+              return (
+                <div
+                  key={t.id}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-start gap-3"
+                >
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotClass}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white line-clamp-1">{t.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+                      {t.order?.order_code && (
+                        <span>{t.order.order_code}</span>
+                      )}
+                      {t.due_date && (
+                        <span>{format(new Date(t.due_date), "d MMM", { locale: it })}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

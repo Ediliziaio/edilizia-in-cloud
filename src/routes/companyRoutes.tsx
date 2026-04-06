@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -53,6 +54,18 @@ const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
+const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
+
+/**
+ * AttivitaRouter — mostra la pagina corretta in base al ruolo.
+ * company_staff → AttivitaStaff (landing personale + timbratura sede)
+ * tutti gli altri → UnifiedTasks (task manager completo)
+ */
+function AttivitaRouter() {
+  const { role } = useAuth();
+  if (role === "company_staff") return <AttivitaStaff />;
+  return <UnifiedTasks />;
+}
 // GlobalErrors rendered as tab inside OrdersList — lazy import removed
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
@@ -196,7 +209,7 @@ export function companyRoutes() {
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
-        <Route path="attivita" element={<UnifiedTasks />} />
+        <Route path="attivita" element={<AttivitaRouter />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />

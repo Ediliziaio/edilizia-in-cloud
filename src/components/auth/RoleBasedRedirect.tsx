@@ -97,8 +97,9 @@ export function RoleBasedRedirect() {
     case "platform_implementation":
       return <Navigate to="/admin" replace />;
     case "company_admin":
-    case "company_staff":
       return <Navigate to="/azienda" replace />;
+    case "company_staff":
+      return <Navigate to="/azienda/attivita" replace />;
     case "customer":
       return <Navigate to="/cliente" replace />;
     case "employee":
