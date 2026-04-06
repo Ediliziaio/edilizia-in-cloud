@@ -215,6 +215,8 @@ export interface Company {
   white_label_enabled_at: string | null;
   white_label_enabled_by: string | null;
   white_label_monthly_price: number;
+  // GPS FleetTrack addon
+  fleet_track_enabled: boolean;
 }
 
 export interface AuthState {

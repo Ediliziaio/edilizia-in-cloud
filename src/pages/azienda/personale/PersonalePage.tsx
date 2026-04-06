@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation } from "lucide-react";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
@@ -8,8 +8,12 @@ import { TabSedi } from "./tabs/TabSedi";
 import { TabFestivita } from "./tabs/TabFestivita";
 import { TabProfili } from "./tabs/TabProfili";
 import { TabCedolini } from "./tabs/TabCedolini";
+import { TabGpsPercorsi } from "./tabs/TabGpsPercorsi";
+import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 
 export default function PersonalePage() {
+  const hasFleetTrack = useFleetTrackAccess();
+
   return (
     <div className="space-y-6">
       <div>
@@ -43,6 +47,11 @@ export default function PersonalePage() {
           <TabsTrigger value="cedolini" className="gap-1.5 shrink-0">
             <Receipt className="h-4 w-4" /> Cedolini
           </TabsTrigger>
+          {hasFleetTrack && (
+            <TabsTrigger value="gps-percorsi" className="gap-1.5 shrink-0">
+              <Navigation className="h-4 w-4" /> GPS Percorsi
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="organigramma">
@@ -69,6 +78,11 @@ export default function PersonalePage() {
         <TabsContent value="cedolini">
           <TabCedolini />
         </TabsContent>
+        {hasFleetTrack && (
+          <TabsContent value="gps-percorsi">
+            <TabGpsPercorsi />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
