@@ -55,6 +55,9 @@ const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
+const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
+const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
+const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali"));
 
 /**
  * AttivitaRouter — mostra la pagina corretta in base al ruolo.
@@ -210,6 +213,9 @@ export function companyRoutes() {
         <Route path="costi" element={<CompanyCosts />} />
         
         <Route path="attivita" element={<AttivitaRouter />} />
+        <Route path="timbrature-personali" element={<TimbraturePersonali />} />
+        <Route path="ferie-personali" element={<FeriePersonali />} />
+        <Route path="cedolini-personali" element={<CedoliniPersonali />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />

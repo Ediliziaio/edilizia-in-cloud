@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -34,6 +35,9 @@ export default function CampoTimbratura() {
   const qc = useQueryClient();
   const companyId = (profile as any)?.company_id ?? null;
   const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
+  // Profilo HR — usato per sincronizzare la timbratura anche in hr_timbrature
+  const { data: hrProfilo } = useMyHrProfilo();
+  const profiloId = hrProfilo?.id ?? null;
 
   // Request GPS on mount
   useEffect(() => {
@@ -104,11 +108,12 @@ export default function CampoTimbratura() {
   const timbraMutation = useMutation({
     mutationFn: async (tipo: TipoTimbratura) => {
       const gpsReady = gpsStatus === "success";
+      const now = new Date().toISOString();
       const { error } = await supabase.from("campo_timbrature").insert({
         user_id: user!.id,
         company_id: companyId,
         tipo,
-        timestamp_evento: new Date().toISOString(),
+        timestamp_evento: now,
         gps_lat: gpsReady ? lat : null,
         gps_lng: gpsReady ? lng : null,
         gps_accuracy: gpsReady ? Math.round(accuracy) : null,
@@ -116,6 +121,27 @@ export default function CampoTimbratura() {
         fonte: "app",
       });
       if (error) throw error;
+
+      // Sincronizzazione NON BLOCCANTE con hr_timbrature (se l'operaio ha un profilo HR)
+      if (profiloId && companyId) {
+        try {
+          await supabase.from("hr_timbrature").insert({
+            company_id: companyId,
+            profilo_id: profiloId,
+            tipo: tipo as any,
+            timestamp: now,
+            data_evento: now.slice(0, 10),
+            ora_evento: now.slice(11, 19),
+            lat: gpsReady ? lat : null,
+            lng: gpsReady ? lng : null,
+            fonte: "app",
+            note: address ? `GPS: ${address}` : null,
+          } as any);
+        } catch (hrErr) {
+          // Non bloccante: la timbratura campo è già avvenuta
+          console.warn("[CampoTimbratura] hr_timbrature sync failed:", hrErr);
+        }
+      }
     },
     onSuccess: (_, tipo) => {
       const labels: Record<TipoTimbratura, string> = {

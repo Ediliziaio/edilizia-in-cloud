@@ -14,7 +14,7 @@ function resolveRoles(roleType: ValidRoleType): string[] {
     case "call_center":
       return ["call_center", "company_staff"];
     case "worker":
-      return ["worker", "company_staff"];
+      return ["employee", "company_staff"];
     case "subcontractor":
       return ["subcontractor", "company_staff"];
     case "company_staff":
