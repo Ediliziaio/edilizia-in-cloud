@@ -29,4 +29,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-bun.lock
+# bun.lock è committato per Cloudflare Pages build detection
+package-lock.json
