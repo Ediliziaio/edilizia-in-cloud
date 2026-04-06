@@ -45,7 +45,10 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  // Chiave VAPID pubblica — non è un segreto (viene comunque inclusa nel bundle client).
+  // Priorità: variabile d'ambiente (Cloudflare Pages) → fallback hardcoded.
+  const vapidKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ||
+    "BBYjGr2bF2uBtq-GOCPCmMtpVH1rvGNMhldLkA34hmzQlLwTzLb8wKO39Cr51t6aSNhRxl8H5c2qkxpFAzHWunk";
   const supported =
     typeof window !== "undefined" &&
     "serviceWorker" in navigator &&
