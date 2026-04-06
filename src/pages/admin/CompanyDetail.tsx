@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, Ticket, ListChecks } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -27,6 +27,10 @@ import { CompanyOverviewTab } from "@/components/admin/company/CompanyOverviewTa
 import { CompanyActivityTab } from "@/components/admin/company/CompanyActivityTab";
 import { CompanyNextActions } from "@/components/admin/company/CompanyNextActions";
 import { CompanyNotes } from "@/components/admin/company/CompanyNotes";
+import { TabLifecycle } from "@/components/admin/company/TabLifecycle";
+import { TabComunicazioni } from "@/components/admin/company/TabComunicazioni";
+import { TabSupporto } from "@/components/admin/company/TabSupporto";
+import { TabOnboarding } from "@/components/admin/company/TabOnboarding";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -205,6 +209,18 @@ export default function CompanyDetail() {
           <TabsTrigger value="note" className="gap-1.5">
             <StickyNote className="h-3.5 w-3.5" /> Note
           </TabsTrigger>
+          <TabsTrigger value="lifecycle" className="gap-1.5">
+            <History className="h-3.5 w-3.5" /> Cronologia
+          </TabsTrigger>
+          <TabsTrigger value="comunicazioni" className="gap-1.5">
+            <Mail className="h-3.5 w-3.5" /> Comunicazioni
+          </TabsTrigger>
+          <TabsTrigger value="supporto" className="gap-1.5">
+            <Ticket className="h-3.5 w-3.5" /> Supporto
+          </TabsTrigger>
+          <TabsTrigger value="onboarding" className="gap-1.5">
+            <ListChecks className="h-3.5 w-3.5" /> Onboarding
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica">
@@ -282,6 +298,22 @@ export default function CompanyDetail() {
 
         <TabsContent value="note">
           <CompanyNotes companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="lifecycle">
+          <TabLifecycle companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="comunicazioni">
+          <TabComunicazioni companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="supporto">
+          <TabSupporto companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="onboarding">
+          <TabOnboarding companyId={h.company.id} />
         </TabsContent>
       </Tabs>
 

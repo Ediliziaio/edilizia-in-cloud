@@ -44,6 +44,9 @@ export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "recent-activity", label: "Attività Recente", category: "tables", visible: true, span: 1 },
   { id: "addon-summary", label: "Addon Attivi", category: "kpi", visible: true, span: 1 },
   { id: "nps-survey", label: "NPS Survey", category: "alerts", visible: true, span: 1 },
+  { id: "mrr-reconciliation", label: "Riconciliazione MRR Stripe", category: "kpi", visible: true, span: 1 },
+  { id: "saas-metrics", label: "Metriche SaaS (ARPU/LTV/CAC)", category: "kpi", visible: true, span: 2 },
+  { id: "cohort-revenue", label: "Cohort Retention", category: "charts", visible: true, span: 2 },
 ];
 
 function loadLayoutFromStorage(): DashboardWidget[] {

@@ -24,6 +24,9 @@ import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueF
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
 import { AdminChurnAlerts } from "@/components/admin/dashboard/AdminChurnAlerts";
 import { RevenueForecastWidget } from "@/components/admin/dashboard/RevenueForecastWidget";
+import { MrrReconciliationCard } from "@/components/admin/dashboard/MrrReconciliationCard";
+import { SaasMetricsGrid } from "@/components/admin/dashboard/SaasMetricsGrid";
+import { CohortRevenueChart } from "@/components/admin/dashboard/CohortRevenueChart";
 import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
 import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
@@ -182,6 +185,12 @@ export default function AdminDashboard() {
         return <RevenueForecastWidget />;
       case "nps-survey":
         return <AdminNpsSection />;
+      case "mrr-reconciliation":
+        return <MrrReconciliationCard />;
+      case "saas-metrics":
+        return <SaasMetricsGrid />;
+      case "cohort-revenue":
+        return <CohortRevenueChart />;
       default:
         return null;
     }
