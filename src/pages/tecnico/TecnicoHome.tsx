@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, isToday, isTomorrow, addDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { MapPin, Clock, ChevronRight, Wrench, CheckCircle2, AlertCircle } from "lucide-react";
+import { MapPin, Clock, ChevronRight, Wrench, CheckCircle2, AlertCircle, Route } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   aperto: "bg-blue-500/20 text-blue-300 border-blue-500/30",
@@ -186,17 +186,34 @@ export default function TecnicoHome() {
         </section>
       )}
 
-      {/* Quick action */}
-      <button
-        onClick={() => navigate("/tecnico/interventi")}
-        className="w-full bg-slate-700 border border-slate-600 rounded-xl p-4 flex items-center justify-between text-left active:bg-slate-600 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-slate-400" />
-          <span className="text-slate-300 font-medium">Vedi tutti gli interventi</span>
-        </div>
-        <ChevronRight className="h-5 w-5 text-slate-500" />
-      </button>
+      {/* Quick actions */}
+      <div className="space-y-2">
+        {/* Percorso ottimizzato */}
+        <button
+          onClick={() => navigate("/tecnico/percorso")}
+          className="w-full bg-blue-600/20 border border-blue-500/30 rounded-xl p-4 flex items-center justify-between text-left active:bg-blue-600/30 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Route className="h-5 w-5 text-blue-400" />
+            <div>
+              <p className="text-white font-medium text-sm">Il mio percorso di oggi</p>
+              <p className="text-blue-300 text-xs mt-0.5">Ottimizza l'ordine degli interventi</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-blue-400" />
+        </button>
+
+        <button
+          onClick={() => navigate("/tecnico/interventi")}
+          className="w-full bg-slate-700 border border-slate-600 rounded-xl p-4 flex items-center justify-between text-left active:bg-slate-600 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-slate-400" />
+            <span className="text-slate-300 font-medium">Vedi tutti gli interventi</span>
+          </div>
+          <ChevronRight className="h-5 w-5 text-slate-500" />
+        </button>
+      </div>
     </div>
   );
 }

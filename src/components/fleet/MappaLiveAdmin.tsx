@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TecnicoLivePosition, CantiereGeofence } from "@/types/fleet";
 import { STALE_THRESHOLD_SEC } from "@/hooks/useLiveTecnici";
+import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { cn } from "@/lib/utils";
 
 // Fix icone Leaflet con Vite
@@ -36,6 +37,56 @@ function createTecnicoIcon(initials: string, color: string, stale: boolean): L.D
     iconAnchor: [16, 16],
     popupAnchor: [0, -20],
   });
+}
+
+// ── Popup content con indirizzo reverse-geocodificato ────────────────────────
+function TecnicoPopupContent({
+  t,
+  stale,
+  onPercorso,
+}: {
+  t: TecnicoLivePosition;
+  stale: boolean;
+  onPercorso?: () => void;
+}) {
+  const { address, isLoading: isGeoLoading } = useReverseGeocode(t.lat, t.lng);
+
+  return (
+    <div className="text-xs space-y-1 min-w-[150px]">
+      <p className="font-semibold">{t.fullName}</p>
+      {stale ? (
+        <Badge variant="secondary" className="text-[10px]">Offline</Badge>
+      ) : (
+        <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
+          In linea
+        </Badge>
+      )}
+      <p className="text-muted-foreground text-[10px]">
+        {isGeoLoading ? "Rilevamento indirizzo…" : (address ?? "Indirizzo non disponibile")}
+      </p>
+      {t.speed != null && (
+        <p className="text-muted-foreground">
+          Velocità: {Math.round(t.speed * 3.6)} km/h
+        </p>
+      )}
+      {t.battery_level != null && (
+        <p className="text-muted-foreground">Batteria: {t.battery_level}%</p>
+      )}
+      <p className="text-muted-foreground">
+        {t.staleSec < 60 ? `${t.staleSec}s fa` : `${Math.floor(t.staleSec / 60)}m fa`}
+      </p>
+      {onPercorso && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-6 text-[10px] mt-1"
+          onClick={onPercorso}
+        >
+          Percorso
+        </Button>
+      )}
+    </div>
+  );
 }
 
 // ── Auto-fit bounds ───────────────────────────────────────────────────────────
@@ -138,41 +189,11 @@ export function MappaLiveAdmin({
               }}
             >
               <Popup>
-                <div className="text-xs space-y-1 min-w-[140px]">
-                  <p className="font-semibold">{t.fullName}</p>
-                  {stale ? (
-                    <Badge variant="secondary" className="text-[10px]">Offline</Badge>
-                  ) : (
-                    <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">
-                      In linea
-                    </Badge>
-                  )}
-                  {t.speed != null && (
-                    <p className="text-muted-foreground">
-                      Velocità: {Math.round(t.speed * 3.6)} km/h
-                    </p>
-                  )}
-                  {t.battery_level != null && (
-                    <p className="text-muted-foreground">
-                      Batteria: {t.battery_level}%
-                    </p>
-                  )}
-                  <p className="text-muted-foreground">
-                    {t.staleSec < 60
-                      ? `${t.staleSec}s fa`
-                      : `${Math.floor(t.staleSec / 60)}m fa`}
-                  </p>
-                  {onTecnicoClick && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full h-6 text-[10px] mt-1"
-                      onClick={() => onTecnicoClick(t.userId)}
-                    >
-                      Percorso
-                    </Button>
-                  )}
-                </div>
+                <TecnicoPopupContent
+                  t={t}
+                  stale={stale}
+                  onPercorso={onTecnicoClick ? () => onTecnicoClick(t.userId) : undefined}
+                />
               </Popup>
             </Marker>
           );

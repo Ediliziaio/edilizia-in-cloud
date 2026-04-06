@@ -10,6 +10,7 @@ const TecnicoRapportino = lazy(() => import("@/pages/tecnico/TecnicoRapportino")
 const TecnicoFurgone = lazy(() => import("@/pages/tecnico/TecnicoFurgone"));
 const TecnicoInterventi = lazy(() => import("@/pages/tecnico/TecnicoInterventi"));
 const TecnicoProfilo = lazy(() => import("@/pages/tecnico/TecnicoProfilo"));
+const TecnicoPercorso = lazy(() => import("@/pages/tecnico/TecnicoPercorso"));
 
 const TECNICO_ROLES: AppRole[] = ["company_admin", "company_staff", "employee"];
 
@@ -29,6 +30,7 @@ export function tecnicoRoutes() {
       <Route path="intervento/:id/rapportino" element={<TecnicoRapportino />} />
       <Route path="furgone" element={<TecnicoFurgone />} />
       <Route path="profilo" element={<TecnicoProfilo />} />
+      <Route path="percorso" element={<TecnicoPercorso />} />
     </Route>
   );
 }
