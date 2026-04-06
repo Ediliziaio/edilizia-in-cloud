@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch cedolino
+    // Fetch cedolino (usa service role per bypassare RLS — la verifica autorizzazione è manuale sotto)
     const { data: cedolino, error: cedErr } = await supabase
       .from("cedolini")
       .select("*")
@@ -298,6 +298,38 @@ Deno.serve(async (req) => {
     if (cedErr || !cedolino) {
       return new Response(JSON.stringify({ error: "Cedolino non trovato" }), {
         status: 404,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Verifica autorizzazione: il cedolino deve essere del richiedente o l'utente deve essere admin ──
+    const { data: userProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    const userRole = userProfile?.role ?? "";
+    const isAdmin = ["company_admin", "super_admin"].includes(userRole);
+
+    // Controlla se employee_id corrisponde direttamente a userId (struttura moderna)
+    const isOwnerDirect = cedolino.employee_id === userId;
+
+    // Fallback: controlla se employee_id corrisponde a un record employees collegato all'utente
+    let isOwnerViaEmployee = false;
+    if (!isOwnerDirect && !isAdmin) {
+      const { data: empRecord } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("id", cedolino.employee_id)
+        .maybeSingle();
+      isOwnerViaEmployee = !!empRecord;
+    }
+
+    if (!isAdmin && !isOwnerDirect && !isOwnerViaEmployee) {
+      return new Response(JSON.stringify({ error: "Non autorizzato: questo cedolino non appartiene al tuo account" }), {
+        status: 403,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }

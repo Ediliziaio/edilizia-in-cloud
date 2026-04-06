@@ -214,7 +214,7 @@ export const internalNavItems: NavItem[] = [
   // "Report" rimosso da internalNavItems (allineato con rimozione da sidebar principale)
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   
-  { title: "Messaggi Esterni", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewPersone", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
+  { title: "Messaggi Esterni", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewMessaggiEsterni", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
   { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewAutomazioni", category: "internal", subcategory: "gi_automation" },

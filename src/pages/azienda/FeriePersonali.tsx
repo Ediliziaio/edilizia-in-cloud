@@ -8,7 +8,7 @@ import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Palmtree, Plus, Clock, RotateCcw, CheckCircle2,
-  XCircle, Loader2, UserX, Ban,
+  XCircle, Loader2, UserX, Ban, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { useCreateRichiesta } from "@/hooks/useRichieste";
+import { useAuth } from "@/contexts/AuthContext";
 import type { HrRichiesta, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -86,6 +87,7 @@ const FORM_DEFAULT: NuovaRichiestaForm = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FeriePersonali() {
+  const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
   const createMutation = useCreateRichiesta();
   const qc = useQueryClient();
@@ -108,6 +110,19 @@ export default function FeriePersonali() {
     enabled: !!profilo?.id,
     staleTime: 2 * 60 * 1000,
   });
+
+  // ── Guard ruolo: solo company_staff e company_admin ───────────────────
+  if (role && !["company_staff", "company_admin"].includes(role)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+        <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <p className="text-muted-foreground mt-2">
+          Questa sezione non è disponibile per il tuo ruolo.
+        </p>
+      </div>
+    );
+  }
 
   // ── Loading ───────────────────────────────────────────────────────────
   if (loadingProfilo) {

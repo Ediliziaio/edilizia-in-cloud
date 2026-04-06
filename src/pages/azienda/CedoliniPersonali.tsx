@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Receipt, Download, Loader2, UserX, ChevronDown, ChevronUp,
+  Receipt, Download, Loader2, UserX, ChevronDown, ChevronUp, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ interface Cedolino {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CedoliniPersonali() {
   const companyId = useEffectiveCompanyId();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -110,6 +110,19 @@ export default function CedoliniPersonali() {
       setDownloadingId(null);
     }
   };
+
+  // ── Guard ruolo: solo company_staff e company_admin ───────────────────
+  if (role && !["company_staff", "company_admin"].includes(role)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+        <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <p className="text-muted-foreground mt-2">
+          Questa sezione non è disponibile per il tuo ruolo.
+        </p>
+      </div>
+    );
+  }
 
   // ── Loading ────────────────────────────────────────────────────────────
   if (loadingProfilo) {

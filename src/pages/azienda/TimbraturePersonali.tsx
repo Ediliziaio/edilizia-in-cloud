@@ -10,7 +10,7 @@ import { it } from "date-fns/locale";
 import {
   LogIn, LogOut, Coffee, PauseCircle, Clock, CalendarDays,
   Building2, AlertTriangle, CheckCircle2, Loader2, UserX,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   useMyTodayTimbrature,
   useTimbra,
 } from "@/hooks/useTimbratura";
+import { useAuth } from "@/contexts/AuthContext";
 import type { HrTimbratura, TimbraturaTipo } from "@/types/hr";
 import { cn } from "@/lib/utils";
 
@@ -101,6 +102,7 @@ function getMesiRecenti(): { value: string; label: string }[] {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TimbraturePersonali() {
   const companyId = useEffectiveCompanyId();
+  const { role } = useAuth();
   const { data: profilo, isLoading: loadingProfilo } = useMyHrProfilo();
   const { data: timbratureOggi = [], isLoading: loadingOggi } = useMyTodayTimbrature(profilo?.id);
   const timbraMutation = useTimbra();
@@ -128,6 +130,19 @@ export default function TimbraturePersonali() {
     enabled: !!profilo?.id,
     staleTime: 2 * 60 * 1000,
   });
+
+  // ── Guard ruolo: solo company_staff e company_admin ───────────────────
+  if (role && !["company_staff", "company_admin"].includes(role)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+        <ShieldAlert className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold">Accesso non autorizzato</h3>
+        <p className="text-muted-foreground mt-2">
+          Questa sezione non è disponibile per il tuo ruolo.
+        </p>
+      </div>
+    );
+  }
 
   // ── Caricamento ────────────────────────────────────────────────────────
   if (loadingProfilo) {

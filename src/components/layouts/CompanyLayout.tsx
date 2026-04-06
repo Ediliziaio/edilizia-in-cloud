@@ -817,8 +817,11 @@ const CompanySidebar = memo(function CompanySidebar() {
             {/* Collapsible macro-areas — exclusive accordion */}
             {macroAreas
               .filter(a => a.id !== "area_cruscotto")
-              // area_personale_staff visibile solo ai dipendenti ufficio
-              .filter(a => a.id !== "area_personale_staff" || role === "company_staff")
+              // area_personale_staff visibile ai dipendenti ufficio e ruoli che potrebbero avere profilo HR
+              .filter(a =>
+                a.id !== "area_personale_staff" ||
+                ["company_staff", "salesperson", "call_center"].includes(role || "")
+              )
               .map(area => {
                 const visibleItems = filterNavItems(area.items);
                 if (visibleItems.length === 0) return null;
