@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown, Calendar, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getAvatarColor } from "@/lib/contactUtils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
@@ -84,6 +87,7 @@ const CUSTOMER_IMPORT_FIELDS: ImportField[] = [
 ];
 
 function CustomersListInner() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
   const [filterOrders, setFilterOrders] = useState<string>("all");
@@ -569,10 +573,32 @@ function CustomersListInner() {
             <TableBody>
               {customers.map((customer) => {
                 const sp = customer.salesperson_id ? salespersonMap.get(customer.salesperson_id) : null;
+                const avatarColor = getAvatarColor(`${customer.first_name}${customer.last_name}`);
+                const initials = `${customer.first_name?.[0] || ""}${customer.last_name?.[0] || ""}`.toUpperCase();
                 return (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">
-                      {customer.first_name} {customer.last_name}
+                  <TableRow
+                    key={customer.id}
+                    className="cursor-pointer hover:bg-muted/40 transition-colors"
+                    onClick={() => navigate(`/azienda/clienti/${customer.id}`)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className={`h-8 w-8 shrink-0 ${avatarColor}`}>
+                          <AvatarFallback className="text-xs font-bold text-white bg-transparent">
+                            {initials || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm leading-tight">
+                            {customer.first_name} {customer.last_name}
+                          </p>
+                          {customer.address && (
+                            <p className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                              {customer.address}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <div className="flex items-center gap-2 text-muted-foreground">
@@ -616,14 +642,22 @@ function CustomersListInner() {
                       </Select>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                        <span>{customer.order_count}</span>
-                      </div>
+                      {customer.order_count === 0 ? (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      ) : (
+                        <Badge
+                          variant={customer.order_count > 3 ? "default" : "secondary"}
+                          className={customer.order_count > 3
+                            ? "bg-amber-100 text-amber-800 border-amber-200 font-bold"
+                            : ""}
+                        >
+                          {customer.order_count}
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" asChild>
+                        <Button variant="ghost" size="sm" asChild onClick={(e) => e.stopPropagation()}>
                           <Link to={`/azienda/clienti/${customer.id}`}>
                             <Pencil className="h-4 w-4" />
                           </Link>

@@ -1,19 +1,12 @@
-import { useState, useEffect } from "react";
-import { logger } from "@/utils/logger";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink, Phone, Calendar, CreditCard, FileText, Link2 } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,11 +18,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { getInitials, getAvatarColor } from "@/lib/contactUtils";
-import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
-import { ClientMessagesPanel } from "@/components/clients/ClientMessagesPanel";
+import { useState } from "react";
+import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
+import { CustomerDiaryPanel } from "@/components/clients/CustomerDiaryPanel";
+import {
+  CustomerBusinessTabs,
+  type OrderRow,
+  type PreventivoRow,
+  type TicketRow,
+  type RapportinoRow,
+  type FatturaRow,
+  type AppuntamentoRow,
+  type RataRow,
+} from "@/components/clients/CustomerBusinessTabs";
 
 interface CustomerProfile {
   id: string;
@@ -44,6 +45,7 @@ interface CustomerProfile {
   company_id: string | null;
   created_at: string;
   salesperson_id: string | null;
+  marketing_contact_id?: string | null;
 }
 
 export default function CompanyCustomerDetail() {
@@ -52,19 +54,10 @@ export default function CompanyCustomerDetail() {
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [fiscalCode, setFiscalCode] = useState("");
-  const [address, setAddress] = useState("");
-  const [siteAddress, setSiteAddress] = useState("");
-  const [notes, setNotes] = useState("");
-  const [salespersonId, setSalespersonId] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { data: customer, isLoading } = useQuery({
+  // ── Core customer data ──────────────────────────────────────────────────────
+  const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
     queryKey: ["company-customer-detail", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -78,6 +71,7 @@ export default function CompanyCustomerDetail() {
     enabled: !!id,
   });
 
+  // ── Orders ──────────────────────────────────────────────────────────────────
   const { data: orders = [] } = useQuery({
     queryKey: ["customer-orders-history", id, effectiveCompany?.id],
     queryFn: async () => {
@@ -88,12 +82,12 @@ export default function CompanyCustomerDetail() {
         .eq("company_id", effectiveCompany?.id ?? "")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return (data ?? []) as unknown as OrderRow[];
     },
     enabled: !!id && !!effectiveCompany?.id,
   });
 
-  // Check if a fiscal anagrafica is linked to this profile
+  // ── Anagrafica fiscale collegata ────────────────────────────────────────────
   const { data: anagraficaCollegata } = useQuery({
     queryKey: ["anagrafica-by-cliente", id],
     queryFn: async () => {
@@ -107,7 +101,7 @@ export default function CompanyCustomerDetail() {
     enabled: !!id,
   });
 
-  // Fetch invoices for the linked anagrafica
+  // ── Fatture ─────────────────────────────────────────────────────────────────
   const { data: fattureCliente = [] } = useQuery({
     queryKey: ["fatture-cliente", id, anagraficaCollegata?.id],
     enabled: !!anagraficaCollegata?.id,
@@ -119,66 +113,125 @@ export default function CompanyCustomerDetail() {
         .is("deleted_at", null)
         .order("data_emissione", { ascending: false })
         .limit(20);
-      return (data ?? []) as unknown as Array<{
-        id: string; tipo: string; numero: string; data_emissione: string; stato: string; totale_documento: number;
-      }>;
+      return (data ?? []) as unknown as FatturaRow[];
     },
   });
 
+  // ── Preventivi ──────────────────────────────────────────────────────────────
+  // NOTA: quotes.contact_id punta a marketing_contacts.id — il link arriva con Sprint 2.
+  // Ritorna [] finché il link non esiste.
+  const { data: preventivi = [] } = useQuery({
+    queryKey: ["customer-preventivi", id, effectiveCompany?.id],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("quotes")
+          .select("id, quote_number, title, total, status, created_at")
+          .eq("contact_id", id!)
+          .eq("company_id", effectiveCompany!.id)
+          .order("created_at", { ascending: false });
+        if (error) return [];
+        return (data ?? []) as PreventivoRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!id && !!effectiveCompany?.id,
+  });
+
+  // ── Tickets ─────────────────────────────────────────────────────────────────
+  const { data: tickets = [] } = useQuery({
+    queryKey: ["customer-tickets", id, effectiveCompany?.id],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("tickets")
+          .select("id, title, status, created_at, priority")
+          .eq("customer_id", id!)
+          .eq("company_id", effectiveCompany!.id)
+          .order("created_at", { ascending: false });
+        if (error) return [];
+        return (data ?? []) as TicketRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!id && !!effectiveCompany?.id,
+  });
+
+  const openTicketsCount = tickets.filter(
+    (t) => t.status !== "closed" && t.status !== "resolved",
+  ).length;
+
+  // ── Rapportini Intervento ────────────────────────────────────────────────────
+  // TODO: verificare il nome corretto della colonna customer_id in rapportini_intervento
+  const { data: rapportini = [] } = useQuery({
+    queryKey: ["customer-rapportini", id, effectiveCompany?.id],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("rapportini_intervento" as never)
+          .select("id, created_at, tipo_intervento, note")
+          .eq("customer_id", id!)
+          .eq("company_id", effectiveCompany!.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) return [];
+        return (data ?? []) as unknown as RapportinoRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!id && !!effectiveCompany?.id,
+  });
+
+  // ── Appuntamenti ─────────────────────────────────────────────────────────────
+  const { data: appuntamenti = [] } = useQuery({
+    queryKey: ["customer-appuntamenti", id, effectiveCompany?.id],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("appointments" as never)
+          .select("id, title, start_at, end_at, status")
+          .eq("customer_id", id!)
+          .eq("company_id", effectiveCompany!.id)
+          .order("start_at", { ascending: false })
+          .limit(20);
+        if (error) return [];
+        return (data ?? []) as unknown as AppuntamentoRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!id && !!effectiveCompany?.id,
+  });
+
+  // ── Rate / Scadenzario ───────────────────────────────────────────────────────
+  const orderIds = orders.map((o) => o.id);
+  const { data: rate = [] } = useQuery({
+    queryKey: ["customer-rate", id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      try {
+        const { data, error } = await supabase
+          .from("order_installments" as never)
+          .select("id, amount, due_date, paid_at, order_id")
+          .in("order_id", orderIds)
+          .order("due_date", { ascending: true });
+        if (error) return [];
+        return (data ?? []) as unknown as RataRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: orderIds.length > 0,
+  });
+
+  // ── Computed values ──────────────────────────────────────────────────────────
   const orderCount = orders.length;
+  const totalOrderValue = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-  useEffect(() => {
-    if (customer) {
-      setFirstName(customer.first_name || "");
-      setLastName(customer.last_name || "");
-      setPhone(customer.phone || "");
-      setFiscalCode(customer.fiscal_code || "");
-      setAddress(customer.address || "");
-      setSiteAddress(customer.site_address || "");
-      setNotes(customer.notes || "");
-      setSalespersonId(customer.salesperson_id || "");
-    }
-  }, [customer]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!firstName.trim() || !lastName.trim()) {
-      toast({ title: "Errore", description: "Nome e cognome sono obbligatori", variant: "destructive" });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          phone: phone.trim() || null,
-          fiscal_code: fiscalCode.trim() || null,
-          address: address.trim() || null,
-          site_address: siteAddress.trim() || null,
-          notes: notes.trim() || null,
-          salesperson_id: salespersonId || null,
-        })
-        .eq("id", id!)
-        .eq("company_id", effectiveCompany?.id ?? "");
-
-      if (error) throw error;
-
-      queryClient.invalidateQueries({ queryKey: ["company-customer-detail", id] });
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
-
-      toast({ title: "Cliente aggiornato", description: "I dati del cliente sono stati salvati con successo" });
-    } catch (error) {
-      logger.error("Error updating customer:", error);
-      toast({ title: "Errore", description: "Impossibile aggiornare i dati del cliente.", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
+  // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (orderCount > 0) {
       toast({
@@ -199,7 +252,7 @@ export default function CompanyCustomerDetail() {
 
       if (res.error) {
         const body = typeof res.error === "object" && "context" in res.error
-          ? await (res.error as any).context?.json?.()
+          ? await (res.error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.()
           : null;
         throw new Error(body?.error || res.error.message || "Errore eliminazione");
       }
@@ -208,14 +261,16 @@ export default function CompanyCustomerDetail() {
       queryClient.invalidateQueries({ queryKey: ["customers-list"] });
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("Error deleting customer:", error);
-      toast({ title: "Errore", description: error?.message || "Impossibile eliminare il cliente.", variant: "destructive" });
+      const message = error instanceof Error ? error.message : "Impossibile eliminare il cliente.";
+      toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
   };
 
+  // ── Loading / not found ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -235,34 +290,64 @@ export default function CompanyCustomerDetail() {
     );
   }
 
-  const initials = getInitials(customer.first_name || "", customer.last_name);
-  const avatarColor = getAvatarColor(`${customer.first_name}${customer.last_name}`);
-  const displayedOrders = orders.slice(0, 5);
-  const hasMoreOrders = orders.length > 5;
+  const fullName = `${customer.first_name || ""} ${customer.last_name}`.trim();
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/clienti")}>
+      <div className="flex items-start gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:inline-flex shrink-0"
+          onClick={() => navigate("/azienda/clienti")}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{customer.first_name ?? ""} {customer.last_name}</h1>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-            <div className="flex items-center gap-1">
-              <Mail className="h-3.5 w-3.5" />
-              {customer.email}
-            </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold">{fullName}</h1>
             <Badge variant="secondary" className="gap-1">
               <ClipboardList className="h-3 w-3" />
               {orderCount} {orderCount === 1 ? "ordine" : "ordini"}
             </Badge>
           </div>
+
+          {/* Chip cliccabili email / telefono / indirizzo */}
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {customer.email && (
+              <a
+                href={`mailto:${customer.email}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
+              >
+                <Mail className="h-3 w-3" />
+                {customer.email}
+              </a>
+            )}
+            {customer.phone && (
+              <a
+                href={`tel:${customer.phone}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
+              >
+                <Phone className="h-3 w-3" />
+                {customer.phone}
+              </a>
+            )}
+            {customer.address && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                {customer.address}
+              </span>
+            )}
+          </div>
+
+          {/* TODO Sprint 2: aggiungere qui il banner "Contatto CRM collegato" quando marketing_contact_id è presente */}
         </div>
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" disabled={isDeleting}>
+            <Button variant="destructive" size="sm" disabled={isDeleting} className="shrink-0">
               <Trash2 className="h-4 w-4 mr-2" />
               Elimina
             </Button>
@@ -279,7 +364,10 @@ export default function CompanyCustomerDetail() {
             <AlertDialogFooter>
               <AlertDialogCancel>Annulla</AlertDialogCancel>
               {orderCount === 0 && (
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
                   {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Elimina
                 </AlertDialogAction>
@@ -289,251 +377,36 @@ export default function CompanyCustomerDetail() {
         </AlertDialog>
       </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column — Edit Form (2/3) */}
-        <form onSubmit={handleSubmit} className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <User className="h-5 w-5" />
-                Modifica Dati Cliente
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={customer.email} disabled className="bg-muted" />
-                <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
-              </div>
+      {/* 2-column CRM layout: 2/5 left + 3/5 right */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* LEFT COLUMN — 2/5 */}
+        <div className="lg:col-span-2 space-y-4">
+          <CustomerProfileCard
+            customer={customer}
+            onSaved={() => refetchCustomer()}
+          />
+          <CustomerDiaryPanel
+            customerId={customer.id}
+            customerName={fullName}
+          />
+        </div>
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dati Anagrafici</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">Nome <span className="text-destructive">*</span></Label>
-                    <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" maxLength={50} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Cognome <span className="text-destructive">*</span></Label>
-                    <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" maxLength={50} required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fiscalCode">CF / P.IVA</Label>
-                  <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="RSSMRA80A01H501U o 01234567890" maxLength={16} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefono</Label>
-                  <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" maxLength={20} />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Indirizzi</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Indirizzo Residenza / Sede Legale</Label>
-                  <Textarea id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, 00100 Roma" maxLength={200} rows={2} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="siteAddress">Indirizzo Cantiere</Label>
-                  <Textarea id="siteAddress" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="Via del Cantiere 5, 00100 Roma" maxLength={200} rows={2} />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Note</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Note Aggiuntive</Label>
-                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note interne sul cliente..." maxLength={500} rows={3} />
-                </div>
-              </div>
-
-              <Separator />
-
-              <SalespersonSelect
-                value={salespersonId}
-                onChange={(val, _sp) => setSalespersonId(val)}
-                disabled={isSaving}
-              />
-
-              <div className="flex justify-end gap-4 pt-4">
-                <Button type="button" variant="outline" onClick={() => navigate("/azienda/clienti")}>
-                  Annulla
-                </Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
-                  ) : (
-                    <><Save className="mr-2 h-4 w-4" />Salva Modifiche</>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </form>
-
-        {/* Right column — Sidebar (1/3) */}
-        <div className="space-y-6">
-          {/* Summary Card */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center gap-3 mb-5">
-                <Avatar className={`h-16 w-16 ${avatarColor}`}>
-                  <AvatarFallback className="text-xl font-bold text-white bg-transparent">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold text-lg">{customer.first_name} {customer.last_name}</p>
-                  <p className="text-sm text-muted-foreground">{customer.email}</p>
-                </div>
-              </div>
-
-              <Separator className="mb-4" />
-
-              <div className="space-y-3 text-sm">
-                {customer.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4 shrink-0" />
-                    <span>{customer.phone}</span>
-                  </div>
-                )}
-                {customer.fiscal_code && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <CreditCard className="h-4 w-4 shrink-0" />
-                    <span className="font-mono text-xs">{customer.fiscal_code}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4 shrink-0" />
-                  <span>Cliente dal {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Orders Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ClipboardList className="h-4 w-4" />
-                Ordini ({orderCount})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {orders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun ordine associato.</p>
-              ) : (
-                <div className="space-y-2">
-                  {displayedOrders.map((order) => {
-                    const status = order.order_statuses as { name: string; color: string } | null;
-                    return (
-                      <div
-                        key={order.id}
-                        className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-                        onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{order.order_code || "—"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(order.created_at), "dd MMM yyyy", { locale: it })}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {status && (
-                            <Badge variant="outline" className="gap-1 text-xs">
-                              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: status.color }} />
-                              {status.name}
-                            </Badge>
-                          )}
-                          <span className="text-sm font-medium whitespace-nowrap">
-                            € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                          </span>
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {hasMoreOrders && (
-                    <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => {/* scroll or expand */}}>
-                      Vedi tutti gli ordini ({orderCount})
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Fatture Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-4 w-4" />
-                Fatture
-                {fattureCliente.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">{fattureCliente.length}</Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!anagraficaCollegata ? (
-                <div className="text-center py-4 space-y-2">
-                  <p className="text-sm text-muted-foreground">Nessuna anagrafica fiscale collegata</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => navigate("/azienda/fatturazione")}
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                    Vai a Riconciliazione
-                  </Button>
-                </div>
-              ) : fattureCliente.length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Collegata a: {anagraficaCollegata.ragione_sociale}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Nessuna fattura emessa</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {fattureCliente.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/azienda/documenti/${f.id}`)}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{f.numero || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{f.data_emissione?.substring(0, 10)}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className="text-xs">{f.stato}</Badge>
-                        <span className="text-sm font-medium whitespace-nowrap">
-                          € {Number(f.totale_documento ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                        </span>
-                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Messages Panel */}
-          {customer && (
-            <ClientMessagesPanel
-              customerId={customer.id}
-              customerName={`${customer.first_name || ""} ${customer.last_name}`.trim()}
-            />
-          )}
+        {/* RIGHT COLUMN — 3/5 */}
+        <div className="lg:col-span-3">
+          <CustomerBusinessTabs
+            customerId={customer.id}
+            companyId={effectiveCompany?.id ?? ""}
+            orders={orders}
+            preventivi={preventivi}
+            tickets={tickets}
+            rapportini={rapportini}
+            fatture={fattureCliente}
+            appuntamenti={appuntamenti}
+            rate={rate}
+            anagraficaCollegata={anagraficaCollegata ?? null}
+            totalOrderValue={totalOrderValue}
+            openTicketsCount={openTicketsCount}
+          />
         </div>
       </div>
     </div>
