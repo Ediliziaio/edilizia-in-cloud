@@ -60,6 +60,9 @@ export default defineConfig(() => ({
         ],
       },
       workbox: {
+        // sw-push-handler.js: gestione eventi push Web Push API (MP5)
+        // Incluso via importScripts nel SW generato da Vite PWA.
+        importScripts: ["/sw-push-handler.js"],
         // Only precache icons, images and fonts — NOT JS/CSS bundles.
         // JS/CSS chunks already have content-hash filenames and are cached
         // by Cloudflare edge (immutable, 1 year). Precaching them in the SW
