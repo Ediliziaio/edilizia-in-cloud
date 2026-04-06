@@ -50,6 +50,12 @@ const GARANZIE = [
     tagline: "Risultato garantito o rimborso totale.",
     lines: [
       { bold: false, text: "Entro 60 giorni vede un miglioramento concreto nella gestione del suo cantiere — o le rimborsiamo ogni centesimo, senza domande." },
+      { bold: false, text: "Quante ore perde ogni settimana in burocrazia e telefonate inutili." },
+      { bold: false, text: "Dove stanno andando i soldi del cantiere — in tempo reale, non a fine mese." },
+      { bold: false, text: "Se i preventivi vengono firmati più velocemente rispetto a prima." },
+      { bold: false, text: "Quanto tempo risparmia il suo team su ogni commessa." },
+      { bold: false, text: "Se i clienti pagano nei tempi concordati o serve un sistema di sollecito." },
+      { bold: true, text: "Se dopo 60 giorni non vede miglioramenti concreti, le rimborsiamo tutto. Senza domande, senza burocrazia." },
     ],
   },
   {
@@ -312,11 +318,13 @@ export default function GaranzieSection({ variant = "full" }: GaranzieSectionPro
                   </div>
                 ))}
               </div>
-              <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
-                <p className="text-[#1E3A5F] font-semibold text-sm leading-relaxed">
-                  {GARANZIE[2].lines[6].text}
-                </p>
-              </div>
+              {GARANZIE[2].lines[6] && (
+                <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
+                  <p className="text-[#1E3A5F] font-semibold text-sm leading-relaxed">
+                    {GARANZIE[2].lines[6].text}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
