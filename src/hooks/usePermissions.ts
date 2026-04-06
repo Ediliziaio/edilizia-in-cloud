@@ -133,7 +133,7 @@ export function usePermissions(): Permissions {
   const { role, user, isImpersonating, isImpersonationReady, impersonatedCompanyId, impersonationToken } = useAuth();
   const queryClient = useQueryClient();
 
-  const isStaffRole = ["company_staff", "salesperson", "call_center", "worker", "subcontractor"].includes(role || "");
+  const isStaffRole = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "");
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -196,7 +196,7 @@ export function usePermissions(): Permissions {
   }
 
   // Staff: return permissions from database
-  if (["company_staff", "salesperson", "call_center", "worker", "subcontractor"].includes(role || "")) {
+  if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "")) {
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }

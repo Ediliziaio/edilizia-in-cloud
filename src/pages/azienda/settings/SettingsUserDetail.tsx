@@ -104,6 +104,7 @@ export default function SettingsUserDetail() {
       else if (roleSet.has("call_center")) effectiveRole = "call_center";
       else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
       else if (roleSet.has("employee")) effectiveRole = "employee";
+      else if (roleSet.has("worker")) effectiveRole = "employee"; // retrocompatibilità DB
       else if (roleSet.has("subcontractor")) effectiveRole = "subcontractor";
 
       let permissions: StaffPermissions | null = null;

@@ -33,7 +33,7 @@ import { CreateUserWizard, type WizardUserFormData } from "@/components/users/Cr
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 
-type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "worker" | "subcontractor";
+type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
 interface CompanyUser {
   id: string;
@@ -159,7 +159,7 @@ function RoleBadge({ role, onlyAssigned }: { role: EffectiveRole; onlyAssigned?:
     company_staff: { label: "Operatore", icon: UserCheck, className: "bg-secondary text-secondary-foreground" },
     salesperson: { label: "Venditore", icon: TrendingUp, className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
     call_center: { label: "Call Center", icon: Phone, className: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
-    worker:        { label: "Operaio",        icon: HardHat,    className: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
+    employee:      { label: "Operaio",        icon: HardHat,    className: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
     subcontractor: { label: "Subappaltatore", icon: Building2,  className: "bg-purple-500/10 text-purple-700 border-purple-500/20" },
   };
 
@@ -241,7 +241,8 @@ function determineEffectiveRole(roles: string[]): EffectiveRole {
   if (roles.includes("company_admin")) return "company_admin";
   if (roles.includes("salesperson")) return "salesperson";
   if (roles.includes("call_center")) return "call_center";
-  if (roles.includes("worker")) return "worker";
+  if (roles.includes("employee")) return "employee";
+  if (roles.includes("worker")) return "employee"; // retrocompatibilità DB
   if (roles.includes("subcontractor")) return "subcontractor";
   return "company_staff";
 }
@@ -334,7 +335,7 @@ export function UsersConfig() {
       // Filter to only company-relevant users
       const companyUserIds = Object.entries(rolesByUser)
         .filter(([, userRoles]) =>
-          userRoles.some((r) => ["company_admin", "company_staff", "salesperson", "call_center", "worker", "subcontractor"].includes(r))
+          userRoles.some((r) => ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"].includes(r))
         )
         .map(([uid]) => uid);
 
@@ -363,7 +364,7 @@ export function UsersConfig() {
   const staffCount = companyUsers.filter((u) => u.effectiveRole === "company_staff").length;
   const salespersonCount = companyUsers.filter((u) => u.effectiveRole === "salesperson").length;
   const callCenterCount = companyUsers.filter((u) => u.effectiveRole === "call_center").length;
-  const workerCount = companyUsers.filter(u => u.effectiveRole === "worker").length;
+  const workerCount = companyUsers.filter(u => u.effectiveRole === "employee").length;
   const subcontractorCount = companyUsers.filter(u => u.effectiveRole === "subcontractor").length;
 
   const handleCreateUser = async (data: WizardUserFormData): Promise<{ temporaryPassword?: string }> => {
@@ -395,7 +396,7 @@ export function UsersConfig() {
       if (response.data?.error) throw new Error(response.data.error);
 
       // Update permissions for roles that use staff_permissions
-      const rolesWithPermissions = ["company_staff", "salesperson", "call_center", "worker", "subcontractor"];
+      const rolesWithPermissions = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
       if (rolesWithPermissions.includes(data.role_type) && data.permissions && response.data?.user_id) {
         // Sync legacy aggregate flags before saving
         const synced = syncLegacySettingsFlags(data.permissions);
@@ -440,7 +441,7 @@ export function UsersConfig() {
         company_staff: "Operatore",
         salesperson: "Venditore",
         call_center: "Call Center",
-        worker: "Operaio",
+        employee: "Operaio",
         subcontractor: "Subappaltatore",
       };
 
@@ -521,7 +522,7 @@ export function UsersConfig() {
     company_staff: "Operatore",
     salesperson: "Venditore",
     call_center: "Call Center",
-    worker: "Operaio",
+    employee: "Operaio",
     subcontractor: "Subappaltatore",
   };
 
@@ -803,7 +804,7 @@ export function UsersConfig() {
                 <SelectItem value="company_staff">Operatori</SelectItem>
                 <SelectItem value="salesperson">Venditori</SelectItem>
                 <SelectItem value="call_center">Call Center</SelectItem>
-                <SelectItem value="worker">Operai</SelectItem>
+                <SelectItem value="employee">Operai</SelectItem>
                 <SelectItem value="subcontractor">Subappaltatori</SelectItem>
               </SelectContent>
             </Select>

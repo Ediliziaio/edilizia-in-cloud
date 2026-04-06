@@ -41,20 +41,22 @@ interface CreateUserWizardProps {
   isLoading?: boolean;
 }
 
-const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType; color: string }[] = [
-  { value: "company_admin", label: "Amministratore", description: "Accesso completo a tutto", icon: ShieldCheck, color: "text-blue-600 bg-blue-500/10 border-blue-500/20" },
-  { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, color: "text-slate-600 bg-slate-500/10 border-slate-500/20" },
-  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, color: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" },
-  { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, color: "text-orange-600 bg-orange-500/10 border-orange-500/20" },
-  { value: "worker", label: "Operaio / Tecnico", description: "Accesso cantiere — solo attività assegnate", icon: HardHat, color: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
-  { value: "subcontractor", label: "Subappaltatore", description: "Commesse assegnate — visibilità limitata", icon: Building2, color: "text-purple-600 bg-purple-500/10 border-purple-500/20" },
+const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType; color: string; preview?: string[] }[] = [
+  { value: "company_admin", label: "Amministratore", description: "Accesso completo a tutto", icon: ShieldCheck, color: "text-blue-600 bg-blue-500/10 border-blue-500/20", preview: [] },
+  { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, color: "text-slate-600 bg-slate-500/10 border-slate-500/20", preview: ["Ordini & Commesse", "Magazzino", "Calendario", "Clienti", "Fatturazione"] },
+  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, color: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20", preview: ["CRM Contatti", "Opportunità", "Preventivi CRM", "Calendar CRM", "Sales OS"] },
+  { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, color: "text-orange-600 bg-orange-500/10 border-orange-500/20", preview: ["CRM Contatti", "Opportunità (vista)", "Calendario CRM", "Appuntamenti"] },
+  { value: "employee", label: "Operaio / Tecnico", description: "Accesso cantiere — solo attività assegnate", icon: HardHat, color: "text-amber-600 bg-amber-500/10 border-amber-500/20", preview: ["Calendario (propri turni)", "Giornale Lavori"] },
+  { value: "subcontractor", label: "Subappaltatore", description: "Commesse assegnate — visibilità limitata", icon: Building2, color: "text-purple-600 bg-purple-500/10 border-purple-500/20", preview: ["Ordini assegnati", "Calendario", "Clienti (propri)"] },
 ];
 
-const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "worker", "subcontractor"];
+const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
 const ROLE_LABELS: Record<StaffRoleType, string> = {
   company_admin: "Amministratore", company_staff: "Operatore",
   salesperson: "Venditore", call_center: "Call Center",
+  employee: "Operaio / Tecnico",
+  subcontractor: "Subappaltatore",
 };
 
 // --- Permission Group Component ---
@@ -312,6 +314,29 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                   </p>
                 </div>
               )}
+              {(() => {
+                const selectedOpt = ROLE_OPTIONS.find(o => o.value === roleType);
+                return selectedOpt?.preview && selectedOpt.preview.length > 0 ? (
+                  <div className="col-span-2 mt-1 bg-muted/40 rounded-lg p-3 border border-border">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Accessi inclusi di default:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedOpt.preview.map(label => (
+                        <span key={label} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{label}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+              {(roleType === "employee" || roleType === "subcontractor") && (
+                <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
+                  <Lock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-700">
+                    {roleType === "employee"
+                      ? "Accede solo all'app mobile di cantiere (lavori.ediliziaincloud.com). Nessun accesso al gestionale web."
+                      : "Accede solo alle commesse assegnate a lui. Nessun accesso a dati finanziari aziendali."}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -446,7 +471,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
               <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-700">
-                  Verrà generata una password temporanea. L'utente dovrà cambiarla al primo accesso.
+                  {password.trim()
+                    ? "Password personalizzata impostata. Comunicala all'utente in modo sicuro."
+                    : "Verrà generata una password temporanea. L'utente dovrà cambiarla al primo accesso."}
                 </p>
               </div>
             </div>

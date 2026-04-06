@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone, HardHat, Building2 } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
@@ -55,6 +55,10 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "customers",        label: "Clienti",                description: "Gestisci anagrafica clienti",              viewKey: "can_view_customers",            editKey: "can_edit_customers" },
       { id: "export-clients",   label: "Esporta Clienti",        description: "Esporta l'anagrafica clienti in CSV",      viewKey: "can_export_clients" },
       { id: "tickets",          label: "Ticket Assistenza",      description: "Gestisci ticket di supporto",              viewKey: "can_view_tickets",              editKey: "can_edit_tickets" },
+      { id: "interventi",       label: "Interventi",             description: "Gestisci interventi tecnici pianificati",  viewKey: "can_view_interventi" },
+      { id: "manutenzione",     label: "Manutenzione",           description: "Gestisci piani di manutenzione programmata", viewKey: "can_view_manutenzione" },
+      { id: "sicurezza",        label: "Sicurezza Cantiere",     description: "Accesso al modulo sicurezza e PSC",        viewKey: "can_view_sicurezza_cantiere" },
+      { id: "subappaltatori-perm", label: "Subappaltatori",      description: "Visualizza e gestisci subappaltatori",     viewKey: "can_view_subappaltatori" },
     ],
   },
   {
@@ -75,9 +79,11 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     id: "persone",
     label: "Persone",
     modules: [
-      { id: "persone",    label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica",   viewKey: "can_view_persone" },
-      { id: "employees",  label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",       viewKey: "can_view_employees" },
-      { id: "users",      label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",   viewKey: "can_view_users" },
+      { id: "persone",            label: "Personale, Chat e Messaggistica", description: "HR, chat interna e messaggistica",                 viewKey: "can_view_persone" },
+      { id: "employees",          label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",                     viewKey: "can_view_employees" },
+      { id: "users",              label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",                 viewKey: "can_view_users" },
+      { id: "giornale-lavori",    label: "Giornale Lavori",                 description: "Visualizza le registrazioni giornaliere di cantiere", viewKey: "can_view_giornale_lavori" },
+      { id: "messaggi-esterni",   label: "Messaggi Esterni",                description: "Accesso alla messaggistica esterna",               viewKey: "can_view_messaggi_esterni" },
     ],
   },
   {
@@ -90,7 +96,9 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "mkt-activities",    label: "Attività",            description: "Visualizza attività marketing",            viewKey: "can_view_marketing_activities" },
       { id: "mkt-appointments",  label: "Appuntamenti",        description: "Gestisci appuntamenti commerciali",        viewKey: "can_view_marketing_appointments" },
       { id: "mkt-email",         label: "Email Marketing",     description: "Campagne e template email",                viewKey: "can_view_marketing_email" },
+      { id: "mkt-sms",           label: "SMS Marketing",       description: "Campagne e automazioni SMS",               viewKey: "can_view_sms_marketing" },
       { id: "mkt-whatsapp",      label: "WhatsApp",            description: "Messaggistica WhatsApp",                   viewKey: "can_view_marketing_whatsapp" },
+      { id: "mkt-sales-os",      label: "Sales OS",            description: "Dashboard e strumenti commerciali avanzati", viewKey: "can_view_sales_os" },
       { id: "mkt-reports",       label: "Reportistica",        description: "Report e analisi marketing",               viewKey: "can_view_marketing_reports" },
     ],
   },
@@ -98,8 +106,9 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     id: "automazioni",
     label: "Automazioni & AI",
     modules: [
-      { id: "automations", label: "Automazioni", description: "Flussi automatizzati",      viewKey: "can_view_marketing_automations" },
+      { id: "automations", label: "Automazioni", description: "Flussi automatizzati",      viewKey: "can_view_automazioni" },
       { id: "ai-agent",    label: "Agenti AI",   description: "Agenti AI voce e chat",     viewKey: "can_view_marketing_ai_agent" },
+      { id: "render-ai",   label: "Render AI",   description: "Generazione render con AI", viewKey: "can_view_render_ai" },
     ],
   },
   {
@@ -115,7 +124,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
   },
 ];
 
-export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
+export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
 interface UserRolesPermissionsTabProps {
   user: {
@@ -248,6 +257,12 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
                 </SelectItem>
                 <SelectItem value="call_center">
                   <div className="flex items-center gap-2"><Phone className="h-4 w-4" />Call Center</div>
+                </SelectItem>
+                <SelectItem value="employee">
+                  <div className="flex items-center gap-2"><HardHat className="h-4 w-4 text-amber-600" />Operaio / Tecnico</div>
+                </SelectItem>
+                <SelectItem value="subcontractor">
+                  <div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-purple-600" />Subappaltatore</div>
                 </SelectItem>
               </SelectContent>
             </Select>

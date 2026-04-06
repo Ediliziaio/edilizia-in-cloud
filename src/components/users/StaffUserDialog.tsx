@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone } from "lucide-react";
+import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone, HardHat, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
@@ -25,7 +25,7 @@ interface StaffUserDialogProps {
   isLoading?: boolean;
 }
 
-export type StaffRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center";
+export type StaffRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
 export interface StaffUserFormData {
   first_name: string;
@@ -53,15 +53,19 @@ const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; 
   { value: "company_staff", label: "Operatore", description: "Gestione interna", icon: User },
   { value: "salesperson", label: "Venditore", description: "Vendite e provvigioni", icon: TrendingUp },
   { value: "call_center", label: "Call Center", description: "Contatti e opportunità", icon: Phone },
+  { value: "employee", label: "Operaio / Tecnico", description: "Area campo — solo attività assegnate", icon: HardHat },
+  { value: "subcontractor", label: "Subappaltatore", description: "Commesse assegnate — visibilità limitata", icon: Building2 },
 ];
 
-const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center"];
+const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
 const ROLE_LABELS: Record<StaffRoleType, string> = {
   company_admin: "Amministratore",
   company_staff: "Operatore",
   salesperson: "Venditore",
   call_center: "Call Center",
+  employee: "Operaio / Tecnico",
+  subcontractor: "Subappaltatore",
 };
 
 export function StaffUserDialog({

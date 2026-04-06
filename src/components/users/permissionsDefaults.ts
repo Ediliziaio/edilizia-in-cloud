@@ -147,7 +147,7 @@ export type StaffRoleType =
   | "company_staff"
   | "salesperson"
   | "call_center"
-  | "worker"
+  | "employee" // era 'worker' — usa il ruolo corretto del sistema
   | "subcontractor";
 
 export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
@@ -198,7 +198,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing: true,
   },
 
-  worker: {
+  employee: {
     can_view_calendar: true,
     can_view_giornale_lavori: true,
     only_assigned: true,

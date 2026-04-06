@@ -24,7 +24,7 @@ export function RoleBasedRedirect() {
 
   useEffect(() => {
     async function checkPasswordChange() {
-      if (["company_staff", "salesperson", "call_center"].includes(role || "") && user) {
+      if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "") && user) {
         setCheckingPassword(true);
         try {
           const { data, error } = await supabase
@@ -77,7 +77,7 @@ export function RoleBasedRedirect() {
   }
 
   // For staff-type users, wait for password check to complete
-  if (["company_staff", "salesperson", "call_center"].includes(role || "")) {
+  if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "")) {
     if (checkingPassword || mustChangePassword === null) {
       return <LoadingSpinner text="Verifica in corso..." />;
     }

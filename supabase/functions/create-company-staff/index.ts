@@ -3,7 +3,7 @@ import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
-type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "worker" | "subcontractor";
+type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
 function resolveRoles(roleType: ValidRoleType): string[] {
   switch (roleType) {
@@ -13,7 +13,7 @@ function resolveRoles(roleType: ValidRoleType): string[] {
       return ["salesperson", "company_staff"];
     case "call_center":
       return ["call_center", "company_staff"];
-    case "worker":
+    case "employee":
       return ["employee", "company_staff"];
     case "subcontractor":
       return ["subcontractor", "company_staff"];
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate and resolve roles
-    const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center", "worker", "subcontractor"];
+    const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"];
     const effectiveRoleType: ValidRoleType = validRoleTypes.includes(role_type) ? role_type : "company_staff";
     const rolesToAssign = resolveRoles(effectiveRoleType);
 
