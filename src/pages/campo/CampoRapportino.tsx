@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Check, Loader2, Send
+  Camera, X, Minus, Plus, Check, Loader2, Send, PenLine
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,8 +64,14 @@ export default function CampoRapportino() {
   const [hasSignature, setHasSignature] = useState(false);
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
 
+  // Step 3 extra
+  const [oreStraordinario, setOreStraordinario] = useState(0);
+
   // Step 5
   const [lavoro_completato, setLavoroCompletato] = useState(false);
+  const firmaOperaioRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingOperaioRef = useRef(false);
+  const [hasSignatureOperaio, setHasSignatureOperaio] = useState(false);
 
   // Acquisisci GPS all'inizio
   useEffect(() => {
@@ -143,6 +149,42 @@ export default function CampoRapportino() {
     setHasSignature(false);
   };
 
+  // ── Canvas firma operaio ─────────────────────────────────────────────────
+  const startDrawOperaio = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!firmaOperaioRef.current) return;
+    e.preventDefault();
+    const ctx = firmaOperaioRef.current.getContext("2d");
+    if (!ctx) return;
+    isDrawingOperaioRef.current = true;
+    const { x, y } = getPos(e, firmaOperaioRef.current);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const drawOperaio = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawingOperaioRef.current || !firmaOperaioRef.current) return;
+    e.preventDefault();
+    const ctx = firmaOperaioRef.current.getContext("2d");
+    if (!ctx) return;
+    const { x, y } = getPos(e, firmaOperaioRef.current);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    setHasSignatureOperaio(true);
+  };
+
+  const endDrawOperaio = () => { isDrawingOperaioRef.current = false; };
+
+  const clearFirmaOperaio = () => {
+    if (!firmaOperaioRef.current) return;
+    const ctx = firmaOperaioRef.current.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, firmaOperaioRef.current.width, firmaOperaioRef.current.height);
+    setHasSignatureOperaio(false);
+  };
+
   // ── Upload foto ─────────────────────────────────────────────────��────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
@@ -180,10 +222,10 @@ export default function CampoRapportino() {
     setUploadingFoto(false);
   };
 
-  // ── Salvataggio ─────────────────────────────────────────────────────��
+  // ── Salvataggio ─────────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
-      // Upload firma
+      // Upload firma cliente
       let uploadedFirmaUrl: string | null = null;
       if (hasSignature && canvasRef.current) {
         const blob = await new Promise<Blob>(res =>
@@ -197,6 +239,20 @@ export default function CampoRapportino() {
         }
       }
 
+      // Upload firma operaio
+      let uploadedFirmaOperaioUrl: string | null = null;
+      if (hasSignatureOperaio && firmaOperaioRef.current) {
+        const blob = await new Promise<Blob>(res =>
+          firmaOperaioRef.current!.toBlob(b => res(b!), "image/png")
+        );
+        const path = `${profile!.company_id}/${orderId}/${Date.now()}_firma_operaio.png`;
+        const { data: upFirmaOp } = await supabase.storage.from("campo-firme").upload(path, blob);
+        if (upFirmaOp?.path) {
+          const { data: urlD } = supabase.storage.from("campo-firme").getPublicUrl(upFirmaOp.path);
+          uploadedFirmaOperaioUrl = urlD.publicUrl;
+        }
+      }
+
       // Decrementa scorte furgone
       for (const [scorta_id, qtaUsata] of Object.entries(decrementiFurgone)) {
         if (qtaUsata > 0) {
@@ -205,26 +261,33 @@ export default function CampoRapportino() {
       }
 
       // Inserisci rapportino
-      const { error } = await supabase.from("campo_rapportini").insert({
-        company_id: profile!.company_id,
-        order_id: orderId,
-        user_id: user!.id,
-        role_type: isSubappaltatore ? "subcontractor" : "employee",
-        data_lavoro: format(new Date(), "yyyy-MM-dd"),
-        ore_lavorate: oreLavorate,
-        descrizione_lavori: descrizione,
-        materiali_usati: materiali,
-        foto_urls: fotoUrls,
-        lavoro_completato,
-        percentuale_avanzamento: percentuale,
-        gps_lat: lat || null,
-        gps_lng: lng || null,
-        gps_accuracy: accuracy || null,
-        meteo: meteo || null,
-        firma_cliente_url: uploadedFirmaUrl,
-        firma_cliente_nome: firmatoDa || null,
-        firma_cliente_at: hasSignature ? new Date().toISOString() : null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("campo_rapportini")
+        .insert({
+          company_id: profile!.company_id,
+          order_id: orderId,
+          user_id: user!.id,
+          role_type: isSubappaltatore ? "subcontractor" : "employee",
+          data_lavoro: format(new Date(), "yyyy-MM-dd"),
+          ore_lavorate: oreLavorate,
+          ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
+          descrizione_lavori: descrizione,
+          materiali_usati: materiali,
+          foto_urls: fotoUrls,
+          lavoro_completato,
+          percentuale_avanzamento: percentuale,
+          gps_lat: lat || null,
+          gps_lng: lng || null,
+          gps_accuracy: accuracy || null,
+          meteo: meteo || null,
+          firma_cliente_url: uploadedFirmaUrl,
+          firma_cliente_nome: firmatoDa || null,
+          firma_cliente_at: hasSignature ? new Date().toISOString() : null,
+          firma_operaio_url: uploadedFirmaOperaioUrl,
+          stato: "inviato",
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
 
@@ -233,10 +296,17 @@ export default function CampoRapportino() {
         .from("orders")
         .update({ percentuale_avanzamento: percentuale })
         .eq("id", orderId!);
+
+      // Genera PDF in background (fire-and-forget — non bloccare UX)
+      if (inserted?.id) {
+        supabase.functions
+          .invoke("genera-pdf-rapportino", { body: { rapportino_id: inserted.id } })
+          .catch(() => { /* PDF generato in background, errore non bloccante */ });
+      }
     },
     onSuccess: () => {
       navigator.vibrate?.([10, 50, 10]);
-      toast.success("Rapportino salvato!");
+      toast.success("Rapportino inviato!");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
@@ -496,6 +566,37 @@ export default function CampoRapportino() {
               </div>
             </div>
 
+            {/* Ore straordinario */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-slate-400">Ore straordinario</p>
+                <span className="text-amber-400 font-bold">{oreStraordinario}h</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
+                  className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center"
+                >
+                  <Minus className="w-4 h-4 text-white" />
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={6}
+                  step={0.5}
+                  value={oreStraordinario}
+                  onChange={e => setOreStraordinario(Number(e.target.value))}
+                  className="flex-1 accent-amber-500"
+                />
+                <button
+                  onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
+                  className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center"
+                >
+                  <Plus className="w-4 h-4 text-black" />
+                </button>
+              </div>
+            </div>
+
             <div>
               <p className="text-sm text-slate-400 mb-2">Foto cantiere</p>
               <label className="block w-full">
@@ -591,11 +692,48 @@ export default function CampoRapportino() {
           </>
         )}
 
-        {/* ── Step 5: Conferma e invio ── */}
+        {/* ── Step 5: Firma operaio + Riepilogo ── */}
         {step === 5 && (
           <>
-            <h2 className="text-lg font-bold text-white">Riepilogo rapportino</h2>
+            <h2 className="text-lg font-bold text-white">Firma e riepilogo</h2>
 
+            {/* Firma operaio */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <PenLine className="w-4 h-4 text-amber-400" />
+                <p className="text-sm font-semibold text-white">Firma operaio</p>
+                {hasSignatureOperaio && (
+                  <span className="text-xs text-green-400">✓ Firmato</span>
+                )}
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden">
+                <canvas
+                  ref={firmaOperaioRef}
+                  width={640}
+                  height={240}
+                  className="w-full touch-none bg-slate-800"
+                  style={{ height: 120 }}
+                  onMouseDown={startDrawOperaio}
+                  onMouseMove={drawOperaio}
+                  onMouseUp={endDrawOperaio}
+                  onTouchStart={startDrawOperaio}
+                  onTouchMove={drawOperaio}
+                  onTouchEnd={endDrawOperaio}
+                />
+                <div className="p-3 flex items-center justify-between border-t border-slate-700">
+                  <span className="text-xs text-slate-400">Firma nell'area sopra</span>
+                  <button
+                    onClick={clearFirmaOperaio}
+                    className="text-xs text-slate-400 flex items-center gap-1 active:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Cancella
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Riepilogo */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Data</span>
@@ -605,6 +743,12 @@ export default function CampoRapportino() {
                 <span className="text-slate-400">Ore lavorate</span>
                 <span className="text-amber-400 font-bold">{oreLavorate}h</span>
               </div>
+              {oreStraordinario > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Ore straordinario</span>
+                  <span className="text-amber-400 font-bold">{oreStraordinario}h</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Avanzamento</span>
                 <span className="text-amber-400 font-bold">{percentuale}%</span>
@@ -621,6 +765,12 @@ export default function CampoRapportino() {
                 <span className="text-slate-400">Firma cliente</span>
                 <span className={hasSignature ? "text-green-400" : "text-slate-500"}>
                   {hasSignature ? "✓ Presente" : "Non firmato"}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Firma operaio</span>
+                <span className={hasSignatureOperaio ? "text-green-400" : "text-slate-500"}>
+                  {hasSignatureOperaio ? "✓ Presente" : "Non firmato"}
                 </span>
               </div>
             </div>
