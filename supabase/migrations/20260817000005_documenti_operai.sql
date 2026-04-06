@@ -104,7 +104,10 @@ CREATE POLICY "push_sub_company_admin"
   FOR SELECT
   USING (
     company_id IN (
-      SELECT company_id FROM profiles WHERE id = auth.uid() AND role IN ('company_admin','company_staff','super_admin')
+      SELECT p.company_id FROM profiles p
+      JOIN user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND ur.role IN ('company_admin','company_staff','super_admin')
     )
   );
 
