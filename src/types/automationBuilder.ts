@@ -37,8 +37,10 @@ export interface AutomationConnection {
   created_at: string;
 }
 
-export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent" | "social_media";
-export type ActionCategory = "communication" | "crm" | "logic" | "integration";
+export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent" | "social_media"
+  // Sprint 2A — nuovi moduli operativi
+  | "order" | "invoice" | "quote" | "ticket" | "maintenance" | "warehouse";
+export type ActionCategory = "communication" | "crm" | "logic" | "integration" | "operations";
 
 export interface PickerItem {
   id: string;
@@ -127,6 +129,88 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "facebook_lead_updated", label: "Lead Facebook aggiornato", icon: "Share2", category: "social_media", description: "Si attiva quando un lead Facebook esistente viene aggiornato" },
     ],
   },
+  // ── Sprint 2A — Nuovi moduli operativi ───────────────────────────────────────
+  {
+    key: "order",
+    label: "Ordini & Cantieri",
+    icon: "Package",
+    items: [
+      { id: "order_created",         label: "Ordine creato",             icon: "Plus",          category: "order" },
+      { id: "order_status_changed",  label: "Stato ordine cambiato",     icon: "RotateCcw",     category: "order" },
+      { id: "order_work_started",    label: "Lavori iniziati",           icon: "Play",          category: "order" },
+      { id: "order_work_completed",  label: "Lavori completati",         icon: "CheckSquare",   category: "order" },
+      { id: "order_deposit_paid",    label: "Acconto pagato",            icon: "CreditCard",    category: "order" },
+      { id: "order_balance_paid",    label: "Saldo pagato",              icon: "CreditCard",    category: "order" },
+      { id: "order_late",            label: "Ordine in ritardo",         icon: "AlertTriangle", category: "order" },
+    ],
+  },
+  {
+    key: "invoice",
+    label: "Fatture & Incassi",
+    icon: "Receipt",
+    items: [
+      { id: "invoice_created",      label: "Fattura emessa",                         icon: "FileText",     category: "invoice" },
+      { id: "invoice_sent",         label: "Fattura inviata al cliente",             icon: "Send",         category: "invoice" },
+      { id: "invoice_paid",         label: "Fattura pagata",                         icon: "CheckCircle",  category: "invoice" },
+      { id: "invoice_overdue",      label: "Fattura scaduta non pagata",             icon: "AlertCircle",  category: "invoice" },
+      { id: "invoice_overdue_3d",   label: "Scaduta da 3 giorni (1° sollecito)",    icon: "Clock",        category: "invoice" },
+      { id: "invoice_overdue_15d",  label: "Scaduta da 15 giorni (2° sollecito)",   icon: "Clock",        category: "invoice" },
+      { id: "invoice_overdue_30d",  label: "Scaduta da 30 giorni (3° sollecito)",   icon: "AlertTriangle",category: "invoice" },
+    ],
+  },
+  {
+    key: "quote",
+    label: "Preventivi",
+    icon: "FileText",
+    items: [
+      { id: "quote_created",   label: "Preventivo creato",                    icon: "FilePlus",     category: "quote" },
+      { id: "quote_sent",      label: "Preventivo inviato",                   icon: "Send",         category: "quote" },
+      { id: "quote_viewed",    label: "Preventivo visualizzato",              icon: "Eye",          category: "quote" },
+      { id: "quote_accepted",  label: "Preventivo accettato ✅",             icon: "CheckSquare",  category: "quote" },
+      { id: "quote_rejected",  label: "Preventivo rifiutato ❌",             icon: "XCircle",      category: "quote" },
+      { id: "quote_expiring",  label: "Preventivo in scadenza",               icon: "Hourglass",    category: "quote" },
+      { id: "quote_expired",   label: "Preventivo scaduto senza risposta",    icon: "AlertTriangle",category: "quote" },
+    ],
+  },
+  {
+    key: "ticket",
+    label: "Ticket & Interventi",
+    icon: "Wrench",
+    items: [
+      { id: "ticket_opened",           label: "Ticket aperto",                     icon: "TicketPlus",   category: "ticket" },
+      { id: "ticket_assigned",         label: "Ticket assegnato",                  icon: "UserCheck",    category: "ticket" },
+      { id: "ticket_status_changed",   label: "Stato ticket cambiato",             icon: "RotateCcw",    category: "ticket" },
+      { id: "ticket_resolved",         label: "Ticket risolto",                    icon: "CheckCircle",  category: "ticket" },
+      { id: "ticket_no_reply_24h",     label: "Senza risposta 24h (SLA)",         icon: "AlertTriangle",category: "ticket" },
+      { id: "ticket_no_reply_48h",     label: "Senza risposta 48h",               icon: "AlertTriangle",category: "ticket" },
+      { id: "intervento_created",      label: "Intervento tecnico creato",         icon: "Wrench",       category: "ticket" },
+      { id: "intervento_completed",    label: "Intervento completato",             icon: "CheckSquare",  category: "ticket" },
+      { id: "rapportino_signed",       label: "Rapportino firmato dal cliente",    icon: "PenLine",      category: "ticket" },
+    ],
+  },
+  {
+    key: "maintenance",
+    label: "Manutenzione",
+    icon: "Settings",
+    items: [
+      { id: "impianto_registered",        label: "Impianto registrato",                          icon: "Plus",         category: "maintenance" },
+      { id: "garanzia_expiring",          label: "Garanzia in scadenza",                         icon: "ShieldAlert",  category: "maintenance" },
+      { id: "contratto_manut_expiring",   label: "Contratto manutenzione in scadenza",           icon: "Clock",        category: "maintenance" },
+      { id: "manutenzione_scheduled",     label: "Manutenzione programmata (prossima scadenza)", icon: "Calendar",     category: "maintenance" },
+      { id: "manutenzione_overdue",       label: "Manutenzione scaduta non eseguita",            icon: "AlertTriangle",category: "maintenance" },
+    ],
+  },
+  {
+    key: "warehouse",
+    label: "Magazzino",
+    icon: "Warehouse",
+    items: [
+      { id: "stock_below_minimum", label: "Scorta sotto minimo",           icon: "AlertTriangle", category: "warehouse" },
+      { id: "stock_out",           label: "Prodotto esaurito",             icon: "XCircle",       category: "warehouse" },
+      { id: "stock_received",      label: "Merce ricevuta (DDT)",          icon: "PackageCheck",  category: "warehouse" },
+      { id: "oda_overdue",         label: "Ordine acquisto in ritardo",    icon: "Clock",         category: "warehouse" },
+    ],
+  },
 ];
 
 export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: string; items: PickerItem[] }[] = [
@@ -135,11 +219,13 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     label: "Comunicazione",
     icon: "Mail",
     items: [
-      { id: "send_email", label: "Invia Email", icon: "Mail", category: "communication" },
-      { id: "send_whatsapp", label: "Invia WhatsApp", icon: "MessageCircle", category: "communication" },
-      { id: "send_sms", label: "Invia SMS", icon: "Smartphone", category: "communication" },
-      { id: "send_notification", label: "Invia Notifica", icon: "Bell", category: "communication" },
-      { id: "send_ai_message", label: "Invia Messaggio AI", icon: "Bot", category: "communication", description: "Genera e invia un messaggio con AI" },
+      { id: "send_email",        label: "Invia Email",          icon: "Mail",          category: "communication" },
+      { id: "send_whatsapp",     label: "Invia WhatsApp",       icon: "MessageCircle", category: "communication" },
+      { id: "send_sms",          label: "Invia SMS",            icon: "Smartphone",    category: "communication" },
+      // Sprint 4B — SMS via Telnyx (bridge SMS automation → marketing builder)
+      { id: "send_sms_telnyx",   label: "Invia SMS (Telnyx)",   icon: "Smartphone",    category: "communication", description: "Invia SMS tramite Telnyx con mittente personalizzato" },
+      { id: "send_notification", label: "Invia Notifica",       icon: "Bell",          category: "communication" },
+      { id: "send_ai_message",   label: "Invia Messaggio AI",   icon: "Bot",           category: "communication", description: "Genera e invia un messaggio con AI" },
     ],
   },
   {
@@ -147,15 +233,21 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     label: "CRM",
     icon: "Users",
     items: [
-      { id: "create_opportunity", label: "Crea opportunità", icon: "PlusCircle", category: "crm" },
-      { id: "move_opportunity", label: "Sposta opportunità", icon: "ArrowRightLeft", category: "crm" },
-      { id: "update_field", label: "Aggiorna campo", icon: "FileEdit", category: "crm" },
-      { id: "add_tag", label: "Aggiungi tag", icon: "TagIcon", category: "crm" },
-      { id: "remove_tag", label: "Rimuovi tag", icon: "TagIcon", category: "crm" },
-      { id: "assign_user", label: "Assegna utente", icon: "UserCheck", category: "crm" },
-      { id: "create_task", label: "Crea attività", icon: "ListTodo", category: "crm" },
-      { id: "update_contact_score", label: "Aggiorna punteggio", icon: "TrendingUp", category: "crm", description: "Modifica il lead score del contatto (+/- o valore assoluto)" },
-      { id: "remove_from_automation", label: "Rimuovi da automazione", icon: "UserMinus", category: "crm", description: "Rimuove il contatto da un altro workflow attivo" },
+      { id: "create_opportunity",       label: "Crea opportunità",          icon: "PlusCircle",    category: "crm" },
+      { id: "move_opportunity",         label: "Sposta opportunità",        icon: "ArrowRightLeft",category: "crm" },
+      { id: "update_field",             label: "Aggiorna campo",            icon: "FileEdit",      category: "crm" },
+      { id: "add_tag",                  label: "Aggiungi tag",              icon: "TagIcon",       category: "crm" },
+      { id: "remove_tag",               label: "Rimuovi tag",               icon: "TagIcon",       category: "crm" },
+      { id: "assign_user",              label: "Assegna utente",            icon: "UserCheck",     category: "crm" },
+      { id: "create_task",              label: "Crea attività",             icon: "ListTodo",      category: "crm" },
+      { id: "update_contact_score",     label: "Aggiorna punteggio",        icon: "TrendingUp",    category: "crm", description: "Modifica il lead score del contatto (+/- o valore assoluto)" },
+      { id: "remove_from_automation",   label: "Rimuovi da automazione",    icon: "UserMinus",     category: "crm", description: "Rimuove il contatto da un altro workflow attivo" },
+      // Sprint 3A — nuove azioni CRM operative
+      { id: "create_order",             label: "Crea bozza ordine",         icon: "Package",       category: "crm", description: "Genera automaticamente un ordine da preventivo accettato o opportunità vinta" },
+      { id: "create_quote",             label: "Crea bozza preventivo",     icon: "FileText",      category: "crm", description: "Genera un preventivo vuoto assegnato al contatto" },
+      { id: "create_ticket_intervento", label: "Crea intervento tecnico",   icon: "Wrench",        category: "crm", description: "Apre un ticket di tipo intervento tecnico" },
+      { id: "create_appointment",       label: "Crea appuntamento",         icon: "Calendar",      category: "crm", description: "Fissa un appuntamento nel calendario" },
+      { id: "send_for_signature",       label: "Invia per firma",           icon: "PenLine",       category: "crm", description: "Invia documento via firma elettronica (FEA)" },
     ],
   },
   {
@@ -170,6 +262,20 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "jump_to_step", label: "Salta a step", icon: "CornerDownRight", category: "logic", description: "Salta ad un altro nodo del flusso" },
       { id: "end_automation", label: "Termina automazione", icon: "StopCircle", category: "logic" },
       { id: "wait_for_event", label: "Attendi evento", icon: "Hourglass", category: "logic", description: "Metti in pausa il flusso fino a quando si verifica un evento o scade il timeout" },
+    ],
+  },
+  // Sprint 3A — nuova categoria "Operativo"
+  {
+    key: "operations",
+    label: "Operativo",
+    icon: "Settings",
+    items: [
+      { id: "create_invoice",          label: "Crea bozza fattura",       icon: "Receipt",       category: "operations" },
+      { id: "send_rapportino",         label: "Invia rapportino PDF",     icon: "FileDown",      category: "operations", description: "Genera e invia PDF rapportino al cliente dopo completamento intervento" },
+      { id: "start_maintenance_plan",  label: "Attiva piano manutenzione",icon: "Calendar",      category: "operations", description: "Registra impianto e attiva il piano di manutenzione programmata" },
+      { id: "create_purchase_order",   label: "Crea ordine acquisto",     icon: "ShoppingCart",  category: "operations", description: "Genera ordine di acquisto al fornitore" },
+      { id: "update_order_status",     label: "Cambia stato ordine",      icon: "RotateCcw",     category: "operations" },
+      { id: "generate_pdf",            label: "Genera PDF documento",     icon: "FileText",      category: "operations" },
     ],
   },
   {
@@ -432,21 +538,107 @@ export const QUOTE_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "client_name", label: "Nome cliente", type: "text", group: "Preventivo" },
 ];
 
+// ── Sprint 2B — Nuovi field defs per condizioni ──────────────────────────────
+
+export const ORDER_TRIGGER_FIELDS_V2: TriggerFieldDef[] = [
+  { key: "order_code",          label: "Codice ordine",       type: "text",    group: "Ordine" },
+  { key: "status",              label: "Stato ordine",        type: "select",  group: "Ordine", options: [
+    { value: "bozza",           label: "Bozza" },
+    { value: "confermato",      label: "Confermato" },
+    { value: "in_lavorazione",  label: "In lavorazione" },
+    { value: "completato",      label: "Completato" },
+    { value: "annullato",       label: "Annullato" },
+  ]},
+  { key: "total_amount",        label: "Importo totale (€)",  type: "number",  group: "Ordine" },
+  { key: "deposit_amount",      label: "Acconto (€)",         type: "number",  group: "Ordine" },
+  { key: "work_start_date",     label: "Data inizio lavori",  type: "date",    group: "Ordine" },
+  { key: "work_end_date",       label: "Data fine lavori",    type: "date",    group: "Ordine" },
+  { key: "has_building_bonus",  label: "Ha bonus edilizio",   type: "boolean", group: "Ordine" },
+  { key: "payment_type",        label: "Tipo pagamento",      type: "select",  group: "Ordine", options: [
+    { value: "contanti",            label: "Contanti" },
+    { value: "bonifico",            label: "Bonifico" },
+    { value: "finanziamento",       label: "Finanziamento" },
+    { value: "cessione_credito",    label: "Cessione credito" },
+  ]},
+  { key: "deposit_paid",        label: "Acconto pagato",      type: "boolean", group: "Ordine" },
+  { key: "balance_paid",        label: "Saldo pagato",        type: "boolean", group: "Ordine" },
+  { key: "assigned_to",         label: "Assegnato a",         type: "user",    group: "Ordine" },
+];
+
+export const TICKET_TRIGGER_FIELDS_V2: TriggerFieldDef[] = [
+  { key: "subject",           label: "Oggetto",                   type: "text",   group: "Ticket" },
+  { key: "status",            label: "Stato",                     type: "select", group: "Ticket", options: [
+    { value: "aperto",             label: "Aperto" },
+    { value: "in_lavorazione",     label: "In lavorazione" },
+    { value: "in_attesa_cliente",  label: "In attesa cliente" },
+    { value: "risolto",            label: "Risolto" },
+    { value: "chiuso",             label: "Chiuso" },
+  ]},
+  { key: "priority",          label: "Priorità",                  type: "select", group: "Ticket", options: [
+    { value: "bassa",   label: "Bassa" },
+    { value: "media",   label: "Media" },
+    { value: "alta",    label: "Alta" },
+    { value: "urgente", label: "Urgente 🔴" },
+  ]},
+  { key: "tipo",              label: "Tipo",                      type: "select", group: "Ticket", options: [
+    { value: "assistenza",   label: "Assistenza" },
+    { value: "intervento",   label: "Intervento tecnico" },
+    { value: "sopralluogo",  label: "Sopralluogo" },
+    { value: "garanzia",     label: "Garanzia" },
+  ]},
+  { key: "category",                    label: "Categoria",               type: "text",   group: "Ticket" },
+  { key: "assigned_to",                 label: "Tecnico assegnato",       type: "user",   group: "Ticket" },
+  { key: "data_intervento_prevista",    label: "Data intervento prevista", type: "date",  group: "Ticket" },
+  { key: "durata_ore",                  label: "Durata ore",              type: "number", group: "Ticket" },
+];
+
+export const MAINTENANCE_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "tipo_impianto",   label: "Tipo impianto",       type: "text",   group: "Impianto" },
+  { key: "marca",           label: "Marca",               type: "text",   group: "Impianto" },
+  { key: "garanzia_scadenza", label: "Scadenza garanzia", type: "date",   group: "Impianto" },
+  { key: "nome_contratto",  label: "Nome contratto",      type: "text",   group: "Manutenzione" },
+  { key: "stato",           label: "Stato contratto",     type: "select", group: "Manutenzione", options: [
+    { value: "attivo",      label: "Attivo" },
+    { value: "in_scadenza", label: "In scadenza" },
+    { value: "scaduto",     label: "Scaduto" },
+    { value: "rinnovato",   label: "Rinnovato" },
+  ]},
+  { key: "importo_canone",  label: "Importo canone (€)",  type: "number", group: "Manutenzione" },
+  { key: "data_scadenza",   label: "Data scadenza contratto", type: "date", group: "Manutenzione" },
+  { key: "prossima_scadenza", label: "Prossima manutenzione", type: "date", group: "Piano" },
+  { key: "frequenza_tipo",  label: "Frequenza",           type: "select", group: "Piano", options: [
+    { value: "mensile",      label: "Mensile" },
+    { value: "trimestrale",  label: "Trimestrale" },
+    { value: "semestrale",   label: "Semestrale" },
+    { value: "annuale",      label: "Annuale" },
+  ]},
+];
+
+export const WAREHOUSE_TRIGGER_FIELDS_V2: TriggerFieldDef[] = [
+  { key: "name",             label: "Nome articolo",      type: "text",   group: "Magazzino" },
+  { key: "quantity",         label: "Quantità attuale",   type: "number", group: "Magazzino" },
+  { key: "min_stock_level",  label: "Scorta minima",      type: "number", group: "Magazzino" },
+  { key: "vat_rate",         label: "Aliquota IVA",       type: "number", group: "Magazzino" },
+  { key: "unit_cost",        label: "Costo unitario (€)", type: "number", group: "Magazzino" },
+];
+
 export function getFieldsForCategory(category: string): TriggerFieldDef[] {
   switch (category) {
-    case "contact": return CONTACT_TRIGGER_FIELDS;
-    case "opportunity": return OPPORTUNITY_TRIGGER_FIELDS;
-    case "appointment": return APPOINTMENT_TRIGGER_FIELDS;
-    case "communication": return COMMUNICATION_TRIGGER_FIELDS;
-    case "system": return SYSTEM_TRIGGER_FIELDS;
+    case "contact":      return CONTACT_TRIGGER_FIELDS;
+    case "opportunity":  return OPPORTUNITY_TRIGGER_FIELDS;
+    case "appointment":  return APPOINTMENT_TRIGGER_FIELDS;
+    case "communication":return COMMUNICATION_TRIGGER_FIELDS;
+    case "system":       return SYSTEM_TRIGGER_FIELDS;
     case "social_media": return SOCIAL_MEDIA_TRIGGER_FIELDS;
-    case "order": return ORDER_TRIGGER_FIELDS;
-    case "invoice": return INVOICE_TRIGGER_FIELDS;
-    case "ticket": return TICKET_TRIGGER_FIELDS;
-    case "task": return TASK_TRIGGER_FIELDS;
+    case "order":        return ORDER_TRIGGER_FIELDS_V2;    // Sprint 2B — extended
+    case "invoice":      return INVOICE_TRIGGER_FIELDS;
+    case "ticket":       return TICKET_TRIGGER_FIELDS_V2;   // Sprint 2B — extended
+    case "task":         return TASK_TRIGGER_FIELDS;
     case "construction": return CONSTRUCTION_TRIGGER_FIELDS;
-    case "quote": return QUOTE_TRIGGER_FIELDS;
-    default: return CONTACT_TRIGGER_FIELDS;
+    case "quote":        return QUOTE_TRIGGER_FIELDS;
+    case "maintenance":  return MAINTENANCE_TRIGGER_FIELDS; // Sprint 2B — nuovo
+    case "warehouse":    return WAREHOUSE_TRIGGER_FIELDS_V2;// Sprint 2B — extended
+    default:             return CONTACT_TRIGGER_FIELDS;
   }
 }
 

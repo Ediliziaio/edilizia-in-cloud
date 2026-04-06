@@ -761,7 +761,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta quando viene inserito un nuovo dipendente/collaboratore',
     icon: 'UserPlus',
     categoria: 'hr',
-    dbTable: 'employees',
+    dbTable: 'profiles',  // FIX B7: tabella reale è profiles, non employees
     dbEvent: 'INSERT',
     outputVariables: [
       { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
@@ -778,6 +778,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta N giorni prima della scadenza di un contratto',
     icon: 'FileText',
     categoria: 'hr',
+    dbTable: 'profiles',  // FIX B7: collegato alla tabella profiles
     dbEvent: 'SCHEDULED',
     outputVariables: [
       { id: 'dipendente.id', label: 'ID Dipendente', type: 'uuid' },
@@ -816,14 +817,18 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     description: 'Scatta alla creazione di un nuovo cantiere/commessa',
     icon: 'Building2',
     categoria: 'cantieri',
+    dbTable: 'orders',  // FIX B9: il cantiere è un record orders nel DB
     dbEvent: 'INSERT',
     outputVariables: [
-      { id: 'cantiere.id', label: 'ID Cantiere', type: 'uuid' },
-      { id: 'cantiere.nome', label: 'Nome cantiere', type: 'string' },
-      { id: 'cantiere.indirizzo', label: 'Indirizzo', type: 'string' },
-      { id: 'cantiere.importo', label: 'Importo commessa (€)', type: 'number' },
-      { id: 'cantiere.data_inizio', label: 'Data inizio prevista', type: 'date' },
-      { id: 'cantiere.responsabile_id', label: 'Responsabile (user ID)', type: 'uuid' },
+      // FIX B9: namespace corretto ordine.* (il cantiere è un orders record)
+      { id: 'ordine.id', label: 'ID Cantiere', type: 'uuid' },
+      { id: 'ordine.order_code', label: 'Codice cantiere', type: 'string' },
+      { id: 'ordine.description', label: 'Descrizione cantiere', type: 'string' },
+      { id: 'ordine.total_amount', label: 'Importo commessa (€)', type: 'number' },
+      { id: 'ordine.work_start_date', label: 'Data inizio prevista', type: 'date' },
+      { id: 'ordine.work_end_date', label: 'Data fine prevista', type: 'date' },
+      { id: 'ordine.assigned_to', label: 'Responsabile (user ID)', type: 'uuid' },
+      { id: 'ordine.customer_id', label: 'ID Cliente', type: 'uuid' },
     ],
     configSchema: [],
   },
@@ -1120,9 +1125,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
   {
-    id: 'pagamento_ricevuto',
-    label: 'Pagamento ricevuto',
-    description: 'Si attiva quando viene registrato un pagamento da parte di un\'azienda cliente',
+    id: 'pagamento_piattaforma_ricevuto',
+    label: 'Pagamento abbonamento ricevuto',
+    description: 'Si attiva quando viene registrato un pagamento abbonamento da parte di un\'azienda cliente (piattaforma)',
     icon: 'CheckCircle',
     categoria: 'piattaforma',
     dbEvent: 'PLATFORM_PAYMENT_RECEIVED',
@@ -1478,6 +1483,30 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'giorni', label: 'Giorni', type: 'number', required: false, min: 0, max: 30, defaultValue: 0 },
     ],
   },
+  // FIX B3: spostati da CONDITION_CATALOG → ACTION_CATALOG con categoria 'logica'
+  {
+    id: 'vai_a',
+    label: 'Vai a (Go To)',
+    description: 'Salta a un altro punto del flow, collegandosi a un nodo esistente',
+    icon: 'ArrowRight',
+    categoria: 'logica',
+    configSchema: [
+      { id: 'target_node_id', label: 'Nodo destinazione', type: 'text', required: true, placeholder: 'ID del nodo destinazione', helpText: 'Seleziona il nodo a cui saltare' },
+      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Torna a inizio' },
+    ],
+  },
+  {
+    id: 'drip_sequenza',
+    label: 'Sequenza Drip',
+    description: 'Invia una serie di messaggi a intervalli programmati (drip campaign)',
+    icon: 'Clock',
+    categoria: 'logica',
+    configSchema: [
+      { id: 'intervallo_ore', label: 'Intervallo tra messaggi (ore)', type: 'number', required: true, defaultValue: 24, min: 1, max: 720, helpText: 'Es: 24 = un messaggio al giorno' },
+      { id: 'num_messaggi', label: 'Numero totale messaggi', type: 'number', required: true, defaultValue: 3, min: 1, max: 20 },
+      { id: 'label', label: 'Nome sequenza', type: 'text', required: false, placeholder: 'Es: Onboarding 7 giorni' },
+    ],
+  },
 ];
 
 // ─── CONDITION CATALOG ───────────────────────────────────────────────────────
@@ -1541,27 +1570,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
       { id: 'label', label: 'Etichetta split', type: 'text', required: false, placeholder: 'Es: Test email' },
     ],
   },
-  {
-    id: 'vai_a',
-    label: 'Vai a (Go To)',
-    description: 'Salta a un altro punto del flow, collegandosi a un nodo esistente',
-    icon: 'ArrowRight',
-    configSchema: [
-      { id: 'target_node_id', label: 'Nodo destinazione', type: 'text', required: true, placeholder: 'ID del nodo destinazione', helpText: 'Seleziona il nodo a cui saltare' },
-      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Torna a inizio' },
-    ],
-  },
-  {
-    id: 'drip_sequenza',
-    label: 'Sequenza Drip',
-    description: 'Invia una serie di messaggi a intervalli programmati (drip campaign)',
-    icon: 'Clock',
-    configSchema: [
-      { id: 'intervallo_ore', label: 'Intervallo tra messaggi (ore)', type: 'number', required: true, defaultValue: 24, min: 1, max: 720, helpText: 'Es: 24 = un messaggio al giorno' },
-      { id: 'num_messaggi', label: 'Numero totale messaggi', type: 'number', required: true, defaultValue: 3, min: 1, max: 20 },
-      { id: 'label', label: 'Nome sequenza', type: 'text', required: false, placeholder: 'Es: Onboarding 7 giorni' },
-    ],
-  },
+  // NOTE: vai_a e drip_sequenza sono stati spostati in ACTION_CATALOG (FIX B3)
 
   // ═══ PIATTAFORMA (solo area superadmin) ═══
   {

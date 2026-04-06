@@ -48,15 +48,30 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
   // Load custom fields from DB
   useEffect(() => {
     if (!companyId) return;
-    // Map trigger category to object_type
-    const objectType = triggerCategory === "contact" ? "contact" : triggerCategory === "opportunity" ? "opportunity" : null;
+    // FIX B2: mappa tutte le categorie trigger → object_type DB (non solo contact/opportunity)
+    const CATEGORY_TO_OBJECT_TYPE: Record<string, string> = {
+      contact: "contact",
+      opportunity: "opportunity",
+      appointment: "appointment",
+      order: "order",
+      invoice: "invoice",
+      quote: "quote",
+      ticket: "ticket",
+      task: "task",
+      construction: "ordini_variazione",   // cantieri = ordini nel DB
+      maintenance: "contratto_manutenzione",
+      hr: "employee",
+      warehouse: "warehouse",
+    };
+    const objectType = CATEGORY_TO_OBJECT_TYPE[triggerCategory] ?? null;
     if (!objectType) {
       setCustomFields([]);
       return;
     }
     supabase
       .from("marketing_custom_fields")
-      .select("id, field_key, field_label, field_type, options")
+      // FIX B6: la tabella ha colonna 'name', non 'field_key'/'field_label'
+      .select("id, name, field_type, options")
       .eq("company_id", companyId)
       .eq("object_type", objectType)
       .then(({ data, error }) => {
@@ -69,8 +84,8 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
           setCustomFields(
             data.map((f: any) => {
               const def: TriggerFieldDef = {
-                key: `custom_field.${f.field_key}`,
-                label: f.field_label,
+                key: `custom_field.${f.name}`,
+                label: f.name,
                 type: mapCustomFieldType(f.field_type),
                 group: "Campi personalizzati",
               };

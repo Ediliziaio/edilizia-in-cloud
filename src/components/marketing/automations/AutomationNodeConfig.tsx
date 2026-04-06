@@ -120,7 +120,12 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
       const companyProfileIds = new Set(profiles.map(p => p.id));
       return roles.filter(r => companyProfileIds.has(r.user_id)).map(r => ({ user_id: r.user_id, role: r.role, name: profileMap.get(r.user_id) || r.user_id.slice(0, 8) }));
     },
-    enabled: !!companyId && isAction && ["create_opportunity", "assign_user", "create_task", "send_notification", "call_with_ai_agent"].includes(actionType),
+    // Sprint 3B — aggiornato con nuove azioni che richiedono selezione utente
+    enabled: !!companyId && isAction && [
+      "create_opportunity", "assign_user", "create_task", "send_notification",
+      "call_with_ai_agent", "create_order", "create_quote",
+      "create_ticket_intervento", "create_appointment",
+    ].includes(actionType),
   });
 
   const { data: aiAgentsList = [] } = useQuery({
@@ -840,6 +845,306 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
               </div>
             </div>
           )}
+
+          {/* ── SPRINT 3B — NUOVE AZIONI OPERATIVE ── */}
+
+          {/* CREATE ORDER */}
+          {actionType === "create_order" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Descrizione ordine *</Label>
+                <Input value={node.config_json?.description || ""} onChange={(e) => updateConfig("description", e.target.value)} placeholder="Es: Fornitura e posa per {{contact.company_name}}" className={cn("mt-1 h-9 text-xs", hasFieldError("description") && "border-destructive")} />
+                <p className="text-[10px] text-muted-foreground mt-1">Supporta variabili {"{{}}"}</p>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Importo (€)</Label>
+                <Input placeholder="{{quote.total}}" value={node.config_json?.amount || ""} onChange={(e) => updateConfig("amount", e.target.value)} className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Assegna a</Label>
+                <Select value={node.config_json?.assigned_to || ""} onValueChange={(v) => updateConfig("assigned_to", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona utente..." /></SelectTrigger>
+                  <SelectContent>
+                    {companyUsers.map(u => (<SelectItem key={u.user_id} value={u.user_id} className="text-xs">{u.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Note interne</Label>
+                <Textarea value={node.config_json?.internal_notes || ""} onChange={(e) => updateConfig("internal_notes", e.target.value)} placeholder="Generato automaticamente da automazione..." className="mt-1 text-xs" rows={2} />
+              </div>
+            </div>
+          )}
+
+          {/* CREATE QUOTE */}
+          {actionType === "create_quote" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Titolo preventivo *</Label>
+                <Input value={node.config_json?.title || ""} onChange={(e) => updateConfig("title", e.target.value)} placeholder="Es: Preventivo per {{contact.company_name}}" className={cn("mt-1 h-9 text-xs", hasFieldError("title") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Assegna a</Label>
+                <Select value={node.config_json?.assigned_to || ""} onValueChange={(v) => updateConfig("assigned_to", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona utente..." /></SelectTrigger>
+                  <SelectContent>
+                    {companyUsers.map(u => (<SelectItem key={u.user_id} value={u.user_id} className="text-xs">{u.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Note</Label>
+                <Textarea value={node.config_json?.notes || ""} onChange={(e) => updateConfig("notes", e.target.value)} placeholder="Note interne sul preventivo..." className="mt-1 text-xs" rows={2} />
+              </div>
+            </div>
+          )}
+
+          {/* CREATE TICKET / INTERVENTO */}
+          {actionType === "create_ticket_intervento" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Oggetto intervento *</Label>
+                <Input value={node.config_json?.subject || ""} onChange={(e) => updateConfig("subject", e.target.value)} placeholder="Es: Manutenzione impianto {{contact.company_name}}" className={cn("mt-1 h-9 text-xs", hasFieldError("subject") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Tipo intervento</Label>
+                <Select value={node.config_json?.tipo || "intervento"} onValueChange={(v) => updateConfig("tipo", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="intervento"   className="text-xs">Intervento tecnico</SelectItem>
+                    <SelectItem value="sopralluogo"  className="text-xs">Sopralluogo</SelectItem>
+                    <SelectItem value="garanzia"     className="text-xs">Intervento in garanzia</SelectItem>
+                    <SelectItem value="manutenzione" className="text-xs">Manutenzione programmata</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Priorità</Label>
+                <Select value={node.config_json?.priority || "media"} onValueChange={(v) => updateConfig("priority", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bassa"   className="text-xs">Bassa</SelectItem>
+                    <SelectItem value="media"   className="text-xs">Media</SelectItem>
+                    <SelectItem value="alta"    className="text-xs">Alta</SelectItem>
+                    <SelectItem value="urgente" className="text-xs">Urgente 🔴</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Assegna al tecnico</Label>
+                <Select value={node.config_json?.assigned_to || ""} onValueChange={(v) => updateConfig("assigned_to", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona tecnico..." /></SelectTrigger>
+                  <SelectContent>
+                    {companyUsers.map(u => (<SelectItem key={u.user_id} value={u.user_id} className="text-xs">{u.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE APPOINTMENT */}
+          {actionType === "create_appointment" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Titolo appuntamento *</Label>
+                <Input value={node.config_json?.title || ""} onChange={(e) => updateConfig("title", e.target.value)} placeholder="Es: Sopralluogo {{contact.company_name}}" className={cn("mt-1 h-9 text-xs", hasFieldError("title") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Tipo appuntamento</Label>
+                <Select value={node.config_json?.appointment_type || "sopralluogo"} onValueChange={(v) => updateConfig("appointment_type", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sopralluogo"    className="text-xs">Sopralluogo</SelectItem>
+                    <SelectItem value="visita"         className="text-xs">Visita tecnica</SelectItem>
+                    <SelectItem value="call"           className="text-xs">Chiamata</SelectItem>
+                    <SelectItem value="meeting"        className="text-xs">Meeting</SelectItem>
+                    <SelectItem value="manutenzione"   className="text-xs">Manutenzione</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Assegna a</Label>
+                <Select value={node.config_json?.assigned_to || ""} onValueChange={(v) => updateConfig("assigned_to", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona utente..." /></SelectTrigger>
+                  <SelectContent>
+                    {companyUsers.map(u => (<SelectItem key={u.user_id} value={u.user_id} className="text-xs">{u.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Giorni dal trigger</Label>
+                <Input type="number" min={0} value={node.config_json?.days_from_trigger ?? 1} onChange={(e) => updateConfig("days_from_trigger", parseInt(e.target.value) || 0)} className="mt-1 h-9 text-xs" />
+                <p className="text-[10px] text-muted-foreground mt-1">L'appuntamento verrà fissato N giorni dopo l'evento trigger.</p>
+              </div>
+            </div>
+          )}
+
+          {/* SEND FOR SIGNATURE */}
+          {actionType === "send_for_signature" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Tipo documento</Label>
+                <Select value={node.config_json?.document_type || "ordine"} onValueChange={(v) => updateConfig("document_type", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ordine"       className="text-xs">Ordine / Contratto</SelectItem>
+                    <SelectItem value="preventivo"   className="text-xs">Preventivo</SelectItem>
+                    <SelectItem value="pos"          className="text-xs">POS – Sicurezza</SelectItem>
+                    <SelectItem value="duvri"        className="text-xs">DUVRI</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Documento</Label>
+                <Input value={node.config_json?.document_id || ""} onChange={(e) => updateConfig("document_id", e.target.value)} placeholder="{{order.id}} o {{quote.id}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Email firmatario</Label>
+                <Input value={node.config_json?.signer_email || ""} onChange={(e) => updateConfig("signer_email", e.target.value)} placeholder="{{contact.email}}" className="mt-1 h-9 text-xs" />
+              </div>
+            </div>
+          )}
+
+          {/* UPDATE ORDER STATUS */}
+          {actionType === "update_order_status" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Ordine *</Label>
+                <Input value={node.config_json?.order_id || ""} onChange={(e) => updateConfig("order_id", e.target.value)} placeholder="{{order.id}}" className={cn("mt-1 h-9 text-xs", hasFieldError("order_id") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Nuovo stato</Label>
+                <Select value={node.config_json?.new_status || ""} onValueChange={(v) => updateConfig("new_status", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="confermato"    className="text-xs">Confermato</SelectItem>
+                    <SelectItem value="in_lavorazione"className="text-xs">In lavorazione</SelectItem>
+                    <SelectItem value="completato"    className="text-xs">Completato</SelectItem>
+                    <SelectItem value="annullato"     className="text-xs">Annullato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE INVOICE */}
+          {actionType === "create_invoice" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Ordine di riferimento</Label>
+                <Input value={node.config_json?.order_id || ""} onChange={(e) => updateConfig("order_id", e.target.value)} placeholder="{{order.id}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Importo (€)</Label>
+                <Input value={node.config_json?.amount || ""} onChange={(e) => updateConfig("amount", e.target.value)} placeholder="{{order.balance_amount}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Scadenza pagamento (giorni)</Label>
+                <Input type="number" min={0} value={node.config_json?.payment_due_days ?? 30} onChange={(e) => updateConfig("payment_due_days", parseInt(e.target.value) || 30)} className="mt-1 h-9 text-xs" />
+              </div>
+              <p className="text-[10px] text-muted-foreground bg-amber-50 dark:bg-amber-950/30 p-2 rounded">La fattura verrà creata in bozza e richiederà revisione prima dell'invio.</p>
+            </div>
+          )}
+
+          {/* CREATE PURCHASE ORDER */}
+          {actionType === "create_purchase_order" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Titolo OdA *</Label>
+                <Input value={node.config_json?.title || ""} onChange={(e) => updateConfig("title", e.target.value)} placeholder="Es: Riordino {{warehouse.name}}" className={cn("mt-1 h-9 text-xs", hasFieldError("title") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Quantità da ordinare</Label>
+                <Input type="number" min={1} value={node.config_json?.quantity ?? 1} onChange={(e) => updateConfig("quantity", parseInt(e.target.value) || 1)} className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Note al fornitore</Label>
+                <Textarea value={node.config_json?.supplier_notes || ""} onChange={(e) => updateConfig("supplier_notes", e.target.value)} placeholder="Riordino automatico da automazione..." className="mt-1 text-xs" rows={2} />
+              </div>
+            </div>
+          )}
+
+          {/* GENERATE PDF */}
+          {actionType === "generate_pdf" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Tipo documento</Label>
+                <Select value={node.config_json?.pdf_type || "ordine"} onValueChange={(v) => updateConfig("pdf_type", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ordine"      className="text-xs">Ordine</SelectItem>
+                    <SelectItem value="preventivo"  className="text-xs">Preventivo</SelectItem>
+                    <SelectItem value="fattura"     className="text-xs">Fattura</SelectItem>
+                    <SelectItem value="rapportino"  className="text-xs">Rapportino intervento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Entità</Label>
+                <Input value={node.config_json?.entity_id || ""} onChange={(e) => updateConfig("entity_id", e.target.value)} placeholder="{{order.id}} / {{quote.id}} ..." className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Invia al cliente</Label>
+                <Select value={node.config_json?.send_to_client || "no"} onValueChange={(v) => updateConfig("send_to_client", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no"    className="text-xs">Solo genera (non inviare)</SelectItem>
+                    <SelectItem value="email" className="text-xs">Invia via email</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* SEND RAPPORTINO */}
+          {actionType === "send_rapportino" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Intervento/Ticket</Label>
+                <Input value={node.config_json?.ticket_id || ""} onChange={(e) => updateConfig("ticket_id", e.target.value)} placeholder="{{ticket.id}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Email destinatario</Label>
+                <Input value={node.config_json?.recipient_email || ""} onChange={(e) => updateConfig("recipient_email", e.target.value)} placeholder="{{contact.email}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Il rapportino PDF verrà generato dall'intervento e inviato via email al cliente.</p>
+            </div>
+          )}
+
+          {/* START MAINTENANCE PLAN */}
+          {actionType === "start_maintenance_plan" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Impianto</Label>
+                <Input value={node.config_json?.impianto_id || ""} onChange={(e) => updateConfig("impianto_id", e.target.value)} placeholder="{{impianto.id}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">ID Contratto Manutenzione</Label>
+                <Input value={node.config_json?.contratto_id || ""} onChange={(e) => updateConfig("contratto_id", e.target.value)} placeholder="{{contratto_manutenzione.id}}" className="mt-1 h-9 text-xs" />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Attiva il piano di manutenzione programmata e crea i task di scadenza automatici.</p>
+            </div>
+          )}
+
+          {/* SEND SMS TELNYX — Sprint 4B */}
+          {actionType === "send_sms_telnyx" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Numero destinatario *</Label>
+                <Input value={node.config_json?.phone || ""} onChange={(e) => updateConfig("phone", e.target.value)} placeholder="{{contact.phone}}" className={cn("mt-1 h-9 text-xs", hasFieldError("phone") && "border-destructive")} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Mittente (max 11 char)</Label>
+                <Input maxLength={11} value={node.config_json?.sender_id || ""} onChange={(e) => updateConfig("sender_id", e.target.value)} placeholder="EdiliziaInC" className="mt-1 h-9 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Testo SMS (max 160 caratteri)</Label>
+                <Textarea maxLength={160} value={node.config_json?.message || ""} onChange={(e) => updateConfig("message", e.target.value)} placeholder="Gentile {{contact.first_name}}, ..." className={cn("mt-1 text-xs", hasFieldError("message") && "ring-1 ring-destructive rounded-md")} rows={3} />
+                <p className="text-[10px] text-right text-muted-foreground mt-1">{(node.config_json?.message || "").length}/160</p>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Footer */}

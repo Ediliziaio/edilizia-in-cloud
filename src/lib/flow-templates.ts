@@ -788,6 +788,252 @@ const T35: FlowTemplate = {
 // EXPORT
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// SPRINT 4A — Template verticali imprese edili (T36–T45)
+// ════════════════════════════════════════════════════════════════
+
+const T36: FlowTemplate = {
+  id: 't36-lead-facebook-preventivo',
+  nome: 'Lead Facebook → Preventivo Automatico',
+  categoria: 'crm',
+  descrizione: 'Lead arriva da Meta → crea contatto → notifica venditore → crea bozza preventivo in 5min → dopo 1h invia WhatsApp di benvenuto.',
+  icona: '🏆',
+  difficolta: 'intermedio',
+  triggerTipo: 'facebook_lead_received',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'facebook_lead_received' }, label: 'Lead Facebook' },
+    { id: 'action-1', nodeType: 'action',  posX: 250, posY: 200, configJson: { action_type: 'assign_user', assign_method: 'round_robin' }, label: 'Assegna venditore' },
+    { id: 'action-2', nodeType: 'action',  posX: 250, posY: 350, configJson: { action_type: 'create_quote', title: 'Preventivo {{contact.company_name || contact.first_name}}' }, label: 'Crea bozza preventivo' },
+    { id: 'delay-1',  nodeType: 'delay',   posX: 250, posY: 500, configJson: { delay_type: 'attendi', ore: 1 }, label: 'Attendi 1 ora' },
+    { id: 'action-3', nodeType: 'action',  posX: 250, posY: 650, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: 'Ciao {{contact.first_name}}! 👋 Ho ricevuto la tua richiesta. Ti contatterò a breve per un preventivo personalizzato.' }, label: 'WhatsApp benvenuto' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'action-2' },
+    { fromId: 'action-2',  toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-3' },
+  ],
+};
+
+const T37: FlowTemplate = {
+  id: 't37-promemoria-appuntamento-triplo',
+  nome: 'Promemoria Appuntamento Triplo',
+  categoria: 'crm',
+  descrizione: 'Booking confermato → email conferma immediata → WhatsApp -24h → SMS -1h → post-appuntamento chiedi feedback.',
+  icona: '📅',
+  difficolta: 'intermedio',
+  triggerTipo: 'appointment_booked',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'appointment_booked' }, label: 'Appuntamento prenotato' },
+    { id: 'action-1', nodeType: 'action',  posX: 250, posY: 200, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: 'Conferma appuntamento — {{appointment.appointment_date}}', corpo: 'Gentile {{contact.first_name}},\n\nconfermiamo il tuo appuntamento per il {{appointment.appointment_date}} alle {{appointment.appointment_time}}.\n\nCordiali saluti' }, label: 'Email conferma' },
+    { id: 'delay-1',  nodeType: 'delay',   posX: 250, posY: 350, configJson: { delay_type: 'attendi_fino_a', ore_prima: 24, evento_riferimento: 'appointment.appointment_date' }, label: '-24h da appuntamento' },
+    { id: 'action-2', nodeType: 'action',  posX: 250, posY: 500, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: '📅 Promemoria: domani hai un appuntamento con noi alle {{appointment.appointment_time}}. Ti aspettiamo!' }, label: 'WhatsApp -24h' },
+    { id: 'delay-2',  nodeType: 'delay',   posX: 250, posY: 650, configJson: { delay_type: 'attendi_fino_a', ore_prima: 1, evento_riferimento: 'appointment.appointment_date' }, label: '-1h da appuntamento' },
+    { id: 'action-3', nodeType: 'action',  posX: 250, posY: 800, configJson: { action_type: 'send_sms_telnyx', phone: '{{contact.phone}}', message: 'Tra 1 ora ti aspettiamo! Hai domande? Rispondi a questo SMS.' }, label: 'SMS -1h' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-2' },
+    { fromId: 'action-2',  toId: 'delay-2'  },
+    { fromId: 'delay-2',   toId: 'action-3' },
+  ],
+};
+
+const T38: FlowTemplate = {
+  id: 't38-followup-preventivo-non-risposto',
+  nome: 'Follow-up Preventivo Non Risposto',
+  categoria: 'preventivi',
+  descrizione: 'Preventivo inviato → attendi 3gg → se non visualizzato WhatsApp → attendi 5gg → se non accettato email urgency → attendi 10gg → segna stagnante.',
+  icona: '💰',
+  difficolta: 'avanzato',
+  triggerTipo: 'quote_sent',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger',   posX: 250, posY: 50,  configJson: { trigger_type: 'quote_sent' }, label: 'Preventivo inviato' },
+    { id: 'delay-1',   nodeType: 'delay',     posX: 250, posY: 200, configJson: { delay_type: 'attendi', giorni: 3 }, label: 'Attendi 3 giorni' },
+    { id: 'action-1',  nodeType: 'action',    posX: 250, posY: 350, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: 'Ciao {{contact.first_name}}! 👋 Hai avuto modo di vedere il preventivo che ti abbiamo inviato? Siamo disponibili per qualsiasi domanda.' }, label: 'WhatsApp reminder' },
+    { id: 'delay-2',   nodeType: 'delay',     posX: 250, posY: 500, configJson: { delay_type: 'attendi', giorni: 5 }, label: 'Attendi 5 giorni' },
+    { id: 'action-2',  nodeType: 'action',    posX: 250, posY: 650, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: '⏰ Preventivo in scadenza — conferma entro domani', corpo: 'Gentile {{contact.first_name}},\n\nIl tuo preventivo da €{{quote.total}} è valido ancora per 48 ore. Scrivi subito per confermare il tuo posto in agenda.\n\nCordiali saluti' }, label: 'Email urgency' },
+    { id: 'delay-3',   nodeType: 'delay',     posX: 250, posY: 800, configJson: { delay_type: 'attendi', giorni: 10 }, label: 'Attendi 10 giorni' },
+    { id: 'action-3',  nodeType: 'action',    posX: 250, posY: 950, configJson: { action_type: 'update_field', entity_type: 'opportunity', field_key: 'status', field_value: 'stale' }, label: 'Segna stagnante' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'delay-1'   },
+    { fromId: 'delay-1',   toId: 'action-1'  },
+    { fromId: 'action-1',  toId: 'delay-2'   },
+    { fromId: 'delay-2',   toId: 'action-2'  },
+    { fromId: 'action-2',  toId: 'delay-3'   },
+    { fromId: 'delay-3',   toId: 'action-3'  },
+  ],
+};
+
+const T39: FlowTemplate = {
+  id: 't39-preventivo-accettato-ordine',
+  nome: 'Preventivo Accettato → Ordine Automatico',
+  categoria: 'preventivi',
+  descrizione: 'Accettazione → crea ordine automatico → notifica responsabile → crea task raccolta materiali → invia email conferma con data inizio.',
+  icona: '✅',
+  difficolta: 'intermedio',
+  triggerTipo: 'quote_accepted',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'quote_accepted' }, label: 'Preventivo accettato' },
+    { id: 'action-1',  nodeType: 'action',  posX: 100, posY: 200, configJson: { action_type: 'create_order', description: 'Ordine da preventivo {{quote.title}} — {{contact.company_name}}', amount: '{{quote.total}}' }, label: 'Crea ordine' },
+    { id: 'action-2',  nodeType: 'action',  posX: 400, posY: 200, configJson: { action_type: 'send_notification', titolo: '✅ Preventivo accettato!', testo: '{{contact.company_name}} ha accettato il preventivo da €{{quote.total}}' }, label: 'Notifica responsabile' },
+    { id: 'action-3',  nodeType: 'action',  posX: 250, posY: 380, configJson: { action_type: 'create_task', titolo: '📦 Raccolta materiali per {{contact.company_name}}', priorita: 'alta', scadenza_giorni: 3 }, label: 'Task materiali' },
+    { id: 'action-4',  nodeType: 'action',  posX: 250, posY: 530, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: '✅ Ordine confermato — Ci vediamo presto!', corpo: 'Gentile {{contact.first_name}},\n\nAbbiamo ricevuto la conferma. Il tuo ordine è stato creato e ti contatteremo a breve per confermare la data di inizio lavori.\n\nCordiali saluti' }, label: 'Email conferma cliente' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'trigger-1', toId: 'action-2' },
+    { fromId: 'action-1',  toId: 'action-3' },
+    { fromId: 'action-3',  toId: 'action-4' },
+  ],
+};
+
+const T40: FlowTemplate = {
+  id: 't40-manutenzione-scadenza-30gg',
+  nome: 'Manutenzione in Scadenza (-30gg)',
+  categoria: 'assistenza',
+  descrizione: '30gg prima scadenza → WhatsApp cliente con link prenotazione → se non risponde -15gg → email formale → se non risponde -7gg → task a ufficio.',
+  icona: '🔧',
+  difficolta: 'avanzato',
+  triggerTipo: 'manutenzione_scheduled',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'manutenzione_scheduled', giorni_prima: 30 }, label: '-30gg manutenzione' },
+    { id: 'action-1',  nodeType: 'action',  posX: 250, posY: 200, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: '🔧 Gentile {{contact.first_name}}, la manutenzione del tuo impianto è in scadenza tra 30 giorni. Prenota subito il tuo appuntamento rispondendo a questo messaggio!' }, label: 'WhatsApp -30gg' },
+    { id: 'delay-1',   nodeType: 'delay',   posX: 250, posY: 350, configJson: { delay_type: 'attendi', giorni: 15 }, label: 'Attendi 15 giorni' },
+    { id: 'action-2',  nodeType: 'action',  posX: 250, posY: 500, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: 'Manutenzione impianto in scadenza tra 15 giorni', corpo: 'Gentile {{contact.first_name}},\n\nLa manutenzione programmata del tuo impianto è prevista tra 15 giorni. La invitiamo a contattarci per fissare l\'appuntamento.\n\nCordiali saluti' }, label: 'Email formale -15gg' },
+    { id: 'delay-2',   nodeType: 'delay',   posX: 250, posY: 650, configJson: { delay_type: 'attendi', giorni: 8 }, label: 'Attendi 8 giorni' },
+    { id: 'action-3',  nodeType: 'action',  posX: 250, posY: 800, configJson: { action_type: 'create_task', titolo: '⚠️ Manutenzione non prenotata: {{contact.company_name}} — scadenza imminente', priorita: 'alta', scadenza_giorni: 1 }, label: 'Task ufficio -7gg' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-2' },
+    { fromId: 'action-2',  toId: 'delay-2'  },
+    { fromId: 'delay-2',   toId: 'action-3' },
+  ],
+};
+
+const T41: FlowTemplate = {
+  id: 't41-fattura-scaduta-solleciti',
+  nome: 'Fattura Scaduta — Sequenza Solleciti',
+  categoria: 'fatturazione',
+  descrizione: 'Gg 0: email gentile → gg 5: WhatsApp → gg 15: email tono urgente → gg 30: task legale + notifica admin → gg 60: segna credito inesigibile.',
+  icona: '🚨',
+  difficolta: 'avanzato',
+  triggerTipo: 'invoice_overdue',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,   configJson: { trigger_type: 'invoice_overdue' }, label: 'Fattura scaduta' },
+    { id: 'action-1',  nodeType: 'action',  posX: 250, posY: 200,  configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: 'Promemoria pagamento fattura n. {{invoice.invoice_number}}', corpo: 'Gentile {{contact.first_name}},\n\nLa fattura n. {{invoice.invoice_number}} da €{{invoice.total}} risulta scaduta. La invitiamo a procedere al pagamento.\n\nCordiali saluti' }, label: 'Email gentile (gg 0)' },
+    { id: 'delay-1',   nodeType: 'delay',   posX: 250, posY: 350,  configJson: { delay_type: 'attendi', giorni: 5 }, label: 'Attendi 5 giorni' },
+    { id: 'action-2',  nodeType: 'action',  posX: 250, posY: 500,  configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: '💳 Gentile {{contact.first_name}}, la fattura n.{{invoice.invoice_number}} da €{{invoice.total}} risulta ancora non pagata. La invitiamo a regolarizzare al più presto.' }, label: 'WhatsApp (gg 5)' },
+    { id: 'delay-2',   nodeType: 'delay',   posX: 250, posY: 650,  configJson: { delay_type: 'attendi', giorni: 10 }, label: 'Attendi 10 giorni' },
+    { id: 'action-3',  nodeType: 'action',  posX: 250, posY: 800,  configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: '⚠️ URGENTE — Fattura scaduta da 15 giorni — Azione richiesta', corpo: 'Gentile Cliente,\n\nNonostante i precedenti solleciti, la fattura n. {{invoice.invoice_number}} da €{{invoice.total}} risulta ancora insoluta. Se non riceveremo il pagamento entro 48 ore, ci vedremo costretti ad adottare misure legali.\n\nCordiali saluti' }, label: 'Email urgente (gg 15)' },
+    { id: 'delay-3',   nodeType: 'delay',   posX: 250, posY: 950,  configJson: { delay_type: 'attendi', giorni: 15 }, label: 'Attendi 15 giorni' },
+    { id: 'action-4',  nodeType: 'action',  posX: 100, posY: 1100, configJson: { action_type: 'create_task', titolo: '⚖️ Pratica legale: {{contact.company_name}} — Fattura {{invoice.invoice_number}} €{{invoice.total}}', priorita: 'urgente', scadenza_giorni: 1 }, label: 'Task legale (gg 30)' },
+    { id: 'action-5',  nodeType: 'action',  posX: 400, posY: 1100, configJson: { action_type: 'send_notification', titolo: '🔴 Fattura insoluta da 30gg', testo: '{{contact.company_name}} — Fattura {{invoice.invoice_number}} €{{invoice.total}}' }, label: 'Notifica admin (gg 30)' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-2' },
+    { fromId: 'action-2',  toId: 'delay-2'  },
+    { fromId: 'delay-2',   toId: 'action-3' },
+    { fromId: 'action-3',  toId: 'delay-3'  },
+    { fromId: 'delay-3',   toId: 'action-4' },
+    { fromId: 'delay-3',   toId: 'action-5' },
+  ],
+};
+
+const T42: FlowTemplate = {
+  id: 't42-recensione-post-lavori',
+  nome: 'Richiesta Recensione Post-Lavori',
+  categoria: 'crm',
+  descrizione: 'Lavori completati → attendi 3 giorni → invia WhatsApp con link Google Review → se cliccato: aggiungi tag recensione_lasciata.',
+  icona: '⭐',
+  difficolta: 'base',
+  triggerTipo: 'order_work_completed',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'order_work_completed' }, label: 'Lavori completati' },
+    { id: 'delay-1',   nodeType: 'delay',   posX: 250, posY: 200, configJson: { delay_type: 'attendi', giorni: 3 }, label: 'Attendi 3 giorni' },
+    { id: 'action-1',  nodeType: 'action',  posX: 250, posY: 350, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: '⭐ Gentile {{contact.first_name}}, speriamo che i lavori siano stati di suo gradimento! Se è soddisfatto, ci farebbe molto piacere ricevere una recensione Google: {{company.google_review_link}} — Grazie mille!' }, label: 'WhatsApp link recensione' },
+    { id: 'action-2',  nodeType: 'action',  posX: 250, posY: 500, configJson: { action_type: 'add_tag', tags: ['recensione_richiesta'] }, label: 'Tag recensione richiesta' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'action-2' },
+  ],
+};
+
+const T43: FlowTemplate = {
+  id: 't43-rinnovo-contratto-manutenzione',
+  nome: 'Rinnovo Contratto Manutenzione',
+  categoria: 'assistenza',
+  descrizione: '60gg prima scadenza → email proposta rinnovo → attendi 15gg → se non rinnovato: chiama con agente AI → se rifiuta: segna churned.',
+  icona: '🔄',
+  difficolta: 'avanzato',
+  triggerTipo: 'contratto_manut_expiring',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'contratto_manut_expiring', giorni_prima: 60 }, label: '-60gg scadenza contratto' },
+    { id: 'action-1',  nodeType: 'action',  posX: 250, posY: 200, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: 'Proposta rinnovo contratto manutenzione', corpo: 'Gentile {{contact.first_name}},\n\nIl suo contratto di manutenzione scadrà tra 60 giorni ({{contratto.data_scadenza}}).\n\nSiamo lieti di proporle il rinnovo con le stesse condizioni vantaggiose. La contatteremo a breve.\n\nCordiali saluti' }, label: 'Email proposta rinnovo' },
+    { id: 'delay-1',   nodeType: 'delay',   posX: 250, posY: 350, configJson: { delay_type: 'attendi', giorni: 15 }, label: 'Attendi 15 giorni' },
+    { id: 'action-2',  nodeType: 'action',  posX: 250, posY: 500, configJson: { action_type: 'call_with_ai_agent', ai_agent_id: '' }, label: 'Chiamata AI rinnovo' },
+    { id: 'delay-2',   nodeType: 'delay',   posX: 250, posY: 650, configJson: { delay_type: 'attendi', giorni: 5 }, label: 'Attendi risposta' },
+    { id: 'action-3',  nodeType: 'action',  posX: 250, posY: 800, configJson: { action_type: 'add_tag', tags: ['contratto_non_rinnovato', 'at_risk_churn'] }, label: 'Tag churned risk' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'delay-1'  },
+    { fromId: 'delay-1',   toId: 'action-2' },
+    { fromId: 'action-2',  toId: 'delay-2'  },
+    { fromId: 'delay-2',   toId: 'action-3' },
+  ],
+};
+
+const T44: FlowTemplate = {
+  id: 't44-onboarding-nuovo-operaio',
+  nome: 'Onboarding Nuovo Operaio',
+  categoria: 'hr',
+  descrizione: 'Nuovo dipendente → crea task consegna DPI → task formazione sicurezza → task setup account → invia email di benvenuto con accesso Area Campo.',
+  icona: '👷',
+  difficolta: 'intermedio',
+  triggerTipo: 'dipendente_creato',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'dipendente_creato' }, label: 'Nuovo dipendente' },
+    { id: 'action-1',  nodeType: 'action',  posX: 100, posY: 200, configJson: { action_type: 'create_task', titolo: '🦺 Consegna DPI a {{dipendente.first_name}} {{dipendente.last_name}}', priorita: 'alta', scadenza_giorni: 1, note: 'Consegnare: elmetto, guanti, scarpe antinfortunistiche, gilet' }, label: 'Task consegna DPI' },
+    { id: 'action-2',  nodeType: 'action',  posX: 400, posY: 200, configJson: { action_type: 'create_task', titolo: '📚 Formazione sicurezza: {{dipendente.first_name}} {{dipendente.last_name}}', priorita: 'alta', scadenza_giorni: 3, note: 'Corsi obbligatori: sicurezza base, primo soccorso, antincendio' }, label: 'Task formazione sicurezza' },
+    { id: 'action-3',  nodeType: 'action',  posX: 250, posY: 380, configJson: { action_type: 'create_task', titolo: '💻 Setup account Area Campo: {{dipendente.first_name}} {{dipendente.last_name}}', priorita: 'media', scadenza_giorni: 2 }, label: 'Task setup account' },
+    { id: 'action-4',  nodeType: 'action',  posX: 250, posY: 530, configJson: { action_type: 'send_email', destinatario: '{{dipendente.email}}', oggetto: '👋 Benvenuto in squadra, {{dipendente.first_name}}!', corpo: 'Ciao {{dipendente.first_name}},\n\nBenvenuto! Siamo felici di averti con noi.\n\nPuoi accedere all\'Area Campo dal link che riceverai separatamente. In caso di domande contatta il tuo responsabile.\n\nIn bocca al lupo!' }, label: 'Email benvenuto' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'trigger-1', toId: 'action-2' },
+    { fromId: 'action-1',  toId: 'action-3' },
+    { fromId: 'action-3',  toId: 'action-4' },
+  ],
+};
+
+const T45: FlowTemplate = {
+  id: 't45-alert-costo-anomalo',
+  nome: 'Alert Costo Anomalo',
+  categoria: 'fatturazione',
+  descrizione: 'Costo > €500 registrato → notifica in-app all\'admin → crea task di approvazione con scadenza 24h.',
+  icona: '💸',
+  difficolta: 'base',
+  triggerTipo: 'costo_registrato',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'costo_registrato', importo_minimo: 500 }, label: 'Costo > €500 registrato' },
+    { id: 'action-1',  nodeType: 'action',  posX: 250, posY: 200, configJson: { action_type: 'send_notification', titolo: '⚠️ Costo anomalo registrato: €{{costo.importo}}', testo: 'Categoria: {{costo.categoria}} — Descrizione: {{costo.descrizione}} — Inserito da: {{costo.created_by_name}}' }, label: 'Notifica admin' },
+    { id: 'action-2',  nodeType: 'action',  posX: 250, posY: 350, configJson: { action_type: 'create_task', titolo: '✅ Approva/rigetta costo €{{costo.importo}} — {{costo.descrizione}}', priorita: 'alta', scadenza_giorni: 1, note: 'Verifica se il costo è autorizzato. In caso contrario: contatta l\'inserente.' }, label: 'Task approvazione 24h' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+    { fromId: 'action-1',  toId: 'action-2' },
+  ],
+};
+
 export const FLOW_TEMPLATES: FlowTemplate[] = [
   T01, T02, T03, T04, T05, T06, T07,
   T08, T09, T10,
@@ -800,6 +1046,9 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
   T29, T30, T31,
   T32,
   T33, T34, T35,
+  // Sprint 4A — Template verticali edilizia
+  T36, T37, T38, T39, T40,
+  T41, T42, T43, T44, T45,
 ];
 
 // ── Helper maps ──
