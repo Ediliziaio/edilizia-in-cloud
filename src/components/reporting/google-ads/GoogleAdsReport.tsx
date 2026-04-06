@@ -1,26 +1,59 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BarChart2, Link2, TrendingUp, MousePointerClick, Eye, Euro, Info } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  BarChart2,
+  TrendingUp,
+  MousePointerClick,
+  Eye,
+  Euro,
+  Target,
+  RefreshCw,
+  AlertCircle,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Link2,
+  Info,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatPercent,
+  formatNumber,
+} from "@/lib/google-ads/formatters";
+import type { GoogleAdsCampaign } from "@/types/google-ads";
 
-interface GoogleAdsStat {
-  campaign_name: string | null;
-  impressions: number;
-  clicks: number;
-  spend: number;
-  conversions: number;
-  date: string;
-}
+// ─── Preset di date ──────────────────────────────────────────────────────────
 
-function KPICard({
+type DatePreset = "7" | "30" | "90";
+
+const DATE_PRESETS: { key: DatePreset; label: string }[] = [
+  { key: "7", label: "Ultimi 7 giorni" },
+  { key: "30", label: "Ultimi 30 giorni" },
+  { key: "90", label: "Ultimi 90 giorni" },
+];
+
+// ─── KPI Card ────────────────────────────────────────────────────────────────
+
+function KpiCard({
   label,
   value,
   icon: Icon,
@@ -41,9 +74,13 @@ function KPICard({
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              {label}
+            </p>
             <p className={cn("text-2xl font-bold mt-1", colorClass)}>{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+            {sub && (
+              <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+            )}
           </div>
           <div className="bg-primary/10 rounded-lg p-2">
             <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -54,12 +91,84 @@ function KPICard({
   );
 }
 
+// ─── Colonne ordinabili ───────────────────────────────────────────────────────
+
+type SortField = keyof Pick<
+  GoogleAdsCampaign,
+  "campaign_name" | "impressions" | "clicks" | "ctr" | "spend" | "conversions" | "cpc"
+>;
+type SortDir = "asc" | "desc";
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: SortDir;
+}) {
+  if (field !== sortField) return <ChevronsUpDown className="h-3 w-3 ml-1 opacity-40" />;
+  return sortDir === "asc" ? (
+    <ChevronUp className="h-3 w-3 ml-1" />
+  ) : (
+    <ChevronDown className="h-3 w-3 ml-1" />
+  );
+}
+
+function SortableTh({
+  field,
+  sortField,
+  sortDir,
+  onSort,
+  children,
+  className,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: SortDir;
+  onSort: (f: SortField) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <TableHead
+      className={cn("cursor-pointer select-none", className)}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center">
+        {children}
+        <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+      </span>
+    </TableHead>
+  );
+}
+
+// ─── Componente principale ────────────────────────────────────────────────────
+
 export default function GoogleAdsReport() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
 
-  // Check if Google Ads integration exists
+  // Preset selezionato (default: 30 giorni)
+  const [preset, setPreset] = useState<DatePreset>("30");
+
+  // Sort tabella campagne
+  const [sortField, setSortField] = useState<SortField>("spend");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // Hook dati Google Ads
+  const {
+    kpis,
+    campaigns,
+    isLoading: statsLoading,
+    error,
+    refetch,
+    setDateRange,
+  } = useGoogleAdsStats();
+
+  // Check integrazione Google Ads
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["google-ads-integration", companyId],
     queryFn: async () => {
@@ -75,27 +184,64 @@ export default function GoogleAdsReport() {
     enabled: !!companyId,
   });
 
-  // Fetch Google Ads stats if connected (solo quando integrazione attiva)
-  const { data: stats = [], isLoading: statsLoading } = useQuery({
-    queryKey: ["google-ads-stats", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("google_ads_stats")
-        .select("campaign_name, impressions, clicks, spend, conversions, date")
-        .eq("company_id", companyId)
-        .order("date", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data || []) as GoogleAdsStat[];
-    },
-    enabled: !!companyId && !!integration,
-    staleTime: 5 * 60 * 1000,
-  });
-
   const isLoading = integrationLoading || statsLoading;
 
-  // Not connected
+  // Aggiorna dateRange in base al preset
+  function handlePreset(key: DatePreset) {
+    setPreset(key);
+    const days = parseInt(key, 10);
+    setDateRange({ from: subDays(new Date(), days - 1), to: new Date() });
+  }
+
+  // Sort handler
+  function handleSort(field: SortField) {
+    if (field === sortField) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  }
+
+  // Campagne ordinate
+  const sortedCampaigns = useMemo(() => {
+    return [...campaigns].sort((a, b) => {
+      const av = a[sortField];
+      const bv = b[sortField];
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc"
+          ? av.localeCompare(bv, "it")
+          : bv.localeCompare(av, "it");
+      }
+      const an = av as number;
+      const bn = bv as number;
+      return sortDir === "asc" ? an - bn : bn - an;
+    });
+  }, [campaigns, sortField, sortDir]);
+
+  // Totali riga in fondo
+  const totals = useMemo(
+    () => ({
+      impressions: campaigns.reduce((s, c) => s + c.impressions, 0),
+      clicks: campaigns.reduce((s, c) => s + c.clicks, 0),
+      spend: campaigns.reduce((s, c) => s + c.spend, 0),
+      conversions: campaigns.reduce((s, c) => s + c.conversions, 0),
+      ctr:
+        campaigns.reduce((s, c) => s + c.impressions, 0) > 0
+          ? (campaigns.reduce((s, c) => s + c.clicks, 0) /
+              campaigns.reduce((s, c) => s + c.impressions, 0)) *
+            100
+          : 0,
+      cpc:
+        campaigns.reduce((s, c) => s + c.clicks, 0) > 0
+          ? campaigns.reduce((s, c) => s + c.spend, 0) /
+            campaigns.reduce((s, c) => s + c.clicks, 0)
+          : 0,
+    }),
+    [campaigns]
+  );
+
+  // ── Stato: non connesso ──────────────────────────────────────────────────
   if (!integrationLoading && !integration) {
     return (
       <div className="space-y-4">
@@ -103,14 +249,17 @@ export default function GoogleAdsReport() {
           <BarChart2 className="h-6 w-6 text-primary" aria-hidden="true" />
           <div>
             <h2 className="text-lg font-semibold">Report Google Ads</h2>
-            <p className="text-sm text-muted-foreground">Monitora le performance delle tue campagne Google</p>
+            <p className="text-sm text-muted-foreground">
+              Monitora le performance delle tue campagne Google
+            </p>
           </div>
         </div>
 
         <Alert className="border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" aria-hidden="true" />
           <AlertDescription className="text-blue-800 text-sm">
-            Collega il tuo account Google Ads per visualizzare impressioni, click, costi e conversioni in tempo reale.
+            Collega il tuo account Google Ads per visualizzare impressioni, click, costi e
+            conversioni in tempo reale.
           </AlertDescription>
         </Alert>
 
@@ -118,7 +267,8 @@ export default function GoogleAdsReport() {
           <Link2 className="h-12 w-12 text-muted-foreground/40 mb-4" aria-hidden="true" />
           <h3 className="text-lg font-semibold">Account Google Ads non collegato</h3>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            Per visualizzare i report di Google Ads, collega prima il tuo account dalla sezione Integrazioni.
+            Per visualizzare i report di Google Ads, collega prima il tuo account dalla sezione
+            Integrazioni.
           </p>
           <Button
             className="mt-4"
@@ -131,28 +281,25 @@ export default function GoogleAdsReport() {
     );
   }
 
-  // Compute aggregate KPIs
-  const totalImpressions = stats.reduce((s, r) => s + (r.impressions ?? 0), 0);
-  const totalClicks = stats.reduce((s, r) => s + (r.clicks ?? 0), 0);
-  const totalSpend = stats.reduce((s, r) => s + (r.spend ?? 0), 0);
-  const totalConversions = stats.reduce((s, r) => s + (r.conversions ?? 0), 0);
-  const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const avgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
-
-  // Aggregate per campaign
-  const byCampaign: Record<string, { impressions: number; clicks: number; spend: number; conversions: number }> = {};
-  for (const s of stats) {
-    if (!s.campaign_name) continue;
-    if (!byCampaign[s.campaign_name]) {
-      byCampaign[s.campaign_name] = { impressions: 0, clicks: 0, spend: 0, conversions: 0 };
-    }
-    byCampaign[s.campaign_name].impressions += s.impressions ?? 0;
-    byCampaign[s.campaign_name].clicks += s.clicks ?? 0;
-    byCampaign[s.campaign_name].spend += s.spend ?? 0;
-    byCampaign[s.campaign_name].conversions += s.conversions ?? 0;
+  // ── Stato: errore ────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={refetch}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
-  const campaigns = Object.entries(byCampaign).sort((a, b) => b[1].spend - a[1].spend);
 
+  // ── Render principale ────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -161,68 +308,243 @@ export default function GoogleAdsReport() {
           <BarChart2 className="h-6 w-6 text-primary" aria-hidden="true" />
           <div>
             <h2 className="text-lg font-semibold">Report Google Ads</h2>
-            <p className="text-sm text-muted-foreground">Performance campagne pubblicitarie Google</p>
+            <p className="text-sm text-muted-foreground">
+              Performance campagne pubblicitarie Google
+            </p>
           </div>
         </div>
-        {integration && (
-          <Badge className={cn("text-xs", integration.status === "active" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800")}>
-            {integration.status === "active" ? "Connesso" : "In attesa"}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {integration && (
+            <Badge
+              className={cn(
+                "text-xs",
+                integration.status === "active"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-yellow-100 text-yellow-800"
+              )}
+            >
+              {integration.status === "active" ? "Connesso" : "In attesa"}
+            </Badge>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={refetch}
+            disabled={isLoading}
+            aria-label="Aggiorna dati"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5 mr-1.5", isLoading && "animate-spin")}
+              aria-hidden="true"
+            />
+            Aggiorna
+          </Button>
+        </div>
       </div>
 
-      {/* KPI cards */}
+      {/* Filtro date range */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground font-medium">Periodo:</span>
+        {DATE_PRESETS.map((p) => (
+          <Button
+            key={p.key}
+            size="sm"
+            variant={preset === p.key ? "default" : "outline"}
+            className="text-xs h-7 px-3"
+            onClick={() => handlePreset(p.key)}
+          >
+            {p.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* KPI card */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KPICard label="Impressioni" value={totalImpressions.toLocaleString("it-IT")} icon={Eye} isLoading={isLoading} />
-        <KPICard label="Click" value={totalClicks.toLocaleString("it-IT")} icon={MousePointerClick} colorClass="text-primary" isLoading={isLoading} />
-        <KPICard label="Spesa totale" value={formatCurrency(totalSpend)} icon={Euro} colorClass="text-amber-600" isLoading={isLoading} />
-        <KPICard label="Conversioni" value={totalConversions.toLocaleString("it-IT")} icon={TrendingUp} colorClass="text-green-600" isLoading={isLoading} />
-        <KPICard label="CTR medio" value={`${avgCtr.toFixed(2)}%`} icon={BarChart2} isLoading={isLoading} />
-        <KPICard label="CPC medio" value={formatCurrency(avgCpc)} icon={MousePointerClick} isLoading={isLoading} />
+        <KpiCard
+          label="Spesa totale"
+          value={isLoading ? "—" : formatCurrency(kpis.totalSpend)}
+          icon={Euro}
+          colorClass="text-amber-600"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Impressioni"
+          value={isLoading ? "—" : formatNumber(kpis.totalImpressions)}
+          icon={Eye}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Click"
+          value={isLoading ? "—" : formatNumber(kpis.totalClicks)}
+          icon={MousePointerClick}
+          colorClass="text-primary"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="CTR medio"
+          value={isLoading ? "—" : formatPercent(kpis.avgCTR)}
+          icon={BarChart2}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Conversioni"
+          value={isLoading ? "—" : formatNumber(kpis.totalConversions)}
+          icon={Target}
+          colorClass="text-green-600"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="CPC medio"
+          value={isLoading ? "—" : formatCurrency(kpis.avgCPC)}
+          icon={TrendingUp}
+          isLoading={isLoading}
+        />
       </div>
 
-      {/* Campaigns table */}
-      {!isLoading && (
+      {/* Tabella campagne */}
+      {isLoading ? (
+        <Skeleton className="h-48 rounded-xl" />
+      ) : campaigns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <BarChart2 className="h-12 w-12 text-gray-300 mb-4" aria-hidden="true" />
+          <h3 className="text-lg font-medium text-gray-900">Nessun dato disponibile</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Non ci sono campagne nel periodo selezionato. Prova a modificare il periodo.
+          </p>
+        </div>
+      ) : (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Performance per campagna</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              Performance per campagna
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {campaigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-10">
-                Nessun dato campagna disponibile. I dati verranno mostrati dopo la prima sincronizzazione.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left px-4 py-2 text-xs text-muted-foreground font-medium">Campagna</th>
-                      <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Impressioni</th>
-                      <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Click</th>
-                      <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">CTR</th>
-                      <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Spesa</th>
-                      <th className="text-right px-4 py-2 text-xs text-muted-foreground font-medium">Conversioni</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {campaigns.map(([name, data]) => {
-                      const ctr = data.impressions > 0 ? (data.clicks / data.impressions) * 100 : 0;
-                      return (
-                        <tr key={name} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-2.5 font-medium max-w-[200px] truncate" title={name}>{name}</td>
-                          <td className="px-4 py-2.5 text-right">{data.impressions.toLocaleString("it-IT")}</td>
-                          <td className="px-4 py-2.5 text-right">{data.clicks.toLocaleString("it-IT")}</td>
-                          <td className="px-4 py-2.5 text-right">{ctr.toFixed(2)}%</td>
-                          <td className="px-4 py-2.5 text-right font-semibold">{formatCurrency(data.spend)}</td>
-                          <td className="px-4 py-2.5 text-right text-green-600 font-semibold">{data.conversions.toLocaleString("it-IT")}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTh
+                      field="campaign_name"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    >
+                      Campagna
+                    </SortableTh>
+                    <SortableTh
+                      field="impressions"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Impressioni
+                    </SortableTh>
+                    <SortableTh
+                      field="clicks"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Click
+                    </SortableTh>
+                    <SortableTh
+                      field="ctr"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      CTR
+                    </SortableTh>
+                    <SortableTh
+                      field="spend"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Spesa (€)
+                    </SortableTh>
+                    <SortableTh
+                      field="conversions"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Conversioni
+                    </SortableTh>
+                    <SortableTh
+                      field="cpc"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      CPC
+                    </SortableTh>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedCampaigns.map((c) => (
+                    <TableRow
+                      key={c.campaign_id ?? c.campaign_name}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <TableCell
+                        className="font-medium max-w-[220px] truncate"
+                        title={c.campaign_name}
+                      >
+                        {c.campaign_name}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(c.impressions)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(c.clicks)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatPercent(c.ctr)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(c.spend)}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 font-semibold">
+                        {formatNumber(c.conversions)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(c.cpc)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Riga totali */}
+                  <TableRow className="border-t-2 bg-muted/20">
+                    <TableCell className="font-semibold">Totale</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatNumber(totals.impressions)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatNumber(totals.clicks)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatPercent(totals.ctr)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(totals.spend)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-green-600">
+                      {formatNumber(totals.conversions)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(totals.cpc)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

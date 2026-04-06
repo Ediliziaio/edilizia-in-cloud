@@ -267,7 +267,7 @@ export function companyRoutes() {
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
-        <Route path="marketing/google-ads" element={<Navigate to="/azienda/impostazioni/integrazioni" replace />} />
+        <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
         {/* Portale SMS Marketing — route principale con sub-path */}
         <Route path="sms-marketing" element={<SmsMarketingPage />} />
