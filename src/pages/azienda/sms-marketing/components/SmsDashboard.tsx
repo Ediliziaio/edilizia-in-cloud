@@ -3,7 +3,7 @@
  * Skeleton loader durante il caricamento.
  */
 import { useMemo } from "react";
-import { MessageSquare, Send, CheckCircle2, Euro } from "lucide-react";
+import { MessageSquare, Send, CheckCircle2, Euro, Phone } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -18,7 +18,10 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { useSmsDashboard } from "@/hooks/useSmsDashboard";
+import { useSmsWallet } from "@/hooks/useSmsWallet";
+import { useTelnyxSetup } from "@/hooks/useTelnyxSetup";
 import { SmsStatsBadge } from "./SmsStatsBadge";
 
 function formatMese(key: string): string {
@@ -29,8 +32,14 @@ function formatMese(key: string): string {
   }
 }
 
-export function SmsDashboard() {
+interface SmsDashboardProps {
+  onRicarica?: () => void;
+}
+
+export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
   const { dashboard, isLoading } = useSmsDashboard();
+  const { wallet, creditiResidui, isSottoSoglia, isBlocco } = useSmsWallet();
+  const { numero } = useTelnyxSetup();
 
   const chartData = useMemo(
     () => dashboard.trend.map((t) => ({ ...t, mese: formatMese(t.mese) })),
@@ -61,6 +70,35 @@ export function SmsDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Banner wallet */}
+      {wallet && (
+        <div className={`rounded-lg p-4 border ${isBlocco() ? "bg-destructive/5 border-destructive/30" : isSottoSoglia() ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-bold tabular-nums">
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(creditiResidui)}
+                </span>
+                <span className="text-sm text-muted-foreground">crediti disponibili</span>
+              </div>
+              {isBlocco() && <p className="text-xs text-destructive mt-0.5">Crediti esauriti — ricarica per sbloccare i nuovi invii</p>}
+              {isSottoSoglia() && !isBlocco() && <p className="text-xs text-amber-700 mt-0.5">Crediti in esaurimento — ricarica presto</p>}
+              <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden max-w-xs">
+                <div
+                  className={`h-full rounded-full transition-all ${isBlocco() ? "bg-destructive" : isSottoSoglia() ? "bg-amber-500" : "bg-emerald-500"}`}
+                  style={{ width: `${Math.min(100, (creditiResidui / Math.max(wallet.totale_ricaricato, 50)) * 100)}%` }}
+                />
+              </div>
+            </div>
+            {onRicarica && (isSottoSoglia() || isBlocco()) && (
+              <Button size="sm" onClick={onRicarica} variant={isBlocco() ? "destructive" : "outline"} className="shrink-0">
+                + Ricarica
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi) => {
@@ -134,6 +172,23 @@ export function SmsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Numero attivo */}
+      {numero && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                <Phone className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Numero SMS attivo</p>
+                <p className="text-base font-mono font-semibold">{numero.numero_display}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

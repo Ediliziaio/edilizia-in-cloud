@@ -266,7 +266,12 @@ export function companyRoutes() {
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/impostazioni/integrazioni" replace />} />
-        <Route path="marketing/sms" element={<SmsMarketingPage />} />
+        <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
+        {/* Portale SMS Marketing — route principale con sub-path */}
+        <Route path="sms-marketing" element={<SmsMarketingPage />} />
+        <Route path="sms-marketing/campagne" element={<SmsMarketingPage defaultTab="campagne" />} />
+        <Route path="sms-marketing/contatti" element={<SmsMarketingPage defaultTab="contatti" />} />
+        <Route path="sms-marketing/template" element={<SmsMarketingPage defaultTab="template" />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />

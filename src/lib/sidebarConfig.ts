@@ -161,13 +161,18 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 6. Automazioni & AI
+  // 6. Automazioni & AI — Email · SMS · WhatsApp stub · Automazioni · Agenti · Render
   {
     id: "area_automazioni",
     title: "Automazioni & AI",
     icon: Zap,
     items: [
-      { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni" },
+      // ─── Canali comunicazione ───
+      { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", groupLabel: "Comunicazione" },
+      { title: "SMS Marketing", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing" },
+      { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp" },
+      // ─── Automazione ───
+      { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni", groupLabel: "Automazione" },
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
       { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi" },
     ],
