@@ -61,6 +61,24 @@ const FOLDER_COLORS: Record<string, string> = {
   giornale_lavori: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   pos_document: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
   duvri_document: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  // ── Assistenza/Interventi ─────────────────────────────────────────────────
+  intervento: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  rapportino: "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
+  // ── Manutenzione Programmata ──────────────────────────────────────────────
+  impianto: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
+  contratto_manutenzione: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  piano_manutenzione: "bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300",
+  // ── Subappaltatori ────────────────────────────────────────────────────────
+  subappaltatore: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  contratto_subappalto: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  sal_subappaltatore: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+  // ── Acquisti ──────────────────────────────────────────────────────────────
+  ordine_acquisto: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  ddt_ricezione: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+  // ── Finanza ───────────────────────────────────────────────────────────────
+  costo_aziendale: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
+  // ── Azienda ───────────────────────────────────────────────────────────────
+  company: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
 };
 const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
@@ -84,6 +102,24 @@ const FOLDER_LABELS: Record<string, string> = {
   giornale_lavori: "Giornale dei Lavori",
   pos_document: "POS – Sicurezza",
   duvri_document: "DUVRI – Sicurezza",
+  // ── Assistenza ────────────────────────────────────────────────────────────
+  intervento: "Intervento / Assistenza",
+  rapportino: "Rapportino Intervento",
+  // ── Manutenzione ──────────────────────────────────────────────────────────
+  impianto: "Impianto Cliente",
+  contratto_manutenzione: "Contratto Manutenzione",
+  piano_manutenzione: "Piano Manutenzione",
+  // ── Subappaltatori ────────────────────────────────────────────────────────
+  subappaltatore: "Subappaltatore",
+  contratto_subappalto: "Contratto Subappalto",
+  sal_subappaltatore: "SAL Subappaltatore",
+  // ── Acquisti ──────────────────────────────────────────────────────────────
+  ordine_acquisto: "Ordine Acquisto (OdA)",
+  ddt_ricezione: "DDT Ricezione Merce",
+  // ── Finanza ───────────────────────────────────────────────────────────────
+  costo_aziendale: "Costo Aziendale",
+  // ── Azienda ───────────────────────────────────────────────────────────────
+  company: "Azienda / Profilo",
 };
 
 /* ───── helper to build system fields ───── */
@@ -313,7 +349,19 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_emp_gross", "RAL Lorda", "Dipendente", "employee", "{{ employee.gross_salary }}"),
   sysField("sys_emp_net", "Netto Mensile", "Dipendente", "employee", "{{ employee.net_salary }}"),
   sysField("sys_emp_hours", "Ore Mensili", "Dipendente", "employee", "{{ employee.monthly_hours }}"),
-  sysField("sys_emp_active", "Attivo", "Dipendente", "employee", "{{ employee.is_active }}"),
+  sysField("sys_emp_active",        "Attivo",              "Dipendente", "employee", "{{ employee.is_active }}"),
+  // ── Dipendente — campi estesi (modulo 11) ──────────────────────────────
+  sysField("sys_emp_fiscal_code",   "Codice Fiscale",      "Dipendente", "employee", "{{ employee.fiscal_code }}"),
+  sysField("sys_emp_address",       "Indirizzo",           "Dipendente", "employee", "{{ employee.address }}"),
+  sysField("sys_emp_sede_id",       "ID Sede",             "Dipendente", "employee", "{{ employee.sede_id }}"),
+  sysField("sys_emp_avatar",        "Avatar URL",          "Dipendente", "employee", "{{ employee.avatar_url }}"),
+  sysField("sys_emp_dob",           "Data Nascita",        "Dipendente", "employee", "{{ employee.date_of_birth }}"),
+  sysField("sys_emp_contract_type", "Tipo Contratto",      "Dipendente", "employee", "{{ employee.contract_type }}"),
+  sysField("sys_emp_hire_date",     "Data Assunzione",     "Dipendente", "employee", "{{ employee.hire_date }}"),
+  sysField("sys_emp_contract_end",  "Data Fine Contratto", "Dipendente", "employee", "{{ employee.contract_end_date }}"),
+  sysField("sys_emp_hourly_cost",   "Costo Orario",        "Dipendente", "employee", "{{ employee.hourly_cost }}"),
+  sysField("sys_emp_specializ",     "Specializzazione",    "Dipendente", "employee", "{{ employee.specializzazione }}"),
+  sysField("sys_emp_notes",         "Note Interne",        "Dipendente", "employee", "{{ employee.notes }}"),
 
   // ══════════════════════════════════════
   // ── Magazzino ──
@@ -445,6 +493,203 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_duvri_indirizzo","Indirizzo Cantiere", "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.indirizzo_cantiere }}"),
   sysField("sys_duvri_resp",    "Responsabile Sic.",   "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.responsabile_sicurezza }}"),
   sysField("sys_duvri_status",  "Stato",               "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.status }}"),
+
+  // ══════════════════════════════════════
+  // ── 1. Intervento / Ticket Tecnico ──
+  // ══════════════════════════════════════
+  sysField("sys_int_id",                "ID Ticket/Intervento",      "Intervento", "intervento", "{{ intervento.id }}"),
+  sysField("sys_int_subject",           "Soggetto / Titolo",         "Intervento", "intervento", "{{ intervento.subject }}"),
+  sysField("sys_int_tipo",              "Tipo Intervento",           "Intervento", "intervento", "{{ intervento.tipo }}"),
+  sysField("sys_int_status",            "Stato",                     "Intervento", "intervento", "{{ intervento.status }}"),
+  sysField("sys_int_priority",          "Priorità",                  "Intervento", "intervento", "{{ intervento.priority }}"),
+  sysField("sys_int_category",          "Categoria",                 "Intervento", "intervento", "{{ intervento.category }}"),
+  sysField("sys_int_customer_id",       "ID Cliente",                "Intervento", "intervento", "{{ intervento.customer_id }}"),
+  sysField("sys_int_order_id",          "ID Ordine",                 "Intervento", "intervento", "{{ intervento.order_id }}"),
+  sysField("sys_int_impianto_id",       "ID Impianto",               "Intervento", "intervento", "{{ intervento.impianto_id }}"),
+  sysField("sys_int_assigned_to",       "Assegnato a",               "Intervento", "intervento", "{{ intervento.assigned_to }}"),
+  sysField("sys_int_data_prevista",     "Data Intervento Prevista",  "Intervento", "intervento", "{{ intervento.data_intervento_prevista }}"),
+  sysField("sys_int_data_effettiva",    "Data Intervento Effettiva", "Intervento", "intervento", "{{ intervento.data_intervento_effettiva }}"),
+  sysField("sys_int_durata_ore",        "Durata (ore)",              "Intervento", "intervento", "{{ intervento.durata_ore }}"),
+  sysField("sys_int_indirizzo",         "Indirizzo Intervento",      "Intervento", "intervento", "{{ intervento.indirizzo_intervento }}"),
+  sysField("sys_int_internal_notes",    "Note Interne",              "Intervento", "intervento", "{{ intervento.internal_notes }}"),
+  sysField("sys_int_note_tecnico",      "Note Tecnico",              "Intervento", "intervento", "{{ intervento.note_tecnico }}"),
+  sysField("sys_int_last_message_at",   "Ultimo Messaggio",          "Intervento", "intervento", "{{ intervento.last_message_at }}"),
+
+  // ── Rapportino Intervento ──
+  sysField("sys_rap_id",               "ID Rapportino",      "Rapportino", "rapportino", "{{ rapportino.id }}"),
+  sysField("sys_rap_numero",           "Numero Rapportino",  "Rapportino", "rapportino", "{{ rapportino.numero }}"),
+  sysField("sys_rap_data",             "Data Intervento",    "Rapportino", "rapportino", "{{ rapportino.data_intervento }}"),
+  sysField("sys_rap_tecnico_id",       "Tecnico ID",         "Rapportino", "rapportino", "{{ rapportino.tecnico_id }}"),
+  sysField("sys_rap_ore_lavoro",       "Ore Lavoro",         "Rapportino", "rapportino", "{{ rapportino.ore_lavoro }}"),
+  sysField("sys_rap_descrizione",      "Descrizione Lavori", "Rapportino", "rapportino", "{{ rapportino.descrizione }}"),
+  sysField("sys_rap_note",             "Note",               "Rapportino", "rapportino", "{{ rapportino.note }}"),
+  sysField("sys_rap_materiali",        "Materiali Usati",    "Rapportino", "rapportino", "{{ rapportino.materiali_usati }}"),
+  sysField("sys_rap_stato",            "Stato",              "Rapportino", "rapportino", "{{ rapportino.stato }}"),
+  sysField("sys_rap_firmato_da",       "Firmato Da",         "Rapportino", "rapportino", "{{ rapportino.firmato_da }}"),
+  sysField("sys_rap_firmato_il",       "Firmato Il",         "Rapportino", "rapportino", "{{ rapportino.firmato_il }}"),
+  sysField("sys_rap_ticket_id",        "ID Ticket",          "Rapportino", "rapportino", "{{ rapportino.ticket_id }}"),
+
+  // ══════════════════════════════════════
+  // ── 2. Impianto Cliente ──
+  // ══════════════════════════════════════
+  sysField("sys_imp_id",               "ID Impianto",       "Impianto", "impianto", "{{ impianto.id }}"),
+  sysField("sys_imp_tipo",             "Tipo Impianto",     "Impianto", "impianto", "{{ impianto.tipo_impianto }}"),
+  sysField("sys_imp_marca",            "Marca",             "Impianto", "impianto", "{{ impianto.marca }}"),
+  sysField("sys_imp_modello",          "Modello",           "Impianto", "impianto", "{{ impianto.modello }}"),
+  sysField("sys_imp_matricola",        "Matricola",         "Impianto", "impianto", "{{ impianto.matricola }}"),
+  sysField("sys_imp_data_inst",        "Data Installazione","Impianto", "impianto", "{{ impianto.data_installazione }}"),
+  sysField("sys_imp_garanzia",         "Scadenza Garanzia", "Impianto", "impianto", "{{ impianto.garanzia_scadenza }}"),
+  sysField("sys_imp_customer_id",      "ID Cliente",        "Impianto", "impianto", "{{ impianto.customer_id }}"),
+  sysField("sys_imp_order_id",         "ID Ordine Origine", "Impianto", "impianto", "{{ impianto.order_id }}"),
+  sysField("sys_imp_note_tecniche",    "Note Tecniche",     "Impianto", "impianto", "{{ impianto.note_tecniche }}"),
+  sysField("sys_imp_attivo",           "Attivo",            "Impianto", "impianto", "{{ impianto.attivo }}"),
+
+  // ══════════════════════════════════════
+  // ── 3. Contratto Manutenzione ──
+  // ══════════════════════════════════════
+  sysField("sys_cm_id",                "ID Contratto",          "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.id }}"),
+  sysField("sys_cm_nome",              "Nome Contratto",        "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.nome_contratto }}"),
+  sysField("sys_cm_impianto_id",       "ID Impianto",           "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.impianto_id }}"),
+  sysField("sys_cm_customer_id",       "ID Cliente",            "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.customer_id }}"),
+  sysField("sys_cm_data_inizio",       "Data Inizio",           "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.data_inizio }}"),
+  sysField("sys_cm_data_scadenza",     "Data Scadenza",         "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.data_scadenza }}"),
+  sysField("sys_cm_importo",           "Importo Canone",        "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.importo_canone }}"),
+  sysField("sys_cm_tipo_fatt",         "Tipo Fatturazione",     "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.tipo_fatturazione }}"),
+  sysField("sys_cm_rinnovo",           "Rinnovo Automatico",    "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.rinnovo_automatico }}"),
+  sysField("sys_cm_stato",             "Stato",                 "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.stato }}"),
+  sysField("sys_cm_note",              "Note",                  "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.note }}"),
+
+  // ══════════════════════════════════════
+  // ── 4. Piano Manutenzione ──
+  // ══════════════════════════════════════
+  sysField("sys_pm_id",                "ID Piano",              "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.id }}"),
+  sysField("sys_pm_titolo",            "Titolo",                "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.titolo }}"),
+  sysField("sys_pm_contratto_id",      "ID Contratto",          "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.contratto_id }}"),
+  sysField("sys_pm_freq_giorni",       "Frequenza (giorni)",    "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.frequenza_giorni }}"),
+  sysField("sys_pm_freq_tipo",         "Tipo Frequenza",        "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.frequenza_tipo }}"),
+  sysField("sys_pm_prossima",          "Prossima Scadenza",     "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.prossima_scadenza }}"),
+  sysField("sys_pm_ultima",            "Ultima Esecuzione",     "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.ultima_esecuzione }}"),
+  sysField("sys_pm_tecnico",           "Tecnico Preferito",     "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.tecnico_preferito }}"),
+  sysField("sys_pm_checklist",         "Checklist Attività",    "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.checklist_attivita }}"),
+  sysField("sys_pm_attivo",            "Attivo",                "Piano Manutenzione", "piano_manutenzione", "{{ piano_manutenzione.attivo }}"),
+
+  // ══════════════════════════════════════
+  // ── 5. Subappaltatore ──
+  // ══════════════════════════════════════
+  sysField("sys_sub_id",               "ID Subappaltatore",     "Subappaltatore", "subappaltatore", "{{ subappaltatore.id }}"),
+  sysField("sys_sub_ragione_sociale",  "Ragione Sociale",       "Subappaltatore", "subappaltatore", "{{ subappaltatore.ragione_sociale }}"),
+  sysField("sys_sub_responsabile",     "Responsabile",          "Subappaltatore", "subappaltatore", "{{ subappaltatore.responsabile }}"),
+  sysField("sys_sub_telefono",         "Telefono",              "Subappaltatore", "subappaltatore", "{{ subappaltatore.telefono }}"),
+  sysField("sys_sub_tipo_lavori",      "Tipo Lavori",           "Subappaltatore", "subappaltatore", "{{ subappaltatore.tipo_lavori }}"),
+  sysField("sys_sub_order_id",         "ID Ordine/Cantiere",    "Subappaltatore", "subappaltatore", "{{ subappaltatore.order_id }}"),
+  sysField("sys_sub_data_inizio",      "Data Inizio",           "Subappaltatore", "subappaltatore", "{{ subappaltatore.data_inizio }}"),
+  sysField("sys_sub_data_fine",        "Data Fine",             "Subappaltatore", "subappaltatore", "{{ subappaltatore.data_fine }}"),
+  sysField("sys_sub_durc_scadenza",    "DURC Scadenza",         "Subappaltatore", "subappaltatore", "{{ subappaltatore.durc_scadenza }}"),
+
+  // ══════════════════════════════════════
+  // ── 6. Contratto Subappalto ──
+  // ══════════════════════════════════════
+  sysField("sys_cs_id",                "ID Contratto",              "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.id }}"),
+  sysField("sys_cs_numero",            "Numero Contratto",          "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.numero_contratto }}"),
+  sysField("sys_cs_sub_id",            "ID Subappaltatore",         "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.subappaltatore_id }}"),
+  sysField("sys_cs_order_id",          "ID Ordine",                 "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.order_id }}"),
+  sysField("sys_cs_desc_lavori",       "Descrizione Lavori",        "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.descrizione_lavori }}"),
+  sysField("sys_cs_importo",           "Importo Contrattuale",      "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.importo_contrattuale }}"),
+  sysField("sys_cs_data_inizio",       "Data Inizio",               "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.data_inizio }}"),
+  sysField("sys_cs_data_fine_prev",    "Data Fine Prevista",        "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.data_fine_prevista }}"),
+  sysField("sys_cs_data_fine_eff",     "Data Fine Effettiva",       "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.data_fine_effettiva }}"),
+  sysField("sys_cs_ritenuta_pct",      "Ritenuta Garanzia %",       "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.ritenuta_garanzia_pct }}"),
+  sysField("sys_cs_stato",             "Stato",                     "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.stato }}"),
+  sysField("sys_cs_note",              "Note",                      "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.note }}"),
+
+  // ══════════════════════════════════════
+  // ── 7. SAL Subappaltatore ──
+  // ══════════════════════════════════════
+  sysField("sys_sal_id",               "ID SAL",             "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.id }}"),
+  sysField("sys_sal_numero",           "Numero SAL",         "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.numero_sal }}"),
+  sysField("sys_sal_contratto_id",     "ID Contratto",       "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.contratto_id }}"),
+  sysField("sys_sal_sub_id",           "ID Subappaltatore",  "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.subappaltatore_id }}"),
+  sysField("sys_sal_data_emissione",   "Data Emissione",     "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.data_emissione }}"),
+  sysField("sys_sal_data_pagamento",   "Data Pagamento",     "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.data_pagamento }}"),
+  sysField("sys_sal_importo_lordo",    "Importo Lordo",      "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.importo_lordo }}"),
+  sysField("sys_sal_ritenuta_pct",     "Ritenuta %",         "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.ritenuta_pct }}"),
+  sysField("sys_sal_ritenuta_importo", "Ritenuta Importo",   "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.ritenuta_importo }}"),
+  sysField("sys_sal_importo_netto",    "Importo Netto",      "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.importo_netto }}"),
+  sysField("sys_sal_stato",            "Stato",              "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.stato }}"),
+  sysField("sys_sal_note",             "Note",               "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.note }}"),
+  sysField("sys_sal_order_id",         "ID Ordine",          "SAL Subappaltatore", "sal_subappaltatore", "{{ sal_subappaltatore.order_id }}"),
+
+  // ══════════════════════════════════════
+  // ── 8. Ordine Acquisto (OdA) ──
+  // ══════════════════════════════════════
+  sysField("sys_oda_id",               "ID OdA",                    "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.id }}"),
+  sysField("sys_oda_numero",           "Numero OdA",                "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.oda_number }}"),
+  sysField("sys_oda_supplier_id",      "ID Fornitore",              "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.supplier_id }}"),
+  sysField("sys_oda_order_id",         "ID Ordine Cantiere",        "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.order_id }}"),
+  sysField("sys_oda_status",           "Stato",                     "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.status }}"),
+  sysField("sys_oda_issue_date",       "Data Emissione",            "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.issue_date }}"),
+  sysField("sys_oda_expected_del",     "Data Consegna Prevista",    "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.expected_delivery_date }}"),
+  sysField("sys_oda_actual_del",       "Data Consegna Effettiva",   "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.actual_delivery_date }}"),
+  sysField("sys_oda_subtotal",         "Subtotale",                 "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.subtotal }}"),
+  sysField("sys_oda_vat_total",        "IVA Totale",                "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.vat_total }}"),
+  sysField("sys_oda_total",            "Totale",                    "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.total }}"),
+  sysField("sys_oda_pay_method",       "Metodo Pagamento",          "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.payment_method }}"),
+  sysField("sys_oda_pay_terms",        "Condizioni Pagamento",      "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.payment_terms }}"),
+  sysField("sys_oda_delivery_addr",    "Indirizzo Consegna",        "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.delivery_address }}"),
+  sysField("sys_oda_internal_notes",   "Note Interne",              "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.internal_notes }}"),
+  sysField("sys_oda_sup_ref",          "Rif. Fornitore",            "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.supplier_reference }}"),
+  sysField("sys_oda_sent_at",          "Inviato Il",                "Ordine Acquisto", "ordine_acquisto", "{{ ordine_acquisto.sent_at }}"),
+
+  // ══════════════════════════════════════
+  // ── 9. DDT Ricezione Merce ──
+  // ══════════════════════════════════════
+  sysField("sys_ddt_id",               "ID DDT",               "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.id }}"),
+  sysField("sys_ddt_numero",           "Numero DDT",           "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.numero_ddt }}"),
+  sysField("sys_ddt_oda_id",           "ID Ordine Acquisto",   "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.purchase_order_id }}"),
+  sysField("sys_ddt_data",             "Data Ricezione",       "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.data_ricezione }}"),
+  sysField("sys_ddt_quantita",         "Quantità Ricevuta",    "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.quantita_ricevuta }}"),
+  sysField("sys_ddt_stato",            "Stato",                "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.stato }}"),
+  sysField("sys_ddt_note",             "Note",                 "DDT Ricezione", "ddt_ricezione", "{{ ddt_ricezione.note }}"),
+
+  // ══════════════════════════════════════
+  // ── 10. Costo Aziendale ──
+  // ══════════════════════════════════════
+  sysField("sys_ca_id",                "ID Costo",         "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.id }}"),
+  sysField("sys_ca_name",              "Nome / Descrizione","Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.name }}"),
+  sysField("sys_ca_amount",            "Importo",          "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.amount }}"),
+  sysField("sys_ca_cost_type",         "Tipo Costo",       "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.cost_type }}"),
+  sysField("sys_ca_category",          "Categoria",        "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.category }}"),
+  sysField("sys_ca_due_date",          "Data Scadenza",    "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.due_date }}"),
+  sysField("sys_ca_is_paid",           "Pagato",           "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.is_paid }}"),
+  sysField("sys_ca_paid_date",         "Data Pagamento",   "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.paid_date }}"),
+  sysField("sys_ca_pay_method",        "Metodo Pagamento", "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.payment_method }}"),
+  sysField("sys_ca_recurrence",        "Ricorrenza",       "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.recurrence }}"),
+  sysField("sys_ca_supplier_id",       "ID Fornitore",     "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.supplier_id }}"),
+  sysField("sys_ca_order_id",          "ID Ordine",        "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.order_id }}"),
+  sysField("sys_ca_vat_rate",          "Aliquota IVA",     "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.vat_rate }}"),
+  sysField("sys_ca_notes",             "Note",             "Costo Aziendale", "costo_aziendale", "{{ costo_aziendale.notes }}"),
+
+  // ══════════════════════════════════════
+  // ── 12. Azienda / Profilo Company ──
+  // ══════════════════════════════════════
+  sysField("sys_co_business_name",     "Ragione Sociale",       "Azienda", "company", "{{ company.business_name }}"),
+  sysField("sys_co_email",             "Email",                 "Azienda", "company", "{{ company.email }}"),
+  sysField("sys_co_phone",             "Telefono",              "Azienda", "company", "{{ company.phone }}"),
+  sysField("sys_co_vat_number",        "Partita IVA",           "Azienda", "company", "{{ company.vat_number }}"),
+  sysField("sys_co_fiscal_code",       "Codice Fiscale",        "Azienda", "company", "{{ company.fiscal_code }}"),
+  sysField("sys_co_address",           "Indirizzo Sede",        "Azienda", "company", "{{ company.address }}"),
+  sysField("sys_co_city",              "Città",                 "Azienda", "company", "{{ company.city }}"),
+  sysField("sys_co_province",          "Provincia",             "Azienda", "company", "{{ company.province }}"),
+  sysField("sys_co_postal_code",       "CAP",                   "Azienda", "company", "{{ company.postal_code }}"),
+  sysField("sys_co_country",           "Paese",                 "Azienda", "company", "{{ company.country }}"),
+  sysField("sys_co_website",           "Sito Web",              "Azienda", "company", "{{ company.website }}"),
+  sysField("sys_co_pec",               "PEC",                   "Azienda", "company", "{{ company.pec }}"),
+  sysField("sys_co_sdi_code",          "Codice SDI",            "Azienda", "company", "{{ company.sdi_code }}"),
+  sysField("sys_co_bank_iban",         "IBAN",                  "Azienda", "company", "{{ company.bank_iban }}"),
+  sysField("sys_co_bank_holder",       "Intestatario Conto",    "Azienda", "company", "{{ company.bank_account_holder }}"),
+  sysField("sys_co_bank_name",         "Nome Banca",            "Azienda", "company", "{{ company.bank_name }}"),
+  sysField("sys_co_logo_url",          "Logo URL",              "Azienda", "company", "{{ company.logo_url }}"),
+  sysField("sys_co_regime_fiscale",    "Regime Fiscale",        "Azienda", "company", "{{ company.regime_fiscale }}"),
 ];
 
 const FIELD_TYPES = [
@@ -468,6 +713,24 @@ const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
   giornale_lavori:   [{ value: "giornale_lavori",   label: "Giornale dei Lavori" }],
   pos_document:      [{ value: "pos_document",      label: "POS – Sicurezza" }],
   duvri_document:    [{ value: "duvri_document",    label: "DUVRI – Sicurezza" }],
+  // ── Assistenza ──
+  intervento:            [{ value: "intervento",            label: "Intervento / Assistenza" }],
+  rapportino:            [{ value: "rapportino",            label: "Rapportino Intervento" }],
+  // ── Manutenzione ──
+  impianto:              [{ value: "impianto",              label: "Impianto Cliente" }],
+  contratto_manutenzione:[{ value: "contratto_manutenzione",label: "Contratto Manutenzione" }],
+  piano_manutenzione:    [{ value: "piano_manutenzione",    label: "Piano Manutenzione" }],
+  // ── Subappaltatori ──
+  subappaltatore:        [{ value: "subappaltatore",        label: "Subappaltatore" }],
+  contratto_subappalto:  [{ value: "contratto_subappalto",  label: "Contratto Subappalto" }],
+  sal_subappaltatore:    [{ value: "sal_subappaltatore",    label: "SAL Subappaltatore" }],
+  // ── Acquisti ──
+  ordine_acquisto:       [{ value: "ordine_acquisto",       label: "Ordine Acquisto (OdA)" }],
+  ddt_ricezione:         [{ value: "ddt_ricezione",         label: "DDT Ricezione Merce" }],
+  // ── Finanza ──
+  costo_aziendale:       [{ value: "costo_aziendale",       label: "Costo Aziendale" }],
+  // ── Azienda ──
+  company:               [{ value: "company",               label: "Azienda / Profilo" }],
 };
 
 const GROUP_OPTIONS = [
@@ -491,6 +754,24 @@ const GROUP_OPTIONS = [
   { value: "giornale_lavori",   label: "Giornale dei Lavori" },
   { value: "pos_document",      label: "POS – Sicurezza" },
   { value: "duvri_document",    label: "DUVRI – Sicurezza" },
+  // ── Assistenza ──
+  { value: "intervento",            label: "Intervento / Assistenza" },
+  { value: "rapportino",            label: "Rapportino Intervento" },
+  // ── Manutenzione ──
+  { value: "impianto",              label: "Impianto Cliente" },
+  { value: "contratto_manutenzione",label: "Contratto Manutenzione" },
+  { value: "piano_manutenzione",    label: "Piano Manutenzione" },
+  // ── Subappaltatori ──
+  { value: "subappaltatore",        label: "Subappaltatore" },
+  { value: "contratto_subappalto",  label: "Contratto Subappalto" },
+  { value: "sal_subappaltatore",    label: "SAL Subappaltatore" },
+  // ── Acquisti ──
+  { value: "ordine_acquisto",       label: "Ordine Acquisto (OdA)" },
+  { value: "ddt_ricezione",         label: "DDT Ricezione Merce" },
+  // ── Finanza ──
+  { value: "costo_aziendale",       label: "Costo Aziendale" },
+  // ── Azienda ──
+  { value: "company",               label: "Azienda / Profilo" },
 ];
 
 const OBJECT_NAME_MAP: Record<string, string> = {
@@ -513,6 +794,24 @@ const OBJECT_NAME_MAP: Record<string, string> = {
   giornale_lavori: "Giornale dei Lavori",
   pos_document: "POS – Sicurezza",
   duvri_document: "DUVRI – Sicurezza",
+  // ── Assistenza ──
+  intervento: "Intervento / Assistenza",
+  rapportino: "Rapportino Intervento",
+  // ── Manutenzione ──
+  impianto: "Impianto Cliente",
+  contratto_manutenzione: "Contratto Manutenzione",
+  piano_manutenzione: "Piano Manutenzione",
+  // ── Subappaltatori ──
+  subappaltatore: "Subappaltatore",
+  contratto_subappalto: "Contratto Subappalto",
+  sal_subappaltatore: "SAL Subappaltatore",
+  // ── Acquisti ──
+  ordine_acquisto: "Ordine Acquisto (OdA)",
+  ddt_ricezione: "DDT Ricezione Merce",
+  // ── Finanza ──
+  costo_aziendale: "Costo Aziendale",
+  // ── Azienda ──
+  company: "Azienda / Profilo",
 };
 
 function toSnakeCase(s: string) {
@@ -824,6 +1123,24 @@ export function CustomFieldsConfig() {
                   <SelectItem value="giornale_lavori">Giornale dei Lavori</SelectItem>
                   <SelectItem value="pos_document">POS – Sicurezza Cantiere</SelectItem>
                   <SelectItem value="duvri_document">DUVRI – Sicurezza Cantiere</SelectItem>
+                  {/* ── Assistenza ── */}
+                  <SelectItem value="intervento">Intervento / Assistenza</SelectItem>
+                  <SelectItem value="rapportino">Rapportino Intervento</SelectItem>
+                  {/* ── Manutenzione ── */}
+                  <SelectItem value="impianto">Impianto Cliente</SelectItem>
+                  <SelectItem value="contratto_manutenzione">Contratto Manutenzione</SelectItem>
+                  <SelectItem value="piano_manutenzione">Piano Manutenzione</SelectItem>
+                  {/* ── Subappaltatori ── */}
+                  <SelectItem value="subappaltatore">Subappaltatore</SelectItem>
+                  <SelectItem value="contratto_subappalto">Contratto Subappalto</SelectItem>
+                  <SelectItem value="sal_subappaltatore">SAL Subappaltatore</SelectItem>
+                  {/* ── Acquisti ── */}
+                  <SelectItem value="ordine_acquisto">Ordine Acquisto (OdA)</SelectItem>
+                  <SelectItem value="ddt_ricezione">DDT Ricezione Merce</SelectItem>
+                  {/* ── Finanza ── */}
+                  <SelectItem value="costo_aziendale">Costo Aziendale</SelectItem>
+                  {/* ── Azienda ── */}
+                  <SelectItem value="company">Azienda / Profilo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
