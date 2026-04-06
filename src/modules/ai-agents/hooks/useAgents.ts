@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { queryKeys } from "@/lib/queryKeys";
 import { logger } from "@/utils/logger";
+// FIX BUG #1 — voce italiana di default per nuovi agenti
+import { DEFAULT_ITALIAN_VOICE_ID } from "@/lib/ai-agents/elevenlabs-config";
 
 export function useAgents() {
   return useQuery({
@@ -45,16 +47,20 @@ export function useCreateAgent() {
 
   return useMutation({
     mutationFn: async (input: AIAgentInsert) => {
+      // FIX BUG #1: passa voice_id al proxy (usa voce italiana se non specificata)
       const result = await callElevenLabsProxy<{ agent_id: string; elevenlabs_agent_id: string }>({
         action: "create_agent",
         payload: {
           name: input.name,
           system_prompt: input.system_prompt || "",
           first_message: input.first_message || "",
+          voice_id: input.voice_id || DEFAULT_ITALIAN_VOICE_ID,
           llm_model: input.llm_model || "gemini-2.5-flash",
           language: input.language || "it",
           objective: input.objective || "",
           website_url: input.website_url || "",
+          // FIX BUG #2: passa tools_config se presente (di default tools vuoti)
+          tools_config: (input as AIAgentInsert & { tools_config?: unknown }).tools_config ?? null,
         },
       });
 
@@ -89,6 +95,8 @@ export function useUpdateAgent(id: string | undefined) {
       const elAgentId = (agent as unknown as AIAgent).elevenlabs_agent_id;
 
       if (elAgentId) {
+        // FIX BUG #1 + BUG #2: passa voice_id e tools_config al proxy
+        // Il proxy gestisce la conversione in formato ElevenLabs
         await callElevenLabsProxy({
           action: "update_agent",
           agent_id: elAgentId,

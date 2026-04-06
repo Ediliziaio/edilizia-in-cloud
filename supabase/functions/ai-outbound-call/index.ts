@@ -1,5 +1,14 @@
-// DEPRECATED: This function has been replaced by initiate-outbound-call
-// All requests are forwarded to the new endpoint.
+/**
+ * ⛔ DEPRECATED — NON USARE QUESTA FUNZIONE
+ *
+ * Questa edge function è stata deprecata e NON forwards più le richieste.
+ * Causa bug P0: race condition con initiate-outbound-call, chiamate duplicate.
+ *
+ * ✅ USA: supabase.functions.invoke("initiate-outbound-call", { body: ... })
+ *
+ * Aggiornato: 2026-04-06 — da forwarder silenzioso a hard-stop esplicito.
+ * Tutti i client-side call sono stati aggiornati a initiate-outbound-call.
+ */
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -8,27 +17,27 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const newEndpoint = `${supabaseUrl}/functions/v1/initiate-outbound-call`;
+  console.error(
+    "[ai-outbound-call] DEPRECATED — questa funzione non deve più essere chiamata. " +
+    "Usa initiate-outbound-call."
+  );
 
-  // Forward the request body and auth headers to the new function
-  const body = await req.text();
-  const forwarded = await fetch(newEndpoint, {
-    method: req.method,
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": req.headers.get("Authorization") ?? "",
-    },
-    body: body || undefined,
-  });
-
-  const responseBody = await forwarded.text();
-  return new Response(responseBody, {
-    status: forwarded.status,
-    headers: {
-      ...getCorsHeaders(req),
-      "Content-Type": forwarded.headers.get("Content-Type") ?? "application/json",
-      "X-Deprecated": "Use initiate-outbound-call instead",
-    },
-  });
+  return new Response(
+    JSON.stringify({
+      error: "DEPRECATED",
+      message:
+        "La funzione ai-outbound-call è deprecata. " +
+        "Aggiorna il codice client per usare initiate-outbound-call.",
+      use_instead: "initiate-outbound-call",
+    }),
+    {
+      status: 410, // 410 Gone — risorsa definitivamente rimossa
+      headers: {
+        ...getCorsHeaders(req),
+        "Content-Type": "application/json",
+        "X-Deprecated": "true",
+        "X-Use-Instead": "initiate-outbound-call",
+      },
+    }
+  );
 });

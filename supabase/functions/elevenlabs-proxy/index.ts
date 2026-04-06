@@ -6,6 +6,73 @@ import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
 
+// ── FIX BUG #1 — Voce italiana di default ──────────────────────────────────
+// "JBFqnCBsd6RMkjVDRZzb" (George) è una voce inglese monolingua: produce output
+// in inglese anche con testo italiano. Usare always eleven_multilingual_v2.
+// Rachel (21m00Tcm4TlvDq8ikWAM) supporta italiano nativo con multilingual_v2.
+const DEFAULT_ITALIAN_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_TTS_MODEL = "eleven_multilingual_v2";
+
+// ── FIX BUG #2 — Tool builder inline (non può importare da src/) ─────────────
+// Converte tools_config (JSONB dal DB) nel formato array richiesto da ElevenLabs ConvAI.
+
+interface ToolsConfigEdiliziaTool { enabled: boolean; webhook_url: string }
+interface ToolsConfig {
+  system_tools?: Record<string, boolean>;
+  custom_tools?: Array<{ id: string; name: string; description: string }>;
+  edilizia_tools?: Record<string, ToolsConfigEdiliziaTool>;
+}
+
+const SYSTEM_TOOL_MAP: Record<string, string> = {
+  end_conversation: "end_call",
+  detect_language: "language_detection",
+  skip_turn: "skip_turn",
+  transfer_agent: "transfer_to_agent",
+  transfer_number: "transfer_call",
+  play_dtmf: "play_dtmf",
+  voicemail_detection: "voicemail_detection",
+};
+
+const EDILIZIA_TOOL_DESCRIPTIONS: Record<string, string> = {
+  get_lead_info: "Recupera i dati di un contatto/lead dal CRM di Edilizia in Cloud. Usa quando il chiamante chiede informazioni su un cliente esistente.",
+  create_appointment: "Crea un nuovo appuntamento nel calendario aziendale. Usa quando il chiamante vuole fissare un appuntamento, visita in cantiere o consulenza.",
+  search_products: "Cerca prodotti o materiali nel catalogo aziendale. Usa per informazioni su disponibilità, prezzi o caratteristiche.",
+  get_availability: "Verifica la disponibilità di slot liberi nel calendario. Usa prima di creare un appuntamento.",
+  assign_to_user: "Assegna un contatto o lead a un membro del team. Usa per smistare il contatto all'ufficio competente.",
+};
+
+function buildElevenLabsToolsFromConfig(toolsConfig: ToolsConfig | null | undefined): unknown[] {
+  if (!toolsConfig) return [];
+  const tools: unknown[] = [];
+
+  // Tool di sistema
+  if (toolsConfig.system_tools) {
+    for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
+      if (!enabled) continue;
+      const elName = SYSTEM_TOOL_MAP[id];
+      if (elName) tools.push({ type: "system", name: elName });
+    }
+  }
+
+  // Tool Edilizia in Cloud (webhook)
+  if (toolsConfig.edilizia_tools) {
+    for (const [id, cfg] of Object.entries(toolsConfig.edilizia_tools)) {
+      if (!cfg.enabled || !cfg.webhook_url) continue;
+      tools.push({
+        type: "webhook",
+        name: id,
+        description: EDILIZIA_TOOL_DESCRIPTIONS[id] ?? `Strumento ${id} di Edilizia in Cloud`,
+        url: cfg.webhook_url,
+        method: "POST",
+        response_timeout_secs: 20,
+        headers: [{ key: "Content-Type", value: "application/json" }],
+      });
+    }
+  }
+
+  return tools;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -74,21 +141,31 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "create_agent": {
-        const elRes = await elFetch("/convai/agents/create", "POST", apiKey, {
+        // FIX BUG #1: usa voce italiana di default e modello multilingual
+        const voiceId = payload?.voice_id || DEFAULT_ITALIAN_VOICE_ID;
+
+        // FIX BUG #2: converti tools_config in tool definitions ElevenLabs
+        const elTools = buildElevenLabsToolsFromConfig(
+          payload?.tools_config as ToolsConfig | null | undefined
+        );
+
+        const createBody: Record<string, unknown> = {
           conversation_config: {
             agent: {
-              prompt: {
-                prompt: payload?.system_prompt || "",
-              },
+              prompt: { prompt: payload?.system_prompt || "" },
               first_message: payload?.first_message || "",
               language: payload?.language || "it",
+              ...(elTools.length > 0 ? { tools: elTools } : {}),
             },
             tts: {
-              voice_id: payload?.voice_id || "JBFqnCBsd6RMkjVDRZzb",
+              voice_id: voiceId,
+              model_id: DEFAULT_TTS_MODEL, // eleven_multilingual_v2 — supporta italiano
             },
           },
           name: payload?.name || "Nuovo Agente",
-        });
+        };
+
+        const elRes = await elFetch("/convai/agents/create", "POST", apiKey, createBody);
 
         const elAgentId = elRes?.agent_id;
 
@@ -100,10 +177,11 @@ Deno.serve(async (req) => {
             name: payload?.name || "Nuovo Agente",
             system_prompt: payload?.system_prompt || "",
             first_message: payload?.first_message || "",
-            voice_id: payload?.voice_id || "JBFqnCBsd6RMkjVDRZzb",
+            voice_id: voiceId, // FIX BUG #1: salva la voce italiana scelta
             llm_model: payload?.llm_model || "gemini-2.5-flash",
             language: payload?.language || "it",
             created_by: userId,
+            ...(payload?.tools_config ? { tools_config: payload.tools_config } : {}),
           })
           .select("id")
           .single();
@@ -118,29 +196,57 @@ Deno.serve(async (req) => {
 
       case "update_agent": {
         if (!agent_id) throw new Error("agent_id richiesto");
-        const updateBody: Record<string, unknown> = {};
+
+        // FIX BUG #1 + BUG #2: costruisci il body ElevenLabs con merge corretto
+        const agentPatch: Record<string, unknown> = {};
+        const ttsPatch: Record<string, unknown> = {};
+
         if (payload?.system_prompt !== undefined) {
-          updateBody.conversation_config = {
-            agent: { prompt: { prompt: payload.system_prompt } },
-          };
+          agentPatch.prompt = { prompt: payload.system_prompt };
         }
         if (payload?.first_message !== undefined) {
-          if (!updateBody.conversation_config) updateBody.conversation_config = { agent: {} };
-          (updateBody.conversation_config as Record<string, unknown>).agent = {
-            ...((updateBody.conversation_config as Record<string, unknown>).agent as Record<string, unknown> || {}),
-            first_message: payload.first_message,
-          };
+          agentPatch.first_message = payload.first_message;
         }
+        if (payload?.language !== undefined) {
+          agentPatch.language = payload.language;
+        }
+
+        // FIX BUG #2: quando tools_config viene aggiornato, ri-sincronizza i tool su ElevenLabs
+        if (payload?.tools_config !== undefined) {
+          const elTools = buildElevenLabsToolsFromConfig(
+            payload.tools_config as ToolsConfig | null
+          );
+          agentPatch.tools = elTools; // array vuoto = azzera i tool (intenzionale)
+        }
+
+        // FIX BUG #1: usa modello multilingual quando la voce viene aggiornata
         if (payload?.voice_id !== undefined) {
-          if (!updateBody.conversation_config) updateBody.conversation_config = {};
-          (updateBody.conversation_config as Record<string, unknown>).tts = { voice_id: payload.voice_id };
+          ttsPatch.voice_id = payload.voice_id;
+          ttsPatch.model_id = DEFAULT_TTS_MODEL;
+        }
+
+        if (payload?.name !== undefined) {
+          // name è top-level in ElevenLabs, non dentro conversation_config
+        }
+
+        const updateBody: Record<string, unknown> = {};
+        if (Object.keys(agentPatch).length > 0 || Object.keys(ttsPatch).length > 0) {
+          updateBody.conversation_config = {};
+          if (Object.keys(agentPatch).length > 0) {
+            (updateBody.conversation_config as Record<string, unknown>).agent = agentPatch;
+          }
+          if (Object.keys(ttsPatch).length > 0) {
+            (updateBody.conversation_config as Record<string, unknown>).tts = ttsPatch;
+          }
         }
         if (payload?.name !== undefined) updateBody.name = payload.name;
 
-        try {
-          await elFetch(`/convai/agents/${agent_id}`, "PATCH", apiKey, updateBody);
-        } catch {
-          // ElevenLabs may not have this agent — continue with local update
+        if (Object.keys(updateBody).length > 0) {
+          try {
+            await elFetch(`/convai/agents/${agent_id}`, "PATCH", apiKey, updateBody);
+          } catch {
+            // ElevenLabs may not have this agent — continue with local update
+          }
         }
 
         await auditLog(adminClient, companyId, null, userId, "update_agent", { agent_id, changes: Object.keys(payload || {}) });

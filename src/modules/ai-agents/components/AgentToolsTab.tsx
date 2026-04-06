@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+// FIX BUG #2 — sincronia tools_config con ElevenLabs al salvataggio
+import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -121,15 +123,48 @@ export function AgentToolsTab({ agentId }: AgentToolsTabProps) {
     const systemMap: Record<string, boolean> = {};
     tools.forEach(t => { systemMap[t.id] = t.enabled; });
 
+    const newToolsConfig = {
+      system_tools: systemMap,
+      custom_tools: custom,
+      edilizia_tools: ediConfigs,
+    };
+
+    // 1. Salva nel DB
     const { error } = await supabase
       .from("ai_agents" as never)
       .update({
-        tools_config: { system_tools: systemMap, custom_tools: custom, edilizia_tools: ediConfigs },
+        tools_config: newToolsConfig,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id" as never, agentId as never);
 
-    if (error) toast.error("Errore nel salvataggio");
+    if (error) {
+      toast.error("Errore nel salvataggio");
+      return;
+    }
+
+    // FIX BUG #2 — sincronizza tools_config su ElevenLabs
+    // Recupera elevenlabs_agent_id per aggiornare l'agente remoto
+    try {
+      const { data: agentRow } = await supabase
+        .from("ai_agents" as never)
+        .select("elevenlabs_agent_id" as never)
+        .eq("id" as never, agentId as never)
+        .single();
+
+      const elAgentId = (agentRow as unknown as { elevenlabs_agent_id: string | null } | null)
+        ?.elevenlabs_agent_id;
+
+      if (elAgentId) {
+        await callElevenLabsProxy({
+          action: "update_agent",
+          agent_id: elAgentId,
+          payload: { tools_config: newToolsConfig },
+        });
+      }
+    } catch {
+      // Fallback silenzioso — il DB è già aggiornato, il re-sync avverrà al prossimo update
+    }
   };
 
   const toggleTool = (id: string) => {
