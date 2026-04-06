@@ -9,7 +9,7 @@
  *   <anything else>  → treated like "app" (white-label or unknown)
  */
 
-export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "other";
+export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "other";
 
 export interface SubdomainConfig {
   subdomain: AppSubdomain;
@@ -39,6 +39,12 @@ const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
     defaultPath: "/cliente/ordini",
     loginPath: "/clienti-login",
     title: "Portale Clienti — Edilizia in Cloud",
+  },
+  lavori: {
+    subdomain: "lavori",
+    defaultPath: "/campo",
+    loginPath: "/lavori-login",
+    title: "Area Lavori — Edilizia in Cloud",
   },
   app: {
     subdomain: "app",
@@ -98,4 +104,9 @@ export function isClientiSubdomain(): boolean {
 /** True when the current subdomain is the landing/marketing page */
 export function isWwwSubdomain(): boolean {
   return getCurrentSubdomain() === "www";
+}
+
+/** True quando il subdomain è l'area lavori (operai/subappaltatori) */
+export function isLavoriSubdomain(): boolean {
+  return getCurrentSubdomain() === "lavori";
 }

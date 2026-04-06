@@ -70,6 +70,9 @@ export function RoleBasedRedirect() {
     if (subdomain === "clienti") {
       return <Navigate to="/clienti-login" replace />;
     }
+    if (subdomain === "lavori") {
+      return <Navigate to="/lavori-login" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

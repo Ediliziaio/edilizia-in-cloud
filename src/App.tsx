@@ -31,6 +31,7 @@ const PageLoader = () => (
 const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
+const LavoriLogin = lazy(() => import("@/pages/LavoriLogin"));
 
 /**
  * LoginRouter — renders the correct login page based on the current subdomain.
@@ -40,6 +41,7 @@ function LoginRouter() {
   const sub = getCurrentSubdomain();
   if (sub === "admin") return <AdminLogin />;
   if (sub === "clienti") return <ClientiLogin />;
+  if (sub === "lavori") return <LavoriLogin />;
   return <Login />;
 }
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -146,6 +148,7 @@ const App = () => (
               <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
+              <Route path="/lavori-login" element={<LavoriLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
