@@ -12,6 +12,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   branding:               { title: "White-Label",              description: "Personalizza il brand e i colori della piattaforma" },
   listino:                { title: "Listino prodotti",         description: "Gestisci il catalogo prodotti e servizi" },
   tariffe:                { title: "Tariffe aziendali",        description: "Configura le tariffe di lavoro e manodopera" },
+  "listino-manutenzione": { title: "Listino Manutenzione",      description: "Gestisci i prezzi per tipo impianto e tipo intervento" },
   margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },

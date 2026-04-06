@@ -30,6 +30,7 @@ const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCred
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
+const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
@@ -95,8 +96,10 @@ const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
 const InterventiList = lazy(() => import("@/pages/azienda/InterventiList"));
 const InterventiDetail = lazy(() => import("@/pages/azienda/InterventiDetail"));
+const ChiusuraIntervento = lazy(() => import("@/pages/azienda/ChiusuraIntervento"));
 const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
+const StoricoImpianto = lazy(() => import("@/pages/azienda/StoricoImpianto"));
 const AssistenzaLavoriHub = lazy(() => import("@/pages/azienda/AssistenzaLavoriHub"));
 
 // Marketing
@@ -183,8 +186,10 @@ export function companyRoutes() {
         <Route path="assistenza/:id" element={<TicketDetail />} />
         <Route path="interventi" element={<InterventiList />} />
         <Route path="interventi/:id" element={<InterventiDetail />} />
+        <Route path="interventi/:id/chiudi" element={<ChiusuraIntervento />} />
         <Route path="manutenzione" element={<ManutenzioneList />} />
         <Route path="manutenzione/impianto/:id" element={<ImpiantoDetail />} />
+        <Route path="impianti/:impiantoId/storico" element={<StoricoImpianto />} />
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
@@ -275,6 +280,7 @@ export function companyRoutes() {
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
           <Route path="listino" element={<SettingsCatalog />} />
           <Route path="tariffe" element={<SettingsTariffe />} />
+          <Route path="listino-manutenzione" element={<ListinoManutenzione />} />
           <Route path="margini" element={<SettingsMargini />} />
           <Route path="stati-ordine" element={<SettingsOrderStatus />} />
           <Route path="fornitori" element={<SettingsSuppliers />} />

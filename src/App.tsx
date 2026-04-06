@@ -18,6 +18,7 @@ import { companyRoutes } from "@/routes/companyRoutes";
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
 import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
 import { campoRoutes } from "@/routes/campoRoutes";
+import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 
 // Suspense fallback
 const PageLoader = () => (
@@ -170,6 +171,8 @@ const App = () => (
               {partnerRoutes()}
               {tecnicoRoutes()}
               {campoRoutes()}
+              {/* Portale Cliente — magic link, no auth required */}
+              {portaleClienteRoutes()}
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
