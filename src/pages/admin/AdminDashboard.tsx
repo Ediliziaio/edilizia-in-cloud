@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
 import { useAdminRevenueData } from "@/hooks/useAdminRevenueData";
+import { useAuth } from "@/contexts/AuthContext";
 import { AdminStatCards } from "@/components/admin/dashboard/AdminStatCards";
 import { AdminRevenueKPIs } from "@/components/admin/dashboard/AdminRevenueKPIs";
 import { AdminMrrChart } from "@/components/admin/dashboard/AdminMrrChart";
@@ -22,6 +23,9 @@ import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAna
 import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
 import { AdminChurnAlerts } from "@/components/admin/dashboard/AdminChurnAlerts";
+import { RevenueForecastWidget } from "@/components/admin/dashboard/RevenueForecastWidget";
+import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
+import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
 import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
 import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
@@ -45,26 +49,49 @@ import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 
 export default function AdminDashboard() {
   const { permissions } = useSuperAdminPermissions();
-  const { data: dashboardData, isLoading, isError, refetch } = useAdminDashboardData();
-  const { data: revenueData, isLoading: revenueLoading } = useAdminRevenueData();
+  const { user } = useAuth();
+  const {
+    data: dashboardData,
+    isLoading,
+    isRefreshing,
+    isError,
+    lastUpdatedAt,
+    refetch,
+  } = useAdminDashboardData();
+  const { data: revenueData } = useAdminRevenueData();
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
-  const { widgets, toggleVisibility, reorder, resetLayout } = useDashboardLayout();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const { widgets, isSaving, toggleVisibility, reorder, resetLayout, saveNow } =
+    useDashboardLayout(user?.id);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
-  const stats = dashboardData?.stats ?? { totalCompanies: 0, totalOrders: 0, totalOrdersValue: 0, totalCustomers: 0, openSupportConversations: 0 };
-  const mrrStats = dashboardData?.mrrStats ?? { mrr: 0, trialCount: 0, trialExpiringSoon: 0, churnRate: 0, activeCount: 0, expiredCount: 0 };
+  const stats = dashboardData?.stats ?? {
+    totalCompanies: 0,
+    totalOrders: 0,
+    totalOrdersValue: 0,
+    totalCustomers: 0,
+    openSupportConversations: 0,
+    dac: 0,
+    wac: 0,
+    engagementRate: 0,
+  };
+  const mrrStats = dashboardData?.mrrStats ?? {
+    mrr: 0,
+    trialCount: 0,
+    trialExpiringSoon: 0,
+    churnRate: 0,
+    activeCount: 0,
+    expiredCount: 0,
+  };
   const mrrChartData = dashboardData?.mrrChartData ?? [];
   const recentCompanies = dashboardData?.recentCompanies ?? [];
   const recentActivity = dashboardData?.recentActivity ?? [];
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (isError) {
@@ -75,8 +102,13 @@ export default function AdminDashboard() {
           <AlertTitle>Errore di caricamento</AlertTitle>
           <AlertDescription className="mt-2">
             Impossibile caricare i dati della dashboard.
-            <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full"
+              onClick={() => refetch()}
+            >
+              Riprova
             </Button>
           </AlertDescription>
         </Alert>
@@ -146,6 +178,8 @@ export default function AdminDashboard() {
         return <AdminRecentActivity activities={recentActivity} />;
       case "addon-summary":
         return <AdminAddonsSummary />;
+      case "revenue-forecast-v2":
+        return <RevenueForecastWidget />;
       case "nps-survey":
         return <AdminNpsSection />;
       default:
@@ -157,36 +191,42 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       {/* Header with controls */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard Super Admin</h1>
-            <p className="text-muted-foreground">Panoramica globale della piattaforma</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <DashboardDateFilter value={dateRange} onChange={setDateRange} />
-            <DashboardExport
-              data={{
-                stats,
-                mrrStats,
-                revenueData: revenueData
-                  ? {
-                      currentMrr: revenueData.currentMrr,
-                      arr: revenueData.arr,
-                      nrr: revenueData.nrr,
-                      avgLtv: revenueData.avgLtv,
-                      healthSummary: revenueData.healthSummary,
-                    }
-                  : null,
-              }}
-            />
-            <WidgetConfigurator widgets={widgets} onToggle={toggleVisibility} onReset={resetLayout} />
-            <Button asChild size="sm">
-              <Link to="/admin/aziende/nuova">
-                <Plus className="h-4 w-4 mr-2" /> Nuova Azienda
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <DashboardHeader
+          title="Dashboard Super Admin"
+          subtitle="Panoramica globale della piattaforma"
+          lastUpdatedAt={lastUpdatedAt}
+          isRefreshing={isRefreshing}
+          onRefresh={refetch}
+        >
+          <DashboardDateFilter value={dateRange} onChange={setDateRange} />
+          <DashboardExport
+            data={{
+              stats,
+              mrrStats,
+              revenueData: revenueData
+                ? {
+                    currentMrr: revenueData.currentMrr,
+                    arr: revenueData.arr,
+                    nrr: revenueData.nrr,
+                    avgLtv: revenueData.avgLtv,
+                    healthSummary: revenueData.healthSummary,
+                  }
+                : null,
+            }}
+          />
+          <WidgetConfigurator
+            widgets={widgets}
+            isSaving={isSaving}
+            onToggle={toggleVisibility}
+            onReset={resetLayout}
+            onSave={saveNow}
+          />
+          <Button asChild size="sm">
+            <Link to="/admin/aziende/nuova">
+              <Plus className="h-4 w-4 mr-2" /> Nuova Azienda
+            </Link>
+          </Button>
+        </DashboardHeader>
         <AdminPulseBar />
       </div>
 
