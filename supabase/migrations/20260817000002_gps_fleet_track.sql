@@ -129,7 +129,7 @@ CREATE POLICY "geofence_company_all" ON cantieri_geofence
 -- ── 6. pg_cron — pulizia automatica posizioni > 30 giorni ─────────────────
 -- Richiede l'estensione pg_cron abilitata nel progetto Supabase.
 -- Eseguito ogni notte alle 02:00 UTC.
-DO $$
+DO $outer$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_extension WHERE extname = 'pg_cron'
@@ -137,8 +137,8 @@ BEGIN
     PERFORM cron.schedule(
       'gps-positions-cleanup',
       '0 2 * * *',
-      $$DELETE FROM gps_positions WHERE recorded_at < now() - INTERVAL '30 days'$$
+      'DELETE FROM gps_positions WHERE recorded_at < now() - INTERVAL ''30 days'''
     );
   END IF;
 END;
-$$;
+$outer$;
