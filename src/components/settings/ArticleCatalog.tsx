@@ -767,7 +767,7 @@ function ArticleDialog({
               <div className="space-y-6">
                 <div>
                   <Label>Immagine prodotto</Label>
-                  {imgUrl && <img src={imgUrl} alt="Immagine" className="h-24 object-contain rounded border mt-2 mb-2" />}
+                  {imgUrl && <img src={imgUrl} alt="Immagine" className="h-24 object-contain rounded border mt-2 mb-2" loading="lazy" />}
                   <label className="cursor-pointer">
                     <Button type="button" variant="outline" size="sm" asChild>
                       <span><Image className="h-4 w-4 mr-2" />{uploadingImg ? "Caricamento..." : "Carica immagine"}</span>
@@ -1042,7 +1042,7 @@ export function ArticleCatalog() {
                 <TableRow key={a.id}>
                   <TableCell>
                     {a.immagine_url ? (
-                      <img src={a.immagine_url} alt="" className="h-8 w-8 object-cover rounded" />
+                      <img src={a.immagine_url} alt="" className="h-8 w-8 object-cover rounded" loading="lazy" />
                     ) : (
                       <div className="h-8 w-8 bg-muted rounded flex items-center justify-center">
                         <Package className="h-4 w-4 text-muted-foreground" />

@@ -122,7 +122,7 @@ export default function BankAccountsList({ companyId }: Props) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {conn?.institution_logo ? (
-                      <img src={conn.institution_logo} alt="" className="h-6 w-6 rounded" />
+                      <img src={conn.institution_logo} alt="" className="h-6 w-6 rounded" loading="lazy" />
                     ) : (
                       <CreditCard className="h-5 w-5 text-muted-foreground" />
                     )}

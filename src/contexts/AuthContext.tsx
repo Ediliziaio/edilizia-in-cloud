@@ -760,7 +760,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.user) return;
     const ping = () => {
-      supabase.from("subscription_plans").select("id").limit(1).catch(() => {});
+      // PostgrestBuilder è PromiseLike (non Promise completo) — .catch() non esiste sulla chain raw.
+      // Usiamo void per ignorare il risultato in modo sicuro.
+      void supabase.from("subscription_plans").select("id").limit(1);
     };
     const id = setInterval(ping, 4 * 60 * 1000);
     return () => clearInterval(id);

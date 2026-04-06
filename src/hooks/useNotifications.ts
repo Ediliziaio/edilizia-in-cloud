@@ -51,8 +51,16 @@ export function useNotifications() {
   useEffect(() => {
     if (!companyId || !userId) return;
 
+    // Il nome del canale include un ID univoco per evitare il crash
+    // "cannot add postgres_changes callbacks after subscribe()":
+    // supabase.removeChannel() è asincrono — se l'effect si ri-esegue
+    // prima che il cleanup completi, supabase.channel() potrebbe restituire
+    // il canale precedente già in stato "subscribed" causando l'errore.
+    // Un suffisso random garantisce un canale sempre nuovo e mai in conflitto.
+    const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
+
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(channelId)
       .on(
         "postgres_changes",
         {
