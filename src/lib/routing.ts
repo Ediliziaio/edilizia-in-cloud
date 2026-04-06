@@ -74,7 +74,7 @@ function formatDuration(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)} minuti`;
   const h = Math.floor(seconds / 3600);
   const m = Math.round((seconds % 3600) / 60);
-  return m > 0 ? `${h} ora${h > 1 ? "" : ""} ${m} min` : `${h} ora${h > 1 ? "" : ""}`;
+  return m > 0 ? `${h} or${h > 1 ? "e" : "a"} ${m} min` : `${h} or${h > 1 ? "e" : "a"}`;
 }
 
 // ── OSRM Route ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import {
   MapPin, Clock, Navigation, Loader2, Route, ExternalLink,
-  AlertCircle, CheckCircle2, GripVertical
+  AlertCircle, CheckCircle2, ChevronUp, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,7 @@ export function PercorsoOttimizzatoPanel({
   startLat,
   startLng,
   onOttimizza,
+  onReorder,
   className,
 }: PercorsoOttimizzatoPanelProps) {
   const isProcessing = ["geocoding", "optimizing", "routing"].includes(status);
@@ -233,7 +234,26 @@ export function PercorsoOttimizzatoPanel({
                 </div>
               </div>
 
-              <GripVertical className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+              {onReorder && (
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button
+                    onClick={() => idx > 0 && onReorder(idx, idx - 1)}
+                    disabled={idx === 0}
+                    className="p-0.5 rounded text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Sposta su"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => idx < orderedInterventi.length - 1 && onReorder(idx, idx + 1)}
+                    disabled={idx === orderedInterventi.length - 1}
+                    className="p-0.5 rounded text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Sposta giù"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

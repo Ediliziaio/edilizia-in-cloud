@@ -16,11 +16,21 @@ import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 
+// ── Mappa Tailwind class → hex (deve rispecchiare AVATAR_COLORS in contactUtils) ──
+const AVATAR_COLOR_HEX: Record<string, string> = {
+  "bg-blue-500":    "#3b82f6",
+  "bg-emerald-500": "#10b981",
+  "bg-violet-500":  "#8b5cf6",
+  "bg-amber-500":   "#f59e0b",
+  "bg-rose-500":    "#f43f5e",
+  "bg-cyan-500":    "#06b6d4",
+  "bg-indigo-500":  "#6366f1",
+  "bg-orange-500":  "#f97316",
+};
+
 // ── Icona SVG personalizzata per tecnico ──────────────────────────────────────
 function createTecnicoIcon(initials: string, color: string, stale: boolean): L.DivIcon {
-  const bg = stale ? "#9ca3af" : color.replace("bg-", "").split(" ")[0];
-  // Uso un colore CSS hardcoded basato sul nome del colore Tailwind
-  const cssColor = stale ? "#9ca3af" : "#3b82f6";
+  const cssColor = stale ? "#9ca3af" : (AVATAR_COLOR_HEX[color] ?? "#3b82f6");
 
   return L.divIcon({
     className: "",

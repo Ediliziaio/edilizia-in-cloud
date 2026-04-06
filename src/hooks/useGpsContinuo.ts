@@ -29,7 +29,12 @@ export interface GpsContinuoActions {
 
 /**
  * Hook per il tracciamento GPS continuo del tecnico (lato app campo).
- * Registra il Service Worker sw-fleet-track.js e gli invia comandi.
+ *
+ * Architettura:
+ *  - Il watchPosition gira nel main thread (Geolocation API non disponibile nei SW)
+ *  - Ogni posizione viene inviata al SW sw-fleet-track.js via postMessage GPS_POSITION_FROM_MAIN
+ *  - Il SW gestisce il buffer e il flush verso l'edge function batch-gps-positions
+ *
  * Richiede il consenso GDPR prima di avviare il tracciamento.
  */
 export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
@@ -45,6 +50,8 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
   });
 
   const swRef = useRef<ServiceWorkerRegistration | null>(null);
+  // Ref per il watchId della Geolocation API nel main thread
+  const geoWatchIdRef = useRef<number | null>(null);
 
   // ── Verifica consenso al mount ─────────────────────────────────────────────
   useEffect(() => {
@@ -103,20 +110,20 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, []);
 
-  // ── Invia token aggiornato al SW quando cambia ────────────────────────────
+  // ── Invia token aggiornato al SW quando la sessione cambia ────────────────
+  // Usa onAuthStateChange per aggiornare il token solo alla vera variazione
+  // (evita il re-send su ogni render che causava il bug precedente).
   useEffect(() => {
-    if (!swRef.current?.active) return;
-
-    supabase.auth.getSession().then(({ data }) => {
-      const token = data.session?.access_token;
-      if (token) {
-        swRef.current!.active!.postMessage({
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token && swRef.current?.active) {
+        swRef.current.active.postMessage({
           type: "UPDATE_TOKEN",
-          payload: { jwtToken: token },
+          payload: { jwtToken: session.access_token },
         });
       }
     });
-  });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // ── giveConsent ───────────────────────────────────────────────────────────
   const giveConsent = useCallback(async () => {
@@ -163,6 +170,20 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     }));
   }, [user?.id, effectiveCompany?.id]);
 
+  // ── stopTracking ──────────────────────────────────────────────────────────
+  const stopTracking = useCallback(() => {
+    // Ferma watchPosition nel main thread
+    if (geoWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      geoWatchIdRef.current = null;
+    }
+    // Notifica il SW
+    if (swRef.current?.active) {
+      swRef.current.active.postMessage({ type: "STOP_TRACKING" });
+    }
+    setState((s) => ({ ...s, status: "idle" }));
+  }, []);
+
   // ── startTracking ─────────────────────────────────────────────────────────
   const startTracking = useCallback(async () => {
     if (!state.hasConsent) {
@@ -175,6 +196,14 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
         ...s,
         status: "error",
         errorMessage: "Service Worker non supportato da questo browser",
+      }));
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setState((s) => ({
+        ...s,
+        status: "error",
+        errorMessage: "Geolocation API non disponibile su questo dispositivo",
       }));
       return;
     }
@@ -194,6 +223,9 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
     const sw = await navigator.serviceWorker.ready;
+    swRef.current = sw;
+
+    // 1. Avvia il SW in modalità tracking (gestisce buffer + flush HTTP)
     sw.active?.postMessage({
       type: "START_TRACKING",
       payload: {
@@ -205,15 +237,50 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
       },
     });
 
-    setState((s) => ({ ...s, status: "active", errorMessage: null }));
-  }, [state.hasConsent, effectiveCompany?.id, user?.id]);
+    // 2. Avvia watchPosition nel main thread — i SW non hanno Geolocation API.
+    //    Ogni posizione viene inoltrata al SW via GPS_POSITION_FROM_MAIN.
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (sw.active) {
+          sw.active.postMessage({
+            type: "GPS_POSITION_FROM_MAIN",
+            payload: {
+              coords: {
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                speed: pos.coords.speed,
+                heading: pos.coords.heading,
+              },
+              timestamp: pos.timestamp,
+            },
+          });
+        }
+      },
+      (err) => {
+        const msg =
+          err.code === 1 ? "Permesso GPS negato"
+          : err.code === 2 ? "Posizione non disponibile"
+          : "Timeout GPS";
+        setState((s) => ({
+          ...s,
+          status: err.code === 1 ? "denied" : "error",
+          errorMessage: msg,
+        }));
+        if (err.code === 1) {
+          // Permesso negato: ferma tutto
+          if (geoWatchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(geoWatchIdRef.current);
+            geoWatchIdRef.current = null;
+          }
+          sw.active?.postMessage({ type: "STOP_TRACKING" });
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 5_000 }
+    );
 
-  // ── stopTracking ──────────────────────────────────────────────────────────
-  const stopTracking = useCallback(() => {
-    if (!swRef.current?.active) return;
-    swRef.current.active.postMessage({ type: "STOP_TRACKING" });
-    setState((s) => ({ ...s, status: "idle" }));
-  }, []);
+    setState((s) => ({ ...s, status: "active", errorMessage: null }));
+  }, [state.hasConsent, effectiveCompany?.id, user?.id, stopTracking]);
 
   return {
     ...state,

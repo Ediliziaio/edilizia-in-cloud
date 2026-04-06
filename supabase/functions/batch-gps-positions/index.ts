@@ -6,6 +6,7 @@
 //   2. fleet_track_enabled sull'azienda
 //   3. Consenso GDPR attivo (tecnico_gps_consent)
 //   4. Appartenenza utente all'azienda
+// Dopo l'insert: controlla le violazioni geofence e crea notifiche agli admin.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,6 +26,33 @@ interface GpsPositionPayload {
 interface RequestBody {
   company_id: string;
   positions: GpsPositionPayload[];
+}
+
+interface GeofenceRow {
+  id: string;
+  nome: string;
+  center_lat: number;
+  center_lng: number;
+  radius_mt: number;
+}
+
+interface AdminRow {
+  user_id: string;
+}
+
+// ── Haversine distance (metres) ──────────────────────────────────────────────
+function haversineMeters(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const R = 6_371_000; // earth radius metres
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 Deno.serve(async (req: Request) => {
@@ -87,7 +115,7 @@ Deno.serve(async (req: Request) => {
   // ── Check user belongs to company ────────────────────────────────────────
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("company_id")
+    .select("company_id, first_name, last_name")
     .eq("id", userId)
     .single();
 
@@ -134,5 +162,91 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Errore durante l'inserimento delle posizioni", 500);
   }
 
+  // ── Geofence alert check ─────────────────────────────────────────────────
+  // Controlla l'ultima posizione del batch contro le geofence attive dell'azienda.
+  // Se il tecnico risulta fuori dalla geofence e non esiste una notifica recente
+  // (ultima ora), crea una notifica per gli admin.
+  try {
+    await checkGeofenceAlerts(supabaseAdmin, company_id, userId, profile, rows);
+  } catch (geoErr) {
+    // Non blocca la risposta: le notifiche geofence sono best-effort
+    console.warn("[batch-gps-positions] geofence check error:", geoErr);
+  }
+
   return jsonResponse({ inserted: rows.length });
 });
+
+// ── Geofence alert logic ─────────────────────────────────────────────────────
+async function checkGeofenceAlerts(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  company_id: string,
+  userId: string,
+  profile: { first_name: string | null; last_name: string } | null,
+  rows: Array<{ lat: number; lng: number; recorded_at: string }>,
+) {
+  // Ultima posizione del batch (la più recente)
+  const lastPos = rows[rows.length - 1];
+
+  // Carica geofence attive
+  const { data: geofences } = await supabaseAdmin
+    .from("cantieri_geofence")
+    .select("id, nome, center_lat, center_lng, radius_mt")
+    .eq("company_id", company_id)
+    .eq("is_active", true) as { data: GeofenceRow[] | null };
+
+  if (!geofences || geofences.length === 0) return;
+
+  // Carica admin dell'azienda (destinatari delle notifiche)
+  const { data: adminRows } = await supabaseAdmin
+    .from("user_roles")
+    .select("user_id")
+    .eq("company_id", company_id)
+    .in("role", ["company_admin", "company_staff", "super_admin"]) as { data: AdminRow[] | null };
+
+  if (!adminRows || adminRows.length === 0) return;
+
+  const tecnicoName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "Tecnico";
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  for (const geofence of geofences) {
+    const distMeters = haversineMeters(
+      lastPos.lat, lastPos.lng,
+      geofence.center_lat, geofence.center_lng,
+    );
+
+    const isOutside = distMeters > geofence.radius_mt;
+    if (!isOutside) continue;
+
+    // Controlla se esiste già una notifica recente (ultima ora) per evitare spam
+    const { data: recentNotif } = await supabaseAdmin
+      .from("notifications")
+      .select("id")
+      .eq("company_id", company_id)
+      .eq("entity_type", "geofence_breach")
+      .eq("entity_id", geofence.id)
+      .contains("body", userId) // body contiene userId per dedup per tecnico
+      .gte("created_at", oneHourAgo)
+      .limit(1)
+      .maybeSingle();
+
+    if (recentNotif) continue; // notifica già inviata nell'ultima ora
+
+    // Crea notifiche per tutti gli admin
+    const notifRows = adminRows.map((a) => ({
+      company_id,
+      user_id: a.user_id,
+      type: "geofence_breach",
+      title: `🚨 Tecnico fuori zona: ${geofence.nome}`,
+      body: `${tecnicoName} (${userId}) si trova a ${Math.round(distMeters)}m dal cantiere "${geofence.nome}" (raggio: ${geofence.radius_mt}m).`,
+      entity_type: "geofence_breach",
+      entity_id: geofence.id,
+      action_url: "/azienda/fleet",
+    }));
+
+    await supabaseAdmin.from("notifications").insert(notifRows);
+
+    console.log(
+      `[batch-gps-positions] geofence breach: user=${userId} geofence=${geofence.id} dist=${Math.round(distMeters)}m`,
+    );
+  }
+}

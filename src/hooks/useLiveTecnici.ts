@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getAvatarColor, getInitials } from "@/lib/contactUtils";
@@ -35,9 +35,8 @@ export function useLiveTecnici(
   refreshIntervalMs = 15_000
 ): { tecnici: TecnicoLivePosition[]; isLoading: boolean; refresh: () => void } {
   const queryClient = useQueryClient();
-  const [tick, setTick] = useState(0);
 
-  const queryKey = ["live-tecnici", companyId, tick];
+  const queryKey = ["live-tecnici", companyId];
 
   const { data: tecnici = [], isLoading } = useQuery({
     queryKey,
@@ -120,12 +119,6 @@ export function useLiveTecnici(
 
     return () => { supabase.removeChannel(channel); };
   }, [companyId, queryClient]);
-
-  // ── Polling fallback ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), refreshIntervalMs);
-    return () => clearInterval(timer);
-  }, [refreshIntervalMs]);
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["live-tecnici", companyId] });

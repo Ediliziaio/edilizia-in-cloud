@@ -2,13 +2,18 @@
  * sw-fleet-track.js — GPS FleetTrack Service Worker
  *
  * Responsabilità:
- *  - watchPosition continuo (enableHighAccuracy: true)
+ *  - Riceve le posizioni GPS dal main thread via postMessage GPS_POSITION_FROM_MAIN
+ *    (la Geolocation API NON è disponibile nel contesto Service Worker)
  *  - Buffer locale delle posizioni
  *  - Flush verso edge function batch-gps-positions ogni GPS_FLUSH_INTERVAL_MS
  *    oppure quando il buffer raggiunge GPS_BATCH_SIZE
  *  - Retry automatico con backoff esponenziale in caso di errore rete
- *  - Risponde ai messaggi START_TRACKING / STOP_TRACKING / GET_STATUS
- *    inviati dal main thread
+ *  - Risponde ai messaggi START_TRACKING / STOP_TRACKING / GET_STATUS /
+ *    GPS_POSITION_FROM_MAIN / UPDATE_TOKEN inviati dal main thread
+ *
+ * ⚠️  navigator.geolocation NON esiste nel Service Worker scope.
+ *     Il watchPosition è gestito dal main thread in useGpsContinuo.ts,
+ *     che invia ogni posizione a questo SW via GPS_POSITION_FROM_MAIN.
  *
  * ⚠️  iOS Safari: il SW va in background suspension dopo ~30s se l'app non
  *     è in primo piano. Non è possibile garantire il tracciamento continuo
@@ -21,7 +26,6 @@ const GPS_FLUSH_INTERVAL_MS = 30_000;
 const RETRY_MAX = 4;
 const RETRY_BASE_DELAY_MS = 2_000;
 
-let watchId = null;
 let flushTimer = null;
 let positionBuffer = [];
 let config = null; // { supabaseUrl, anonKey, jwtToken, companyId, userId }
@@ -44,13 +48,18 @@ self.addEventListener("message", (event) => {
         config.jwtToken = payload.jwtToken;
       }
       break;
+    case "GPS_POSITION_FROM_MAIN":
+      // Posizione inviata dal main thread (watchPosition gira nel main thread)
+      if (isTracking && payload) {
+        onPosition(payload);
+      }
+      break;
     case "GET_STATUS":
       event.source?.postMessage({
         type: "TRACKING_STATUS",
         payload: {
           isTracking,
           buffered: positionBuffer.length,
-          watchId,
         },
       });
       break;
@@ -77,27 +86,6 @@ function startTracking(cfg) {
   positionBuffer = [];
   retryCount = 0;
 
-  if (!("geolocation" in self)) {
-    broadcastStatus("error", "Geolocation API non disponibile nel Service Worker");
-    isTracking = false;
-    return;
-  }
-
-  watchId = self.registration?.geolocation
-    ? self.registration.geolocation.watchPosition(onPosition, onGpsError, {
-        enableHighAccuracy: true,
-        maximumAge: 5_000,
-      })
-    : null;
-
-  // Fallback: usa geolocation API del worker scope se disponibile
-  if (watchId === null && "geolocation" in self) {
-    watchId = self.geolocation.watchPosition(onPosition, onGpsError, {
-      enableHighAccuracy: true,
-      maximumAge: 5_000,
-    });
-  }
-
   // Flush periodico
   flushTimer = setInterval(flushBuffer, GPS_FLUSH_INTERVAL_MS);
 
@@ -107,11 +95,6 @@ function startTracking(cfg) {
 // ── Stop ─────────────────────────────────────────────────────────────────────
 function stopTracking() {
   isTracking = false;
-
-  if (watchId !== null) {
-    try { self.geolocation.clearWatch(watchId); } catch (_) {}
-    watchId = null;
-  }
 
   if (flushTimer !== null) {
     clearInterval(flushTimer);
@@ -127,18 +110,20 @@ function stopTracking() {
   broadcastStatus("idle", null);
 }
 
-// ── Position callback ────────────────────────────────────────────────────────
-function onPosition(pos) {
+// ── Position handler ─────────────────────────────────────────────────────────
+// payload ha la struttura inviata da useGpsContinuo:
+//   { coords: { latitude, longitude, accuracy, speed, heading }, timestamp }
+function onPosition(payload) {
   if (!isTracking) return;
 
   const point = {
-    lat: pos.coords.latitude,
-    lng: pos.coords.longitude,
-    accuracy: pos.coords.accuracy ?? null,
-    speed: pos.coords.speed ?? null,
-    heading: pos.coords.heading ?? null,
-    battery_level: null,              // non disponibile via SW
-    recorded_at: new Date(pos.timestamp).toISOString(),
+    lat: payload.coords.latitude,
+    lng: payload.coords.longitude,
+    accuracy: payload.coords.accuracy ?? null,
+    speed: payload.coords.speed ?? null,
+    heading: payload.coords.heading ?? null,
+    battery_level: null,
+    recorded_at: new Date(payload.timestamp).toISOString(),
   };
 
   positionBuffer.push(point);
@@ -148,21 +133,6 @@ function onPosition(pos) {
 
   if (positionBuffer.length >= GPS_BATCH_SIZE) {
     flushBuffer();
-  }
-}
-
-function onGpsError(err) {
-  const msg = err.code === 1
-    ? "Permesso GPS negato"
-    : err.code === 2
-    ? "Posizione non disponibile"
-    : "Timeout GPS";
-
-  broadcastStatus(err.code === 1 ? "denied" : "error", msg);
-
-  if (err.code === 1) {
-    // Permesso negato: stop definitivo
-    stopTracking();
   }
 }
 
