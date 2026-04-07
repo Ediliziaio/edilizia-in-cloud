@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { useSaasMetrics } from "@/hooks/useSaasMetrics";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,9 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   TrendingUp, DollarSign, Users, RefreshCw, Loader2,
-  AlertTriangle, CheckCircle2, ArrowUpDown,
+  AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -412,6 +416,208 @@ function ReconciliationTab() {
   );
 }
 
+// ─── LTV / CAC Tab ───────────────────────────────────────
+
+const MESI_IT = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+
+function LTVCACTab() {
+  const { metrics, cacInputs, isLoading, salvaInputCac } = useSaasMetrics();
+  const [formAnno, setFormAnno] = useState(new Date().getFullYear());
+  const [formMese, setFormMese] = useState(new Date().getMonth() + 1);
+  const [formSpesa, setFormSpesa] = useState("");
+  const [formNuove, setFormNuove] = useState("");
+  const [formNote, setFormNote] = useState("");
+
+  const ltvCacRatio = metrics.cac > 0 ? metrics.ltv / metrics.cac : 0;
+  const ratioColor =
+    ltvCacRatio >= 3 ? "text-emerald-600" :
+    ltvCacRatio >= 1 ? "text-yellow-600" :
+    "text-destructive";
+  const ratioLabel =
+    ltvCacRatio >= 3 ? "✅ Ottimo (≥3x)" :
+    ltvCacRatio >= 1 ? "⚠️ Accettabile (1–3x)" :
+    ltvCacRatio > 0 ? "🔴 Critico (<1x)" : "—";
+
+  const handleSave = () => {
+    const spesaEur = parseFloat(formSpesa);
+    const nuoveN = parseInt(formNuove);
+    if (isNaN(spesaEur) || isNaN(nuoveN) || nuoveN < 0 || spesaEur < 0) {
+      toast.error("Inserisci valori numerici validi");
+      return;
+    }
+    salvaInputCac.mutate(
+      { anno: formAnno, mese: formMese, spesa_marketing_cents: Math.round(spesaEur * 100), nuove_aziende: nuoveN, note: formNote || undefined },
+      { onSuccess: () => { setFormSpesa(""); setFormNuove(""); setFormNote(""); } }
+    );
+  };
+
+  const kpis = [
+    { label: "LTV Medio", value: fmt(metrics.ltv), sub: "Lifetime Value stimato", color: "text-emerald-600" },
+    { label: "CAC", value: fmt(metrics.cac), sub: "Media ultimi 3 mesi", color: "text-blue-600" },
+    { label: "Payback Period", value: metrics.paybackPeriod > 0 ? `${metrics.paybackPeriod.toFixed(1)} mesi` : "—", sub: "Mesi per recuperare CAC", color: "" },
+    { label: "LTV : CAC", value: ltvCacRatio > 0 ? `${ltvCacRatio.toFixed(1)}x` : "—", sub: ratioLabel, color: ratioColor },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <Skeleton key={i} className="h-24" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {kpis.map(k => (
+            <Card key={k.label}>
+              <CardContent className="p-5">
+                <p className="text-xs text-muted-foreground">{k.label}</p>
+                <p className={`text-2xl font-bold mt-1 ${k.color}`}>{k.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{k.sub}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary metrics */}
+      {!isLoading && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "ARPU", value: `${fmt(metrics.arpu)}/mese`, sub: "Ricavo medio per azienda" },
+            { label: "Churn Rate", value: `${metrics.churnRate.toFixed(2)}%`, sub: "Tasso abbandono mensile", alert: metrics.churnRate > 5 },
+            { label: "Aziende Attive", value: metrics.activeCompanies.toLocaleString("it-IT"), sub: "Su Stripe" },
+          ].map(m => (
+            <div key={m.label} className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground">{m.label}</p>
+              <p className={`text-xl font-semibold mt-1 ${m.alert ? "text-destructive" : ""}`}>{m.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{m.sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* CAC Input Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Inserisci Dati Marketing</CardTitle>
+          <CardDescription>Registra spesa marketing mensile e nuove aziende per il calcolo CAC</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
+            <div>
+              <Label className="text-xs mb-1 block">Anno</Label>
+              <Input
+                type="number"
+                value={formAnno}
+                onChange={e => setFormAnno(parseInt(e.target.value))}
+                className="h-8 text-sm"
+                min={2020} max={2030}
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Mese</Label>
+              <Select value={String(formMese)} onValueChange={v => setFormMese(parseInt(v))}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MESI_IT.map((m, i) => (
+                    <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Spesa Marketing (€)</Label>
+              <Input
+                type="number"
+                value={formSpesa}
+                onChange={e => setFormSpesa(e.target.value)}
+                placeholder="0.00"
+                className="h-8 text-sm"
+                min={0}
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Nuove Aziende</Label>
+              <Input
+                type="number"
+                value={formNuove}
+                onChange={e => setFormNuove(e.target.value)}
+                placeholder="0"
+                className="h-8 text-sm"
+                min={0}
+              />
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={salvaInputCac.isPending || !formSpesa || !formNuove}
+              size="sm" className="h-8"
+            >
+              {salvaInputCac.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salva"}
+            </Button>
+          </div>
+          <div className="mt-3">
+            <Label className="text-xs mb-1 block">Note (opzionale)</Label>
+            <Input
+              value={formNote}
+              onChange={e => setFormNote(e.target.value)}
+              placeholder="Es. campagna Google Ads, fiera di settore..."
+              className="h-8 text-sm max-w-md"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CAC History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Storico CAC per Mese</CardTitle>
+          <CardDescription>Ultimi 12 mesi · usato per calcolo CAC (media 3 mesi recenti)</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-2">
+              {[1,2,3].map(i => <Skeleton key={i} className="h-8 w-full" />)}
+            </div>
+          ) : cacInputs.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>Nessun dato inserito. Usa il form sopra per iniziare.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left px-4 py-2 font-medium">Periodo</th>
+                  <th className="text-right px-4 py-2 font-medium">Spesa Marketing</th>
+                  <th className="text-right px-4 py-2 font-medium">Nuove Aziende</th>
+                  <th className="text-right px-4 py-2 font-medium">CAC</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cacInputs.map(row => {
+                  const cac = row.nuove_aziende > 0 ? (row.spesa_marketing_cents / 100) / row.nuove_aziende : 0;
+                  return (
+                    <tr key={row.id} className="border-b last:border-0 hover:bg-accent/20">
+                      <td className="px-4 py-2 font-medium">{MESI_IT[row.mese-1]} {row.anno}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmt(row.spesa_marketing_cents / 100)}</td>
+                      <td className="px-4 py-2 text-right">{row.nuove_aziende}</td>
+                      <td className="px-4 py-2 text-right font-mono font-medium">{cac > 0 ? fmt(cac) : "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">{row.note ?? ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────
 
 export default function AdminRevenueDashboard() {
@@ -435,6 +641,10 @@ export default function AdminRevenueDashboard() {
             <ArrowUpDown className="h-4 w-4" />
             Riconciliazione Stripe
           </TabsTrigger>
+          <TabsTrigger value="ltv-cac" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            LTV / CAC
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="revenue" className="mt-4">
@@ -443,6 +653,10 @@ export default function AdminRevenueDashboard() {
 
         <TabsContent value="reconciliation" className="mt-4">
           <ReconciliationTab />
+        </TabsContent>
+
+        <TabsContent value="ltv-cac" className="mt-4">
+          <LTVCACTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -93,6 +93,10 @@ Deno.serve(async (req) => {
 
       if (insertError) {
         errors.push(`${company.id}: ${insertError.message}`);
+        // Log fallimento
+        await (supabase
+          .from("nps_send_log" as never)
+          .insert({ company_id: company.id, day_offset: daysSinceCreation <= 35 ? 30 : 90, status: "failed", error_message: insertError.message } as never) as unknown as Promise<void>);
         continue;
       }
 
@@ -119,8 +123,24 @@ Deno.serve(async (req) => {
           },
         });
         sent++;
+
+        // Aggiorna flag nps_sent_30d/90d e audit log
+        const dayOffset = daysSinceCreation <= 35 ? 30 : 90;
+        const flagUpdate = dayOffset === 30
+          ? { nps_sent_30d: true, nps_sent_at: now.toISOString() }
+          : { nps_sent_90d: true, nps_sent_at: now.toISOString() };
+
+        await Promise.all([
+          supabase.from("companies").update(flagUpdate).eq("id", company.id),
+          (supabase
+            .from("nps_send_log" as never)
+            .insert({ company_id: company.id, day_offset: dayOffset, status: "sent" } as never) as unknown as Promise<void>),
+        ]);
       } catch (emailErr) {
         errors.push(`Email error for ${adminProfile.email}: ${(emailErr as Error).message}`);
+        await (supabase
+          .from("nps_send_log" as never)
+          .insert({ company_id: company.id, day_offset: daysSinceCreation <= 35 ? 30 : 90, status: "failed", error_message: (emailErr as Error).message } as never) as unknown as Promise<void>);
       }
     }
 

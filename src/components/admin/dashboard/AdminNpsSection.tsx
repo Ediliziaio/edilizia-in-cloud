@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Star, TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2, Star, TrendingUp, TrendingDown, Minus, Download, AlertTriangle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -43,6 +44,69 @@ function NpsScoreDisplay({ nps }: { nps: number }) {
           {nps >= 50 ? "Eccellente" : nps >= 0 ? "Buono" : "Da migliorare"}
         </p>
       </div>
+    </div>
+  );
+}
+
+function useNpsDetractorQueue() {
+  return useQuery({
+    queryKey: ["admin-nps-detractors"],
+    queryFn: async () => {
+      // cs_alerts created by the NPS detractor trigger
+      const { data, error } = await (supabase
+        .from("cs_alerts" as never)
+        .select("id, company_id, title, description, created_at, resolved_at, companies(name)")
+        .eq("alert_type" as never, "nps_detractor")
+        .is("resolved_at" as never, null)
+        .order("created_at" as never, { ascending: false })
+        .limit(20) as unknown as Promise<{
+          data: Array<{
+            id: string;
+            company_id: string;
+            title: string;
+            description: string;
+            created_at: string;
+            resolved_at: string | null;
+            companies: { name: string } | null;
+          }> | null;
+          error: { message: string } | null;
+        }>);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+function DetractorQueue() {
+  const { data: detractors = [], isLoading } = useNpsDetractorQueue();
+
+  if (isLoading) {
+    return <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>;
+  }
+
+  if (detractors.length === 0) {
+    return (
+      <p className="text-xs text-center text-muted-foreground py-4">
+        Nessun detrattore in coda — ottimo!
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {detractors.map(d => (
+        <div key={d.id} className="flex items-start gap-2 p-2 rounded-md border border-destructive/20 bg-destructive/5 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">{d.companies?.name ?? d.company_id.slice(0, 8)}</p>
+            <p className="text-muted-foreground truncate">{d.description}</p>
+          </div>
+          <span className="text-muted-foreground shrink-0">
+            {format(new Date(d.created_at), "dd/MM", { locale: it })}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -150,9 +214,18 @@ export function AdminNpsSection() {
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (data?.totalResponses ?? 0) === 0 ? (
-          <p className="text-xs text-center text-muted-foreground py-6">
-            Nessuna risposta NPS ancora ricevuta.
-          </p>
+          <div className="space-y-3">
+            <p className="text-xs text-center text-muted-foreground py-4">
+              Nessuna risposta NPS ancora ricevuta.
+            </p>
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-destructive" />
+                Coda Detrattori
+              </p>
+              <DetractorQueue />
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             {/* Score + distribution */}
@@ -222,6 +295,15 @@ export function AdminNpsSection() {
                 ))}
               </div>
             )}
+
+            {/* Detractor Queue */}
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-destructive" />
+                Coda Detrattori (score &lt; 7)
+              </p>
+              <DetractorQueue />
+            </div>
           </div>
         )}
       </CardContent>

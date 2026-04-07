@@ -19,7 +19,12 @@ import {
   XCircle,
   Clock,
   RotateCcw,
+  Ban,
+  Play,
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useWebhookLogs, useWebhookStats, useRetryWebhook, type WebhookLog } from "@/hooks/useWebhookAlerts";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -28,10 +33,11 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }
 > = {
-  received: { label: "Ricevuto", variant: "secondary", icon: Clock },
-  processed: { label: "Processato", variant: "default", icon: CheckCircle2 },
-  failed: { label: "Fallito", variant: "destructive", icon: XCircle },
-  retried: { label: "Ritentato", variant: "outline", icon: RotateCcw },
+  received:  { label: "Ricevuto",   variant: "secondary",    icon: Clock },
+  processed: { label: "Processato", variant: "default",      icon: CheckCircle2 },
+  failed:    { label: "Fallito",    variant: "destructive",  icon: XCircle },
+  retried:   { label: "Ritentato",  variant: "outline",      icon: RotateCcw },
+  exhausted: { label: "Esaurito",   variant: "destructive",  icon: Ban },
 };
 
 function KpiCard({
@@ -128,6 +134,36 @@ function WebhookRow({
   );
 }
 
+function useAutoRetryBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/retry-failed-webhooks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{ processed: number; retried_ok: number; failed_again: number; exhausted: number }>;
+    },
+    onSuccess: (r) => {
+      toast.success(`Auto-retry completato: ${r.retried_ok} ok, ${r.failed_again} ancora falliti, ${r.exhausted} esauriti`);
+      void qc.invalidateQueries({ queryKey: ["admin", "webhook-logs"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "webhook-stats"] });
+    },
+    onError: (err: Error) => toast.error(`Auto-retry fallito: ${err.message}`),
+  });
+}
+
 export function WebhookAlertsPanel() {
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -138,6 +174,7 @@ export function WebhookAlertsPanel() {
   });
   const { data: stats } = useWebhookStats();
   const retryMutation = useRetryWebhook();
+  const autoRetryMutation = useAutoRetryBatch();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const handleRetry = (id: string) => {
@@ -206,10 +243,28 @@ export function WebhookAlertsPanel() {
           <SelectContent>
             <SelectItem value="all">Tutti gli status</SelectItem>
             <SelectItem value="failed">Solo falliti</SelectItem>
+            <SelectItem value="exhausted">Esauriti</SelectItem>
             <SelectItem value="received">In attesa</SelectItem>
             <SelectItem value="processed">Processati</SelectItem>
+            <SelectItem value="retried">Ritentati</SelectItem>
           </SelectContent>
         </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => autoRetryMutation.mutate()}
+          disabled={autoRetryMutation.isPending || (stats?.pending_retry ?? 0) === 0}
+          title="Ritenta automaticamente tutti i webhook falliti in coda"
+        >
+          {autoRetryMutation.isPending ? (
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          Lancia Auto-Retry
+        </Button>
 
         <Button
           variant="outline"
