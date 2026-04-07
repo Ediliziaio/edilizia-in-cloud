@@ -1,7 +1,7 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
   ScrollText, Bot, Globe, Zap, Plug, Landmark,
-  Webhook, BarChart3, Activity,
+  Webhook, BarChart3, Activity, Database,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { ELEVENLABS_VOICES_IT } from "@/constants/elevenlabsVoices";
 import {
   Dialog,
   DialogContent,
@@ -432,14 +433,7 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
 }
 
 function StepVoce({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
-  const voices = [
-    { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "Femminile, calma" },
-    { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "Maschile, professionale" },
-    { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", desc: "Femminile, naturale" },
-    { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", desc: "Maschile, cordiale" },
-    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", desc: "Maschile, autoritario" },
-    { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", desc: "Femminile, vivace" },
-  ];
+  const voices = ELEVENLABS_VOICES_IT;
 
   return (
     <div className="space-y-4">

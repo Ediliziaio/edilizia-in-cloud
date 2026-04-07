@@ -61,6 +61,7 @@ const AdminInvoiceHistory = lazy(() => import("@/pages/admin/AdminInvoiceHistory
 const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig"));
 const AdminCSDashboard = lazy(() => import("@/pages/admin/AdminCSDashboard"));
 const SmsSuperAdminPage = lazy(() => import("@/pages/admin/sms/SmsSuperAdminPage"));
+const AdminCRM = lazy(() => import("@/pages/admin/AdminCRM"));
 
 export function adminRoutes() {
   return (
@@ -184,6 +185,7 @@ export function adminRoutes() {
         <Route path="dunning" element={<AdminDunningConfig />} />
         <Route path="cs-dashboard" element={<AdminCSDashboard />} />
         <Route path="sms" element={<SmsSuperAdminPage />} />
+        <Route path="crm" element={<AdminCRM />} />
       </Route>
     </>
   );

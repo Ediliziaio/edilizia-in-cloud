@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceStrict } from "date-fns";
 import { it } from "date-fns/locale";
-import { RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Loader2, CreditCard, Mail } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,14 @@ function SyncLogs() {
       <Tabs defaultValue="sync">
         <TabsList>
           <TabsTrigger value="sync">Sync Calendar</TabsTrigger>
+          <TabsTrigger value="stripe" className="gap-1">
+            <CreditCard className="h-3.5 w-3.5" />
+            Stripe
+          </TabsTrigger>
+          <TabsTrigger value="dunning" className="gap-1">
+            <Mail className="h-3.5 w-3.5" />
+            Dunning
+          </TabsTrigger>
           <TabsTrigger value="edge">Edge Functions</TabsTrigger>
         </TabsList>
 
@@ -319,6 +327,16 @@ function SyncLogs() {
           </div>
         </TabsContent>
 
+        {/* Stripe Events Tab */}
+        <TabsContent value="stripe" className="space-y-4 mt-4">
+          <StripeEventsTab />
+        </TabsContent>
+
+        {/* Dunning Tab */}
+        <TabsContent value="dunning" className="space-y-4 mt-4">
+          <DunningAttemptsTab />
+        </TabsContent>
+
         <TabsContent value="edge" className="space-y-4 mt-4">
           <div className="grid grid-cols-3 gap-3">
             <Card>
@@ -389,6 +407,279 @@ function SyncLogs() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── Stripe Events Tab ────────────────────────────────────
+
+function StripeEventsTab() {
+  const [statusFilter, setStatusFilter] = useState<"all" | "processed" | "error" | "processing">("all");
+  const [dateRange, setDateRange] = useState<DateRange>("week");
+
+  const { data: events = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["stripe-events-log", statusFilter, dateRange],
+    queryFn: async () => {
+      let query = (supabase as any)
+        .from("stripe_events_log")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+
+      const now = new Date();
+      if (dateRange === "day") query = query.gte("created_at", new Date(now.getTime() - 86400000).toISOString());
+      else if (dateRange === "week") query = query.gte("created_at", new Date(now.getTime() - 7 * 86400000).toISOString());
+      else query = query.gte("created_at", new Date(now.getTime() - 30 * 86400000).toISOString());
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        stripe_event_id: string;
+        event_type: string;
+        company_id: string | null;
+        status: string;
+        error_message: string | null;
+        created_at: string;
+      }>;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const errors = events.filter((e) => e.status === "error").length;
+
+  return (
+    <div className="space-y-4">
+      {errors > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{errors} eventi Stripe in errore</AlertTitle>
+          <AlertDescription>Verifica la configurazione del webhook Stripe.</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex gap-3">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="processed">Processed</SelectItem>
+              <SelectItem value="error">Error</SelectItem>
+              <SelectItem value="processing">Processing</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Ultimo giorno</SelectItem>
+              <SelectItem value="week">Ultima settimana</SelectItem>
+              <SelectItem value="month">Ultimo mese</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+          Aggiorna
+        </Button>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo evento</TableHead>
+              <TableHead>Stripe ID</TableHead>
+              <TableHead>Stato</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Errore</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              [1, 2, 3, 4, 5].map((i) => (
+                <TableRow key={i}>
+                  {[1, 2, 3, 4, 5].map((j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : events.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nessun evento Stripe trovato
+                </TableCell>
+              </TableRow>
+            ) : events.map((e) => (
+              <TableRow key={e.id} className={e.status === "error" ? "bg-destructive/5" : ""}>
+                <TableCell className="font-mono text-xs">{e.event_type}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{e.stripe_event_id?.slice(0, 20)}…</TableCell>
+                <TableCell>
+                  {e.status === "processed" ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-300">processed</Badge>
+                  ) : e.status === "error" ? (
+                    <Badge variant="destructive">error</Badge>
+                  ) : (
+                    <Badge variant="secondary">{e.status}</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {format(new Date(e.created_at), "dd/MM HH:mm:ss")}
+                </TableCell>
+                <TableCell className="max-w-[240px] truncate text-xs text-destructive">
+                  {e.error_message ?? "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dunning Attempts Tab ─────────────────────────────────
+
+function DunningAttemptsTab() {
+  const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed">("all");
+  const [dateRange, setDateRange] = useState<DateRange>("week");
+
+  const { data: attempts = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["dunning-log", statusFilter, dateRange],
+    queryFn: async () => {
+      let query = (supabase as any)
+        .from("dunning_attempts")
+        .select("*, companies(name)")
+        .order("sent_at", { ascending: false })
+        .limit(100);
+
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+
+      const now = new Date();
+      if (dateRange === "day") query = query.gte("sent_at", new Date(now.getTime() - 86400000).toISOString());
+      else if (dateRange === "week") query = query.gte("sent_at", new Date(now.getTime() - 7 * 86400000).toISOString());
+      else query = query.gte("sent_at", new Date(now.getTime() - 30 * 86400000).toISOString());
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        company_id: string;
+        dunning_day: string;
+        status: string;
+        sent_at: string | null;
+        retry_count: number;
+        permanently_failed: boolean;
+        error_message: string | null;
+        companies?: { name: string } | null;
+      }>;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const permanentFails = attempts.filter((a) => a.permanently_failed).length;
+
+  return (
+    <div className="space-y-4">
+      {permanentFails > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{permanentFails} email fallite definitivamente</AlertTitle>
+          <AlertDescription>
+            <a href="/admin/dunning" className="underline">Vai alla gestione dunning</a> per intervenire manualmente.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex gap-3">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="sent">Inviato</SelectItem>
+              <SelectItem value="failed">Fallito</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Ultimo giorno</SelectItem>
+              <SelectItem value="week">Ultima settimana</SelectItem>
+              <SelectItem value="month">Ultimo mese</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+          Aggiorna
+        </Button>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Azienda</TableHead>
+              <TableHead>Tipo email</TableHead>
+              <TableHead>Stato</TableHead>
+              <TableHead>Inviato</TableHead>
+              <TableHead className="text-right">Retry</TableHead>
+              <TableHead>Errore</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              [1, 2, 3, 4].map((i) => (
+                <TableRow key={i}>
+                  {[1, 2, 3, 4, 5, 6].map((j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : attempts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  Nessun tentativo dunning trovato
+                </TableCell>
+              </TableRow>
+            ) : attempts.map((a) => (
+              <TableRow key={a.id} className={a.permanently_failed ? "bg-destructive/5" : ""}>
+                <TableCell className="text-sm font-medium">
+                  {a.companies?.name ?? a.company_id.slice(0, 8)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="font-mono text-xs">{a.dunning_day}</Badge>
+                </TableCell>
+                <TableCell>
+                  {a.permanently_failed ? (
+                    <Badge variant="destructive">Definitivo</Badge>
+                  ) : a.status === "sent" ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-300">Inviato</Badge>
+                  ) : a.status === "failed" ? (
+                    <Badge variant="destructive">Fallito</Badge>
+                  ) : (
+                    <Badge variant="secondary">{a.status}</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {a.sent_at ? format(new Date(a.sent_at), "dd/MM HH:mm", { locale: it }) : "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  {a.retry_count > 0 ? <Badge variant="secondary">{a.retry_count}×</Badge> : "—"}
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate text-xs text-destructive">
+                  {a.error_message ?? "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

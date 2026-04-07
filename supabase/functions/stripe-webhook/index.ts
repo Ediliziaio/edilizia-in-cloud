@@ -323,6 +323,22 @@ async function handleInvoicePaymentFailed(
     new_status: "past_due",
     notes: `Pagamento fallito (tentativo #${failureCount}) - ${invoice.id}`,
   });
+
+  // Trigger dunning immediately — non bloccare: errori non critici
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (cronSecret && supabaseUrl) {
+    fetch(`${supabaseUrl}/functions/v1/process-dunning`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": cronSecret,
+      },
+      body: JSON.stringify({ triggered_by: "stripe_payment_failed", company_id: company.id }),
+    }).catch((e) =>
+      console.error("[stripe-webhook] Failed to trigger process-dunning:", (e as Error).message)
+    );
+  }
 }
 
 async function handleSubscriptionDeleted(

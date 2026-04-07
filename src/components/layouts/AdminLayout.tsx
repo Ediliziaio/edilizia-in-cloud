@@ -40,6 +40,7 @@ import {
   FileText,
   Settings2,
   TrendingUp,
+  Database,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
@@ -119,6 +120,7 @@ const allNavItems: AdminNavItem[] = [
   { title: "Storico Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_piattaforma" },
   { title: "Dunning Config", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_piattaforma" },
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_piattaforma" },
+  { title: "CRM AEDIX", url: "/admin/crm", icon: Database, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [

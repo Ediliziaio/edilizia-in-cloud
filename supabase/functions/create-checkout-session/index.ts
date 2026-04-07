@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
     }
 
     // ─── SUBSCRIPTION CHECKOUT (existing flow) ───
-    const { plan_id, billing_period } = body;
+    const { plan_id, billing_period, promo_code } = body;
 
     // Verify super_admin for subscription management
     const { data: roleData } = await supabase
@@ -432,6 +432,57 @@ Deno.serve(async (req) => {
 
     const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
 
+    // Validate promo code if provided
+    let stripeCouponId: string | null = null;
+    if (promo_code) {
+      const { data: promoRow } = await supabaseAdmin
+        .from("promo_codes" as never)
+        .select("id, stripe_coupon_id, discount_type, discount_value, max_uses, used_count, expires_at, is_active")
+        .eq("code", (promo_code as string).toUpperCase().trim())
+        .eq("is_active", true)
+        .maybeSingle() as { data: Record<string, unknown> | null };
+
+      if (promoRow) {
+        const now = new Date();
+        const expired = promoRow.expires_at ? new Date(promoRow.expires_at as string) < now : false;
+        const exhausted = promoRow.max_uses != null && (promoRow.used_count as number) >= (promoRow.max_uses as number);
+        if (!expired && !exhausted) {
+          stripeCouponId = (promoRow.stripe_coupon_id as string | null) ?? null;
+          // Mark usage
+          await supabaseAdmin
+            .from("promo_codes" as never)
+            .update({ used_count: (promoRow.used_count as number) + 1 } as never)
+            .eq("id", promoRow.id);
+          console.log(`[checkout] Promo code ${promo_code} applied (coupon: ${stripeCouponId})`);
+        } else {
+          console.warn(`[checkout] Promo code ${promo_code} invalid: expired=${expired} exhausted=${exhausted}`);
+        }
+      }
+    }
+
+    // Build checkout params
+    const checkoutParams: Record<string, string> = {
+      customer: stripeCustomerId,
+      mode: "subscription",
+      "payment_method_types[0]": "card",
+      "payment_method_types[1]": "sepa_debit",
+      "line_items[0][price]": stripePriceId,
+      "line_items[0][quantity]": "1",
+      success_url: `${appUrl}/admin/aziende/${company_id}?payment=success`,
+      cancel_url: `${appUrl}/admin/aziende/${company_id}?payment=cancelled`,
+      "metadata[company_id]": company_id,
+      "metadata[plan_id]": plan_id,
+    };
+    if (stripeCouponId) {
+      checkoutParams["discounts[0][coupon]"] = stripeCouponId;
+    } else {
+      // Allow customers to enter promo codes themselves at checkout
+      checkoutParams["allow_promotion_codes"] = "true";
+    }
+    if (promo_code && !stripeCouponId) {
+      checkoutParams["metadata[promo_code_attempted]"] = promo_code;
+    }
+
     // Create Checkout Session
     const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -439,18 +490,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${stripeSecretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        customer: stripeCustomerId,
-        mode: "subscription",
-        "payment_method_types[0]": "card",
-        "payment_method_types[1]": "sepa_debit",
-        "line_items[0][price]": stripePriceId,
-        "line_items[0][quantity]": "1",
-        success_url: `${appUrl}/admin/aziende/${company_id}?payment=success`,
-        cancel_url: `${appUrl}/admin/aziende/${company_id}?payment=cancelled`,
-        "metadata[company_id]": company_id,
-        "metadata[plan_id]": plan_id,
-      }),
+      body: new URLSearchParams(checkoutParams),
     });
     const session = await sessionRes.json();
 
