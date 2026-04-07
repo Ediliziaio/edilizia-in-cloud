@@ -34,6 +34,8 @@ import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRo
 import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
 import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/company/CompanyFilterPresets";
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
+import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
+import { useCompanyFilters, EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -112,6 +114,10 @@ export default function CompaniesList() {
   // Search is local (debounced) then synced to URL
   const [inputSearch, setInputSearch] = useState(() => searchParams.get("q") || "");
   const debouncedSearch = useDebounce(inputSearch, 300);
+
+  // Segmentazione avanzata (Feature 6)
+  const [segmentFilters, setSegmentFilters] = useState(EMPTY_FILTERS);
+  const segmentActiveCount = countActiveFilters(segmentFilters);
 
   // Local UI state
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -226,6 +232,7 @@ export default function CompaniesList() {
       serverSortColumn,
       sortDir,
       permissions.allowed_company_ids,
+      segmentFilters,
     ],
     queryFn: async () => {
       const from = (currentPage - 1) * SERVER_PAGE_SIZE;
@@ -250,6 +257,9 @@ export default function CompaniesList() {
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (sectorFilter !== "all") query = query.eq("sector", sectorFilter);
       if (planFilter !== "all") query = query.eq("subscription_plan_id", planFilter);
+
+      // Segment filters (Feature 6)
+      query = applyFiltersToQuery(query, segmentFilters);
 
       // Restrict to allowed company IDs for scoped super-admins
       if (permissions.allowed_company_ids?.length) {
@@ -815,6 +825,12 @@ export default function CompaniesList() {
             <SelectItem value="critical">Critico</SelectItem>
           </SelectContent>
         </Select>
+        {/* Feature 6 — Segmentazione avanzata */}
+        <CompanySegmentFilters
+          filters={segmentFilters}
+          onFiltersChange={(f) => { setSegmentFilters(f); setCurrentPage(1); }}
+          activeCount={segmentActiveCount}
+        />
         <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
           <Download className="h-4 w-4" />
         </Button>

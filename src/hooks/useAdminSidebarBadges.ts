@@ -10,6 +10,8 @@ export interface SidebarBadges {
   maintenanceActive: boolean;
   /** Unread announcements draft count */
   draftAnnouncements: number;
+  /** Unresolved failure alerts count */
+  unresolvedAlerts: number;
 }
 
 /** Fetches badge counts for the admin sidebar nav items */
@@ -20,7 +22,7 @@ export function useAdminSidebarBadges() {
       const now = new Date();
       const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000).toISOString();
 
-      const [ticketsRes, trialsRes, maintenanceRes, announcementsRes] = await Promise.all([
+      const [ticketsRes, trialsRes, maintenanceRes, announcementsRes, alertsRes] = await Promise.all([
         supabase
           .from("support_conversations")
           .select("id", { count: "exact", head: true })
@@ -40,6 +42,10 @@ export function useAdminSidebarBadges() {
           .from("platform_announcements")
           .select("id", { count: "exact", head: true })
           .eq("is_active", false),
+        supabase
+          .from("failure_alerts")
+          .select("id", { count: "exact", head: true })
+          .is("resolved_at", null),
       ]);
 
       return {
@@ -47,6 +53,7 @@ export function useAdminSidebarBadges() {
         trialsExpiring: trialsRes.count || 0,
         maintenanceActive: maintenanceRes.data?.value === "true",
         draftAnnouncements: announcementsRes.count || 0,
+        unresolvedAlerts: alertsRes.count || 0,
       };
     },
     staleTime: 60 * 1000,
@@ -71,6 +78,10 @@ export function getBadgeForNavItem(
 
   if (url === "/admin/annunci" && badges.draftAnnouncements > 0) {
     return { count: badges.draftAnnouncements, variant: "default" };
+  }
+
+  if (url === "/admin/failure-alerts" && badges.unresolvedAlerts > 0) {
+    return { count: badges.unresolvedAlerts, variant: "destructive" };
   }
 
   return null;
