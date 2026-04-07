@@ -4,6 +4,7 @@ import { Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
+import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import { 
   ClipboardList, 
   HeadphonesIcon,
@@ -171,7 +172,9 @@ export function CustomerLayout() {
       {/* Main Content */}
       <main className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <Outlet />
+          <PreviewSessionContext.Provider value={previewSession}>
+            <Outlet />
+          </PreviewSessionContext.Provider>
         </div>
       </main>
       {!effectiveBrand.hidePoweredBy && (

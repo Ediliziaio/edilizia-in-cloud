@@ -134,7 +134,13 @@ export function ViewAsDropdown() {
       const token = (data as { token: string }).token;
       const subdomain = targetUser.role === "customer" ? "clienti" : "lavori";
       const basePath = targetUser.role === "customer" ? "/cliente" : "/campo";
-      const rootDomain = window.location.hostname.split(".").slice(-2).join(".");
+      // Gestisce TLD multi-livello (es. .co.uk, .com.br, .com.au)
+      const MULTI_LEVEL_TLDS = ["co.uk","com.br","co.nz","co.za","com.au","net.au","org.uk","me.uk"];
+      const parts = window.location.hostname.split(".");
+      const twoLastParts = parts.slice(-2).join(".");
+      const rootDomain = MULTI_LEVEL_TLDS.includes(twoLastParts) && parts.length >= 3
+        ? parts.slice(-3).join(".")
+        : twoLastParts;
       const url = window.location.hostname.includes("localhost")
         ? `${basePath}?preview_token=${token}`
         : `https://${subdomain}.${rootDomain}${basePath}?preview_token=${token}`;

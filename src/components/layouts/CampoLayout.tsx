@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
+import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 
 export default function CampoLayout() {
   const navigate = useNavigate();
@@ -107,7 +108,9 @@ export default function CampoLayout() {
 
       {/* Contenuto scrollabile */}
       <main className="flex-1 overflow-y-auto overscroll-y-none">
-        <Outlet />
+        <PreviewSessionContext.Provider value={previewSession}>
+          <Outlet />
+        </PreviewSessionContext.Provider>
       </main>
 
       {/* Bottom Navigation */}
