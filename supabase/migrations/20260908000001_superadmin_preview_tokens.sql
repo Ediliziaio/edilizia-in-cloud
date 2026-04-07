@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS public.superadmin_preview_tokens (
   id             uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
-  token          text         NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token          text         NOT NULL UNIQUE DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
   created_by     uuid         NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   target_user_id uuid         NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   target_role    text         NOT NULL
