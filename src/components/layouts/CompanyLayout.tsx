@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
+import { useViewAsPermissions } from "@/hooks/useViewAsPermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
@@ -71,6 +72,8 @@ import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog"
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+import { ViewAsBanner } from "@/components/admin/ViewAsBanner";
+import { ViewAsDropdown } from "@/components/admin/ViewAsDropdown";
 import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
@@ -636,7 +639,8 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 
 const CompanySidebar = memo(function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
-  const permissions = usePermissions();
+  // Usa useViewAsPermissions: quando viewAsRole è attivo la sidebar mostra gli item del ruolo simulato
+  const permissions = useViewAsPermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
@@ -1005,6 +1009,7 @@ export function CompanyLayout() {
           </a>
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
+          <ViewAsBanner />
           <MultiCompanySwitcher />
           <AnnouncementBanner />
           <SubscriptionBanner />
@@ -1041,6 +1046,8 @@ export function CompanyLayout() {
             )}
 
             <div className="hidden md:block flex-1" />
+            {/* ViewAsDropdown — visibile SOLO durante impersonazione super_admin */}
+            <ViewAsDropdown />
             <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>

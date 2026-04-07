@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { Link, Outlet } from "react-router-dom";
+import { Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { 
   ClipboardList, 
   HeadphonesIcon,
@@ -42,6 +44,8 @@ export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
   const { effectiveBrand } = useBrandSettings(company?.id);
   const unreadCount = useCustomerUnreadCount();
+  // Modalità SuperAdmin-preview (token da URL)
+  const previewSession = usePreviewToken();
 
   // Apply CSS variables for brand colors
   useEffect(() => {
@@ -73,6 +77,20 @@ export function CustomerLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
       <QuickLoginReturnBanner />
+      {/* Banner SuperAdmin-preview */}
+      {previewSession.isPreview && (
+        <div className="bg-amber-50 border-b border-amber-300 px-4 py-2 flex items-center gap-2">
+          <Eye className="h-4 w-4 text-amber-600 shrink-0" />
+          <span className="text-sm text-amber-800 font-medium">
+            Modalità SuperAdmin — Visualizzazione come: Cliente (sola lettura)
+          </span>
+        </div>
+      )}
+      {previewSession.error && (
+        <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 text-sm text-destructive text-center">
+          Token preview non valido: {previewSession.error}
+        </div>
+      )}
       {/* Header */}
       <header className="h-14 border-b bg-background sticky top-0 z-50">
         <div className="h-full max-w-4xl mx-auto px-4 flex items-center justify-between">

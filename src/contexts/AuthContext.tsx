@@ -26,6 +26,10 @@ interface AuthContextType extends AuthState {
   multiCompanyAccesses: MultiCompanyAccess[];
   selectedMultiCompanyId: string | null;
   switchMultiCompany: (companyId: string) => void;
+  // View-as (simula ruolo utente company senza cambio sessione)
+  viewAsRole: AppRole | null;
+  viewAsUserId: string | null;
+  setViewAsRole: (role: AppRole | null, userId?: string | null) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -160,6 +164,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Ref that always holds the latest resolved role — lets TOKEN_REFRESHED read the
   // current role synchronously without a stale closure or calling setState.
   const resolvedRoleRef = useRef<AppRole | null>(null);
+
+  // View-as: simula l'esperienza di un ruolo company senza cambiare sessione
+  const [viewAsRole, setViewAsRoleState] = useState<AppRole | null>(null);
+  const [viewAsUserId, setViewAsUserId] = useState<string | null>(null);
+  const setViewAsRole = useCallback((role: AppRole | null, userId: string | null = null) => {
+    setViewAsRoleState(role);
+    setViewAsUserId(userId);
+  }, []);
 
   // Multi-company state (combined to reduce re-renders)
   const MULTI_COMPANY_KEY = "multi_company_selected";
@@ -744,6 +756,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
     sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
+    // Resetta anche il view-as quando si esce dall'impersonazione
+    setViewAsRoleState(null);
+    setViewAsUserId(null);
     // Clear the cache so the admin panel doesn't show the impersonated
     // company's stale data after returning to the admin view.
     queryClient.clear();
@@ -859,8 +874,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       multiCompanyAccesses,
       selectedMultiCompanyId,
       switchMultiCompany,
+      viewAsRole,
+      viewAsUserId,
+      setViewAsRole,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (
