@@ -41,6 +41,13 @@ import {
   Settings2,
   TrendingUp,
   Database,
+  BookOpen,
+  FileUp,
+  ShieldAlert,
+  AlertTriangle,
+  TrendingDown,
+  LayoutTemplate,
+  GitBranch,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
@@ -121,6 +128,13 @@ const allNavItems: AdminNavItem[] = [
   { title: "Dunning Config", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_piattaforma" },
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_piattaforma" },
   { title: "CRM AEDIX", url: "/admin/crm", icon: Database, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
+  { title: "Playbook", url: "/admin/playbooks", icon: BookOpen, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "Import CSV", url: "/admin/csv-import", icon: FileUp, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "Alert Failure", url: "/admin/failure-alerts", icon: AlertTriangle, permission: "can_manage_companies", subcategory: "sa_clienti" },
+  { title: "Audit Log", url: "/admin/audit-log", icon: ShieldAlert, permission: "can_manage_companies", subcategory: "sa_piattaforma" },
+  { title: "Cohort Retention", url: "/admin/cohort", icon: TrendingDown, permission: "can_view_platform_stats", subcategory: "sa_piattaforma" },
+  { title: "Template Dunning", url: "/admin/dunning-templates", icon: LayoutTemplate, permission: "billing_write", subcategory: "sa_piattaforma" },
+  { title: "Campagne AB", url: "/admin/campagne", icon: GitBranch, permission: "can_manage_companies", subcategory: "sa_piattaforma" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [

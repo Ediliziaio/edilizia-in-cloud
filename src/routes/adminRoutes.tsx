@@ -62,6 +62,21 @@ const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig")
 const AdminCSDashboard = lazy(() => import("@/pages/admin/AdminCSDashboard"));
 const SmsSuperAdminPage = lazy(() => import("@/pages/admin/sms/SmsSuperAdminPage"));
 const AdminCRM = lazy(() => import("@/pages/admin/AdminCRM"));
+// Campagne AB Test (Feature 7)
+const CampaignsPage = lazy(() => import("@/pages/admin/CampaignsPage"));
+const CampaignAnalyticsPage = lazy(() => import("@/pages/admin/CampaignAnalyticsPage"));
+// Playbook Automatici (Feature 8)
+const PlaybooksPage = lazy(() => import("@/pages/admin/PlaybooksPage"));
+// Import CSV Lead (Feature 5)
+const CsvImportPage = lazy(() => import("@/pages/admin/CsvImportPage"));
+// Audit Log Flag (Feature 9)
+const AuditLogPage = lazy(() => import("@/pages/admin/AuditLogPage"));
+// Failure Alerts (Feature 11)
+const FailureAlertsPage = lazy(() => import("@/pages/admin/FailureAlertsPage"));
+// Cohort Chart (Feature 3)
+const CohortPage = lazy(() => import("@/pages/admin/CohortPage"));
+// Dunning Templates (Feature 4)
+const DunningTemplatesPage = lazy(() => import("@/pages/admin/DunningTemplatesPage"));
 
 export function adminRoutes() {
   return (
@@ -186,6 +201,21 @@ export function adminRoutes() {
         <Route path="cs-dashboard" element={<AdminCSDashboard />} />
         <Route path="sms" element={<SmsSuperAdminPage />} />
         <Route path="crm" element={<AdminCRM />} />
+        {/* Campagne AB Test — Feature 7 */}
+        <Route path="campagne" element={<CampaignsPage />} />
+        <Route path="campagne/:id/analytics" element={<CampaignAnalyticsPage />} />
+        {/* Playbook Automatici — Feature 8 */}
+        <Route path="playbooks" element={<PlaybooksPage />} />
+        {/* Import CSV Lead — Feature 5 */}
+        <Route path="csv-import" element={<CsvImportPage />} />
+        {/* Audit Log Flag — Feature 9 */}
+        <Route path="audit-log" element={<AuditLogPage />} />
+        {/* Failure Alerts — Feature 11 */}
+        <Route path="failure-alerts" element={<FailureAlertsPage />} />
+        {/* Cohort Chart — Feature 3 */}
+        <Route path="cohort" element={<CohortPage />} />
+        {/* Dunning Templates — Feature 4 */}
+        <Route path="dunning-templates" element={<DunningTemplatesPage />} />
       </Route>
     </>
   );

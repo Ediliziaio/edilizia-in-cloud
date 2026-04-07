@@ -201,7 +201,7 @@ export default function CompaniesList() {
     return Comp;
   }, [sortKey, sortDir]);
 
-  const SERVER_PAGE_SIZE = 20;
+  const SERVER_PAGE_SIZE = 50;
 
   // Derive server-side sort column and direction
   const serverSortColumn = useMemo((): string => {
