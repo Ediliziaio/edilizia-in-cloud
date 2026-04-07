@@ -247,6 +247,7 @@ export default function CompanyDetail() {
             company={h.company} form={h.form} onSubmit={h.onSaveDetails}
             isSaving={h.isSaving} sameAsLegal={h.sameAsLegal} onSameAsLegalChange={h.setSameAsLegal}
             currentPlanName={h.currentPlan?.name || null} stats={h.stats} totalTeam={totalTeam}
+            onLogoUpdated={() => h.refetch()}
           />
         </TabsContent>
 

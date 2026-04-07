@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Building2, ReceiptText, MapPin, StickyNote, Loader2, Save, Download } from "lucide-react";
+import { CompanyLogoUploader } from "./CompanyLogoUploader";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ interface CompanyDetailsTabProps {
   currentPlanName: string | null;
   stats: { ordersCount: number; customersCount: number } | null;
   totalTeam: number;
+  onLogoUpdated?: () => void;
 }
 
 export function CompanyDetailsTab({
@@ -39,6 +41,7 @@ export function CompanyDetailsTab({
   currentPlanName,
   stats,
   totalTeam,
+  onLogoUpdated,
 }: CompanyDetailsTabProps) {
   const companyStatus = (company.status || "trial") as CompanyStatus;
   const statusCfg = statusConfig[companyStatus] || statusConfig.trial;
@@ -400,6 +403,11 @@ export function CompanyDetailsTab({
 
           </CardContent>
         </Card>
+
+        {/* Feature 10 — Logo Upload */}
+        {onLogoUpdated && (
+          <CompanyLogoUploader company={company} onLogoUpdated={onLogoUpdated} />
+        )}
       </div>
     </div>
   );
