@@ -1,6 +1,7 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
   ScrollText, Bot, Globe, Zap, Plug, Landmark,
+  Webhook, BarChart3, Activity,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -79,11 +80,27 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         permission: "can_manage_admins",
       },
       {
+        id: "banking-overview",
+        label: "Vista Globale Banche",
+        description: "Stato connessioni Open Banking per tutte le aziende",
+        icon: Activity,
+        url: "/admin/impostazioni/banking-overview",
+        permission: "can_manage_admins",
+      },
+      {
         id: "agenti-ai",
         label: "Agenti AI",
-        description: "Configurazione modelli e agenti intelligenti",
+        description: "Configurazione modelli, agenti e voci ElevenLabs",
         icon: Bot,
         url: "/admin/impostazioni/agenti-ai",
+      },
+      {
+        id: "ai-usage",
+        label: "Monitor AI",
+        description: "Costi e richieste AI per azienda",
+        icon: BarChart3,
+        url: "/admin/impostazioni/ai-usage",
+        permission: "can_view_platform_stats",
       },
     ],
   },
@@ -139,6 +156,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Notifica sistemi esterni",
         icon: Zap,
         url: "/admin/impostazioni/webhooks",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "webhook-logs",
+        label: "Webhook Log",
+        description: "Log webhook in entrata (GoCardless, Stripe, Telnyx)",
+        icon: Webhook,
+        url: "/admin/impostazioni/webhook-logs",
         permission: "can_manage_admins",
       },
     ],

@@ -33,6 +33,9 @@ const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/Admin
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
 const AdminSettingsBanking = lazy(() => import("@/pages/admin/settings/AdminSettingsBanking"));
 const AdminSettingsWebhooks = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhooks"));
+const AdminSettingsWebhookLogs = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhookLogs"));
+const AdminSettingsBankingOverview = lazy(() => import("@/pages/admin/settings/AdminSettingsBankingOverview"));
+const AdminSettingsAIUsage = lazy(() => import("@/pages/admin/settings/AdminSettingsAIUsage"));
 const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
 const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
 const AdminMarketingOpportunities = lazy(() => import("@/pages/admin/marketing/AdminMarketingOpportunities"));
@@ -146,6 +149,9 @@ export function adminRoutes() {
         <Route path="impostazioni/integrazioni" element={<AdminSettingsIntegrations />} />
         <Route path="impostazioni/banking" element={<AdminSettingsBanking />} />
         <Route path="impostazioni/webhooks" element={<AdminSettingsWebhooks />} />
+        <Route path="impostazioni/webhook-logs" element={<AdminSettingsWebhookLogs />} />
+        <Route path="impostazioni/banking-overview" element={<AdminSettingsBankingOverview />} />
+        <Route path="impostazioni/ai-usage" element={<AdminSettingsAIUsage />} />
         <Route path="piani" element={<SubscriptionPlans />} />
         <Route path="referral" element={<ReferralDashboard />} />
         <Route path="feature-flags" element={<FeatureFlags />} />

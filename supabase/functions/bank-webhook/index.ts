@@ -56,6 +56,19 @@ Deno.serve(async (req) => {
     const eventData: Record<string, unknown> = (payload.data as Record<string, unknown>) || {};
     let processedEvents = 0;
 
+    // Inserisci log webhook (Module 8: Webhook Alerts)
+    const { data: logEntry } = await supabase
+      .from("webhook_logs")
+      .insert({
+        provider: "gocardless",
+        event_type: eventType,
+        payload,
+        status: "received",
+      })
+      .select("id")
+      .single();
+    const logId: string | null = logEntry?.id ?? null;
+
     // Nuove transazioni disponibili
     if (eventType === 'ACCOUNT_TRANSACTIONS_CREATED') {
       const accountExternalId = eventData.account_id as string | undefined;
@@ -141,8 +154,16 @@ Deno.serve(async (req) => {
             }).eq("id", account.id);
 
             processedEvents++;
-          } catch (syncErr: any) {
-            console.error(`Webhook sync error for account ${accountExternalId}:`, syncErr);
+          } catch (syncErr: unknown) {
+            const syncErrMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+            console.error(`Webhook sync error for account ${accountExternalId}:`, syncErrMsg);
+            // Aggiorna log a 'failed'
+            if (logId) {
+              await supabase
+                .from("webhook_logs")
+                .update({ status: "failed", error_message: syncErrMsg })
+                .eq("id", logId);
+            }
           }
         }
       }
@@ -190,10 +211,19 @@ Deno.serve(async (req) => {
       console.log('Unhandled webhook type:', eventType, JSON.stringify(eventData).slice(0, 200));
     }
 
+    // Aggiorna log webhook a 'processed'
+    if (logId) {
+      await supabase
+        .from("webhook_logs")
+        .update({ status: "processed", processed_at: new Date().toISOString() })
+        .eq("id", logId);
+    }
+
     // Rispondi entro 5s (requisito GoCardless)
     return jsonResponse({ success: true, processed: processedEvents });
-  } catch (e) {
-    console.error("bank-webhook error:", e);
-    return errorResponse(e.message, 500);
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("bank-webhook error:", errMsg);
+    return errorResponse(errMsg, 500);
   }
 });
