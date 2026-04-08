@@ -1,10 +1,17 @@
 import { lazy, Suspense, useEffect } from "react";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
 import Home from "@/pages/Home";
+
+// Extend window type for GA4 gtag
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
@@ -113,6 +120,20 @@ function SubdomainTitleSetter() {
   return null;
 }
 
+/** Tracks SPA route changes in Google Analytics 4 */
+function GARouteTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "page_view", {
+        page_path: location.pathname + location.search,
+        page_location: window.location.href,
+      });
+    }
+  }, [location]);
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
   <QueryClientProvider client={queryClient}>
@@ -120,6 +141,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <SubdomainTitleSetter />
+        <GARouteTracker />
         <ScrollToTop />
         <AuthProvider>
           <BillingModeProvider>
