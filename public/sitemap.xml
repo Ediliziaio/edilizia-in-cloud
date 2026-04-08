@@ -500,6 +500,16 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/confronto/vs-excel"/>
   </url>
 
+  <!-- ── City hub page ───────────────────────────────────────────── -->
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia"/>
+  </url>
+
   <!-- ── City landing pages (Local SEO) ──────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-milano</loc>

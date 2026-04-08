@@ -74,6 +74,7 @@ const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const BlogCategory = lazy(() => import("@/pages/BlogCategory"));
 const Glossario = lazy(() => import("@/pages/Glossario"));
 const CityLanding = lazy(() => import("@/pages/city/CityLanding"));
+const CityHub = lazy(() => import("@/pages/city/CityHub"));
 const Integrazioni = lazy(() => import("@/pages/Integrazioni"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
@@ -176,6 +177,7 @@ const App = () => (
               <Route path="/formazione" element={<Formazione />} />
               <Route path="/casi-studio" element={<CasiStudio />} />
               <Route path="/glossario-edilizia" element={<Glossario />} />
+              <Route path="/software-gestionale-edilizia" element={<CityHub />} />
               <Route path="/software-gestionale-edilizia-:city" element={<CityLanding />} />
               <Route path="/integrazioni" element={<Integrazioni />} />
               <Route path="/per/imprese-costruzione" element={<ImpreseCostuzione />} />

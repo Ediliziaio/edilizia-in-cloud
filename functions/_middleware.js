@@ -707,6 +707,27 @@ function resolveRoute(pathname) {
     };
   }
 
+  // City hub: /software-gestionale-edilizia (senza città specifica)
+  if (pathname === "/software-gestionale-edilizia") {
+    return {
+      title: "Software Gestionale Edilizia per Città — Tutta Italia | Edilizia in Cloud",
+      description: "Edilizia in Cloud disponibile in 22 città italiane: Milano, Roma, Napoli, Torino, Bologna, Firenze e molte altre. Supporto locale, onboarding in 48 ore.",
+      canonical: BASE + "/software-gestionale-edilizia",
+      h1: "Software Gestionale Edilizia nella tua città",
+      intro: "Edilizia in Cloud è il gestionale per imprese edili disponibile in tutta Italia. Con copertura in 22 città e supporto locale, il tuo onboarding è in 48 ore.",
+      links: [
+        { href: "/software-gestionale-edilizia-milano", label: "Milano" },
+        { href: "/software-gestionale-edilizia-roma", label: "Roma" },
+        { href: "/software-gestionale-edilizia-napoli", label: "Napoli" },
+        { href: "/software-gestionale-edilizia-torino", label: "Torino" },
+        { href: "/software-gestionale-edilizia-bologna", label: "Bologna" },
+        { href: "/software-gestionale-edilizia-firenze", label: "Firenze" },
+        { href: "/demo", label: "Richiedi Demo" },
+      ],
+      jsonLd: null,
+    };
+  }
+
   // City landing: /software-gestionale-edilizia-{city}
   const cityMatch = pathname.match(/^\/software-gestionale-edilizia-(.+)$/);
   if (cityMatch) {

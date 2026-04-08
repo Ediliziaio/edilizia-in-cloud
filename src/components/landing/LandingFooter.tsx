@@ -37,6 +37,7 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Per Città</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
+              <li><Link to="/software-gestionale-edilizia" className="hover:text-[#F97415] transition-colors font-semibold text-[#111111]/80">Tutte le Città →</Link></li>
               <li><Link to="/software-gestionale-edilizia-milano" className="hover:text-[#F97415] transition-colors">Milano</Link></li>
               <li><Link to="/software-gestionale-edilizia-roma" className="hover:text-[#F97415] transition-colors">Roma</Link></li>
               <li><Link to="/software-gestionale-edilizia-torino" className="hover:text-[#F97415] transition-colors">Torino</Link></li>
