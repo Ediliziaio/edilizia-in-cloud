@@ -994,6 +994,12 @@ export default function Funzionalita() {
                 desc: "Timbratura GPS da cantiere, Cassa Edile, CCNL edilizia e export per buste paga.",
                 badge: "Nuovo",
               },
+              {
+                href: "/funzionalita/gestione-subappalti",
+                title: "Gestione Subappalti",
+                desc: "Registro subappaltatori, DURC alert automatici, contratti digitali e responsabilità solidale.",
+                badge: "Nuovo",
+              },
             ].map((item) => (
               <Link
                 key={item.href}

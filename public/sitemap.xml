@@ -561,6 +561,14 @@
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/hr-personale"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/hr-personale"/>
   </url>
+  <url>
+    <loc>https://ediliziaincloud.com/funzionalita/gestione-subappalti</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/gestione-subappalti"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/gestione-subappalti"/>
+  </url>
 
   <!-- ── Confronto sub-pages ───────────────────────────────────────── -->
   <url>

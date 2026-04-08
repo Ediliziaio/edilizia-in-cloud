@@ -156,6 +156,7 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Fatturazione Elettronica: https://ediliziaincloud.com/funzionalita/fatturazione-elettronica
   - Controllo Margini: https://ediliziaincloud.com/funzionalita/margini-cantiere
   - HR & Personale: https://ediliziaincloud.com/funzionalita/hr-personale
+  - Gestione Subappalti: https://ediliziaincloud.com/funzionalita/gestione-subappalti
 - **Prezzi:** https://ediliziaincloud.com/prezzi
 - **Confronto:** https://ediliziaincloud.com/confronto
 - **Integrazioni:** https://ediliziaincloud.com/integrazioni
