@@ -25,6 +25,7 @@ import GaranzieSection from "@/components/landing/GaranzieSection";
 import FounderLetterBottom from "@/components/landing/FounderLetterBottom";
 import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
+import { Link } from "react-router-dom";
 
 
 export default function Home() {
@@ -253,6 +254,41 @@ export default function Home() {
       <GaranzieSection />
       <FinalCtaSection />
       <FounderLetterBottom />
+
+      {/* ── Copertura Geografica ─────────────────────────────────────────── */}
+      <section className="py-12 bg-gray-50 border-t border-gray-200">
+        <div className="max-w-5xl mx-auto px-6">
+          <h2 className="text-lg font-bold text-[#111111] mb-4 text-center">Software Gestionale Edilizia per Città</h2>
+          <p className="text-center text-sm text-gray-500 mb-6">Scelto dalle imprese edili di tutta Italia</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {[
+              { name: "Milano", slug: "milano" },
+              { name: "Roma", slug: "roma" },
+              { name: "Napoli", slug: "napoli" },
+              { name: "Torino", slug: "torino" },
+              { name: "Bologna", slug: "bologna" },
+              { name: "Firenze", slug: "firenze" },
+              { name: "Bari", slug: "bari" },
+              { name: "Verona", slug: "verona" },
+              { name: "Brescia", slug: "brescia" },
+              { name: "Genova", slug: "genova" },
+              { name: "Palermo", slug: "palermo" },
+              { name: "Catania", slug: "catania" },
+              { name: "Venezia", slug: "venezia" },
+              { name: "Padova", slug: "padova" },
+            ].map((city) => (
+              <Link
+                key={city.slug}
+                to={`/software-gestionale-edilizia-${city.slug}`}
+                className="px-4 py-2 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:border-[#F97415] hover:text-[#F97415] transition-colors"
+              >
+                {city.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
       <StickyBottomBar />
     </div>
