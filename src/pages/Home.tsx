@@ -228,6 +228,22 @@ export default function Home() {
               "@type": "Answer",
               "text": "Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta."
             }
+          },
+          {
+            "@type": "Question",
+            "name": "Edilizia in Cloud gestisce il DURC e la Cassa Edile?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì. Il software traccia le scadenze DURC per la tua impresa e per tutti i subappaltatori registrati, con alert automatici prima della scadenza. La gestione delle presenze è integrata per il corretto calcolo dei contributi Cassa Edile."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso usarlo per partecipare agli appalti pubblici?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì. Edilizia in Cloud è progettato anche per le imprese che lavorano con appalti pubblici: gestisce la rendicontazione SAL, il DURC, la documentazione richiesta dalle stazioni appaltanti e i fondi PNRR. Tutta la documentazione è archiviata digitalmente e sempre disponibile per i controlli."
+            }
           }
         ]
       }} />
