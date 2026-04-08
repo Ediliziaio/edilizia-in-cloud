@@ -269,11 +269,37 @@ export default function BlogPost() {
     },
   };
 
+  // Generate HowTo schema for how-to style posts (slug starts with "come-" or "sal-")
+  const isHowTo = /^(come-|sal-|durc-|giornale-)/.test(post.slug);
+  const listBlocks = post.content.filter((c) => c.type === "list" && c.items && c.items.length > 0);
+  const howToSteps = listBlocks.flatMap((block) =>
+    (block.items ?? []).map((item, i) => ({
+      "@type": "HowToStep",
+      position: i + 1,
+      name: item.split(":")[0].replace(/^\d+\.\s*/, "").trim(),
+      text: item,
+    }))
+  );
+  const howToData =
+    isHowTo && howToSteps.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "HowTo",
+          name: post.title,
+          description: post.excerpt,
+          image: { "@type": "ImageObject", url: post.coverImage, width: 1200, height: 630 },
+          estimatedCost: { "@type": "MonetaryAmount", currency: "EUR", value: "0" },
+          totalTime: `PT${post.readTime}M`,
+          step: howToSteps,
+        }
+      : null;
+
   return (
     <div className="min-h-screen bg-white">
       <ProgressBar />
       <LandingNavbar />
       <JsonLd data={jsonLdData} />
+      {howToData && <JsonLd id={`jsonld-howto-${post.slug}`} data={howToData} />}
       <JsonLd id="jsonld-breadcrumb-post" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",

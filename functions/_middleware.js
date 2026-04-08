@@ -183,6 +183,52 @@ const ROUTES = {
     ],
   },
 
+  "/confronto/vs-teamsystem": {
+    title: "Edilizia in Cloud vs TeamSystem: Confronto 2026",
+    description:
+      "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. ERP generalista vs gestionale nativo: prezzo, funzionalità e semplicità a confronto.",
+    canonical: BASE + "/confronto/vs-teamsystem",
+    h1: "Edilizia in Cloud vs TeamSystem: quale scegliere per la tua impresa edile?",
+    intro:
+      "TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato per le imprese edili: più semplice, più economico e con funzionalità specifiche che TeamSystem non ha.",
+    links: [
+      { href: "/confronto", label: "Tutti i Confronti" },
+      { href: "/confronto/vs-primus", label: "vs Primus" },
+      { href: "/confronto/vs-excel", label: "vs Excel" },
+      { href: "/demo", label: "Prova Gratis" },
+    ],
+  },
+
+  "/confronto/vs-excel": {
+    title: "Gestionale Edilizia vs Excel: Perché Smettere nel 2026 | Edilizia in Cloud",
+    description:
+      "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
+    canonical: BASE + "/confronto/vs-excel",
+    h1: "Edilizia in Cloud vs Excel: il vero costo nascosto dei fogli di calcolo",
+    intro:
+      "Excel sembra gratuito. In realtà ti costa ore di lavoro, margini persi e decisioni sbagliate. Scopri quanto stai perdendo e perché 500+ imprese edili hanno smesso di usarlo.",
+    links: [
+      { href: "/confronto", label: "Tutti i Confronti" },
+      { href: "/confronto/vs-teamsystem", label: "vs TeamSystem" },
+      { href: "/blog/alternativa-excel-cantieri", label: "Alternativa Excel per Cantieri" },
+      { href: "/demo", label: "Prova Gratis" },
+    ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Quanto costa davvero usare Excel per gestire i cantieri?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Il costo diretto è zero, ma il costo reale è stimato tra €1.500 e €3.000 al mese per un'impresa con 3-5 cantieri attivi, considerando le ore perse in aggiornamenti manuali e le decisioni prese su dati obsoleti.",
+          },
+        },
+      ],
+    },
+  },
+
   "/confronto/vs-primus": {
     title: "Edilizia in Cloud vs Primus: Confronto 2026",
     description:
