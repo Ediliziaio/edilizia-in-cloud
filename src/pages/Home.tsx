@@ -168,6 +168,68 @@ export default function Home() {
           }
         ]
       }} />
+      <JsonLd id="jsonld-faq-home" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Devo essere esperto di informatica per usarlo?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quanto tempo ci vuole per vedere i primi risultati concreti?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso importare i dati che ho su Excel o altri gestionali?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Funziona anche in cantiere, da smartphone o tablet?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Cosa include esattamente la demo gratuita?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese edili. Ti mostriamo il software sul tuo caso specifico — non una demo generica — e rispondiamo a tutte le domande. Nessun obbligo d'acquisto."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "I miei dati sono al sicuro? Chi li vede?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso disdire quando voglio? Ci sono penali?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta."
+            }
+          }
+        ]
+      }} />
 
       <LandingNavbar />
       <HeroSection />

@@ -22,6 +22,18 @@
     <link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/">
     <link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/">
     <meta property="og:url" content="https://ediliziaincloud.com/">
+    <!-- Dynamic canonical — allinea immediatamente al percorso corrente prima che React carichi -->
+    <!-- Risolve "Pagina alternativa con tag canonical appropriato" in Google Search Console -->
+    <script>
+      (function() {
+        var base = 'https://ediliziaincloud.com';
+        var path = window.location.pathname.replace(/\/$/, '') || '/';
+        var canonical = document.querySelector('link[rel="canonical"]');
+        if (canonical) canonical.href = base + (path === '/' ? '/' : path);
+        var ogUrl = document.querySelector('meta[property="og:url"]');
+        if (ogUrl) ogUrl.content = base + (path === '/' ? '/' : path);
+      })();
+    </script>
     <!-- Preconnect per risorse critiche -->
     <link rel="preconnect" href="https://images.unsplash.com">
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
@@ -74,6 +86,13 @@
       "applicationSubCategory": "Construction Management Software",
       "operatingSystem": "Web, iOS, Android",
       "url": "https://ediliziaincloud.com",
+      "image": {
+        "@type": "ImageObject",
+        "url": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
+        "width": 1200,
+        "height": 630,
+        "caption": "Dashboard Edilizia in Cloud — gestione cantieri e margini in tempo reale"
+      },
       "description": "Il gestionale edilizia con AI più usato in Italia: controllo cantieri in tempo reale, margini, fatturazione elettronica, CRM, WhatsApp marketing, HR e intelligenza artificiale per imprese edili.",
       "inLanguage": "it",
       "keywords": "gestionale edilizia AI, software cantieri, gestione impresa edile",
@@ -95,7 +114,24 @@
         "highPrice": 319,
         "priceCurrency": "EUR",
         "offerCount": 3,
-        "seller": { "@id": "https://ediliziaincloud.com/#organization" }
+        "seller": { "@id": "https://ediliziaincloud.com/#organization" },
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+          "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+          "deliveryTime": {
+            "@type": "ShippingDeliveryTime",
+            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+            "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+          }
+        },
+        "hasMerchantReturnPolicy": {
+          "@type": "MerchantReturnPolicy",
+          "applicableCountry": "IT",
+          "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+          "merchantReturnDays": 31,
+          "returnFees": "https://schema.org/FreeReturn"
+        }
       },
       "aggregateRating": {
         "@type": "AggregateRating",
@@ -236,73 +272,8 @@
     }
     </script>
   
-    <!-- Structured Data: FAQPage — per citabilità AI (ChatGPT, Claude, Perplexity) -->
-    <!-- Nota: non genera rich result su Google per siti commerciali (restrizione ago 2023) -->
-    <!-- ma è leggibile staticamente dai crawler AI che non eseguono JavaScript -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Devo essere esperto di informatica per usarlo?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Quanto tempo ci vuole per vedere i primi risultati concreti?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Posso importare i dati che ho su Excel o altri gestionali?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Funziona anche in cantiere, da smartphone o tablet?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Cosa include esattamente la demo gratuita?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese edili. Ti mostriamo il software sul tuo caso specifico — non una demo generica — e rispondiamo a tutte le domande. Nessun obbligo d'acquisto."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "I miei dati sono al sicuro? Chi li vede?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Posso disdire quando voglio? Ci sono penali?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta."
-          }
-        }
-      ]
-    }
-    </script>
+    <!-- FAQPage rimossa dall'HTML statico (caricato su tutte le route) e spostata nel componente -->
+    <!-- Home.tsx tramite JsonLd — visibile solo sulla home page, risolve il "Campo duplicato FAQPage" in GSC -->
 
     <!-- Google Analytics 4 (GA4) — ID: G-0JZP5N2VW5 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-0JZP5N2VW5"></script>
