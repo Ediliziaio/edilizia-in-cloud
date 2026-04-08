@@ -346,6 +346,26 @@ export default function ChiSiamo() {
           "https://www.instagram.com/ediliziaincloud"
         ]
       }} />
+      <JsonLd id="jsonld-person-founder" data={{
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "@id": "https://ediliziaincloud.com/#author-flo",
+        "name": "Marco Verdi",
+        "jobTitle": "Founder & CEO",
+        "description": "Ex imprenditore edile, fondatore di Edilizia in Cloud. Ha sviluppato il gestionale per risolvere i problemi reali di gestione cantieri, margini e fatturazione della propria impresa.",
+        "url": "https://ediliziaincloud.com/chi-siamo",
+        "worksFor": { "@id": "https://ediliziaincloud.com/#organization" },
+        "knowsAbout": [
+          "Gestione impresa edile",
+          "Software gestionale edilizia",
+          "Contabilità cantieri",
+          "Margini commessa",
+          "Fatturazione elettronica edilizia"
+        ],
+        "sameAs": [
+          "https://www.linkedin.com/company/edilizia-in-cloud"
+        ]
+      }} />
       <LandingNavbar />
 
       {/* ── 1. HERO ── */}
