@@ -738,6 +738,10 @@ function resolveRoute(pathname) {
       "gestione-operai-cantiere-presenze-ore": { title: "Gestione Operai in Cantiere: Presenze e Ore Lavorate | Blog Edilizia in Cloud", description: "Come gestire le presenze degli operai in cantiere, tracciare le ore lavorate per commessa e semplificare le buste paga." },
       "sito-web-impresa-edile-guida": { title: "Come Creare un Sito Web per un'Impresa Edile: Guida Completa | Blog Edilizia in Cloud", description: "Guida passo passo per costruire un sito web professionale per la tua impresa edile: struttura, SEO locale e contenuti che convertono." },
       "digitalizzazione-impresa-edile-passo-passo": { title: "Digitalizzazione dell'Impresa Edile: Guida Passo Passo | Blog Edilizia in Cloud", description: "Come digitalizzare la tua impresa edile in modo graduale: da carta e Excel a un gestionale cloud completo." },
+      "computo-metrico-estimativo-guida": { title: "Computo Metrico Estimativo: Cos'è, Come Si Fa e Template Gratis | Blog Edilizia in Cloud", description: "Guida completa al computo metrico estimativo: struttura, prezzari regionali, errori comuni e software per compilarlo in modo professionale." },
+      "bim-edilizia-guida-pratica": { title: "BIM in Edilizia: Cos'è, Obblighi e Come Iniziare nel 2026 | Blog Edilizia in Cloud", description: "Guida pratica al BIM per imprese edili italiane: obblighi DM 560, soglie per appalti pubblici e come iniziare senza stravolgere l'organizzazione." },
+      "cassa-edile-come-funziona": { title: "Cassa Edile: Come Funziona, Contributi e Obblighi per le Imprese | Blog Edilizia in Cloud", description: "Guida completa alla Cassa Edile: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e come gestirla senza errori di DURC." },
+      "appalti-pubblici-edilizia-guida": { title: "Come Partecipare agli Appalti Pubblici in Edilizia: Guida 2026 | Blog Edilizia in Cloud", description: "Guida pratica agli appalti pubblici per imprese edili: requisiti SOA, DURC, portali gare, ribasso d'asta e fondi PNRR." },
     };
     const meta = POST_META[slug] || {};
     return {
