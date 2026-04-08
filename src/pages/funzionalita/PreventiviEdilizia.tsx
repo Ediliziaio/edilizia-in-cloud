@@ -7,8 +7,9 @@ import { blogPosts } from "@/data/blogPosts";
 
 const RELATED_SLUGS = [
   "come-fare-preventivo-edilizia",
-  "preventivi-edilizia-guida",
+  "computo-metrico-estimativo-guida",
   "alternativa-excel-cantieri",
+  "ccnl-edilizia-guida",
 ];
 const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
 import { ArrowRight } from "lucide-react";

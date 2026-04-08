@@ -8,6 +8,8 @@ import { blogPosts } from "@/data/blogPosts";
 
 const RELATED_SLUGS = [
   "sal-cantiere-come-funziona",
+  "sicurezza-cantieri-dlgs-81",
+  "attestazione-soa-imprese-edili",
   "giornale-dei-lavori-cantiere",
   "computo-metrico-estimativo-guida",
   "appalti-pubblici-edilizia-guida",

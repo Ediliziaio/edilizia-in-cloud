@@ -6,9 +6,10 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts } from "@/data/blogPosts";
 
 const RELATED_SLUGS = [
-  "documentazione-obbligatoria-cantiere-2025",
+  "superbonus-imprese-edili-2026",
   "subappalto-edilizia-guida",
   "analisi-margini-imprese-edili",
+  "appalti-pubblici-edilizia-guida",
 ];
 const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
 import { ArrowRight } from "lucide-react";
