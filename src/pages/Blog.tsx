@@ -217,6 +217,27 @@ export default function Blog() {
           "name": "Edilizia in Cloud"
         }
       }} />
+      <JsonLd id="jsonld-blog-itemlist" data={{
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Articoli recenti — Blog Edilizia in Cloud",
+        "url": "https://ediliziaincloud.com/blog",
+        "numberOfItems": blogPosts.length,
+        "itemListElement": blogPosts.slice(0, 8).map((post, i) => ({
+          "@type": "ListItem",
+          "position": i + 1,
+          "url": `https://ediliziaincloud.com/blog/${post.slug}`,
+          "name": post.title,
+          "item": {
+            "@type": "Article",
+            "name": post.title,
+            "description": post.excerpt,
+            "url": `https://ediliziaincloud.com/blog/${post.slug}`,
+            "image": post.coverImage,
+            "datePublished": post.publishedAt,
+          }
+        }))
+      }} />
       <LandingNavbar />
 
       {/* Hero */}
