@@ -65,6 +65,56 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog"/>
   </url>
 
+  <!-- ── Blog category pages ────────────────────────────────────── -->
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/gestione-cantieri</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/gestione-cantieri"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/gestione-cantieri"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/finanza-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/finanza-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/finanza-edilizia"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/hr-personale</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/hr-personale"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/hr-personale"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/marketing-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/marketing-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/marketing-edilizia"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/commerciale-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/commerciale-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/commerciale-edilizia"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia"/>
+  </url>
+
   <!-- ── Blog posts ────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/blog/come-organizzare-cantiere-edile</loc>
