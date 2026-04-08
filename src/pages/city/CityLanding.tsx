@@ -380,6 +380,156 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     ],
   },
 
+  bari: {
+    name: "Bari",
+    region: "Puglia",
+    slug: "bari",
+    province: "BA",
+    lat: 41.1171,
+    lon: 16.8719,
+    heroTitle: "Gestionale Edilizia per Imprese di Bari",
+    heroSubtitle:
+      "Software gestionale per imprese edili baresi e pugliesi: gestione cantieri, SAL, fatturazione elettronica e controllo margini. Scelto da imprese edili in tutta la Puglia.",
+    heroImage:
+      "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "12+", label: "Imprese edili pugliesi attive" },
+      { value: "€ 1.5M", label: "Fatturato gestito al mese in Puglia" },
+      { value: "22%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti pugliesi" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Puglia il mercato edile è in forte crescita grazie ai fondi PNRR. Con Edilizia in Cloud gestisco più cantieri in parallelo senza perdere il controllo dei costi e della documentazione.",
+      author: "Francesco P.",
+      company: "Puglia Costruzioni Srl",
+      city: "Bari",
+      initials: "FP",
+    },
+    localProblems: [
+      {
+        emoji: "🏗️",
+        title: "Boom di appalti PNRR e fondi europei",
+        desc: "La Puglia è tra le regioni con più investimenti PNRR in edilizia pubblica. Accedere a questi appalti richiede documentazione digitale, SAL certificati e DURC sempre aggiornati.",
+      },
+      {
+        emoji: "☀️",
+        title: "Mercato fotovoltaico e agrivoltaico in espansione",
+        desc: "La Puglia guida l'installazione di impianti agrivoltaici e fotovoltaici in Italia. Gestire questi cantieri richiede un software flessibile per preventivi tecnici e rendicontazione GSE.",
+      },
+      {
+        emoji: "🏘️",
+        title: "Ristrutturazioni nei centri storici del Sud",
+        desc: "Bari vecchia e i borghi pugliesi hanno un patrimonio edilizio che richiede interventi delicati. Documentazione digitale e giornale dei lavori sono indispensabili per questi cantieri.",
+      },
+    ],
+    relatedCities: [
+      { name: "Napoli", slug: "napoli" },
+      { name: "Palermo", slug: "palermo" },
+      { name: "Roma", slug: "roma" },
+    ],
+  },
+
+  verona: {
+    name: "Verona",
+    region: "Veneto",
+    slug: "verona",
+    province: "VR",
+    lat: 45.4384,
+    lon: 10.9916,
+    heroTitle: "Gestionale Edilizia per Imprese di Verona",
+    heroSubtitle:
+      "Software gestionale per imprese edili veronesi e venete: gestione cantieri, margini in tempo reale, fatturazione elettronica e app mobile per il cantiere.",
+    heroImage:
+      "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "14+", label: "Imprese edili venete attive" },
+      { value: "€ 2.0M", label: "Fatturato gestito al mese in Veneto" },
+      { value: "24%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti veneti" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Veneto la qualità del lavoro è tutto. Con Edilizia in Cloud riesco a dimostrare ai committenti la professionalità della mia impresa con dati reali: SAL puntuali, documentazione completa e margini trasparenti.",
+      author: "Andrea Z.",
+      company: "Zampieri Costruzioni",
+      city: "Verona",
+      initials: "AZ",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Costruzioni industriali e logistiche nel distretto veneto",
+        desc: "Il Veneto ha uno dei mercati più attivi in Italia per capannoni industriali e logistica. Gestire queste commesse richiede un software in grado di tracciare subappalti specializzati e varianti in corso d'opera.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Restauro e ristrutturazione in centri storici UNESCO",
+        desc: "Verona è patrimonio UNESCO. I cantieri in centro storico richiedono autorizzazioni soprintendenza, documentazione fotografica puntuale e rendicontazione certificata.",
+      },
+      {
+        emoji: "🌊",
+        title: "Adeguamento sismico e consolidamento strutturale",
+        desc: "Il Veneto ha zone a rischio sismico elevato. I lavori di adeguamento richiedono certificazioni strutturali, collaudi e documentazione tecnica che un gestionale digitale semplifica enormemente.",
+      },
+    ],
+    relatedCities: [
+      { name: "Milano", slug: "milano" },
+      { name: "Bologna", slug: "bologna" },
+      { name: "Brescia", slug: "brescia" },
+    ],
+  },
+
+  brescia: {
+    name: "Brescia",
+    region: "Lombardia",
+    slug: "brescia",
+    province: "BS",
+    lat: 45.5416,
+    lon: 10.2118,
+    heroTitle: "Gestionale Edilizia per Imprese di Brescia",
+    heroSubtitle:
+      "Software gestionale per imprese edili bresciane e lombarde: gestione cantieri, preventivi, fatturazione elettronica e controllo margini in tempo reale.",
+    heroImage:
+      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "16+", label: "Imprese edili bresciane attive" },
+      { value: "€ 2.3M", label: "Fatturato gestito al mese in provincia di Brescia" },
+      { value: "25%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti bresciani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Brescia è una piazza competitiva. Edilizia in Cloud mi ha dato il vantaggio competitivo che cercavo: margini in tempo reale e preventivi professionali che convincono i clienti più esigenti.",
+      author: "Marco G.",
+      company: "Galimberti Costruzioni Srl",
+      city: "Brescia",
+      initials: "MG",
+    },
+    localProblems: [
+      {
+        emoji: "⚙️",
+        title: "Distretto industriale con alta domanda di capannoni",
+        desc: "La provincia di Brescia ospita uno dei distretti industriali più attivi d'Italia. Le imprese edili bresciane gestiscono commesse complesse per capannoni, ampliamenti e riqualificazioni industriali.",
+      },
+      {
+        emoji: "🏔️",
+        title: "Cantieri in Valle Camonica e zone montane",
+        desc: "Molte imprese bresciane lavorano nelle valli alpine: accessi difficili, stagionalità e logistica complessa. L'app mobile offline di Edilizia in Cloud è fondamentale per questi cantieri.",
+      },
+      {
+        emoji: "🏠",
+        title: "Boom delle ristrutturazioni residenziali",
+        desc: "La provincia di Brescia ha visto una forte crescita delle ristrutturazioni residenziali. Gestire 10-15 cantieri piccoli contemporaneamente richiede un software che faccia ordine tra preventivi, SAL e fatture.",
+      },
+    ],
+    relatedCities: [
+      { name: "Milano", slug: "milano" },
+      { name: "Verona", slug: "verona" },
+      { name: "Torino", slug: "torino" },
+    ],
+  },
+
   palermo: {
     name: "Palermo",
     region: "Sicilia",

@@ -478,6 +478,31 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-palermo"/>
   </url>
 
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bari</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bari"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-bari"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-verona</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-verona"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-verona"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-brescia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-brescia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-brescia"/>
+  </url>
+
   <!-- ── Hub pages ──────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/integrazioni</loc>
