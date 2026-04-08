@@ -269,8 +269,8 @@ export default function BlogPost() {
     },
   };
 
-  // Generate HowTo schema for how-to style posts (slug starts with "come-" or "sal-")
-  const isHowTo = /^(come-|sal-|durc-|giornale-)/.test(post.slug);
+  // Generate HowTo schema for how-to style posts
+  const isHowTo = /^(come-|sal-|durc-|giornale-|cassa-|computo-|appalti-|bim-|subappalto-|acquisire-|sito-web-|digitalizzazione-|gestione-operai-)/.test(post.slug);
   const listBlocks = post.content.filter((c) => c.type === "list" && c.items && c.items.length > 0);
   const howToSteps = listBlocks.flatMap((block) =>
     (block.items ?? []).map((item, i) => ({
