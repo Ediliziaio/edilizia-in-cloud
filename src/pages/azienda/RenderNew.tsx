@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -111,8 +111,17 @@ export default function RenderNew() {
   const [generating, setGenerating] = useState(false);
   const [pollState, setPollState] = useState<PollState>({ dots: 0, elapsedSec: 0, status: "pending" });
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dotsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
   const elapsedRef = useRef(0);
+
+  // ── Cleanup polling al dismount ─────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current);
+      if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    };
+  }, []);
 
   // ── Step 4: Result ──────────────────────────────────────────────────────────
   const [resultUrls, setResultUrls] = useState<string[]>([]);
@@ -311,7 +320,12 @@ export default function RenderNew() {
   }, [sessionId, companyId, config, photo, photoPreview, queryClient]);
 
   const startPolling = useCallback((sid: string) => {
-    const dotsInterval = setInterval(() => {
+    // Pulisci eventuali poll precedenti
+    if (pollRef.current) clearTimeout(pollRef.current);
+    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollCountRef.current = 0;
+
+    dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
       setPollState(prev => ({
         ...prev,
@@ -322,7 +336,7 @@ export default function RenderNew() {
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        clearInterval(dotsInterval);
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setGenerating(false);
         toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
         setStep(2);
@@ -338,7 +352,7 @@ export default function RenderNew() {
       const s = sess as { status: string; result_urls: string[] | null } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
-        clearInterval(dotsInterval);
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
@@ -349,7 +363,7 @@ export default function RenderNew() {
       }
 
       if (s?.status === "failed") {
-        clearInterval(dotsInterval);
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setGenerating(false);
         toast.error("Render fallito. Riprova.");
         setStep(2);
@@ -382,7 +396,7 @@ export default function RenderNew() {
         .insert({
           company_id: companyId,
           session_id: sessionId,
-          result_url: resultUrls[0],
+          render_url: resultUrls[0],
           original_url: photoPath ?? "",
           config_summary: configSummary,
           share_token: shareToken,

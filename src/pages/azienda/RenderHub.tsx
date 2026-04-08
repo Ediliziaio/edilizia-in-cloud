@@ -82,14 +82,14 @@ export default function RenderHub() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_gallery" as never)
-        .select("id, result_url, original_url, config_summary, created_at")
+        .select("id, render_url, original_url, config_summary, created_at")
         .eq("company_id" as never, companyId as never)
         .order("created_at" as never, { ascending: false })
         .limit(6);
       if (error) throw error;
       return (data ?? []) as {
         id: string;
-        result_url: string;
+        render_url: string;
         original_url: string | null;
         config_summary: Record<string, string> | null;
         created_at: string;
@@ -198,7 +198,7 @@ export default function RenderHub() {
                   onClick={() => navigate(`/azienda/render/gallery/${item.id}`)}
                 >
                   <img
-                    src={item.result_url}
+                    src={item.render_url}
                     alt="Render"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
