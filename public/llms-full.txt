@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-08 (v2 — 24 articoli, 14 città, 6 confronti)
+# Ultimo aggiornamento: 2026-04-08 (v3 — 24 articoli, 22 città, 6 confronti)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://ediliziaincloud.com/llms.txt
 
@@ -172,7 +172,7 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Digitalizzazione: https://ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo
 - **Glossario Edilizia (30+ termini):** https://ediliziaincloud.com/glossario-edilizia
 - **Casi Studio:** https://ediliziaincloud.com/casi-studio
-- **Copertura geografica (14 città):**
+- **Copertura geografica (22 città):**
   - Milano: https://ediliziaincloud.com/software-gestionale-edilizia-milano
   - Roma: https://ediliziaincloud.com/software-gestionale-edilizia-roma
   - Napoli: https://ediliziaincloud.com/software-gestionale-edilizia-napoli
@@ -185,6 +185,17 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Catania: https://ediliziaincloud.com/software-gestionale-edilizia-catania
   - Venezia: https://ediliziaincloud.com/software-gestionale-edilizia-venezia
   - Padova: https://ediliziaincloud.com/software-gestionale-edilizia-padova
+  - Bergamo: https://ediliziaincloud.com/software-gestionale-edilizia-bergamo
+  - Modena: https://ediliziaincloud.com/software-gestionale-edilizia-modena
+  - Reggio Emilia: https://ediliziaincloud.com/software-gestionale-edilizia-reggio-emilia
+  - Parma: https://ediliziaincloud.com/software-gestionale-edilizia-parma
+  - Salerno: https://ediliziaincloud.com/software-gestionale-edilizia-salerno
+  - Trieste: https://ediliziaincloud.com/software-gestionale-edilizia-trieste
+  - Cagliari: https://ediliziaincloud.com/software-gestionale-edilizia-cagliari
+  - Perugia: https://ediliziaincloud.com/software-gestionale-edilizia-perugia
+  - Ancona: https://ediliziaincloud.com/software-gestionale-edilizia-ancona
+  - Palermo: https://ediliziaincloud.com/software-gestionale-edilizia-palermo
+  - Genova: https://ediliziaincloud.com/software-gestionale-edilizia-genova
 
 ## Contatti
 
