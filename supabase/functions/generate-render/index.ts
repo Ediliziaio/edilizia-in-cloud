@@ -402,6 +402,19 @@ function buildPromptFromConfig(session: any): {
   return { systemPrompt, userPrompt, negativePrompt, promptVersion: "6.0.0", blocks };
 }
 
+// ── resolveRenderSize ─────────────────────────────────────────────────────────
+// OpenAI gpt-image-1 / dall-e-2 supportano: 256x256, 512x512, 1024x1024, 1792x1024, 1024x1792
+function resolveRenderSize(w?: number, h?: number): string {
+  if (!w || !h) return "1024x1024";
+  const ratio = w / h;
+  // Landscape (>1.4): 1792x1024
+  if (ratio > 1.4) return "1792x1024";
+  // Portrait (<0.7): 1024x1792
+  if (ratio < 0.7) return "1024x1792";
+  // Square-ish: 1024x1024
+  return "1024x1024";
+}
+
 // ── fetchWithTimeout ──────────────────────────────────────────────────────────
 async function fetchWithTimeout(
   url: string,
@@ -455,7 +468,12 @@ Deno.serve(async (req) => {
 
     // ── Parse request ───────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { session_id, config } = body as { session_id?: string; config?: Record<string, unknown> };
+    const { session_id, config, target_width, target_height } = body as {
+      session_id?: string;
+      config?: Record<string, unknown>;
+      target_width?: number;
+      target_height?: number;
+    };
 
     if (!session_id) {
       return new Response(
@@ -605,7 +623,9 @@ Deno.serve(async (req) => {
       form.append("prompt", userPrompt);
       form.append("image[]", imgBlob, "photo.jpg");
       form.append("n", "1");
-      form.append("size", "1024x1024");
+      // Determina dimensione output: usa target se fornito, altrimenti 1024x1024
+      const renderSize = resolveRenderSize(target_width, target_height);
+      form.append("size", renderSize);
       form.append("response_format", "b64_json");
 
       const resp = await fetchWithTimeout(
