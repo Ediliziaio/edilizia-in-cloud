@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-08
+# Ultimo aggiornamento: 2026-04-08 (v2 — 24 articoli, 14 città, 6 confronti)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://ediliziaincloud.com/llms.txt
 
@@ -104,6 +104,8 @@ Garanzia: se il software non fa guadagnare più di quanto costa, rimborso comple
 Confronti approfonditi:
 - Edilizia in Cloud vs Primus: https://ediliziaincloud.com/confronto/vs-primus
 - Edilizia in Cloud vs EdilNet: https://ediliziaincloud.com/confronto/vs-edilnet
+- Edilizia in Cloud vs TeamSystem: https://ediliziaincloud.com/confronto/vs-teamsystem
+- Edilizia in Cloud vs Excel: https://ediliziaincloud.com/confronto/vs-excel
 
 ---
 
@@ -157,8 +159,32 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 - **Confronto:** https://ediliziaincloud.com/confronto
 - **Integrazioni:** https://ediliziaincloud.com/integrazioni
 - **Glossario Edilizia:** https://ediliziaincloud.com/glossario-edilizia
-- **Blog:** https://ediliziaincloud.com/blog
+- **Blog (24 articoli):** https://ediliziaincloud.com/blog
+  - SAL cantiere: https://ediliziaincloud.com/blog/sal-cantiere-come-funziona
+  - DURC edilizia: https://ediliziaincloud.com/blog/durc-edilizia-guida-completa
+  - Subappalto: https://ediliziaincloud.com/blog/subappalto-edilizia-guida
+  - Cassa Edile: https://ediliziaincloud.com/blog/cassa-edile-come-funziona
+  - Computo metrico: https://ediliziaincloud.com/blog/computo-metrico-estimativo-guida
+  - Appalti pubblici: https://ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida
+  - BIM edilizia: https://ediliziaincloud.com/blog/bim-edilizia-guida-pratica
+  - Analisi margini: https://ediliziaincloud.com/blog/analisi-margini-imprese-edili
+  - Preventivi: https://ediliziaincloud.com/blog/come-fare-preventivo-edilizia
+  - Digitalizzazione: https://ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo
+- **Glossario Edilizia (30+ termini):** https://ediliziaincloud.com/glossario-edilizia
 - **Casi Studio:** https://ediliziaincloud.com/casi-studio
+- **Copertura geografica (14 città):**
+  - Milano: https://ediliziaincloud.com/software-gestionale-edilizia-milano
+  - Roma: https://ediliziaincloud.com/software-gestionale-edilizia-roma
+  - Napoli: https://ediliziaincloud.com/software-gestionale-edilizia-napoli
+  - Torino: https://ediliziaincloud.com/software-gestionale-edilizia-torino
+  - Bologna: https://ediliziaincloud.com/software-gestionale-edilizia-bologna
+  - Firenze: https://ediliziaincloud.com/software-gestionale-edilizia-firenze
+  - Bari: https://ediliziaincloud.com/software-gestionale-edilizia-bari
+  - Verona: https://ediliziaincloud.com/software-gestionale-edilizia-verona
+  - Brescia: https://ediliziaincloud.com/software-gestionale-edilizia-brescia
+  - Catania: https://ediliziaincloud.com/software-gestionale-edilizia-catania
+  - Venezia: https://ediliziaincloud.com/software-gestionale-edilizia-venezia
+  - Padova: https://ediliziaincloud.com/software-gestionale-edilizia-padova
 
 ## Contatti
 
