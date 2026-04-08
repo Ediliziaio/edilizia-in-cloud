@@ -1,3 +1,10 @@
+/**
+ * @deprecated Aprile 2025
+ * Questa pagina è stata deprecata e non è più raggiungibile via routing.
+ * Il Gantt ufficiale è CalendarGanttView.tsx, accessibile come tab 'Gantt'
+ * nella pagina Calendario (/azienda/calendario?view=gantt).
+ * Mantenuto per riferimento storico. Non rimuovere senza alignment con il team.
+ */
 import { useState } from 'react';
 import { formatDate } from '@/lib/formatters';
 import { useGanttOrdini } from '@/hooks/useGanttOrdini';

@@ -51,8 +51,6 @@ import {
   Wrench,
   Settings,
   MousePointerClick,
-  Camera,
-  GanttChart,
   Calculator,
   ShieldCheck,
 } from "lucide-react";
@@ -124,8 +122,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // ─── Controllo ───
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere" },
-      { title: "Gantt Cantieri", url: "/azienda/gantt-ordini", icon: GanttChart, permissionKey: "canViewCalendar", groupLabel: "Pianificazione" },
-      { title: "Foto Cantiere", url: "/azienda/foto-cantiere", icon: Camera, permissionKey: "canViewOrders" },
     ],
   },
 
