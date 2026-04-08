@@ -16,6 +16,16 @@ const categoryColors: Record<string, string> = {
   "Digitalizzazione": "bg-slate-100 text-slate-700",
 };
 
+// Map categoria → slug per le pagine dedicate (SEO category pages)
+const categoryToSlug: Record<string, string> = {
+  "Gestione Cantieri": "gestione-cantieri",
+  "Finanza": "finanza-edilizia",
+  "HR & Personale": "hr-personale",
+  "Marketing": "marketing-edilizia",
+  "Commerciale": "commerciale-edilizia",
+  "Digitalizzazione": "digitalizzazione-edilizia",
+};
+
 function formatDate(iso: string): string {
   const date = new Date(iso);
   return date.toLocaleDateString("it-IT", {
@@ -245,19 +255,34 @@ export default function Blog() {
       <section className="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {["Tutti", ...categories].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 ${
-                  activeCategory === cat
-                    ? "bg-[#F97415] text-white shadow-md shadow-[#F97415]/30"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+            {["Tutti", ...categories].map((cat) => {
+              const catSlug = categoryToSlug[cat];
+              // "Tutti" stays on /blog; categories navigate to their dedicated SEO page
+              if (cat === "Tutti") {
+                return (
+                  <button
+                    key="Tutti"
+                    onClick={() => { setActiveCategory("Tutti"); setSearchQuery(""); }}
+                    className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 ${
+                      activeCategory === "Tutti" && !searchQuery
+                        ? "bg-[#F97415] text-white shadow-md shadow-[#F97415]/30"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Tutti
+                  </button>
+                );
+              }
+              return (
+                <Link
+                  key={cat}
+                  to={catSlug ? `/blog/categoria/${catSlug}` : "/blog"}
+                  className="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-[#F97415] hover:text-white transition-all duration-200 flex-shrink-0"
+                >
+                  {cat}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>

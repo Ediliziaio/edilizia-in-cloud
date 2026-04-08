@@ -71,6 +71,7 @@ const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
+const BlogCategory = lazy(() => import("@/pages/BlogCategory"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
@@ -155,6 +156,7 @@ const App = () => (
               <Route path="/prezzi" element={<Prezzi />} />
               <Route path="/confronto" element={<Confronto />} />
               <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/categoria/:slug" element={<BlogCategory />} />
               <Route path="/blog/:slug" element={<BlogPost />} />
               <Route path="/formazione" element={<Formazione />} />
               <Route path="/casi-studio" element={<CasiStudio />} />
