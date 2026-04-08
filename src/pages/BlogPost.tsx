@@ -270,7 +270,7 @@ export default function BlogPost() {
   };
 
   // Generate HowTo schema for how-to style posts
-  const isHowTo = /^(come-|sal-|durc-|giornale-|cassa-|computo-|appalti-|bim-|subappalto-|acquisire-|sito-web-|digitalizzazione-|gestione-operai-|sicurezza-|ccnl-|attestazione-|superbonus-)/.test(post.slug);
+  const isHowTo = /^(come-|sal-|durc-|giornale-|cassa-|computo-|appalti-|bim-|subappalto-|acquisire-|sito-web-|digitalizzazione-|gestione-operai-|sicurezza-|ccnl-|attestazione-|superbonus-|gestione-liquidita-|pnrr-|come-scegliere-|gestione-subappal)/.test(post.slug);
   const listBlocks = post.content.filter((c) => c.type === "list" && c.items && c.items.length > 0);
   const howToSteps = listBlocks.flatMap((block) =>
     (block.items ?? []).map((item, i) => ({

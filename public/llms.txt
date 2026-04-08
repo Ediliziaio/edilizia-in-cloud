@@ -82,7 +82,7 @@ Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, so
 - **Supporto:** info@ediliziaincloud.com
 - **Versione completa per AI:** https://ediliziaincloud.com/llms-full.txt
 
-## Guide del blog (28 articoli)
+## Guide del blog (32 articoli)
 
 - SAL cantiere: https://ediliziaincloud.com/blog/sal-cantiere-come-funziona
 - DURC edilizia: https://ediliziaincloud.com/blog/durc-edilizia-guida-completa
@@ -101,6 +101,10 @@ Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, so
 - CCNL Edilizia guida: https://ediliziaincloud.com/blog/ccnl-edilizia-guida
 - Attestazione SOA: https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili
 - Superbonus 2025-2026: https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026
+- Gestione liquidità: https://ediliziaincloud.com/blog/gestione-liquidita-impresa-edile
+- PNRR edilizia 2026: https://ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026
+- Come scegliere gestionale: https://ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia
+- Gestione subappaltatori: https://ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile
 
 ## Copertura geografica (35 città)
 
