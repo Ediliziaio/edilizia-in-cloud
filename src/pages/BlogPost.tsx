@@ -283,6 +283,11 @@ export default function BlogPost() {
         <img
           src={post.coverImage}
           alt={post.title}
+          width={1200}
+          height={630}
+          fetchPriority="high"
+          loading="eager"
+          decoding="async"
           className="w-full object-cover"
           style={{ maxHeight: 480, minHeight: 320, width: "100%", objectFit: "cover" }}
         />
@@ -541,6 +546,10 @@ export default function BlogPost() {
                       <img
                         src={rp.coverImage}
                         alt={rp.title}
+                        width={1200}
+                        height={630}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute top-3 left-3">

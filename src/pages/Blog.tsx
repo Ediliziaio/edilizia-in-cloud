@@ -43,6 +43,10 @@ function PostCard({ post, featured = false }: PostCardProps) {
           <img
             src={post.coverImage}
             alt={post.title}
+            width={1200}
+            height={630}
+            loading="eager"
+            decoding="async"
             className="w-full h-72 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -93,6 +97,10 @@ function PostCard({ post, featured = false }: PostCardProps) {
         <img
           src={post.coverImage}
           alt={post.title}
+          width={1200}
+          height={630}
+          loading="lazy"
+          decoding="async"
           className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute top-3 left-3">
