@@ -988,6 +988,12 @@ export default function Funzionalita() {
                 desc: "Confronta preventivo vs consuntivo in tempo reale e identifica dove perdi margine.",
                 badge: "",
               },
+              {
+                href: "/funzionalita/hr-personale",
+                title: "HR & Personale",
+                desc: "Timbratura GPS da cantiere, Cassa Edile, CCNL edilizia e export per buste paga.",
+                badge: "Nuovo",
+              },
             ].map((item) => (
               <Link
                 key={item.href}

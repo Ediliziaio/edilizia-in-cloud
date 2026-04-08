@@ -95,6 +95,7 @@ const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneC
 const FatturazioneElettronica = lazy(() => import("@/pages/funzionalita/FatturazioneElettronica"));
 const PreventiviEdilizia     = lazy(() => import("@/pages/funzionalita/PreventiviEdilizia"));
 const MarginiCantiere        = lazy(() => import("@/pages/funzionalita/MarginiCantiere"));
+const HrPersonale            = lazy(() => import("@/pages/funzionalita/HrPersonale"));
 
 // Confronto sub-pages
 const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
@@ -190,6 +191,7 @@ const App = () => (
               <Route path="/funzionalita/fatturazione-elettronica" element={<FatturazioneElettronica />} />
               <Route path="/funzionalita/preventivi-edilizia" element={<PreventiviEdilizia />} />
               <Route path="/funzionalita/margini-cantiere" element={<MarginiCantiere />} />
+              <Route path="/funzionalita/hr-personale" element={<HrPersonale />} />
               <Route path="/confronto/vs-primus" element={<VsPrimus />} />
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />
