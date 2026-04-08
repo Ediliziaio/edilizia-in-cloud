@@ -266,6 +266,72 @@ export default function Integrazioni() {
         </div>
       </main>
 
+      {/* ── FAQ INTEGRAZIONI ── */}
+      <JsonLd
+        id="jsonld-faq-integrazioni"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Edilizia in Cloud si integra con FattureInCloud?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. L'integrazione con FattureInCloud è nativa: le fatture create in Edilizia in Cloud vengono sincronizzate automaticamente su FattureInCloud per la contabilità. Non serve doppio inserimento.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso collegare Edilizia in Cloud al mio commercialista?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Edilizia in Cloud esporta automaticamente prima nota, registro IVA e movimenti in formato compatibile con i principali software contabili (TeamSystem, Zucchetti, Datev). Il tuo commercialista riceve i dati già strutturati.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "C'è un'API per integrazioni personalizzate?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Edilizia in Cloud dispone di API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce. La documentazione API è disponibile nel piano Enterprise.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Le integrazioni hanno costi aggiuntivi?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Le integrazioni native (FattureInCloud, Aruba, Stripe, Google Calendar, ecc.) sono incluse nel piano senza costi aggiuntivi. L'accesso alle API REST è disponibile dal piano Professional in poi.",
+              },
+            },
+          ],
+        }}
+      />
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
+            Domande frequenti sulle Integrazioni
+          </h2>
+          <div className="divide-y divide-gray-200">
+            {[
+              { q: "Edilizia in Cloud si integra con FattureInCloud?", a: "Sì. L'integrazione con FattureInCloud è nativa: le fatture vengono sincronizzate automaticamente. Nessun doppio inserimento." },
+              { q: "Posso collegare Edilizia in Cloud al mio commercialista?", a: "Sì. Edilizia in Cloud esporta prima nota, registro IVA e movimenti in formato compatibile con TeamSystem, Zucchetti e Datev. Il commercialista riceve i dati già strutturati." },
+              { q: "C'è un'API per integrazioni personalizzate?", a: "Sì. API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce." },
+              { q: "Le integrazioni hanno costi aggiuntivi?", a: "Le integrazioni native sono incluse nel piano. L'accesso alle API REST è disponibile dal piano Professional in poi." },
+            ].map((item, i) => (
+              <details key={i} className="py-5 group">
+                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
+                  {item.q}
+                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                </summary>
+                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );
