@@ -22,6 +22,8 @@ export default function LandingFooter() {
               <li><Link to="/prezzi" className="hover:text-[#F97415] transition-colors">Prezzi</Link></li>
               <li><Link to="/confronto" className="hover:text-[#F97415] transition-colors">Confronto</Link></li>
               <li><Link to="/blog" className="hover:text-[#F97415] transition-colors">Blog</Link></li>
+              <li><Link to="/integrazioni" className="hover:text-[#F97415] transition-colors">Integrazioni</Link></li>
+              <li><Link to="/glossario-edilizia" className="hover:text-[#F97415] transition-colors">Glossario Edilizia</Link></li>
               <li><Link to="/casi-studio" className="hover:text-[#F97415] transition-colors">Casi Studio</Link></li>
               <li><Link to="/chi-siamo" className="hover:text-[#F97415] transition-colors">Chi Siamo</Link></li>
               <li><Link to="/demo" className="hover:text-[#F97415] transition-colors">Richiedi Demo</Link></li>
