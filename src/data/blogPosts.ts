@@ -1208,6 +1208,214 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "17",
+    slug: "acquisire-clienti-impresa-edile",
+    title: "Come Acquisire Clienti per Impresa Edile: 7 Strategie Concrete per il 2026",
+    excerpt:
+      "Guida pratica per trovare nuovi clienti nel settore edile: dal passaparola digitale ai preventivi irresistibili, dalle recensioni Google alle partnership con agenzie immobiliari.",
+    category: "Commerciale",
+    tags: ["acquisire clienti edilizia", "commerciale impresa edile", "preventivi edilizia", "marketing cantieri"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 8,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il 73% delle imprese edili italiane trova nuovi clienti quasi esclusivamente tramite passaparola. È un segnale di buona reputazione, ma anche di vulnerabilità: quando il passaparola si ferma, si fermano i cantieri. In questa guida vediamo 7 strategie concrete per diversificare le fonti di acquisizione clienti nel 2026.",
+      },
+      {
+        type: "list",
+        heading: "7 strategie per acquisire clienti come impresa edile",
+        items: [
+          "Google Business Profile ottimizzato: il 68% delle ricerche locali inizia da Google Maps — avere un profilo completo con foto, recensioni e servizi è il primo passo",
+          "Preventivi veloci e professionali: un preventivo inviato in 24 ore converte 3 volte di più di uno inviato dopo una settimana",
+          "Recensioni Google: chiedile sistematicamente a ogni cliente soddisfatto — 10 recensioni da 5 stelle valgono più di qualsiasi pubblicità",
+          "Partnership con agenzie immobiliari: gli agenti immobiliari hanno clienti che comprano casa da ristrutturare — costruisci rapporti con le agenzie locali",
+          "Portfolio digitale dei cantieri eseguiti: foto prima/dopo, materiali usati e tempi rispettati — un portfolio convincente su un sito web professionale",
+          "Follow-up sistematico sui preventivi non chiusi: il 40% dei preventivi non chiusi in prima battuta si chiude entro 3 mesi con un follow-up corretto",
+          "Referral program per i clienti esistenti: offri uno sconto o un bonus chi ti porta un nuovo cliente — i clienti soddisfatti sono i tuoi migliori venditori",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il preventivo come strumento commerciale",
+        body: "Il preventivo è il primo documento professionale che il cliente riceve. Un preventivo scritto in Word o a mano trasmette un'immagine di impresa piccola e poco strutturata. Un preventivo digitale con logo, computo dettagliato, termini chiari e firma digitale integrata trasmette professionalità e ispira fiducia. In Edilizia in Cloud puoi generare preventivi professionali in 15 minuti che il cliente può accettare e firmare online.",
+      },
+      {
+        type: "section",
+        heading: "Come usare le recensioni per acquisire clienti",
+        body: "Le recensioni Google sono il passaparola digitale del 2026. Ogni cliente soddisfatto dovrebbe lasciare una recensione, ma raramente lo fa spontaneamente. La strategia vincente: a fine cantiere, manda un messaggio WhatsApp con il link diretto alla pagina di recensione Google. Il tasso di conversione è 5-10 volte superiore rispetto a una richiesta generica.",
+      },
+      {
+        type: "quote",
+        quote: "Da quando uso Edilizia in Cloud per i preventivi, i clienti mi dicono spesso 'sembra un'impresa grande'. E i preventivi li chiudo in media il 40% in più rispetto a prima.",
+        author: "Roberto C., impresa edile, Torino",
+      },
+      {
+        type: "cta",
+        heading: "Professionalizza la tua pipeline commerciale",
+        body: "Preventivi digitali professionali, CRM per seguire i clienti potenziali e follow-up automatici. Edilizia in Cloud trasforma il tuo processo commerciale da artigianale a strutturato.",
+      },
+    ],
+  },
+  {
+    id: "18",
+    slug: "gestione-operai-cantiere-presenze-ore",
+    title: "Gestione Operai in Cantiere: Presenze, Ore e Paghe nel 2026",
+    excerpt:
+      "Come gestire le presenze degli operai edili, tracciare le ore per cantiere, collegare le ore alle buste paga e rispettare il CCNL edilizia. Guida completa per titolari di imprese edili.",
+    category: "HR & Personale",
+    tags: ["gestione operai edilizia", "presenze cantiere", "CCNL edilizia", "ore lavoro cantiere"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 7,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Gestire le presenze degli operai in cantiere è una delle attività più time-consuming per i titolari di imprese edili. Fogli Excel, chiamate ai capocantiere, timbrature cartacee: un sistema frammentato che porta a errori nelle buste paga, ore non imputate alle commesse e costi del personale impossibili da controllare.",
+      },
+      {
+        type: "section",
+        heading: "Il problema delle presenze in edilizia",
+        body: "In edilizia il problema presenze ha tre dimensioni: (1) verificare che l'operaio sia davvero in cantiere, (2) sapere quante ore ha lavorato su ogni commessa (non solo in totale), (3) esportare i dati per le buste paga. La maggior parte delle imprese risolve il punto 1 con telefonate, il punto 2 non lo risolve affatto, e il punto 3 lo fa ridigitando tutto nel software paghe.",
+      },
+      {
+        type: "list",
+        heading: "Come funziona la gestione presenze digitale in cantiere",
+        items: [
+          "Timbratura da app mobile: l'operaio timbra entrata e uscita dal telefono, il GPS certifica la posizione",
+          "Attribuzione ore alla commessa: ogni ora è collegata automaticamente al cantiere in cui si trova l'operaio",
+          "Straordinari e maggiorazioni: il sistema applica automaticamente le maggiorazioni CCNL (notturno, festivo, straordinario)",
+          "Giustificativi digitali: permessi, malattie e assenze vengono gestiti dall'app senza carta",
+          "Export per il commercialista: i dati ore vengono esportati nel formato richiesto dal software paghe",
+          "Report per cantiere: il titolare vede il costo del personale per ogni commessa in tempo reale",
+        ],
+      },
+      {
+        type: "section",
+        heading: "CCNL Edilizia: le principali regole da rispettare",
+        body: "Il CCNL Edilizia (contratto collettivo nazionale) prevede regole specifiche sugli orari: orario normale di 40 ore settimanali, maggiorazione del 25% per le prime 8 ore di straordinario, 35% per le successive. Lavoro notturno (tra le 22 e le 6): maggiorazione del 25%. Lavoro festivo: maggiorazione del 35%. Un software gestionale che conosce queste regole le applica automaticamente, evitando errori costosi nelle buste paga.",
+      },
+      {
+        type: "section",
+        heading: "Come collegare le ore alla redditività del cantiere",
+        body: "La gestione presenze non è solo HR: è anche controllo di gestione. Se sai quante ore di manodopera sono state usate su ogni cantiere (e a che costo), puoi confrontarle con il preventivo e capire se stai guadagnando o perdendo. In Edilizia in Cloud, le ore timbrare dagli operai confluiscono automaticamente nel conto economico di ogni commessa.",
+      },
+      {
+        type: "cta",
+        heading: "Digitalizza la gestione presenze con Edilizia in Cloud",
+        body: "Timbrature GPS, attribuzione ore per cantiere, maggiorazioni CCNL automatiche e export per buste paga. Nessun dato perso, nessun errore nelle paghe.",
+      },
+    ],
+  },
+  {
+    id: "19",
+    slug: "sito-web-impresa-edile-guida",
+    title: "Sito Web per Impresa Edile: Come Farlo Bene e Trovare Clienti Online",
+    excerpt:
+      "Guida pratica per creare un sito web efficace per la tua impresa edile: cosa deve contenere, come ottimizzarlo per Google e come trasformarlo in una macchina di acquisizione clienti.",
+    category: "Marketing",
+    tags: ["sito web impresa edile", "marketing edilizia", "SEO impresa edile", "acquisire clienti online"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 9,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Nel 2026, l'87% dei committenti cerca online l'impresa edile prima di contattarla. Avere un sito web professionale non è più un optional: è il biglietto da visita digitale della tua impresa. Eppure la maggior parte delle imprese edili italiane ha un sito datato, senza portfolio aggiornato e non trovabile su Google.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve contenere il sito web di un'impresa edile",
+        items: [
+          "Homepage chiara: chi sei, cosa fai, per chi lavori e dove — in 5 secondi il visitatore deve capire tutto",
+          "Portfolio lavori: foto prima/dopo dei cantieri eseguiti, con descrizione dei materiali e dei tempi",
+          "Servizi offerti: pagina dedicata per ogni tipologia di lavoro (ristrutturazioni, nuove costruzioni, impianti, ecc.)",
+          "Recensioni e testimonianze: almeno 10 recensioni reali di clienti soddisfatti, possibilmente con foto",
+          "Preventivo online: un form semplice per richiedere un preventivo — riduce il filtro e aumenta i lead",
+          "Contatti e zona di intervento: telefono, WhatsApp, email e comuni/province in cui operi",
+          "Blog con guide utili: articoli su tematiche di interesse per i tuoi clienti (bonus edilizi, ristrutturazioni, ecc.)",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come posizionarsi su Google come impresa edile locale",
+        body: "Per trovare clienti online la parola chiave è 'locale'. Un committente cerca 'impresa edile Milano ristrutturazioni', non 'impresa edile'. Devi ottimizzare il tuo sito per le ricerche locali: inserisci città e provincia in tutti i titoli delle pagine, crea una pagina dedicata per ogni comune in cui operi, ottimizza Google Business Profile e raccogli recensioni Google. In 6-12 mesi puoi arrivare in prima pagina per le ricerche locali nel tuo settore.",
+      },
+      {
+        type: "section",
+        heading: "Il portfolio online come strumento di vendita",
+        body: "Il portfolio è l'elemento più persuasivo del sito di un'impresa edile. Le foto 'prima e dopo' dei cantieri eseguiti rispondono alla domanda che ogni committente si fa: 'saranno capaci?'. Investi in fotografie professionali dei tuoi lavori migliori. Per ogni cantiere mostra: lo stato iniziale, i lavori in corso e il risultato finale. Aggiungi una breve descrizione: tipo di intervento, materiali usati, tempi rispettati.",
+      },
+      {
+        type: "cta",
+        heading: "Trasforma Edilizia in Cloud nel tuo strumento di marketing",
+        body: "Preventivi digitali che impressionano i clienti, portale clienti per far vedere l'avanzamento dei lavori e CRM per seguire ogni lead. Edilizia in Cloud non è solo un gestionale: è il tuo vantaggio competitivo.",
+      },
+    ],
+  },
+  {
+    id: "20",
+    slug: "digitalizzazione-impresa-edile-passo-passo",
+    title: "Digitalizzare l'Impresa Edile nel 2026: Guida Passo Passo Senza Sprechi",
+    excerpt:
+      "Come digitalizzare un'impresa edile in modo ordinato e senza buttare soldi: da dove iniziare, quali strumenti scegliere e come formare il team. Guida pratica per titolari edili.",
+    category: "Digitalizzazione",
+    tags: ["digitalizzazione edilizia", "trasformazione digitale impresa edile", "software edilizia", "innovazione cantieri"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 10,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La digitalizzazione dell'impresa edile non significa comprare un software e sperare che tutto cambi da solo. Significa cambiare come lavori: come tracki le ore, come fai i preventivi, come gestisci i cantieri, come fatturi. E questo richiede una strategia — non un acquisto impulsivo.",
+      },
+      {
+        type: "list",
+        heading: "Il percorso di digitalizzazione in 5 fasi",
+        items: [
+          "Fase 1 — Audit: mappa tutti i processi attuali (preventivi, cantieri, fatture, HR) e identifica dove perdi più tempo e denaro",
+          "Fase 2 — Priorità: concentrati prima sul problema più costoso — di solito è il controllo dei margini di cantiere o la fatturazione",
+          "Fase 3 — Strumento unico: scegli un gestionale che copra tutti i processi invece di 5 software diversi che non parlano tra loro",
+          "Fase 4 — Onboarding gradurale: inizia con 1-2 funzionalità, poi aggiungi le altre quando il team è familiare",
+          "Fase 5 — Misurazione: dopo 3 mesi misura i risultati — margini migliorati? Ore risparmiate? Se no, qualcosa non va",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Gli errori più comuni nella digitalizzazione delle imprese edili",
+        body: "Il primo errore è comprare troppi strumenti separati: un software per i preventivi, uno per la fatturazione, uno per le presenze, Excel per i cantieri. Il risultato è caos e doppi inserimenti. Il secondo errore è non formare il team: un software che gli operai non usano non serve a niente. Il terzo errore è aspettarsi risultati immediati: la digitalizzazione richiede 2-3 mesi per diventare un'abitudine.",
+      },
+      {
+        type: "section",
+        heading: "Come formare il team sulla digitalizzazione",
+        body: "La resistenza al cambiamento in cantiere è reale. I capocantiere e gli operai più anziani sono abituati alla carta. La chiave è mostrare loro il beneficio concreto: 'Con questa app non devi più chiamarmi per ogni aggiornamento'. Inizia con i più curiosi e falli diventare i 'campioni interni' della digitalizzazione. Quando vedono che funziona, gli altri seguono.",
+      },
+      {
+        type: "quote",
+        quote: "Ho resistito per 3 anni prima di digitalizzare. Ora mi chiedo come facevo prima. Ho recuperato 10 ore a settimana e i miei margini sono aumentati del 18%.",
+        author: "Giorgio M., 3 cantieri aperti, Bergamo",
+      },
+      {
+        type: "cta",
+        heading: "Inizia la digitalizzazione dal problema più costoso",
+        body: "Edilizia in Cloud ti aiuta a digitalizzare il processo più impattante prima: gestione cantieri e controllo margini. Setup in 48 ore, formazione gratuita, migrazione da Excel inclusa.",
+      },
+    ],
+  },
 ];
 
 export const categories = [
