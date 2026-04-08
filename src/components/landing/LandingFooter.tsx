@@ -66,6 +66,14 @@ export default function LandingFooter() {
               <li><Link to="/software-gestionale-edilizia-livorno" className="hover:text-[#F97415] transition-colors">Livorno</Link></li>
               <li><Link to="/software-gestionale-edilizia-prato" className="hover:text-[#F97415] transition-colors">Prato</Link></li>
               <li><Link to="/software-gestionale-edilizia-vicenza" className="hover:text-[#F97415] transition-colors">Vicenza</Link></li>
+              <li><Link to="/software-gestionale-edilizia-reggio-calabria" className="hover:text-[#F97415] transition-colors">Reggio Calabria</Link></li>
+              <li><Link to="/software-gestionale-edilizia-foggia" className="hover:text-[#F97415] transition-colors">Foggia</Link></li>
+              <li><Link to="/software-gestionale-edilizia-pescara" className="hover:text-[#F97415] transition-colors">Pescara</Link></li>
+              <li><Link to="/software-gestionale-edilizia-taranto" className="hover:text-[#F97415] transition-colors">Taranto</Link></li>
+              <li><Link to="/software-gestionale-edilizia-cosenza" className="hover:text-[#F97415] transition-colors">Cosenza</Link></li>
+              <li><Link to="/software-gestionale-edilizia-trento" className="hover:text-[#F97415] transition-colors">Trento</Link></li>
+              <li><Link to="/software-gestionale-edilizia-bolzano" className="hover:text-[#F97415] transition-colors">Bolzano</Link></li>
+              <li><Link to="/software-gestionale-edilizia-ferrara" className="hover:text-[#F97415] transition-colors">Ferrara</Link></li>
             </ul>
           </div>
 

@@ -281,7 +281,7 @@ export default function Home() {
               to="/software-gestionale-edilizia"
               className="text-sm font-semibold text-[#F97415] hover:underline"
             >
-              Vedi tutte le 27 città →
+              Vedi tutte le 35 città →
             </Link>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
@@ -314,6 +314,14 @@ export default function Home() {
               { name: "Livorno", slug: "livorno" },
               { name: "Prato", slug: "prato" },
               { name: "Vicenza", slug: "vicenza" },
+              { name: "Reggio Calabria", slug: "reggio-calabria" },
+              { name: "Foggia", slug: "foggia" },
+              { name: "Pescara", slug: "pescara" },
+              { name: "Taranto", slug: "taranto" },
+              { name: "Cosenza", slug: "cosenza" },
+              { name: "Trento", slug: "trento" },
+              { name: "Bolzano", slug: "bolzano" },
+              { name: "Ferrara", slug: "ferrara" },
             ].map((city) => (
               <Link
                 key={city.slug}

@@ -587,6 +587,14 @@ const CITY_CONFIGS = {
     region: "Veneto",
     description: "Software gestionale per imprese edili a Vicenza. Edilizia industriale, restauro palladiano e cantieri residenziali nel cuore del Nord-Est produttivo.",
   },
+  "reggio-calabria": { city: "Reggio Calabria", region: "Calabria", description: "Software gestionale per imprese edili a Reggio Calabria. Appalti PNRR, porto di Gioia Tauro e cantieri sulla costa tirrenica con Edilizia in Cloud." },
+  foggia: { city: "Foggia", region: "Puglia", description: "Software gestionale per imprese edili a Foggia. Edilizia rurale, appalti pubblici nella Capitanata e cantieri estivi con Edilizia in Cloud." },
+  pescara: { city: "Pescara", region: "Abruzzo", description: "Software gestionale per imprese edili a Pescara. Cantieri costieri, ricostruzione post-sisma e residenziale nell'area metropolitana con Edilizia in Cloud." },
+  taranto: { city: "Taranto", region: "Puglia", description: "Software gestionale per imprese edili a Taranto. Riqualificazione urbana, porto militare e grandi appalti pubblici con Edilizia in Cloud." },
+  cosenza: { city: "Cosenza", region: "Calabria", description: "Software gestionale per imprese edili a Cosenza. Cantieri montani nella Sila, fondi PNRR e costa tirrenica con Edilizia in Cloud." },
+  trento: { city: "Trento", region: "Trentino-Alto Adige", description: "Software gestionale per imprese edili a Trento. Cantieri alpini, standard CasaClima e bioedilizia in legno con Edilizia in Cloud." },
+  bolzano: { city: "Bolzano", region: "Alto Adige", description: "Software gestionale per imprese edili a Bolzano. Standard KlimaHaus, cantieri alpini e mercato bilingue con Edilizia in Cloud." },
+  ferrara: { city: "Ferrara", region: "Emilia-Romagna", description: "Software gestionale per imprese edili a Ferrara. Restauro patrimonio UNESCO, zona alluvionale e riqualificazione delta con Edilizia in Cloud." },
 };
 
 // Blog category meta

@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-08 — 100+ URL, 28 articoli, 27 città, 6 confronti -->
+  <!-- Sitemap aggiornato: 2026-04-08 — 110+ URL, 28 articoli, 35 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -779,6 +779,70 @@
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-vicenza"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-vicenza"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-foggia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-foggia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-foggia"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-pescara</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-pescara"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-pescara"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-taranto</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-taranto"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-taranto"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-cosenza</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-cosenza"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-cosenza"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-trento</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-trento"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-trento"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bolzano</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bolzano"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-bolzano"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-ferrara</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-ferrara"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-ferrara"/>
   </url>
 
   <!-- ── Hub pages ──────────────────────────────────────────────── -->

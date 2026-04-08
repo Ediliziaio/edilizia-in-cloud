@@ -35,6 +35,14 @@ const CITIES = [
   { name: "Livorno", slug: "livorno", region: "Toscana", desc: "Cantieri portuali, costieri e ristrutturazioni nella Toscana tirrenica" },
   { name: "Prato", slug: "prato", region: "Toscana", desc: "Distretto industriale tessile: capannoni, logistica e residenziale" },
   { name: "Vicenza", slug: "vicenza", region: "Veneto", desc: "Edilizia industriale e restauro palladiano nel cuore del Nord-Est" },
+  { name: "Reggio Calabria", slug: "reggio-calabria", region: "Calabria", desc: "Polo edilizio calabrese tra PNRR, porto di Gioia Tauro e costa tirrenica" },
+  { name: "Foggia", slug: "foggia", region: "Puglia", desc: "Edilizia rurale nella Capitanata: capannoni, infrastrutture e appalti pubblici" },
+  { name: "Pescara", slug: "pescara", region: "Abruzzo", desc: "Costa adriatica, ricostruzione post-sisma e residenziale in forte crescita" },
+  { name: "Taranto", slug: "taranto", region: "Puglia", desc: "Riqualificazione urbana, porto militare e grandi investimenti pubblici" },
+  { name: "Cosenza", slug: "cosenza", region: "Calabria", desc: "Cantieri montani nella Sila, PNRR e costa tirrenica cosentina" },
+  { name: "Trento", slug: "trento", region: "Trentino-Alto Adige", desc: "Standard CasaClima, costruzioni in legno e cantieri alpini d'eccellenza" },
+  { name: "Bolzano", slug: "bolzano", region: "Alto Adige", desc: "Leader italiano per standard energetici KlimaHaus e bioedilizia alpina" },
+  { name: "Ferrara", slug: "ferrara", region: "Emilia-Romagna", desc: "Restauro patrimonio UNESCO, zona delta e riqualificazione residenziale" },
 ];
 
 const baseUrl = "https://ediliziaincloud.com";
@@ -42,7 +50,7 @@ const baseUrl = "https://ediliziaincloud.com";
 export default function CityHub() {
   useSEO({
     title: "Software Gestionale Edilizia per Città — Tutte le Province | Edilizia in Cloud",
-    description: "Scopri Edilizia in Cloud nella tua città: software gestionale per imprese edili disponibile in tutta Italia. 27 città con supporto locale, dalla Lombardia alla Sicilia.",
+    description: "Scopri Edilizia in Cloud nella tua città: software gestionale per imprese edili disponibile in tutta Italia. 35 città con supporto locale, dalla Lombardia alla Sicilia.",
     canonical: "/software-gestionale-edilizia",
     keywords: "software gestionale edilizia città, gestionale edilizia regioni, software impresa edile Italia, gestionale cantieri province italiane, software edilizia nord sud Italia",
   });
@@ -96,7 +104,7 @@ export default function CityHub() {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-[#F97415]/10 text-[#F97415] px-4 py-2 rounded-full text-sm font-semibold mb-6">
             <MapPin className="h-4 w-4" />
-            Copertura nazionale — 27 città
+            Copertura nazionale — 35 città
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
             Software Gestionale Edilizia<br />

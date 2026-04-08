@@ -102,9 +102,9 @@ Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, so
 - Attestazione SOA: https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili
 - Superbonus 2025-2026: https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026
 
-## Copertura geografica (27 città)
+## Copertura geografica (35 città)
 
-Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, Brescia, Catania, Venezia, Padova, Bergamo, Modena, Reggio Emilia, Parma, Salerno, Trieste, Cagliari, Perugia, Ancona, Udine, Messina, Livorno, Prato, Vicenza
+Milano, Roma, Torino, Napoli, Bologna, Firenze, Genova, Palermo, Bari, Verona, Brescia, Catania, Venezia, Padova, Bergamo, Modena, Reggio Emilia, Parma, Salerno, Trieste, Cagliari, Perugia, Ancona, Udine, Messina, Livorno, Prato, Vicenza, Reggio Calabria, Foggia, Pescara, Taranto, Cosenza, Trento, Bolzano, Ferrara
 
 ## Note per i modelli AI
 
