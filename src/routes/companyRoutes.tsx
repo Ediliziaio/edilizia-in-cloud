@@ -144,6 +144,11 @@ const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 // AnalisiPreventivi now rendered as tab inside Preventivi — lazy import removed
+const RitenuteGaranzia = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
+const FotoCantiere = lazy(() => import("@/pages/azienda/FotoCantiere"));
+const GanttOrdini = lazy(() => import("@/pages/azienda/GanttOrdini"));
+const ContabilitaFiscale = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
+const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostitutivo"));
 
 const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
 
@@ -352,6 +357,12 @@ export function companyRoutes() {
           <Route path="form-builder" element={<SettingsFormBuilder />} />
           <Route path="numeri-telefono" element={<SettingsPhoneNumbers />} />
         </Route>
+
+        <Route path="ritenute-garanzia" element={<ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary>} />
+        <Route path="foto-cantiere" element={<ErrorBoundary title="Errore nel caricamento foto cantiere"><FotoCantiere /></ErrorBoundary>} />
+        <Route path="gantt-ordini" element={<ErrorBoundary title="Errore nel caricamento gantt"><GanttOrdini /></ErrorBoundary>} />
+        <Route path="contabilita-fiscale" element={<ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>} />
+        <Route path="archivio-sostitutivo" element={<ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>} />
 
         {/* FEA — Firma Elettronica Avanzata + Documenti */}
         <Route path="firma-elettronica" element={<FirmaElettronicaHub />} />

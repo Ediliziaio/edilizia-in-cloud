@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
+import { SDISetupWizard } from "@/components/sdi-wizard/SDISetupWizard";
 
 // ─── Aliquote IVA predefinite italiane ────────────────────────
 const NATURE_IVA = {
@@ -87,6 +88,8 @@ export default function ImpostazioniFatturazione() {
   const [activeTab, setActiveTab] = useState("azienda");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [sdiWizardOpen, setSdiWizardOpen] = useState(false);
+
   // M8 — Export Contabile
   const [isExportingContabile, setIsExportingContabile] = useState(false);
   const [exportDateFrom, setExportDateFrom] = useState("");
@@ -171,11 +174,17 @@ export default function ImpostazioniFatturazione() {
           <h1 className="text-2xl font-bold tracking-tight">Impostazioni Fatturazione</h1>
           <p className="text-muted-foreground text-sm">Configura il modulo di fatturazione nativa — dati aziendali, personalizzazione, pagamenti e aliquote.</p>
         </div>
-        <Button onClick={handleSave} disabled={saving || !isDirty} className="gap-1.5">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva modifiche
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setSdiWizardOpen(true)}>
+            Configura SDI
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !isDirty} className="gap-1.5">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva modifiche
+          </Button>
+        </div>
       </div>
+      <SDISetupWizard open={sdiWizardOpen} onOpenChange={setSdiWizardOpen} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start bg-muted/50">

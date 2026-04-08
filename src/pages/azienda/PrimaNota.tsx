@@ -12,6 +12,7 @@ import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
   TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
 } from "lucide-react";
+import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
@@ -154,6 +155,16 @@ function PrimaNotaInner() {
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-1" /> CSV
           </Button>
+          <PrimaNotaXBRL
+            entries={entries.map(e => ({
+              data: e.entry_date,
+              descrizione: e.description,
+              importo_dare: e.direction === 'uscita' ? Number(e.amount) : 0,
+              importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
+              conto: e.category,
+            }))}
+            anno={new Date(fromDate).getFullYear()}
+          />
           <Button
             variant="outline"
             size="sm"

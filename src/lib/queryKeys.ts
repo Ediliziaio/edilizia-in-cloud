@@ -1014,4 +1014,36 @@ allCompaniesList: ["all-companies-list"] as const,
     byEntity: (entityType: string, entityId: string | null) =>
       ["entity-custom-field-values", entityType, entityId] as const,
   },
+
+  // ── Ritenute Garanzia ──────────────────────────────────
+  ritenuteGaranzia: {
+    all: ["ritenute-garanzia"] as const,
+    list: (companyId: string | undefined) => ["ritenute-garanzia", "all", companyId] as const,
+    byOrder: (companyId: string | undefined, orderId: string | undefined) => ["ritenute-garanzia", companyId, orderId] as const,
+  },
+
+  // ── Foto Cantiere ──────────────────────────────────────
+  fotoCantiere: {
+    all: ["foto-cantiere"] as const,
+    byCompany: (companyId: string | undefined) => ["foto-cantiere", "company", companyId] as const,
+    byOrder: (companyId: string | undefined, orderId: string | undefined) => ["foto-cantiere", "order", companyId, orderId] as const,
+  },
+
+  // ── Gantt Ordini ───────────────────────────────────────
+  ganttOrdini: {
+    all: ["gantt-ordini"] as const,
+    list: (companyId: string | undefined, filtroStatoId?: string) => ["gantt-ordini", companyId, filtroStatoId] as const,
+  },
+
+  // ── Archivio Sostitutivo ───────────────────────────────
+  archivioSostitutivo: {
+    all: ["archivio-sostitutivo"] as const,
+    list: (companyId: string | undefined, anno?: number) => ["archivio-sostitutivo", "list", companyId, anno] as const,
+  },
+
+  // ── F24 Entries ────────────────────────────────────────
+  f24: {
+    all: ["f24"] as const,
+    list: (companyId: string | undefined, anno: number) => ["f24", "list", companyId, anno] as const,
+  },
 } as const;

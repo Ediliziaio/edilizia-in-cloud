@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, AlertCircle, Package, Receipt, HardHat } from "lucide-react";
+import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -703,7 +704,7 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-7 h-auto">
+            <TabsList className="w-full grid grid-cols-8 h-auto">
               <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
@@ -716,6 +717,7 @@ function OrderDetailInner() {
                 </div>
               </TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
+              <TabsTrigger value="ritenute" className="text-xs py-2">Ritenute</TabsTrigger>
             </TabsList>
 
             {/* Tab 1: Stato + Cliente + Date */}
@@ -920,6 +922,11 @@ function OrderDetailInner() {
               {effectiveCompany?.id && (
                 <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
               )}
+            </TabsContent>
+
+            {/* Tab 7: Ritenute di Garanzia */}
+            <TabsContent value="ritenute" className="space-y-4 mt-4">
+              <RitenuteTab orderId={id!} />
             </TabsContent>
           </Tabs>
         </div>
@@ -1130,6 +1137,9 @@ function OrderDetailInner() {
             {/* Task e appuntamenti */}
             <LinkedTasks orderId={id} category="ordini" />
             <LinkedAppointments orderId={id!} />
+
+            {/* Ritenute di Garanzia */}
+            <RitenuteTab orderId={id!} />
           </div>
         </div>
       </div>

@@ -51,6 +51,10 @@ import {
   Wrench,
   Settings,
   MousePointerClick,
+  Camera,
+  GanttChart,
+  Calculator,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -120,6 +124,8 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // ─── Controllo ───
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere" },
+      { title: "Gantt Cantieri", url: "/azienda/gantt-ordini", icon: GanttChart, permissionKey: "canViewCalendar", groupLabel: "Pianificazione" },
+      { title: "Foto Cantiere", url: "/azienda/foto-cantiere", icon: Camera, permissionKey: "canViewOrders" },
     ],
   },
 
@@ -144,6 +150,9 @@ export const macroAreas: MacroArea[] = [
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
+      { title: "Contabilità Fiscale", url: "/azienda/contabilita-fiscale", icon: Calculator, permissionKey: "canViewPrimaNota", groupLabel: "Fiscale" },
+      { title: "Ritenute Garanzia", url: "/azienda/ritenute-garanzia", icon: ShieldCheck, permissionKey: "canViewOrders", groupLabel: "Fiscale" },
+      { title: "Archivio Sostitutivo", url: "/azienda/archivio-sostitutivo", icon: Archive, permissionKey: "canViewPrimaNota", groupLabel: "Fiscale" },
     ],
   },
 
