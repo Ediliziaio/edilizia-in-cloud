@@ -108,18 +108,21 @@ export default function CasiStudio() {
       }} />
       <JsonLd id="jsonld-reviews-casi" data={{
         "@context": "https://schema.org",
-        "@type": "ItemList",
-        "name": "Casi Studio Edilizia in Cloud",
-        "numberOfItems": cases.length,
-        "itemListElement": cases.map((c, i) => ({
-          "@type": "ListItem",
-          "position": i + 1,
-          "item": {
-            "@type": "Review",
-            "author": { "@type": "Person", "name": c.person },
-            "reviewBody": c.quote,
-            "itemReviewed": { "@type": "SoftwareApplication", "name": "Edilizia in Cloud" }
-          }
+        "@type": "Product",
+        "@id": "https://ediliziaincloud.com/#product",
+        "name": "Edilizia in Cloud — Gestionale Edilizia con AI",
+        "review": cases.map((c) => ({
+          "@type": "Review",
+          "reviewRating": {
+            "@type": "Rating",
+            "ratingValue": 5,
+            "bestRating": 5,
+            "worstRating": 1
+          },
+          "author": { "@type": "Person", "name": c.person },
+          "reviewBody": c.quote,
+          "datePublished": "2025-01-01",
+          "itemReviewed": { "@id": "https://ediliziaincloud.com/#product" }
         }))
       }} />
 

@@ -1,5 +1,5 @@
 # robots.txt — ediliziaincloud.com
-# Aggiornato: 2026-04-04
+# Aggiornato: 2026-04-08
 
 # ─── MOTORI DI RICERCA TRADIZIONALI ─────────────────────────────────────────
 
@@ -26,6 +26,9 @@ Allow: /
 # Questo permette la citabilità nei motori AI (ChatGPT, Claude, Perplexity, Gemini).
 
 User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: ChatGPT-User
@@ -62,6 +65,9 @@ User-agent: Meta-ExternalAgent
 Allow: /
 
 User-agent: CCBot
+Allow: /
+
+User-agent: Amazonbot
 Allow: /
 
 User-agent: FacebookExternalHit
@@ -102,8 +108,8 @@ Allow: /demo
 Allow: /blog
 Allow: /blog/
 Allow: /casi-studio
-Allow: /contatti
 Allow: /llms.txt
+Allow: /llms-full.txt
 
 Disallow: /azienda/
 Disallow: /admin/
@@ -121,4 +127,4 @@ Disallow: /preventivo/
 
 # ─── SITEMAP ─────────────────────────────────────────────────────────────────
 
-Sitemap: https://www.ediliziaincloud.com/sitemap.xml
+Sitemap: https://ediliziaincloud.com/sitemap.xml

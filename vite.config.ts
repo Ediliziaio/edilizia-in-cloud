@@ -30,7 +30,7 @@ export default defineConfig(() => ({
         display: "standalone",
         orientation: "portrait",
         scope: "/",
-        start_url: "/azienda",
+        start_url: "/",
         lang: "it",
         categories: ["business", "productivity"],
         icons: [
@@ -122,6 +122,24 @@ export default defineConfig(() => ({
         manualChunks(id) {
           if (id.includes("date-fns") || id.includes("react-day-picker")) {
             return "vendor-dates";
+          }
+          if (id.includes("@react-pdf") || id.includes("jspdf")) {
+            return "vendor-pdf";
+          }
+          if (id.includes("exceljs")) {
+            return "vendor-excel";
+          }
+          if (id.includes("@xyflow") || id.includes("reactflow")) {
+            return "vendor-flow";
+          }
+          if (id.includes("recharts") || id.includes("d3-")) {
+            return "vendor-charts";
+          }
+          if (id.includes("leaflet")) {
+            return "vendor-maps";
+          }
+          if (id.includes("@zxing")) {
+            return "vendor-qr";
           }
         },
       },

@@ -18,11 +18,13 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Link Utili</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
-              <li><a href="#moduli" onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#F97415] transition-colors">Funzionalità</a></li>
-              <li><a href="#prezzi" onClick={(e) => { e.preventDefault(); document.querySelector("#prezzi")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#F97415] transition-colors">Prezzi</a></li>
-              <li><a href="#confronto" onClick={(e) => { e.preventDefault(); document.querySelector("#confronto")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#F97415] transition-colors">Confronto</a></li>
+              <li><Link to="/funzionalita" className="hover:text-[#F97415] transition-colors">Funzionalità</Link></li>
+              <li><Link to="/prezzi" className="hover:text-[#F97415] transition-colors">Prezzi</Link></li>
+              <li><Link to="/confronto" className="hover:text-[#F97415] transition-colors">Confronto</Link></li>
               <li><Link to="/blog" className="hover:text-[#F97415] transition-colors">Blog</Link></li>
-              <li><a href="#cta-finale" onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }} className="hover:text-[#F97415] transition-colors">Richiedi Demo</a></li>
+              <li><Link to="/casi-studio" className="hover:text-[#F97415] transition-colors">Casi Studio</Link></li>
+              <li><Link to="/chi-siamo" className="hover:text-[#F97415] transition-colors">Chi Siamo</Link></li>
+              <li><Link to="/demo" className="hover:text-[#F97415] transition-colors">Richiedi Demo</Link></li>
               <li><a href="/sitemap.xml" className="hover:text-[#F97415] transition-colors">Sitemap</a></li>
             </ul>
           </div>
@@ -31,7 +33,8 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Contatti</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
-              <li>info@ediliziaincloud.com</li>
+              <li><a href="tel:+390287198520" className="hover:text-[#F97415] transition-colors">+39 02 87198520</a></li>
+              <li><a href="mailto:info@ediliziaincloud.com" className="hover:text-[#F97415] transition-colors">info@ediliziaincloud.com</a></li>
               <li className="break-all">PEC: domusgroupsrl@legalmail.it</li>
             </ul>
           </div>
@@ -51,7 +54,7 @@ export default function LandingFooter() {
 
         <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-[#111111]/40 text-sm">
-            © 2025 Domus Group S.r.l. — Tutti i diritti riservati.
+            © 2026 Domus Group S.r.l. — Tutti i diritti riservati.
           </p>
           <div className="flex gap-6 text-sm text-[#111111]/40">
             <Link to="/privacy" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>

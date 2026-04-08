@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { GpsPosition } from "@/types/fleet";

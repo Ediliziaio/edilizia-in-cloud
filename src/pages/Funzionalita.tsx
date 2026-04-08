@@ -651,18 +651,18 @@ export default function Funzionalita() {
           { "@type": "ListItem", "position": 2, "name": "Funzionalità", "item": "https://ediliziaincloud.com/funzionalita" }
         ]
       }} />
-      <JsonLd id="jsonld-howto" data={{
+      {/* HowTo rimosso: rich results eliminati da Google a settembre 2023 */}
+      <JsonLd id="jsonld-webpage-funzionalita" data={{
         "@context": "https://schema.org",
-        "@type": "HowTo",
-        "name": "Come digitalizzare la tua impresa edile con Edilizia in Cloud",
-        "description": "Guida passo per passo per portare la tua impresa edile nel digitale con Edilizia in Cloud",
-        "totalTime": "PT48H",
-        "estimatedCost": { "@type": "MonetaryAmount", "currency": "EUR", "value": "79" },
-        "step": [
-          { "@type": "HowToStep", "name": "Richiedi la demo gratuita", "text": "Prenota una sessione di 30 minuti con un nostro consulente edile per vedere il software sul tuo caso specifico.", "url": "https://www.ediliziaincloud.com/demo" },
-          { "@type": "HowToStep", "name": "Importa i tuoi dati esistenti", "text": "Il team di onboarding migra i tuoi dati da Excel o altri gestionali in 48 ore gratuitamente.", "url": "https://www.ediliziaincloud.com/funzionalita" },
-          { "@type": "HowToStep", "name": "Inizia a controllare margini e cassa", "text": "Dal giorno 1 hai visibilità completa su cantieri attivi, margini reali e previsionale di cassa.", "url": "https://www.ediliziaincloud.com/funzionalita" }
-        ]
+        "@type": "WebPage",
+        "@id": "https://ediliziaincloud.com/funzionalita",
+        "name": "Funzionalità Gestionale Edilizia — 26 Moduli + AI",
+        "description": "Tutti i moduli del gestionale edilizia con AI: cantieri, margini, CRM, WhatsApp, fatturazione SDI, HR, previsione liquidità. Scopri tutto ciò che puoi fare con Edilizia in Cloud.",
+        "url": "https://ediliziaincloud.com/funzionalita",
+        "inLanguage": "it",
+        "isPartOf": { "@id": "https://ediliziaincloud.com/#website" },
+        "about": { "@id": "https://ediliziaincloud.com/#software" },
+        "publisher": { "@id": "https://ediliziaincloud.com/#organization" }
       }} />
 
       <LandingNavbar />

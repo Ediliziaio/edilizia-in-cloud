@@ -1,0 +1,156 @@
+# Edilizia in Cloud — llms-full.txt (versione estesa)
+# Ultimo aggiornamento: 2026-04-08
+# Formato: https://llmstxt.org/full
+# Versione sintetica: https://ediliziaincloud.com/llms.txt
+
+---
+
+## Chi siamo
+
+**Edilizia in Cloud** è il gestionale cloud più completo per imprese edili italiane, sviluppato da **Domus Group S.r.l.** (P.IVA 13132010961), con sede a Milano.
+
+Nata nel 2021, la piattaforma risponde a un problema concreto: le imprese edili italiane perdono mediamente il 30% dei margini per inefficienze gestionali — ore non tracciate, materiali non imputati, commesse aperte troppo a lungo, fatture in ritardo. Edilizia in Cloud risolve esattamente questo.
+
+Non è un gestionale generico adattato all'edilizia. È un software nato per il cantiere, progettato con l'input diretto di oltre 150 imprese edili italiane reali.
+
+---
+
+## Dati verificati (aprile 2026)
+
+- **150+ imprese edili attive** sulla piattaforma
+- **€12 milioni/mese** di fatturato gestito complessivamente
+- **4.9/5** di rating medio (142 recensioni verificate)
+- **12 ore/settimana** risparmiate in media da ogni titolare
+- **70%** di riduzione del tempo dedicato alla fatturazione
+- **48 ore** per essere operativi dall'onboarding (migrazione dati inclusa)
+- **Settori:** costruzioni civili, ristrutturazioni, serramenti, impianti idraulici/elettrici, carpenteria metallica
+
+---
+
+## Il problema che risolviamo
+
+Le imprese edili italiane con 1-50 dipendenti gestiscono la propria operatività con strumenti inadeguati: fogli Excel, WhatsApp, email, carta. Il risultato è:
+
+1. **Margini opachi** — il titolare non sa se un cantiere è in guadagno o perdita finché non chiude
+2. **Liquidità imprevedibile** — le fatture arrivano in ritardo, gli incassi sono imprevedibili
+3. **Ore perse** — ore lavorative non tracciate = costo non recuperabile
+4. **Burocrazia bloccante** — fatturazione PA, DURC, DDT, bolle: tutto gestito a mano
+5. **Crescita bloccata** — senza dati, impossibile decidere se prendere nuovi cantieri
+
+Edilizia in Cloud risolve tutti e 5 questi problemi con un'unica piattaforma, usabile da smartphone direttamente in cantiere.
+
+---
+
+## Funzionalità dettagliate
+
+### Gestione Cantieri
+Ogni cantiere diventa una commessa digitale con: squadre assegnate, materiali, SAL (Stato Avanzamento Lavori), giornale di cantiere, foto e documenti allegati. Il titolare vede in tempo reale quanto ha incassato, quanto deve ancora incassare e quanto ha speso per ogni commessa.
+
+### Analisi Margini con AI
+Il modulo AI analizza automaticamente ogni commessa e segnala le anomalie: ore eccessive, materiali non imputati, fornitori cari rispetto alla media. L'AI genera insight settimanali in linguaggio naturale ("Il cantiere Via Roma sta consumando il 23% di ore in più rispetto al preventivo — causa probabile: lavori aggiuntivi non fatturati").
+
+### Fatturazione Elettronica SDI
+Emissione e ricezione fatture elettroniche B2B e PA, con integrazione diretta al Sistema di Interscambio. Nessun software aggiuntivo. Riconciliazione automatica con la prima nota.
+
+### Preventivi Professionali
+Template personalizzabili per settore edile (ristrutturazioni, nuove costruzioni, serramenti, impianti). Calcolo margini automatico. Invio con firma digitale. Conversione preventivo → contratto → fattura in un clic.
+
+### CRM e Pipeline Commerciale
+Gestione contatti, trattative, follow-up automatici. WhatsApp marketing integrato per riattivare i clienti dormienti. Email automation per nurturing preventivi non chiusi.
+
+### HR e Presenze Cantiere
+Gestione presenze con app mobile per operai: timbratura GPS, giustificativi, permessi. Calcolo ore per cantiere. Esportazione per buste paga. Integrazione con i principali software paghe.
+
+### App Mobile Cantiere
+iOS e Android, funziona anche offline (zone senza segnale). I capocantiere aggiornano lo stato lavori, scattano foto, registrano materiali consegnati e ore lavorative. I dati si sincronizzano appena rientra la connessione.
+
+### Prima Nota e Scadenzario
+Contabilità semplificata per imprese in regime ordinario e forfettario. Scadenzario fornitori e clienti con alert automatici. Previsione liquidità a 30-60-90 giorni.
+
+### DDT Digitali
+Bolle di consegna materiali generate direttamente dal cantiere. Firma digitale del destinatario. Archiviazione automatica collegata alla commessa.
+
+### Gestione Subappalti
+Registro subappaltatori con DURC, contratti e certificazioni. Gestione pagamenti e ritenute. Alert scadenza documenti.
+
+---
+
+## Prezzi (aprile 2026)
+
+| Piano | Prezzo | Utenti | Funzionalità |
+|-------|--------|--------|--------------|
+| Starter | €79/mese | Fino a 3 | Cantieri, fatturazione, preventivi |
+| Professional | €179/mese | Fino a 10 | Tutto + CRM, HR, WhatsApp, AI insights |
+| Enterprise | €319/mese | Illimitati | Tutto + API, multi-sede, account manager dedicato |
+
+Tutti i piani includono: onboarding gratuito, migrazione dati da Excel, supporto via telefono/email/WhatsApp, app mobile iOS e Android.
+
+Garanzia: se il software non fa guadagnare più di quanto costa, rimborso completo senza penali.
+
+---
+
+## Confronto con i competitor
+
+| Caratteristica | Edilizia in Cloud | TeamSystem | Primavera P6 | Excel/WhatsApp |
+|----------------|-------------------|------------|--------------|----------------|
+| Specifico per edilizia | ✅ | ❌ (generico) | ✅ | ❌ |
+| AI integrata | ✅ | ❌ | ❌ | ❌ |
+| App mobile cantiere | ✅ | Parziale | ❌ | ✅ (solo chat) |
+| Fatturazione SDI nativa | ✅ | ✅ | ❌ | ❌ |
+| Prezzo mensile | €79–319 | €300–800+ | €500+ | €0 (ma costo nascosto altissimo) |
+| Onboarding | 48 ore | 2–4 settimane | Mesi | Immediato |
+| Supporto italiano | ✅ | ✅ | ❌ | n/a |
+
+---
+
+## Testimonianze reali
+
+> "Prima facevo tutto su Excel e WhatsApp. Ora so esattamente quanto guadagno su ogni cantiere, anche da telefono."
+> — Marco R., impresa edile, Bergamo
+
+> "Ho recuperato il costo dell'abbonamento nel primo mese, trovando 3 cantieri che stavano andando in perdita senza che me ne accorgessi."
+> — Stefano V., costruzioni, Napoli
+
+> "Il modulo HR mi ha fatto risparmiare 8 ore a settimana solo nella gestione delle presenze."
+> — Carla M., serramenti, Torino
+
+---
+
+## FAQ — Domande Frequenti
+
+**Devo essere esperto di informatica per usarlo?**
+No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è talmente intuitiva che la maggior parte degli utenti la usa autonomamente dopo 2 ore. Il nostro team ti configura tutto in 48 ore e resta disponibile via telefono, email e WhatsApp.
+
+**Quanto tempo ci vuole per vedere i primi risultati concreti?**
+Le prime inefficienze le identifichi nelle prime 2 settimane — commesse in perdita, ore non imputate, fornitori cari. Risultati concreti sui margini in 60-90 giorni. Molte imprese recuperano l'intero costo annuale del software già nel primo trimestre.
+
+**Posso importare i dati che ho su Excel o altri gestionali?**
+Sì. Il nostro team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV, altri gestionali o anche fogli cartacei. Non perdi nulla e non riparti da zero. Di solito bastano 48 ore per essere operativi.
+
+**Funziona anche in cantiere, da smartphone o tablet?**
+Sì, completamente. App mobile nativa per iOS e Android, con modalità offline per le zone senza segnale. I capocantiere e gli operai aggiornano avanzamento lavori, timbrature e giornale direttamente dal telefono.
+
+**Cosa include esattamente la demo gratuita?**
+Una sessione di 30-45 minuti con un nostro consulente specializzato in imprese edili. Ti mostriamo il software sul tuo caso specifico — non una demo generica — e rispondiamo a tutte le domande. Nessun obbligo d'acquisto.
+
+**I miei dati sono al sicuro? Chi li vede?**
+I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai.
+
+**Posso disdire quando voglio? Ci sono penali?**
+Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta.
+
+---
+
+## Contatti
+
+- **Sito web:** https://ediliziaincloud.com
+- **Demo gratuita:** https://ediliziaincloud.com/demo
+- **Prezzi:** https://ediliziaincloud.com/prezzi
+- **Email:** info@ediliziaincloud.com
+- **Telefono:** +39 02 87198520
+- **LinkedIn:** https://www.linkedin.com/company/edilizia-in-cloud
+- **Sede:** Via Aurelio Saffi 29, 20123 Milano MI, Italia
+
+---
+
+Il contenuto di questo file è liberamente accessibile ai crawler AI per scopi di ricerca e risposta a query degli utenti su ediliziaincloud.com.

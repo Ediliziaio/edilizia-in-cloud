@@ -183,7 +183,10 @@ export default function BlogPost() {
           canonical: `/blog/${post.slug}`,
           type: "article",
           publishedTime: post.publishedAt,
+          modifiedTime: post.updatedAt ?? post.publishedAt,
           keywords: post.tags.join(", "),
+          tags: post.tags,
+          section: post.category,
         }
       : {
           title: "Articolo non trovato — Blog Edilizia in Cloud",
@@ -232,25 +235,32 @@ export default function BlogPost() {
   const jsonLdData = {
     "@context": "https://schema.org",
     "@type": "Article",
+    "@id": `https://ediliziaincloud.com/blog/${post.slug}`,
     headline: post.title,
     description: post.excerpt,
-    image: post.coverImage,
+    image: {
+      "@type": "ImageObject",
+      url: post.coverImage,
+      width: 1200,
+      height: 630,
+    },
     datePublished: post.publishedAt,
-    dateModified: post.publishedAt,
-    wordCount: post.readTime * 800,
-    mainEntityOfPage: { "@type": "WebPage", "@id": `https://ediliziaincloud.com/blog/${post.slug}` },
+    dateModified: post.updatedAt ?? post.publishedAt,
+    keywords: post.tags.join(", "),
     articleSection: post.category,
     inLanguage: "it",
-    isPartOf: { "@id": "https://ediliziaincloud.com/#website" },
-    author: { "@type": "Person", name: post.author.name },
-    publisher: {
-      "@type": "Organization",
-      name: "Edilizia in Cloud",
-      logo: {
-        "@type": "ImageObject",
-        url: "https://ediliziaincloud.com/icons/icon-512.png",
-      },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `https://ediliziaincloud.com/blog/${post.slug}` },
+    isPartOf: { "@id": "https://ediliziaincloud.com/blog" },
+    author: {
+      "@type": "Person",
+      "@id": "https://ediliziaincloud.com/#author-flo",
+      name: post.author.name,
+      jobTitle: post.author.role,
+      url: "https://ediliziaincloud.com/chi-siamo",
+      sameAs: ["https://www.linkedin.com/company/edilizia-in-cloud"],
+      worksFor: { "@id": "https://ediliziaincloud.com/#organization" },
     },
+    publisher: { "@id": "https://ediliziaincloud.com/#organization" },
   };
 
   return (

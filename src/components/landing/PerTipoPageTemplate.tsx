@@ -215,6 +215,26 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           { "@type": "ListItem", "position": 3, "name": config.badge, "item": `https://ediliziaincloud.com${config.seoCanonical}` },
         ]
       }} />
+      <JsonLd id={`jsonld-service-${config.seoCanonical.replace(/\//g, "-")}`} data={{
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "@id": `https://ediliziaincloud.com${config.seoCanonical}`,
+        "name": config.seoTitle,
+        "serviceType": "Software Gestionale Edilizia",
+        "description": config.seoDescription,
+        "url": `https://ediliziaincloud.com${config.seoCanonical}`,
+        "provider": { "@id": "https://ediliziaincloud.com/#organization" },
+        "areaServed": { "@type": "Country", "name": "Italia" },
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Piani Edilizia in Cloud",
+          "itemListElement": [
+            { "@type": "Offer", "name": "Starter", "price": 79, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Professional", "price": 179, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Enterprise", "price": 319, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" }
+          ]
+        }
+      }} />
 
       <LandingNavbar />
 

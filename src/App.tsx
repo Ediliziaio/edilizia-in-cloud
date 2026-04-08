@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
+// Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
+import Home from "@/pages/Home";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
@@ -45,7 +47,6 @@ function LoginRouter() {
   return <Login />;
 }
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const Home = lazy(() => import("@/pages/Home"));
 const Demo = lazy(() => import("@/pages/Demo"));
 const Funzionalita = lazy(() => import("@/pages/Funzionalita"));
 const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));

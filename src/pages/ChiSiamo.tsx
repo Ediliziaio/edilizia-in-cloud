@@ -299,6 +299,53 @@ export default function ChiSiamo() {
           { "@type": "ListItem", "position": 2, "name": "Chi Siamo", "item": "https://ediliziaincloud.com/chi-siamo" }
         ]
       }} />
+      <JsonLd id="jsonld-organization-chisiamo" data={{
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://ediliziaincloud.com/#organization",
+        "name": "Edilizia in Cloud",
+        "legalName": "Domus Group S.r.l.",
+        "url": "https://ediliziaincloud.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://ediliziaincloud.com/icons/icon-512.png",
+          "width": 512,
+          "height": 512
+        },
+        "image": "https://ediliziaincloud.com/icons/icon-512.png",
+        "description": "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane. Gestisci cantieri, fatturazione, preventivi e squadre in un'unica piattaforma.",
+        "foundingDate": "2021",
+        "vatID": "IT13132010961",
+        "taxID": "13132010961",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Via Aurelio Saffi 29",
+          "postalCode": "20123",
+          "addressLocality": "Milano",
+          "addressRegion": "MI",
+          "addressCountry": "IT"
+        },
+        "contactPoint": [
+          {
+            "@type": "ContactPoint",
+            "telephone": "+39-02-87198520",
+            "contactType": "customer support",
+            "availableLanguage": "Italian",
+            "areaServed": "IT"
+          },
+          {
+            "@type": "ContactPoint",
+            "email": "info@ediliziaincloud.com",
+            "contactType": "customer service"
+          }
+        ],
+        "numberOfEmployees": { "@type": "QuantitativeValue", "value": 8 },
+        "sameAs": [
+          "https://www.linkedin.com/company/edilizia-in-cloud",
+          "https://www.facebook.com/ediliziaincloud",
+          "https://www.instagram.com/ediliziaincloud"
+        ]
+      }} />
       <LandingNavbar />
 
       {/* ── 1. HERO ── */}

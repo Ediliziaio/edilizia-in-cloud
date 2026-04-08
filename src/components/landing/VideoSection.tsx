@@ -67,7 +67,7 @@ export default function VideoSection() {
           }`}
         >
           <a
-            href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            href="https://ediliziaincloud.com/demo"
             target="_blank"
             rel="noopener noreferrer"
             className="group block relative max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-2xl"
