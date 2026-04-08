@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-08 — 4 nuovi articoli aprile 2026 -->
+  <!-- Sitemap aggiornato: 2026-04-08 — 50+ URL, 16 articoli, 8 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -16,7 +16,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita"/>
@@ -24,7 +24,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/prezzi</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/prezzi"/>
@@ -32,7 +32,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto"/>
@@ -40,7 +40,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/chi-siamo</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/chi-siamo"/>
@@ -48,7 +48,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/demo</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/demo"/>
@@ -297,7 +297,7 @@
   <!-- ── Dedicato a ─────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/per/imprese-costruzione</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/imprese-costruzione"/>
@@ -305,7 +305,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/impiantisti</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/impiantisti"/>
@@ -313,7 +313,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/ristrutturatori</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/ristrutturatori"/>
@@ -321,7 +321,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/fotovoltaico</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/fotovoltaico"/>
@@ -329,7 +329,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/serramentisti</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/serramentisti"/>
@@ -337,7 +337,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/piccole-imprese</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/piccole-imprese"/>
@@ -497,7 +497,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/formazione</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/formazione"/>
@@ -505,7 +505,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/casi-studio</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/casi-studio"/>
@@ -525,13 +525,13 @@
   <!-- ── Legal pages ─────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/privacy</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://ediliziaincloud.com/termini</loc>
-    <lastmod>2026-03-26</lastmod>
+    <lastmod>2026-04-08</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
