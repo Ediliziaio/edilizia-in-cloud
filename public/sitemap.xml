@@ -299,6 +299,32 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/per/piccole-imprese"/>
   </url>
 
+  <!-- ── City landing pages (Local SEO) ──────────────────────────── -->
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-milano</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-milano"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-milano"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-roma</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-roma"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-roma"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-torino</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-torino"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-torino"/>
+  </url>
+
   <!-- ── Hub pages ──────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/glossario-edilizia</loc>
