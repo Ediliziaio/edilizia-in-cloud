@@ -843,6 +843,92 @@ export default function Prezzi() {
         </div>
       </section>
 
+      {/* ── FAQ ────────────────────────────────────────────────────────────── */}
+      <JsonLd id="jsonld-faq-prezzi" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Posso provare Edilizia in Cloud gratuitamente?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, offriamo una prova gratuita di 14 giorni senza carta di credito. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Cosa succede se supero il numero di cantieri inclusi nel piano Starter?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Il piano Starter include fino a 50 commesse attive simultaneamente. Se hai bisogno di gestire più cantieri in parallelo puoi passare al piano Professional (cantieri illimitati) in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "I prezzi includono l'IVA?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Tutti i prezzi indicati sono IVA esclusa (22%). Le fatture vengono emesse da Domus Group S.r.l. con regolare partita IVA italiana. Per le aziende con partita IVA il costo è interamente deducibile come spesa aziendale."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso annullare l'abbonamento in qualsiasi momento?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 30 giorni: se non sei soddisfatto nei primi 30 giorni ti restituiamo l'intero importo pagato, senza domande."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "È possibile avere un piano personalizzato per grandi aziende?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, il piano Enterprise è completamente personalizzabile. Possiamo configurare utenti illimitati, integrazioni custom con i tuoi sistemi esistenti (ERP, contabilità, gestione HR) e un SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
+            }
+          }
+        ]
+      }} />
+
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-6">
+          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">Domande frequenti sui prezzi</h2>
+          <div className="space-y-3">
+            {[
+              {
+                q: "Posso provare Edilizia in Cloud gratuitamente?",
+                a: "Sì, offriamo una prova gratuita di 14 giorni senza carta di credito. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+              },
+              {
+                q: "Cosa succede se supero il numero di cantieri inclusi nel piano Starter?",
+                a: "Il piano Starter include fino a 50 commesse attive simultaneamente. Se hai bisogno di gestire più cantieri puoi passare al piano Professional in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
+              },
+              {
+                q: "I prezzi includono l'IVA?",
+                a: "Tutti i prezzi indicati sono IVA esclusa (22%). Le fatture vengono emesse da Domus Group S.r.l. con regolare partita IVA italiana. Per le aziende il costo è interamente deducibile come spesa aziendale."
+              },
+              {
+                q: "Posso annullare l'abbonamento in qualsiasi momento?",
+                a: "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 30 giorni se non sei soddisfatto."
+              },
+              {
+                q: "È possibile avere un piano personalizzato per grandi aziende?",
+                a: "Sì, il piano Enterprise è completamente personalizzabile: utenti illimitati, integrazioni custom con ERP e sistemi esistenti, SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
+              }
+            ].map(({ q, a }) => (
+              <details key={q} className="bg-white rounded-xl border border-gray-200 group">
+                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
+                  <span>{q}</span>
+                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                </summary>
+                <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );
