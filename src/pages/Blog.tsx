@@ -223,7 +223,7 @@ export default function Blog() {
         "name": "Articoli recenti — Blog Edilizia in Cloud",
         "url": "https://ediliziaincloud.com/blog",
         "numberOfItems": blogPosts.length,
-        "itemListElement": blogPosts.slice(0, 8).map((post, i) => ({
+        "itemListElement": blogPosts.slice(0, 12).map((post, i) => ({
           "@type": "ListItem",
           "position": i + 1,
           "url": `https://ediliziaincloud.com/blog/${post.slug}`,
