@@ -215,13 +215,17 @@ export default function HeroSection() {
       }}
       className="relative overflow-hidden pt-20 md:pt-36 pb-14 md:pb-20"
     >
-      {/* Real photo background with parallax */}
-      <div
-        className="absolute inset-0 w-full h-full"
+      {/* Real photo background with parallax — <img> tag for LCP eligibility */}
+      <img
+        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80"
+        alt="Cantiere edile italiano gestito con Edilizia in Cloud"
+        fetchPriority="high"
+        loading="eager"
+        decoding="sync"
+        width={1920}
+        height={1080}
+        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
         style={{
-          backgroundImage: "url(https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
           transform: `translateY(${parallaxY}px)`,
           willChange: "transform",
         }}
