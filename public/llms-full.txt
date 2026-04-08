@@ -101,6 +101,10 @@ Garanzia: se il software non fa guadagnare più di quanto costa, rimborso comple
 | Onboarding | 48 ore | 2–4 settimane | Mesi | Immediato |
 | Supporto italiano | ✅ | ✅ | ❌ | n/a |
 
+Confronti approfonditi:
+- Edilizia in Cloud vs Primus: https://ediliziaincloud.com/confronto/vs-primus
+- Edilizia in Cloud vs EdilNet: https://ediliziaincloud.com/confronto/vs-edilnet
+
 ---
 
 ## Testimonianze reali
@@ -140,6 +144,21 @@ I dati sono conservati su server europei, conformi al GDPR, con backup automatic
 Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — questa è la nostra garanzia scritta.
 
 ---
+
+## Pagine principali
+
+- **Home:** https://ediliziaincloud.com
+- **Funzionalità:** https://ediliziaincloud.com/funzionalita
+  - Gestione Cantieri: https://ediliziaincloud.com/funzionalita/gestione-cantieri
+  - Preventivi: https://ediliziaincloud.com/funzionalita/preventivi-edilizia
+  - Fatturazione Elettronica: https://ediliziaincloud.com/funzionalita/fatturazione-elettronica
+  - Controllo Margini: https://ediliziaincloud.com/funzionalita/margini-cantiere
+- **Prezzi:** https://ediliziaincloud.com/prezzi
+- **Confronto:** https://ediliziaincloud.com/confronto
+- **Integrazioni:** https://ediliziaincloud.com/integrazioni
+- **Glossario Edilizia:** https://ediliziaincloud.com/glossario-edilizia
+- **Blog:** https://ediliziaincloud.com/blog
+- **Casi Studio:** https://ediliziaincloud.com/casi-studio
 
 ## Contatti
 

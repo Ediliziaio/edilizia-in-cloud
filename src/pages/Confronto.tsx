@@ -565,6 +565,50 @@ export default function Confronto() {
         </div>
       </section>
 
+      {/* ── CONFRONTI SPECIFICI ── */}
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-3">
+              Confronto diretto per software
+            </h2>
+            <p className="text-[#111111]/60 text-sm max-w-lg mx-auto">
+              Analisi feature-by-feature con i competitor più cercati dalle imprese edili italiane.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Link
+              to="/confronto/vs-primus"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+            >
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+                Edilizia in Cloud vs Primus
+              </h3>
+              <p className="text-sm text-[#111111]/60 leading-relaxed">
+                Confronto completo su gestione cantieri, preventivi, fatturazione e assistenza clienti.
+              </p>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+                Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
+              </span>
+            </Link>
+            <Link
+              to="/confronto/vs-edilnet"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+            >
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+                Edilizia in Cloud vs EdilNet
+              </h3>
+              <p className="text-sm text-[#111111]/60 leading-relaxed">
+                Differenze su prezzo, funzionalità cloud, app mobile e qualità del supporto.
+              </p>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+                Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
+              </span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <GaranzieSection />
 
       {/* ── CTA FINALE ── */}

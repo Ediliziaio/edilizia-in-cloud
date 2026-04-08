@@ -951,6 +951,69 @@ export default function Funzionalita() {
         </div>
       </section>
 
+      {/* ── GUIDE DETTAGLIATE ── */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-3">
+              Esplora ogni funzionalità nel dettaglio
+            </h2>
+            <p className="text-[#111111]/60 text-sm max-w-xl mx-auto">
+              Guide approfondite su ciascun modulo: come funziona, cosa risolve e quanto puoi risparmiare.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-5">
+            {[
+              {
+                href: "/funzionalita/gestione-cantieri",
+                title: "Gestione Cantieri",
+                desc: "Monitora avanzamento lavori, squadre, materiali e costi per ogni commessa in tempo reale.",
+                badge: "Più usato",
+              },
+              {
+                href: "/funzionalita/preventivi-edilizia",
+                title: "Preventivi Professionali",
+                desc: "Preventivi con computo metrico, prezziari aggiornati e firma digitale integrata.",
+                badge: "",
+              },
+              {
+                href: "/funzionalita/fatturazione-elettronica",
+                title: "Fatturazione Elettronica",
+                desc: "SDI integrato, split payment, reverse charge e archiviazione fiscale automatica.",
+                badge: "",
+              },
+              {
+                href: "/funzionalita/margini-cantiere",
+                title: "Controllo Margini",
+                desc: "Confronta preventivo vs consuntivo in tempo reale e identifica dove perdi margine.",
+                badge: "",
+              },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                to={item.href}
+                className="group flex flex-col gap-3 rounded-2xl border border-gray-200 hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+                    {item.title}
+                  </h3>
+                  {item.badge && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#F97415]/10 text-[#F97415]">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-[#111111]/60 leading-relaxed">{item.desc}</p>
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+                  Scopri di più <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );
