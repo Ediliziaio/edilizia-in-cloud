@@ -3,6 +3,14 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { blogPosts } from "@/data/blogPosts";
+
+const RELATED_SLUGS = [
+  "come-fare-preventivo-edilizia",
+  "preventivi-edilizia-guida",
+  "alternativa-excel-cantieri",
+];
+const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
 import { ArrowRight } from "lucide-react";
 
 const painPoints = [
@@ -249,6 +257,25 @@ export default function PreventiviEdilizia() {
           </Link>
         </div>
       </section>
+
+      {/* ── LEGGI ANCHE ── */}
+      {relatedPosts.length > 0 && (
+        <section className="py-14 px-6 bg-white border-t border-gray-100">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {relatedPosts.map((p) => (
+                <Link key={p.slug} to={`/blog/${p.slug}`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
+                  <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
+                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
+                  <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── FAQ ── */}
       <JsonLd
