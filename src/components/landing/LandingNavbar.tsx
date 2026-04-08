@@ -104,12 +104,14 @@ export default function LandingNavbar() {
             <img
               src={logo}
               alt="Edilizia in Cloud"
-              className={`h-9 transition-all duration-300 ${isWhiteBg ? "" : "brightness-0 invert"}`}
+              width={144}
+              height={36}
+              className={`h-9 w-auto transition-all duration-300 ${isWhiteBg ? "" : "brightness-0 invert"}`}
             />
           </a>
         ) : (
           <Link to="/">
-            <img src={logo} alt="Edilizia in Cloud" className="h-9" />
+            <img src={logo} alt="Edilizia in Cloud" width={144} height={36} className="h-9 w-auto" />
           </Link>
         )}
 

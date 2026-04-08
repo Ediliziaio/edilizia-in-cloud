@@ -8,7 +8,7 @@ export default function LandingFooter() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
           {/* Brand */}
           <div>
-            <img src={logo} alt="Edilizia in Cloud" className="h-8 mb-4" />
+            <img src={logo} alt="Edilizia in Cloud" width={128} height={32} className="h-8 w-auto mb-4" />
             <p className="text-[#111111]/60 text-sm leading-relaxed">
               Il primo software gestionale pensato da imprenditori edili, per imprenditori edili.
             </p>
