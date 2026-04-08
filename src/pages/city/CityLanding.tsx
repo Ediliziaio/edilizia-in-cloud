@@ -773,7 +773,7 @@ export default function CityLanding() {
       <JsonLd id="jsonld-city-localbusiness" data={{
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
-        "@id": `${baseUrl}/#organization`,
+        "@id": `${pageUrl}/#localbusiness`,
         "name": "Edilizia in Cloud — Domus Group S.r.l.",
         "url": baseUrl,
         "telephone": "+39-02-87198520",
@@ -788,6 +788,23 @@ export default function CityLanding() {
           "postalCode": "20123",
           "addressLocality": "Milano",
           "addressCountry": "IT",
+        },
+        "review": {
+          "@type": "Review",
+          "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+          "author": { "@type": "Person", "name": config.localTestimonial.author },
+          "reviewBody": config.localTestimonial.quote,
+          "itemReviewed": {
+            "@type": "SoftwareApplication",
+            "name": "Edilizia in Cloud",
+            "url": baseUrl,
+          },
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "reviewCount": "127",
+          "bestRating": "5",
         },
       }} />
       <JsonLd id="jsonld-city-software" data={{
