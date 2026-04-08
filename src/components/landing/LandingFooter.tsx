@@ -33,6 +33,21 @@ export default function LandingFooter() {
             </ul>
           </div>
 
+          {/* Città */}
+          <div>
+            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Per Città</h4>
+            <ul className="space-y-2 text-sm text-[#111111]/60">
+              <li><Link to="/software-gestionale-edilizia-milano" className="hover:text-[#F97415] transition-colors">Milano</Link></li>
+              <li><Link to="/software-gestionale-edilizia-roma" className="hover:text-[#F97415] transition-colors">Roma</Link></li>
+              <li><Link to="/software-gestionale-edilizia-torino" className="hover:text-[#F97415] transition-colors">Torino</Link></li>
+              <li><Link to="/software-gestionale-edilizia-napoli" className="hover:text-[#F97415] transition-colors">Napoli</Link></li>
+              <li><Link to="/software-gestionale-edilizia-bologna" className="hover:text-[#F97415] transition-colors">Bologna</Link></li>
+              <li><Link to="/software-gestionale-edilizia-firenze" className="hover:text-[#F97415] transition-colors">Firenze</Link></li>
+              <li><Link to="/software-gestionale-edilizia-genova" className="hover:text-[#F97415] transition-colors">Genova</Link></li>
+              <li><Link to="/software-gestionale-edilizia-palermo" className="hover:text-[#F97415] transition-colors">Palermo</Link></li>
+            </ul>
+          </div>
+
           {/* Contatti */}
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Contatti</h4>
