@@ -35,7 +35,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-03-10",
     readTime: 8,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -100,7 +100,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-03-05",
     readTime: 10,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -169,7 +169,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-20",
     updatedAt: "2026-02-20",
     readTime: 7,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -233,7 +233,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-10",
     updatedAt: "2026-02-10",
     readTime: 9,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -296,7 +296,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-25",
     updatedAt: "2026-01-25",
     readTime: 11,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -369,7 +369,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-15",
     updatedAt: "2026-01-15",
     readTime: 8,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -432,7 +432,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-05",
     updatedAt: "2026-02-05",
     readTime: 6,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -494,7 +494,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-28",
     updatedAt: "2026-01-28",
     readTime: 9,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -581,7 +581,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-22",
     updatedAt: "2026-03-22",
     readTime: 12,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -679,7 +679,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-15",
     updatedAt: "2026-03-15",
     readTime: 11,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -787,7 +787,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-08",
     updatedAt: "2026-03-08",
     readTime: 11,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -879,7 +879,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-03-01",
     readTime: 10,
-    author: { name: "Flo", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
