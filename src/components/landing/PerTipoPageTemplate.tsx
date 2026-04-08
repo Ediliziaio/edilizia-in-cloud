@@ -11,6 +11,27 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
+import { blogPosts } from "@/data/blogPosts";
+
+// ── Catalogo settori per cross-linking ──────────────────────────────────────
+const ALL_SECTORS = [
+  { slug: "/per/imprese-costruzione", label: "Imprese di Costruzione", emoji: "🏗️" },
+  { slug: "/per/impiantisti",          label: "Impiantisti",            emoji: "⚡" },
+  { slug: "/per/ristrutturatori",      label: "Ristrutturatori",        emoji: "🔨" },
+  { slug: "/per/fotovoltaico",         label: "Fotovoltaico",           emoji: "☀️" },
+  { slug: "/per/serramentisti",        label: "Serramentisti",          emoji: "🪟" },
+  { slug: "/per/piccole-imprese",      label: "Piccole Imprese",        emoji: "🧱" },
+];
+
+// Mappa seoCanonical → categorie blog pertinenti per "Leggi anche"
+const SECTOR_BLOG_CATEGORIES: Record<string, string[]> = {
+  "/per/imprese-costruzione": ["Gestione Cantieri", "Finanza"],
+  "/per/impiantisti":          ["Gestione Cantieri", "HR & Personale"],
+  "/per/ristrutturatori":      ["Gestione Cantieri", "Commerciale"],
+  "/per/fotovoltaico":         ["Finanza", "Gestione Cantieri"],
+  "/per/serramentisti":        ["Commerciale", "Gestione Cantieri"],
+  "/per/piccole-imprese":      ["Digitalizzazione", "Finanza"],
+};
 
 
 export interface ModuleItem {
@@ -754,6 +775,83 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             {config.faq.map((item, i) => (
               <FaqAccordion key={i} item={item} />
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── LEGGI ANCHE — Blog post correlati (contenuto unico per pagina) ── */}
+      {(() => {
+        const relCats = SECTOR_BLOG_CATEGORIES[config.seoCanonical] ?? [];
+        const relPosts = blogPosts
+          .filter((p) => relCats.includes(p.category))
+          .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+          .slice(0, 3);
+        if (relPosts.length === 0) return null;
+        return (
+          <section className="py-16 md:py-20 bg-white border-t border-gray-100">
+            <div className="max-w-5xl mx-auto px-6">
+              <h2 className="text-xl md:text-2xl font-extrabold text-[#111111] mb-8">
+                Guide e articoli consigliati per te
+              </h2>
+              <div className="grid md:grid-cols-3 gap-6">
+                {relPosts.map((post) => (
+                  <Link
+                    key={post.id}
+                    to={`/blog/${post.slug}`}
+                    className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300"
+                  >
+                    <img
+                      src={post.coverImage}
+                      alt={post.title}
+                      width={600}
+                      height={315}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="p-5 flex flex-col flex-1">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#F97415] mb-2">
+                        {post.category}
+                      </span>
+                      <p className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2 flex-1">
+                        {post.title}
+                      </p>
+                      <span className="mt-3 inline-flex items-center gap-1 text-xs text-[#F97415] font-semibold group-hover:gap-2 transition-all">
+                        Leggi <ArrowRight size={11} />
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ── ESPLORA ALTRI SETTORI — cross-linking interno ── */}
+      <section className="py-12 md:py-16 bg-gray-50 border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <p className="text-center text-xs font-bold uppercase tracking-widest text-gray-400 mb-6">
+            Edilizia in Cloud per ogni tipo di impresa
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {ALL_SECTORS.map((s) => {
+              const isCurrent = s.slug === config.seoCanonical;
+              return (
+                <Link
+                  key={s.slug}
+                  to={s.slug}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-200 ${
+                    isCurrent
+                      ? "bg-[#F97415] text-white border-[#F97415] shadow-md shadow-[#F97415]/20 cursor-default"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-[#F97415]/40 hover:text-[#F97415] hover:bg-[#F97415]/5"
+                  }`}
+                >
+                  <span>{s.emoji}</span> {s.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
