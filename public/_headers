@@ -37,3 +37,19 @@
   Cache-Control: no-cache, no-store, must-revalidate
   Service-Worker-Allowed: /
   Content-Type: application/javascript
+
+# Noindex for legal and internal pages (bots don't execute JS so useSEO is not enough)
+/privacy
+  X-Robots-Tag: noindex, nofollow
+
+/termini
+  X-Robots-Tag: noindex, nofollow
+
+/cookie
+  X-Robots-Tag: noindex, nofollow
+
+/reset-password
+  X-Robots-Tag: noindex, nofollow
+
+/cambia-password
+  X-Robots-Tag: noindex, nofollow
