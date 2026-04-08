@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Clock, Search, ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -137,15 +137,27 @@ function PostCard({ post, featured = false }: PostCardProps) {
 }
 
 export default function Blog() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeCategory, setActiveCategory] = useState<string>("Tutti");
+  const [searchQuery, setSearchQuery] = useState<string>(
+    () => searchParams.get("q") ?? ""
+  );
+
+  // Pagine di ricerca (?q=...) non devono essere indicizzate (thin/duplicate content)
   useSEO({
     title: "Blog Edilizia — Guide, Strategie e AI per Imprese Edili | Edilizia in Cloud",
     description: "Articoli pratici per imprenditori edili: come aumentare i margini, gestire cantieri con l'AI, digitalizzare l'impresa edile e far crescere il business costruzioni.",
     canonical: "/blog",
     keywords: "blog edilizia, guide impresa edile, strategia impresa costruzioni, digitalizzazione edilizia, AI edilizia articoli, gestione cantieri guide, margini edilizia, marketing impresa edile blog",
+    noindex: searchQuery.trim().length > 0,
   });
 
-  const [activeCategory, setActiveCategory] = useState<string>("Tutti");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  // Keep URL ?q= param in sync with the search box (shareable/bookmarkable URLs)
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (searchQuery.trim()) params.q = searchQuery.trim();
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, setSearchParams]);
 
   const filteredPosts = useMemo(() => {
     let posts = [...blogPosts].sort(
