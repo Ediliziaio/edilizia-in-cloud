@@ -250,6 +250,84 @@ export default function PreventiviEdilizia() {
         </div>
       </section>
 
+      {/* ── FAQ ── */}
+      <JsonLd
+        id="jsonld-faq-preventivi"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "I prezziari regionali sono aggiornati automaticamente?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Edilizia in Cloud include i prezziari di tutte le regioni italiane, aggiornati automaticamente con le revisioni ufficiali. Non devi scaricare o importare nulla manualmente.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Il cliente può firmare il preventivo digitalmente?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Ogni preventivo può essere inviato con un link di accettazione online: il cliente firma digitalmente dal browser o dal telefono, senza installare app. La firma ha valore legale.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso convertire un preventivo in contratto e poi in fattura?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Il flusso preventivo → contratto → SAL → fattura è completamente automatizzato in Edilizia in Cloud. I dati vengono trasferiti senza dover reinserire nulla.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Quanto tempo ci vuole per fare un preventivo professionale?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Con i template e i prezziari preimpostati, un preventivo standard può essere preparato in 15-30 minuti invece delle 2-3 ore necessarie con Excel o Word.",
+              },
+            },
+          ],
+        }}
+      />
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
+            Domande frequenti sui Preventivi Edilizia
+          </h2>
+          <div className="divide-y divide-gray-200">
+            {[
+              {
+                q: "I prezziari regionali sono aggiornati automaticamente?",
+                a: "Sì. Edilizia in Cloud include i prezziari di tutte le regioni italiane, aggiornati automaticamente con le revisioni ufficiali. Non devi scaricare nulla manualmente.",
+              },
+              {
+                q: "Il cliente può firmare il preventivo digitalmente?",
+                a: "Sì. Ogni preventivo può essere inviato con un link di accettazione online: il cliente firma dal browser, senza installare app. La firma ha valore legale.",
+              },
+              {
+                q: "Posso convertire un preventivo in contratto e poi in fattura?",
+                a: "Sì. Il flusso preventivo → contratto → SAL → fattura è completamente automatizzato. I dati vengono trasferiti senza reinserire nulla.",
+              },
+              {
+                q: "Quanto tempo ci vuole per fare un preventivo professionale?",
+                a: "Con template e prezziari preimpostati, un preventivo standard si fa in 15-30 minuti invece delle 2-3 ore necessarie con Excel o Word.",
+              },
+            ].map((item, i) => (
+              <details key={i} className="py-5 group">
+                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
+                  {item.q}
+                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                </summary>
+                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

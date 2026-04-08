@@ -271,6 +271,84 @@ export default function GestioneCantieri() {
         </div>
       </section>
 
+      {/* ── FAQ ── */}
+      <JsonLd
+        id="jsonld-faq-gestione-cantieri"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Quanto tempo ci vuole per impostare la gestione cantieri?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Il setup base è completato in 48 ore. Il nostro team importa i tuoi cantieri aperti, configura le squadre e ti forma. Molti clienti sono operativi già il primo giorno.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "L'app funziona anche senza connessione internet in cantiere?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. L'app mobile di Edilizia in Cloud funziona in modalità offline: i capocantiere aggiornano avanzamento lavori, timbrature e materiali anche senza segnale. I dati si sincronizzano appena la connessione è disponibile.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso vedere i margini reali di ogni cantiere in tempo reale?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Il modulo Gestione Cantieri calcola automaticamente i margini per commessa aggregando costi di manodopera, materiali e subappalti. Il titolare vede lo scostamento preventivo/consuntivo in tempo reale, senza aspettare la chiusura del cantiere.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Quanti cantieri posso gestire contemporaneamente?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Non c'è limite al numero di cantieri aperti contemporaneamente. Molti nostri clienti gestiscono 5-20 cantieri in parallelo con dashboard unificata e alert automatici per i cantieri a rischio margine.",
+              },
+            },
+          ],
+        }}
+      />
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
+            Domande frequenti sulla Gestione Cantieri
+          </h2>
+          <div className="divide-y divide-gray-200">
+            {[
+              {
+                q: "Quanto tempo ci vuole per impostare la gestione cantieri?",
+                a: "Il setup base è completato in 48 ore. Il nostro team importa i tuoi cantieri aperti, configura le squadre e ti forma. Molti clienti sono operativi già il primo giorno.",
+              },
+              {
+                q: "L'app funziona anche senza connessione internet in cantiere?",
+                a: "Sì. L'app mobile funziona in modalità offline: aggiornamenti, timbrature e materiali anche senza segnale. I dati si sincronizzano appena la connessione è disponibile.",
+              },
+              {
+                q: "Posso vedere i margini reali di ogni cantiere in tempo reale?",
+                a: "Sì. Il sistema calcola automaticamente i margini aggregando costi di manodopera, materiali e subappalti. Vedi lo scostamento preventivo/consuntivo in tempo reale.",
+              },
+              {
+                q: "Quanti cantieri posso gestire contemporaneamente?",
+                a: "Non c'è limite. Molti nostri clienti gestiscono 5-20 cantieri in parallelo con dashboard unificata e alert automatici per i cantieri a rischio margine.",
+              },
+            ].map((item, i) => (
+              <details key={i} className="py-5 group">
+                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
+                  {item.q}
+                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                </summary>
+                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

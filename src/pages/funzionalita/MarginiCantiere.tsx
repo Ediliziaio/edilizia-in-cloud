@@ -271,6 +271,84 @@ export default function MarginiCantiere() {
         </div>
       </section>
 
+      {/* ── FAQ ── */}
+      <JsonLd
+        id="jsonld-faq-margini"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Come viene calcolato il margine di un cantiere?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Il margine viene calcolato sottraendo al valore del contratto tutti i costi imputati alla commessa: manodopera (con costo orario per operaio), materiali acquistati, subappalti e costi generali ripartiti. Il sistema aggiorna il margine in tempo reale ad ogni nuova spesa registrata.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso vedere il confronto preventivo vs consuntivo durante i lavori?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Il modulo Margini mostra affiancati il budget preventivato e i costi consuntivati, per ogni voce di costo e per il totale. Vedi subito dove stai scostando dal preventivo e puoi intervenire prima che il problema peggiori.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Ricevo un alert se un cantiere va in perdita?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Edilizia in Cloud invia notifiche automatiche quando il margine di un cantiere scende sotto la soglia che hai impostato (es. margine < 15%). L'alert arriva via app mobile e via email.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso analizzare i margini per tipo di lavoro o per cliente?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. La dashboard margini permette di raggruppare le commesse per categoria di lavoro, per cliente, per zona geografica o per periodo. Puoi identificare quali tipi di cantiere sono più profittevoli per la tua impresa.",
+              },
+            },
+          ],
+        }}
+      />
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
+            Domande frequenti sul Controllo Margini
+          </h2>
+          <div className="divide-y divide-gray-200">
+            {[
+              {
+                q: "Come viene calcolato il margine di un cantiere?",
+                a: "Il margine viene calcolato sottraendo al valore del contratto tutti i costi imputati: manodopera, materiali, subappalti e costi generali. Il sistema aggiorna il margine in tempo reale ad ogni nuova spesa registrata.",
+              },
+              {
+                q: "Posso vedere il confronto preventivo vs consuntivo durante i lavori?",
+                a: "Sì. Il modulo Margini mostra affiancati budget preventivato e costi consuntivati per ogni voce. Vedi subito dove stai scostando dal preventivo e puoi intervenire prima che il problema peggiori.",
+              },
+              {
+                q: "Ricevo un alert se un cantiere va in perdita?",
+                a: "Sì. Il sistema invia notifiche automatiche quando il margine scende sotto la soglia impostata (es. < 15%). L'alert arriva via app mobile e via email.",
+              },
+              {
+                q: "Posso analizzare i margini per tipo di lavoro o per cliente?",
+                a: "Sì. La dashboard raggruppa le commesse per categoria di lavoro, cliente, zona geografica o periodo. Identifica quali tipi di cantiere sono più profittevoli per la tua impresa.",
+              },
+            ].map((item, i) => (
+              <details key={i} className="py-5 group">
+                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
+                  {item.q}
+                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                </summary>
+                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

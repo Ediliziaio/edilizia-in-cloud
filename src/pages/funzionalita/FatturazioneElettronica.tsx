@@ -250,6 +250,84 @@ export default function FatturazioneElettronica() {
         </div>
       </section>
 
+      {/* ── FAQ ── */}
+      <JsonLd
+        id="jsonld-faq-fatturazione"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "La fatturazione elettronica è già inclusa nel piano base?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. La fatturazione elettronica SDI è inclusa in tutti i piani di Edilizia in Cloud, senza costi aggiuntivi per moduli o per numero di fatture emesse.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Come funziona il reverse charge e lo split payment in Edilizia in Cloud?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Il sistema applica automaticamente reverse charge (ex art. 17 DPR 633/72) e split payment per le PA. Basta selezionare il tipo di cliente e il regime fiscale corretto viene applicato in automatico sulla fattura.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Le fatture elettroniche vengono archiviate automaticamente?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Tutte le fatture emesse e ricevute vengono archiviate digitalmente in modo conforme al DM 17/06/2014. Puoi esportarle in qualsiasi momento in formato XML e PDF.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso inviare fatture sia a privati che alla Pubblica Amministrazione?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Edilizia in Cloud gestisce fatturazione B2B, B2C e PA. Per le fatture PA viene generato automaticamente il codice univoco ufficio e il documento viene inviato direttamente allo SDI.",
+              },
+            },
+          ],
+        }}
+      />
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
+            Domande frequenti sulla Fatturazione Elettronica
+          </h2>
+          <div className="divide-y divide-gray-200">
+            {[
+              {
+                q: "La fatturazione elettronica è inclusa nel piano base?",
+                a: "Sì. La fatturazione elettronica SDI è inclusa in tutti i piani di Edilizia in Cloud, senza costi aggiuntivi per moduli o per numero di fatture emesse.",
+              },
+              {
+                q: "Come funziona il reverse charge e lo split payment?",
+                a: "Il sistema applica automaticamente reverse charge (art. 17 DPR 633/72) e split payment per le PA. Basta selezionare il tipo di cliente e il regime fiscale viene applicato in automatico.",
+              },
+              {
+                q: "Le fatture vengono archiviate automaticamente?",
+                a: "Sì. Tutte le fatture emesse e ricevute vengono archiviate digitalmente in modo conforme al DM 17/06/2014. Esportabili in XML e PDF in qualsiasi momento.",
+              },
+              {
+                q: "Posso inviare fatture sia a privati che alla Pubblica Amministrazione?",
+                a: "Sì. Edilizia in Cloud gestisce fatturazione B2B, B2C e PA. Per le PA viene generato automaticamente il codice univoco ufficio e il documento viene inviato direttamente allo SDI.",
+              },
+            ].map((item, i) => (
+              <details key={i} className="py-5 group">
+                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
+                  {item.q}
+                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                </summary>
+                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );
