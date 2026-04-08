@@ -97,7 +97,7 @@ const relatedLinks = [
   { to: "/blog/alternativa-excel-cantieri", label: "Alternativa a Excel" },
 ];
 
-const vsRelatedSlugs = ["alternativa-excel-cantieri", "ridurre-costi-cantieri-edili", "gestione-cantieri-digitale"];
+const vsRelatedSlugs = ["alternativa-excel-cantieri", "ridurre-costi-cantieri-edili", "computo-metrico-estimativo-guida"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsExcel() {

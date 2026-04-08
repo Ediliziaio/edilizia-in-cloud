@@ -62,7 +62,7 @@ const relatedLinks = [
   { to: "/prezzi", label: "Prezzi" },
 ];
 
-const vsRelatedSlugs = ["software-gestionale-vs-excel", "digitalizzare-impresa-edile", "analisi-margini-imprese-edili"];
+const vsRelatedSlugs = ["software-gestionale-vs-excel", "analisi-margini-imprese-edili", "appalti-pubblici-edilizia-guida"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsTeamSystem() {
