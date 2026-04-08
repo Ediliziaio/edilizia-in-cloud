@@ -1590,7 +1590,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     ],
     relatedCities: [
       { name: "Reggio Calabria", slug: "reggio-calabria" },
-      { name: "Catanzaro", slug: "catanzaro" },
+      { name: "Palermo", slug: "palermo" },
       { name: "Napoli", slug: "napoli" },
     ],
   },
