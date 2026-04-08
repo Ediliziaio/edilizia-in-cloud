@@ -293,9 +293,12 @@ export default function Glossario() {
           <h2 className="text-xl font-extrabold text-[#111111] mb-6">Guide pratiche correlate</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { slug: "gestione-cantieri-digitale", label: "Gestione Cantieri 2026: Dalla Carta al Cloud" },
+              { slug: "sal-cantiere-come-funziona", label: "SAL Cantiere: Cos'è e Come Funziona" },
+              { slug: "durc-edilizia-guida-completa", label: "DURC in Edilizia: Guida Completa 2026" },
+              { slug: "computo-metrico-estimativo-guida", label: "Computo Metrico Estimativo: Guida Pratica" },
+              { slug: "cassa-edile-come-funziona", label: "Cassa Edile: Come Funziona per le Imprese" },
+              { slug: "appalti-pubblici-edilizia-guida", label: "Appalti Pubblici in Edilizia: Guida 2026" },
               { slug: "analisi-margini-imprese-edili", label: "Analisi dei Margini per Imprese Edili" },
-              { slug: "ridurre-costi-cantieri-edili", label: "Come Ridurre i Costi nei Cantieri del 20%" },
             ].map((post) => (
               <Link key={post.slug} to={`/blog/${post.slug}`}
                 className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group">
