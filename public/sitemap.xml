@@ -299,6 +299,58 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/per/piccole-imprese"/>
   </url>
 
+  <!-- ── Funzionalità sub-pages ───────────────────────────────────── -->
+  <url>
+    <loc>https://ediliziaincloud.com/funzionalita/gestione-cantieri</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/gestione-cantieri"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/gestione-cantieri"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/funzionalita/fatturazione-elettronica</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/fatturazione-elettronica"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/fatturazione-elettronica"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/funzionalita/preventivi-edilizia</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/preventivi-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/preventivi-edilizia"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/funzionalita/margini-cantiere</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/margini-cantiere"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/funzionalita/margini-cantiere"/>
+  </url>
+
+  <!-- ── Confronto sub-pages ───────────────────────────────────────── -->
+  <url>
+    <loc>https://ediliziaincloud.com/confronto/vs-primus</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-primus"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/confronto/vs-primus"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/confronto/vs-edilnet</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-edilnet"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/confronto/vs-edilnet"/>
+  </url>
+
   <!-- ── City landing pages (Local SEO) ──────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-milano</loc>

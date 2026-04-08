@@ -89,6 +89,16 @@ const PiccoleImprese   = lazy(() => import("@/pages/per/PiccoleImprese"));
 const ReferralLanding  = lazy(() => import("@/pages/ReferralLanding"));
 const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
 
+// Funzionalità sub-pages
+const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
+const FatturazioneElettronica = lazy(() => import("@/pages/funzionalita/FatturazioneElettronica"));
+const PreventiviEdilizia     = lazy(() => import("@/pages/funzionalita/PreventiviEdilizia"));
+const MarginiCantiere        = lazy(() => import("@/pages/funzionalita/MarginiCantiere"));
+
+// Confronto sub-pages
+const VsPrimus  = lazy(() => import("@/pages/confronto/VsPrimus"));
+const VsEdilnet = lazy(() => import("@/pages/confronto/VsEdilnet"));
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
@@ -172,6 +182,12 @@ const App = () => (
               <Route path="/per/fotovoltaico" element={<Fotovoltaico />} />
               <Route path="/per/serramentisti" element={<Serramentisti />} />
               <Route path="/per/piccole-imprese" element={<PiccoleImprese />} />
+              <Route path="/funzionalita/gestione-cantieri" element={<GestioneCantieri />} />
+              <Route path="/funzionalita/fatturazione-elettronica" element={<FatturazioneElettronica />} />
+              <Route path="/funzionalita/preventivi-edilizia" element={<PreventiviEdilizia />} />
+              <Route path="/funzionalita/margini-cantiere" element={<MarginiCantiere />} />
+              <Route path="/confronto/vs-primus" element={<VsPrimus />} />
+              <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/termini" element={<TerminiServizio />} />
