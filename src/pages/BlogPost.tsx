@@ -261,6 +261,12 @@ export default function BlogPost() {
       worksFor: { "@id": "https://ediliziaincloud.com/#organization" },
     },
     publisher: { "@id": "https://ediliziaincloud.com/#organization" },
+    timeRequired: `PT${post.readTime}M`,
+    wordCount: post.readTime * 200,
+    speakable: {
+      "@type": "SpeakableSpecification",
+      cssSelector: ["h1", "h2", ".article-intro"],
+    },
   };
 
   return (
