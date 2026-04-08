@@ -1674,6 +1674,252 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "25",
+    slug: "sicurezza-cantieri-dlgs-81",
+    title: "Sicurezza Cantieri: D.Lgs 81/2008 Spiegato alle Imprese Edili",
+    excerpt:
+      "Guida pratica al Decreto Legislativo 81/2008 per le imprese edili: obblighi del datore di lavoro, figure di sicurezza obbligatorie, DVR, PSC, POS e sanzioni. Come gestirla senza perdere ore.",
+    category: "Normativa",
+    tags: ["sicurezza cantieri", "D.Lgs 81/2008", "DVR", "POS cantiere", "PSC", "sicurezza lavoro edilizia"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 10,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La sicurezza in cantiere non è solo un obbligo di legge: è un costo nascosto che incide pesantemente sui margini quando non viene gestita correttamente. Il D.Lgs 81/2008 (Testo Unico sulla Sicurezza) impone obblighi precisi a ogni impresa edile, con sanzioni che possono arrivare a sospensione dell'attività e denunce penali. In questa guida ti spieghiamo cosa devi avere obbligatoriamente, chi deve fare cosa, e come un gestionale può aiutarti a tenere tutto sotto controllo senza dedicarci metà della tua settimana.",
+      },
+      {
+        type: "section",
+        heading: "Le Figure Obbligatorie in Ogni Cantiere Edile",
+        body: "Il D.Lgs 81/2008 prevede un sistema di figure con responsabilità specifiche. Il Datore di Lavoro (tu, il titolare) ha responsabilità penale diretta per la sicurezza. Deve nominare il RSPP (Responsabile del Servizio di Prevenzione e Protezione) — può essere lo stesso titolare se segue il corso obbligatorio. Deve designare il Medico Competente per la sorveglianza sanitaria degli operai. Deve nominare gli RLS (Rappresentanti dei Lavoratori per la Sicurezza) se richiesto. Per i cantieri edili temporanei con più imprese coinvolte, entrano in gioco anche il Coordinatore per la Progettazione (CSP) e il Coordinatore per l'Esecuzione (CSE), nominati dal committente.",
+      },
+      {
+        type: "list",
+        heading: "Documenti Obbligatori in Cantiere — Checklist",
+        items: [
+          "DVR (Documento di Valutazione dei Rischi) — obbligatorio per tutte le imprese con almeno 1 dipendente. Deve essere aggiornato ogni volta che cambiano le condizioni di lavoro o le mansioni.",
+          "POS (Piano Operativo di Sicurezza) — ogni impresa esecutrice deve redigerlo per ogni cantiere specifico. Deve essere consegnato al Coordinatore per la Sicurezza prima di iniziare i lavori.",
+          "PSC (Piano di Sicurezza e Coordinamento) — redatto dal Coordinatore per la Progettazione (CSP) per cantieri con più imprese. Deve essere allegato al progetto esecutivo.",
+          "DUVRI (Documento Unico di Valutazione dei Rischi Interferenziali) — necessario quando la tua impresa lavora in ambienti dove operano anche dipendenti del committente.",
+          "Registro degli Infortuni — obbligatorio, anche in formato digitale. Deve essere disponibile in cantiere e conservato per 10 anni.",
+          "Libretti di uso e manutenzione dei macchinari — ogni attrezzatura deve avere la documentazione aggiornata in cantiere.",
+          "Idoneità sanitaria degli operai — cartelle sanitarie aggiornate, firmate dal medico competente, disponibili in cantiere.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Le Sanzioni che Nessuno Ti Dice",
+        body: "Le sanzioni per violazioni del D.Lgs 81/2008 sono spesso sottovalutate. Un cantiere senza DVR: da 2.000 a 4.000€ di multa + sospensione dell'attività. Mancanza del POS: da 1.200 a 5.200€ per ogni cantiere. Lavoratore senza formazione sulla sicurezza: da 1.200 a 5.200€ per dipendente. Ma il rischio maggiore non è la multa amministrativa: in caso di infortuni, la responsabilità penale del titolare è diretta. Il D.Lgs 231/2001 prevede che anche la persona giuridica (la società) possa essere perseguita se l'infortunio deriva da mancanza di un modello organizzativo adeguato. In pratica: documentazione in ordine non è burocrazia inutile, è la tua protezione legale.",
+      },
+      {
+        type: "section",
+        heading: "Formazione Obbligatoria: Ore per Ruolo",
+        body: "Ogni operaio edile deve completare la formazione obbligatoria sulla sicurezza. Per i lavoratori del settore costruzioni (rischio alto): 16 ore di formazione generale + 24 ore di formazione specifica = 40 ore totali. Il corso va rinnovato ogni 5 anni con 6 ore di aggiornamento. I Preposti (capocantieri) devono fare ulteriori 8 ore di formazione. I Dirigenti (project manager, direttori di cantiere) devono completare 16 ore aggiuntive. Il RSPP interno (titolare che assume questa funzione) deve completare 32 ore di formazione specifica per il settore costruzioni. Tieni traccia di chi ha fatto quale corso e quando scade: una mancata sorveglianza sanitaria o una formazione scaduta durante un controllo vale una sanzione immediata.",
+      },
+      {
+        type: "quote",
+        quote: "Da quando uso il gestionale per tracciare la scadenza dei documenti di sicurezza, non ho più avuto brutte sorprese durante le ispezioni. Prima mi ricordavo di rinnovi scaduti solo quando l'ispettore me lo faceva notare.",
+        author: "Raffaele C., impresa edile, Napoli",
+      },
+      {
+        type: "section",
+        heading: "Come Gestire la Sicurezza Senza Perderci Ore",
+        body: "La gestione della sicurezza è diventata un'attività full-time per molti titolari di PMI edili. La soluzione non è ignorarla (troppo rischioso) né esternalizzarla completamente (troppo costoso). La via di mezzo è la digitalizzazione del processo. Un buon gestionale per imprese edili deve permetterti di: tracciare le scadenze di DVR, POS, idoneità sanitarie e formazione per ogni cantiere e per ogni operaio; ricevere alert automatici 30-60 giorni prima di ogni scadenza; allegare digitalmente i documenti di sicurezza alla commessa; generare la checklist del POS per ogni nuovo cantiere a partire da un template base. Edilizia in Cloud integra queste funzionalità nel modulo HR e Cantieri — non è un software separato di gestione documentale, ma tutto è collegato alla commessa.",
+      },
+      {
+        type: "cta",
+        heading: "Tieni la sicurezza sotto controllo con Edilizia in Cloud",
+        body: "Scadenze DURC, idoneità sanitarie, formazione operai e documenti di cantiere: tutto tracciato e con alert automatici. Nessuna scadenza mancata, nessuna sanzione evitabile. Prova gratis 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "26",
+    slug: "ccnl-edilizia-guida",
+    title: "CCNL Edilizia Industria 2024-2026: Guida Pratica per le Imprese",
+    excerpt:
+      "Tutto quello che devi sapere sul Contratto Collettivo Nazionale di Lavoro per l'edilizia industria: livelli, scatti, aumenti, orari, ferie, permessi e come calcolare il costo reale di un operaio.",
+    category: "HR & Personale",
+    tags: ["CCNL edilizia", "contratto collettivo edilizia", "costo operaio edile", "livelli CCNL", "retribuzione edilizia"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 11,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il CCNL Edilizia Industria è il contratto collettivo che regola il rapporto di lavoro degli operai nelle imprese di costruzioni italiane. È uno dei contratti più complessi del panorama italiano — con elementi come la Cassa Edile, la mutualizzazione, le mensilità aggiuntive e i contributi territorializzati. Se stai valutando di assumere un operaio edile o vuoi capire quanto ti costa davvero il personale, questa guida ti dà tutti i numeri aggiornati al rinnovo 2024-2026.",
+      },
+      {
+        type: "section",
+        heading: "I Livelli del CCNL Edilizia: Da A1 a B4",
+        body: "Il CCNL Edilizia Industria prevede 8 livelli retributivi organizzati in due categorie: operai (A) e impiegati tecnici/amministrativi (B). Per gli operai i livelli sono A1 (muratori, carpentieri qualificati), A2 (operai qualificati), A3 (operai comuni specializzati) e A4 (operai comuni). Il parametro retributivo di riferimento è il livello A1, su cui si calcola la paga base tabellare. Gli altri livelli applicano coefficienti moltiplicativi al parametro A1. La retribuzione comprende: paga base, contingenza (IVC), EDR (elemento distinto della retribuzione), scatti di anzianità biennali e indennità di settore. Attenzione: il CCNL definisce il minimo tabellare. Puoi pagare di più ma non di meno.",
+      },
+      {
+        type: "list",
+        heading: "Voci che Compongono il Costo Reale di un Operaio Edile",
+        items: [
+          "Paga base mensile (CCNL) — varia da circa 1.200€ (A4) a 1.650€ (A1) al mese in base al livello. Include paga tabellare + contingenza + EDR.",
+          "Tredicesima e quattordicesima — due mensilità aggiuntive l'anno, calcolate sulla retribuzione globale.",
+          "Contributi Cassa Edile — quota a carico dell'impresa pari a circa il 15-20% della retribuzione imponibile, varia per territorio. Includono ferie, gratifica natalizia, anzianità professionale edile (APE).",
+          "Contributi INPS/INAIL — circa 30-35% della retribuzione lorda. Includono pensione, malattia, maternità, disoccupazione, infortuni.",
+          "TFR (Trattamento di Fine Rapporto) — accantonamento del 6,91% della retribuzione annuale lorda.",
+          "Indennità di trasferta — per cantieri fuori dal comune della sede aziendale, varia da 18€ a 41€/giorno netti.",
+          "Costo totale stimato per un operaio A1 — da 3.200€ a 3.800€/mese al lordo di tutto, inclusi contributi e oneri accessori.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Ferie, Permessi e ROL nel CCNL Edilizia",
+        body: "Il CCNL Edilizia prevede 4 settimane di ferie annue (168 ore). I permessi ROL (Riposo Operai Lavoratori) ammontano a circa 56 ore annue per gli operai full-time. Le ferie e i ROL non goduti entro l'anno devono essere liquidati monetariamente (o goduti entro 18 mesi). Attenzione: la Cassa Edile gestisce e anticipa il pagamento delle ferie agli operai in molte province — il meccanismo varia territorialmente. Questo significa che l'impresa versa i contributi ferie alla Cassa Edile mensualmente, e la Cassa li eroga all'operaio durante le ferie. Se non gestisci correttamente questo meccanismo, puoi trovarti a pagare due volte.",
+      },
+      {
+        type: "quote",
+        quote: "Prima non sapevo quanto mi costasse davvero ogni operaio per cantiere. Ora con il gestionale vedo il costo orario reale (inclusi contributi e Cassa Edile) per ogni persona assegnata a ogni commessa.",
+        author: "Bruno M., impresa edile, Torino",
+      },
+      {
+        type: "section",
+        heading: "Come Calcolare il Costo Orario Effettivo di un Operaio",
+        body: "Il costo orario che devi usare nei tuoi preventivi non è la paga tabellare mensile divisa per le ore lavorate. Il calcolo corretto considera: retribuzione mensile lorda, divisa per le ore lavorate effettive (circa 168 ore/mese), moltiplicata per il coefficiente di incidenza degli oneri — che include tredicesima, quattordicesima, Cassa Edile, INPS/INAIL, TFR, ferie e permessi. Per un operaio A1 a Milano il costo orario effettivo all'impresa si aggira tra 28 e 35€/ora, contro una paga base oraria nominale di circa 9-10€. La differenza — che va da 2,8x a 3,5x il salario lordo base — è il costo reale che devi inserire nei tuoi preventivi per non perdere margine. Molte imprese sottostimano questo valore e perdono il 5-8% di margine su ogni commessa.",
+      },
+      {
+        type: "cta",
+        heading: "Calcola il costo reale del tuo personale con Edilizia in Cloud",
+        body: "Il modulo HR di Edilizia in Cloud calcola automaticamente il costo per cantiere di ogni operaio, inclusi contributi INPS, Cassa Edile e oneri contrattuali. Preventivi precisi, margini reali.",
+      },
+    ],
+  },
+  {
+    id: "27",
+    slug: "attestazione-soa-imprese-edili",
+    title: "Attestazione SOA per Imprese Edili: Come Ottenerla e Mantenerla",
+    excerpt:
+      "Guida completa all'attestazione SOA per partecipare agli appalti pubblici oltre 150.000€: categorie OG/OS, requisiti di fatturato e personale, costi, rinnovi e cosa fare se scade.",
+    category: "Normativa",
+    tags: ["attestazione SOA", "SOA imprese edili", "appalti pubblici qualificazione", "categorie OG OS", "qualificazione SOA"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 9,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Se la tua impresa vuole partecipare agli appalti pubblici con importo superiore a 150.000€, l'attestazione SOA è obbligatoria. Senza di essa sei escluso dalla gara — qualunque sia la tua esperienza o reputazione. In questa guida ti spieghiamo cosa è la SOA, quali categorie esistono, come si ottiene, quanto costa e come tenerla aggiornata senza perdere opportunità commerciali.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è la SOA e Perché è Obbligatoria",
+        body: "La SOA (Società Organismo di Attestazione) è un ente privato autorizzato dall'ANAC che certifica la capacità tecnica ed economica delle imprese edili a eseguire lavori pubblici. Il D.Lgs 36/2023 (Codice dei Contratti Pubblici) rende obbligatoria l'attestazione SOA per partecipare a gare d'appalto con importo superiore a 150.000€. Sotto questa soglia si può partecipare senza SOA, dimostrando i requisiti direttamente in gara. Il concetto chiave: la SOA non attesta che tu sei una brava impresa — attesta che hai i requisiti di fatturato, organico, attrezzature e certificazioni per eseguire una certa tipologia di lavori fino a un certo importo.",
+      },
+      {
+        type: "list",
+        heading: "Le Principali Categorie SOA per le Imprese Edili",
+        items: [
+          "OG1 — Edifici civili e industriali: la categoria più comune per le imprese edili generaliste. Copre costruzione, manutenzione e restauro di edifici pubblici e privati.",
+          "OG3 — Strade, autostrade e ponti: per imprese specializzate in infrastrutture viarie.",
+          "OG6 — Acquedotti, gasdotti, oleodotti: per impianti di distribuzione e reti tecnologiche.",
+          "OG11 — Impianti tecnologici: per imprese che si occupano di impianti meccanici, elettrici e speciali.",
+          "OS6 — Finiture di opere generali: intonaci, rivestimenti, pavimentazioni specifiche.",
+          "OS28 — Impianti termici e di condizionamento: per serramentisti e installatori specializzati.",
+          "OS30 — Impianti elettrici: per elettricisti e impiantisti qualificati.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Requisiti per Ottenere la SOA: Fatturato, Personale e Certificazioni",
+        body: "Per ottenere l'attestazione SOA devi dimostrare requisiti di ordine generale (assenza di condanne penali, regolarità fiscale e contributiva, iscrizione alla CCIAA) e requisiti di ordine speciale (capacità economica e tecnica). I requisiti tecnici comprendono: un fatturato in lavori nella categoria richiesta almeno pari al doppio dell'importo della classifica richiesta, nel miglior quinquennio degli ultimi dieci anni; il possesso di attrezzature e mezzi d'opera adeguati; la presenza di tecnici con qualifiche adeguate (diploma o laurea in materie tecniche). La certificazione ISO 9001 non è obbligatoria ma dà un bonus in termini di qualifiche ottenibili. La SOA ha validità di 5 anni, con verifica obbligatoria al 3° anno.",
+      },
+      {
+        type: "section",
+        heading: "Costi e Tempi per Ottenere la SOA",
+        body: "Il costo della SOA dipende dalla classifica richiesta (da I a VIII, che corrispondono a importi crescenti da 258.000€ a oltre 15 milioni). Le tariffe delle SOA variano tra i vari organismi (ce ne sono circa 12 in Italia autorizzati da ANAC) ma oscillano generalmente tra 2.000€ e 15.000€ per la prima attestazione, con rinnovi quinquennali a costi simili. I tempi di istruttoria sono di norma 30-60 giorni dalla presentazione della documentazione completa. Il consiglio pratico: inizia il processo SOA almeno 3 mesi prima di quando ti serve, per coprire eventuali richieste di integrazione documentale.",
+      },
+      {
+        type: "quote",
+        quote: "Ho perso un appalto da 800.000€ perché la SOA era scaduta da 2 mesi e non avevo impostato il promemoria di rinnovo. Da allora uso il gestionale per tracciare tutte le scadenze documentali.",
+        author: "Lorenzo P., impresa edile, Bologna",
+      },
+      {
+        type: "section",
+        heading: "Come Gestire Rinnovi e Verifica Triennale",
+        body: "La SOA ha una validità totale di 5 anni, ma al 3° anno è obbligatoria la verifica di mantenimento dei requisiti (cosiddetto 'triennale'). Se non si effettua il triennale, l'attestazione decade automaticamente. Il rinnovo quinquennale va avviato con almeno 90 giorni di anticipo rispetto alla scadenza — se la SOA scade durante una gara in corso, la tua offerta viene esclusa. Un gestionale per imprese edili dovrebbe permetterti di: tracciare la scadenza quinquennale e il triennale per ogni categoria SOA posseduta; ricevere alert automatici 90-120 giorni prima; allegare digitalmente copia della SOA alla documentazione d'impresa.",
+      },
+      {
+        type: "cta",
+        heading: "Gestisci scadenze SOA, DURC e documenti d'impresa con Edilizia in Cloud",
+        body: "Alert automatici per SOA, DURC, certificazioni e formazione. Tutta la documentazione allegata digitalmente e sempre disponibile per le gare d'appalto. Prova gratis 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "28",
+    slug: "superbonus-imprese-edili-2026",
+    title: "Superbonus 2025-2026: Cosa Resta per le Imprese Edili e Come Gestirlo",
+    excerpt:
+      "Guida aggiornata al Superbonus 2025-2026 per le imprese edili: aliquote residue, cessione del credito, SAL e documentazione obbligatoria. Come non perdere lavori per mancanza di gestione.",
+    category: "Normativa",
+    tags: ["superbonus 2026", "superbonus imprese edili", "bonus edilizi", "cessione credito", "ecobonus", "bonus ristrutturazione"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 10,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il Superbonus al 110% è finito, ma le opportunità per le imprese edili legate ai bonus edilizi non sono sparite — si sono evolute. Nel 2025-2026 restano attivi diversi incentivi fiscali per le ristrutturazioni: il Bonus Ristrutturazione al 50%, l'Ecobonus al 65%, il Sismabonus, e residui del Superbonus per i lavori già avviati con CILA presentata entro le date previste. Questa guida ti aiuta a capire cosa resta e come gestire correttamente la documentazione per non perdere questi lavori.",
+      },
+      {
+        type: "section",
+        heading: "Cosa Resta Attivo nel 2025-2026",
+        body: "La situazione normativa dei bonus edilizi è in continua evoluzione. Al 2026, per le imprese edili che eseguono lavori su immobili privati, rimangono attivi: Bonus Ristrutturazione al 50% fino a 96.000€ per unità immobiliare (confermato fino a fine 2027); Ecobonus al 65% per interventi di efficientamento energetico sulle singole unità; Sismabonus fino all'85% per interventi antisismici nelle zone 1 e 2; Bonus Barriere Architettoniche al 75% (confermato fino al 31/12/2025, poi in scadenza). Per i lavori su parti comuni condominiali avviati con regolare CILA entro le date previste dal legislatore, possono ancora applicarsi le aliquote Superbonus residue (65% per il 2025). Ogni caso deve essere verificato con il commercialista del committente.",
+      },
+      {
+        type: "list",
+        heading: "Documentazione Obbligatoria per Lavori con Bonus Edilizi",
+        items: [
+          "CILA (Comunicazione Inizio Lavori Asseverata) — per la maggior parte dei lavori di ristrutturazione. Deve essere presentata prima dell'inizio dei lavori tramite il SUAP del comune.",
+          "Asseverazione tecnica del progettista — obbligatoria per Ecobonus e Sismabonus. Un tecnico abilitato attesta che i lavori soddisfano i requisiti tecnici per accedere alla detrazione.",
+          "Visto di conformità del CAF o commercialista — richiesto per la cessione del credito e lo sconto in fattura, anche per i bonus residui.",
+          "APE (Attestato di Prestazione Energetica) — pre e post intervento, obbligatorio per tutti gli interventi Ecobonus e Superbonus.",
+          "SAL documentati — per i lavori che prevedono pagamenti in tranche, il SAL deve essere asseverato dal direttore lavori e allegato alla pratica.",
+          "Fattura con codice fiscale committente e indicazione del bonus applicato — la fattura emessa dall'impresa deve riportare la tipologia di detrazione.",
+          "DURC aggiornato — la regolarità contributiva dell'impresa esecutrice è requisito imprescindibile per l'accesso al bonus.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cessione del Credito e Sconto in Fattura nel 2025-2026",
+        body: "La cessione del credito e lo sconto in fattura — i meccanismi che permettevano al committente di cedere la detrazione all'impresa in cambio di uno sconto sul corrispettivo — sono stati fortemente limitati dalla Legge n.11/2023 e successive modifiche. Al 2026, la cessione del credito è possibile solo in casi specifici (edilizia popolare, immobili danneggiati da calamità, condomini con bassa redditività). Per la maggior parte dei lavori residenziali privati, il committente può solo detrarre dalla propria IRPEF in 4 o 10 anni. Questo ha cambiato radicalmente il mercato: molti privati non hanno la capienza fiscale per sfruttare la detrazione, e i lavori con bonus sono diminuiti. Le imprese che riescono a spiegare ai clienti in modo chiaro cosa resta possono ancora acquisire commesse importanti.",
+      },
+      {
+        type: "quote",
+        quote: "Abbiamo costruito un foglio informativo per i clienti sui bonus ancora disponibili e l'abbiamo allegato a ogni preventivo. Questo ha triplicato il tasso di accettazione dei preventivi per ristrutturazioni nel 2025.",
+        author: "Stefano L., impresa edile, Firenze",
+      },
+      {
+        type: "section",
+        heading: "Come Gestire i SAL per Lavori con Bonus",
+        body: "Uno degli aspetti più critici dei lavori con bonus edilizi è la gestione dei SAL (Stati Avanzamento Lavori). Per i lavori che prevedono accesso al Superbonus o all'Ecobonus su parti comuni condominiali, i SAL devono essere redatti e asseverati dal direttore lavori in misura non inferiore al 30% e al 60% dei lavori. L'asseverazione del SAL deve essere caricata su ENEA entro 90 giorni dal completamento della percentuale di avanzamento. Un errore nella sequenza o nel timing dei SAL può causare la decadenza del bonus per il committente — con conseguenze legali e commerciali per l'impresa esecutrice. Un gestionale che ti permette di pianificare e documentare i SAL in modo preciso è fondamentale per lavorare con i bonus edilizi senza rischi.",
+      },
+      {
+        type: "cta",
+        heading: "Gestisci i SAL e la documentazione bonus con Edilizia in Cloud",
+        body: "SAL asseverabili, tracciamento delle scadenze ENEA, DURC sempre aggiornato e documentazione digitale per ogni commessa. Nessun errore burocratico che ti fa perdere il bonus del cliente. Prova gratis.",
+      },
+    ],
+  },
 ];
 
 export const categories = [

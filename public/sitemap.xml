@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-08 — 85+ URL, 24 articoli, 22 città, 6 confronti -->
+  <!-- Sitemap aggiornato: 2026-04-08 — 90+ URL, 28 articoli, 22 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -379,6 +379,50 @@
     <image:image>
       <image:loc>https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
       <image:title>Come Partecipare agli Appalti Pubblici in Edilizia: Guida 2026</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Sicurezza Cantieri: D.Lgs 81/2008 Spiegato alle Imprese Edili</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/ccnl-edilizia-guida</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/ccnl-edilizia-guida"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>CCNL Edilizia Industria 2024-2026: Guida Pratica per le Imprese</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Attestazione SOA per Imprese Edili: Come Ottenerla e Mantenerla</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Superbonus 2025-2026: Cosa Resta per le Imprese Edili</image:title>
     </image:image>
   </url>
 
