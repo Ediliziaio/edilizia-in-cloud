@@ -51,6 +51,15 @@ export default function LandingFooter() {
               <li><Link to="/software-gestionale-edilizia-catania" className="hover:text-[#F97415] transition-colors">Catania</Link></li>
               <li><Link to="/software-gestionale-edilizia-venezia" className="hover:text-[#F97415] transition-colors">Venezia</Link></li>
               <li><Link to="/software-gestionale-edilizia-padova" className="hover:text-[#F97415] transition-colors">Padova</Link></li>
+              <li><Link to="/software-gestionale-edilizia-bergamo" className="hover:text-[#F97415] transition-colors">Bergamo</Link></li>
+              <li><Link to="/software-gestionale-edilizia-modena" className="hover:text-[#F97415] transition-colors">Modena</Link></li>
+              <li><Link to="/software-gestionale-edilizia-parma" className="hover:text-[#F97415] transition-colors">Parma</Link></li>
+              <li><Link to="/software-gestionale-edilizia-salerno" className="hover:text-[#F97415] transition-colors">Salerno</Link></li>
+              <li><Link to="/software-gestionale-edilizia-trieste" className="hover:text-[#F97415] transition-colors">Trieste</Link></li>
+              <li><Link to="/software-gestionale-edilizia-cagliari" className="hover:text-[#F97415] transition-colors">Cagliari</Link></li>
+              <li><Link to="/software-gestionale-edilizia-perugia" className="hover:text-[#F97415] transition-colors">Perugia</Link></li>
+              <li><Link to="/software-gestionale-edilizia-ancona" className="hover:text-[#F97415] transition-colors">Ancona</Link></li>
+              <li><Link to="/software-gestionale-edilizia-reggio-emilia" className="hover:text-[#F97415] transition-colors">Reggio Emilia</Link></li>
             </ul>
           </div>
 

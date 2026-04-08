@@ -729,6 +729,456 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Bologna", slug: "bologna" },
     ],
   },
+
+  bergamo: {
+    name: "Bergamo",
+    region: "Lombardia",
+    slug: "bergamo",
+    province: "BG",
+    lat: 45.6983,
+    lon: 9.6773,
+    heroTitle: "Gestionale Edilizia per Imprese di Bergamo",
+    heroSubtitle:
+      "Software gestionale per imprese edili bergamasche: controllo cantieri, preventivi professionali, fatturazione elettronica e margini in tempo reale. La forza produttiva bergamasca merita strumenti digitali all'altezza.",
+    heroImage:
+      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "22+", label: "Imprese edili bergamasche attive" },
+      { value: "€ 3.1M", label: "Fatturato gestito al mese in provincia di Bergamo" },
+      { value: "27%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti bergamaschi" },
+    ],
+    localTestimonial: {
+      quote:
+        "Bergamo è una piazza dove si lavora sodo ma i margini sono stretti. Edilizia in Cloud mi ha permesso di capire finalmente dove stavo perdendo soldi: un cantiere su tre era in perdita senza che me ne accorgessi.",
+      author: "Claudio R.",
+      company: "Rota Costruzioni Srl",
+      city: "Bergamo",
+      initials: "CR",
+    },
+    localProblems: [
+      {
+        emoji: "🏗️",
+        title: "Polo industriale e logistico con cantieri complessi",
+        desc: "La provincia di Bergamo ha uno dei tessuti produttivi più densi d'Italia. Le imprese edili lavorano su capannoni, ampliamenti e infrastrutture logistiche con tempi rigidi e penali pesanti per i ritardi.",
+      },
+      {
+        emoji: "🏔️",
+        title: "Valli orobiche: cantieri in zone difficili",
+        desc: "Le valli bergamasche richiedono cantieri con logistica alpina, stagionalità e costi di trasporto elevati. Tracciare questi costi per commessa è fondamentale per non lavorare in perdita.",
+      },
+      {
+        emoji: "🏠",
+        title: "Post-sisma e riqualificazione energetica in crescita",
+        desc: "La provincia di Bergamo ha visto una forte spinta verso la riqualificazione energetica dopo il 2020. Gestire 15-20 cantieri di ristrutturazione simultaneamente richiede un software preciso.",
+      },
+    ],
+    relatedCities: [
+      { name: "Milano", slug: "milano" },
+      { name: "Brescia", slug: "brescia" },
+      { name: "Verona", slug: "verona" },
+    ],
+  },
+
+  modena: {
+    name: "Modena",
+    region: "Emilia-Romagna",
+    slug: "modena",
+    province: "MO",
+    lat: 44.6471,
+    lon: 10.9252,
+    heroTitle: "Gestionale Edilizia per Imprese di Modena",
+    heroSubtitle:
+      "Software gestionale per imprese edili modenesi: gestione cantieri, preventivi, fatturazione elettronica e controllo margini. L'Emilia produttiva merita un gestionale che funziona come le sue imprese.",
+    heroImage:
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "18+", label: "Imprese edili modenesi attive" },
+      { value: "€ 2.4M", label: "Fatturato gestito al mese in provincia di Modena" },
+      { value: "25%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti emiliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Modena è un mercato veloce: i clienti vogliono preventivi precisi in 24 ore. Con Edilizia in Cloud li genero in 20 minuti con margini calcolati automaticamente. Ho vinto 3 cantieri che prima perdevo per lentezza.",
+      author: "Luca F.",
+      company: "Ferrari Costruzioni Srl",
+      city: "Modena",
+      initials: "LF",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Distretto automotive e meccanico: capannoni e ampliamenti",
+        desc: "Modena è il cuore dell'industria motoristica italiana. Le imprese edili lavorano per aziende automotive, fornitori di primo livello e PMI meccaniche che richiedono precisione millimetrica e rispetto dei tempi.",
+      },
+      {
+        emoji: "🌊",
+        title: "Alluvioni e rischio idrogeologico: messa in sicurezza",
+        desc: "Il territorio modenese è stato colpito da eventi alluvionali. Le imprese edili gestiscono cantieri di messa in sicurezza con fondi pubblici che richiedono rendicontazione puntuale e SAL certificati.",
+      },
+      {
+        emoji: "🏠",
+        title: "Boom delle ristrutturazioni nel centro storico UNESCO",
+        desc: "Il centro storico di Modena è patrimonio UNESCO. Ogni cantiere richiede autorizzazioni soprintendenza e documentazione specifica. Un gestionale digitale riduce il rischio di errori formali.",
+      },
+    ],
+    relatedCities: [
+      { name: "Bologna", slug: "bologna" },
+      { name: "Reggio Emilia", slug: "reggio-emilia" },
+      { name: "Parma", slug: "parma" },
+    ],
+  },
+
+  "reggio-emilia": {
+    name: "Reggio Emilia",
+    region: "Emilia-Romagna",
+    slug: "reggio-emilia",
+    province: "RE",
+    lat: 44.6989,
+    lon: 10.6297,
+    heroTitle: "Gestionale Edilizia per Imprese di Reggio Emilia",
+    heroSubtitle:
+      "Software gestionale per imprese edili reggiane: controllo cantieri, preventivi professionali e fatturazione. Nel cuore dell'Emilia produttiva, scegli il gestionale usato dalle migliori imprese edili locali.",
+    heroImage:
+      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "15+", label: "Imprese edili reggiane attive" },
+      { value: "€ 2.0M", label: "Fatturato gestito al mese in provincia di Reggio Emilia" },
+      { value: "24%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti emiliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "A Reggio Emilia le imprese sono abituate all'efficienza. Edilizia in Cloud ci ha permesso di gestire 18 cantieri simultaneamente con un solo ufficio amministrativo. Prima eravamo al collasso.",
+      author: "Stefano B.",
+      company: "Baroni Costruzioni Srl",
+      city: "Reggio Emilia",
+      initials: "SB",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Cooperazione e distretto industriale: standard qualitativi elevati",
+        desc: "Reggio Emilia è nota per il modello cooperativistico. Le imprese edili reggiane lavorano con cooperative di produzione che richiedono rendicontazione precisa e sistemi di controllo avanzati.",
+      },
+      {
+        emoji: "🌱",
+        title: "Edilizia green e sostenibile in forte crescita",
+        desc: "La provincia di Reggio Emilia investe molto in edilizia sostenibile: case passive, certificazioni LEED, efficienza energetica. Le imprese devono documentare puntualmente questi interventi.",
+      },
+      {
+        emoji: "📋",
+        title: "Rendicontazione fondi europei e regionali",
+        desc: "Molte imprese reggiane accedono a bandi regionali e fondi europei per la riqualificazione. La rendicontazione digitale è obbligatoria e richiede un gestionale preciso e affidabile.",
+      },
+    ],
+    relatedCities: [
+      { name: "Modena", slug: "modena" },
+      { name: "Bologna", slug: "bologna" },
+      { name: "Parma", slug: "parma" },
+    ],
+  },
+
+  parma: {
+    name: "Parma",
+    region: "Emilia-Romagna",
+    slug: "parma",
+    province: "PR",
+    lat: 44.8015,
+    lon: 10.3279,
+    heroTitle: "Gestionale Edilizia per Imprese di Parma",
+    heroSubtitle:
+      "Software gestionale per imprese edili parmensi: cantieri, preventivi, fatturazione elettronica e margini. La capitale del Food Valley merita imprese edili competitive e digitalmente attrezzate.",
+    heroImage:
+      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "14+", label: "Imprese edili parmensi attive" },
+      { value: "€ 1.8M", label: "Fatturato gestito al mese in provincia di Parma" },
+      { value: "23%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti parmensi" },
+    ],
+    localTestimonial: {
+      quote:
+        "Parma è cresciuta tantissimo grazie al Food Valley e alla sede EMA. Le costruzioni non si fermano mai. Con Edilizia in Cloud ho raddoppiato i cantieri gestibili senza assumere personale amministrativo.",
+      author: "Andrea M.",
+      company: "Meli Costruzioni Srl",
+      city: "Parma",
+      initials: "AM",
+    },
+    localProblems: [
+      {
+        emoji: "🧀",
+        title: "Food Valley: stabilimenti e logistica in continua espansione",
+        desc: "L'agroalimentare parmense è in crescita costante. Le imprese edili costruiscono e ristrutturano stabilimenti produttivi e logistici con requisiti normativi specifici (HACCP, sicurezza alimentare).",
+      },
+      {
+        emoji: "🏛️",
+        title: "Centro storico e palazzi nobiliari: vincoli soprintendenza",
+        desc: "Parma ha un patrimonio architettonico straordinario. I cantieri di restauro nel centro richiedono autorizzazioni specifiche, materiali certificati e documentazione fotografica puntuale.",
+      },
+      {
+        emoji: "🏥",
+        title: "Polo ospedaliero e universitario: cantieri sanitari",
+        desc: "Parma ospita uno dei principali poli ospedalieri e universitari del Nord Italia. Le imprese che lavorano in questi contesti devono rispettare standard tecnici elevati e tempi rigidissimi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Reggio Emilia", slug: "reggio-emilia" },
+      { name: "Modena", slug: "modena" },
+      { name: "Bologna", slug: "bologna" },
+    ],
+  },
+
+  salerno: {
+    name: "Salerno",
+    region: "Campania",
+    slug: "salerno",
+    province: "SA",
+    lat: 40.6824,
+    lon: 14.7681,
+    heroTitle: "Gestionale Edilizia per Imprese di Salerno",
+    heroSubtitle:
+      "Software gestionale per imprese edili salernitane: gestione cantieri, SAL, fatturazione elettronica e controllo margini. Il Sud Italia cresce: le imprese edili di Salerno meritano strumenti digitali efficaci.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "13+", label: "Imprese edili salernitane attive" },
+      { value: "€ 1.6M", label: "Fatturato gestito al mese in provincia di Salerno" },
+      { value: "21%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti campani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Con i fondi PNRR il lavoro non manca, ma la rendicontazione è un incubo senza un gestionale. Edilizia in Cloud mi ha salvato: SAL puntuali, documenti sempre in ordine, nessun problema con i controlli.",
+      author: "Vincenzo P.",
+      company: "Pellegrino Costruzioni Srl",
+      city: "Salerno",
+      initials: "VP",
+    },
+    localProblems: [
+      {
+        emoji: "🌊",
+        title: "Costa Amalfitana e Cilento: cantieri in aree protette",
+        desc: "La provincia di Salerno include aree UNESCO e parchi nazionali. I cantieri nelle zone costiere e collinari richiedono autorizzazioni ambientali specifiche e documentazione puntuale.",
+      },
+      {
+        emoji: "🏗️",
+        title: "PNRR e fondi europei: grande opportunità, burocrazia complessa",
+        desc: "Salerno è tra le province con più investimenti PNRR in Campania. Le imprese edili accedono a cantieri importanti ma devono gestire rendicontazione digitale rigorosa e SAL certificati.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Riqualificazione urbana e patrimonio storico",
+        desc: "Il centro storico di Salerno e i borghi della provincia richiedono interventi di riqualificazione urbana con fondi regionali. La documentazione richiesta dai bandi è complessa e richiede un gestionale preciso.",
+      },
+    ],
+    relatedCities: [
+      { name: "Napoli", slug: "napoli" },
+      { name: "Bari", slug: "bari" },
+      { name: "Roma", slug: "roma" },
+    ],
+  },
+
+  trieste: {
+    name: "Trieste",
+    region: "Friuli-Venezia Giulia",
+    slug: "trieste",
+    province: "TS",
+    lat: 45.6495,
+    lon: 13.7768,
+    heroTitle: "Gestionale Edilizia per Imprese di Trieste",
+    heroSubtitle:
+      "Software gestionale per imprese edili triestine: gestione cantieri, preventivi, fatturazione e controllo margini. Il crocevia tra Italia, Slovenia e Austria merita strumenti gestionali all'avanguardia.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "11+", label: "Imprese edili triestine attive" },
+      { value: "€ 1.4M", label: "Fatturato gestito al mese in provincia di Trieste" },
+      { value: "22%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti del Friuli" },
+    ],
+    localTestimonial: {
+      quote:
+        "Trieste è una città unica: cantieri in vecchi palazzi asburgici, porti e infrastrutture. Edilizia in Cloud mi aiuta a gestire la complessità: ogni cantiere ha le sue regole e il gestionale le tiene tutte sotto controllo.",
+      author: "Marco K.",
+      company: "Kowalski Costruzioni Srl",
+      city: "Trieste",
+      initials: "MK",
+    },
+    localProblems: [
+      {
+        emoji: "⚓",
+        title: "Porto franco e infrastrutture: cantieri complessi ad alto valore",
+        desc: "Trieste è il principale porto dell'Italia nord-orientale. Le imprese edili lavorano su infrastrutture portuali, magazzini e strutture logistiche con requisiti tecnici elevati e normative specifiche.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Patrimonio asburgico: restauro e vincoli storici",
+        desc: "Il centro storico di Trieste è ricco di edifici Liberty e neoclassici. I cantieri di restauro richiedono materiali certificati, tecnici specializzati e documentazione fotografica obbligatoria.",
+      },
+      {
+        emoji: "🌍",
+        title: "Mercato transfrontaliero: cantieri in Slovenia e Croazia",
+        desc: "Molte imprese triestine lavorano anche oltre confine. Gestire commesse in più paesi richiede un gestionale flessibile che distingua le normative italiane da quelle estere.",
+      },
+    ],
+    relatedCities: [
+      { name: "Venezia", slug: "venezia" },
+      { name: "Udine", slug: "udine" },
+      { name: "Padova", slug: "padova" },
+    ],
+  },
+
+  cagliari: {
+    name: "Cagliari",
+    region: "Sardegna",
+    slug: "cagliari",
+    province: "CA",
+    lat: 39.2238,
+    lon: 9.1217,
+    heroTitle: "Gestionale Edilizia per Imprese di Cagliari",
+    heroSubtitle:
+      "Software gestionale per imprese edili cagliaritane: gestione cantieri, SAL, preventivi e fatturazione. La Sardegna cresce: le imprese edili di Cagliari e dell'isola meritano strumenti digitali al passo con i tempi.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "10+", label: "Imprese edili sarde attive" },
+      { value: "€ 1.3M", label: "Fatturato gestito al mese in Sardegna" },
+      { value: "20%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti sardi" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Sardegna il mercato edilizio è in forte ripresa. Con Edilizia in Cloud gestisco cantieri da Cagliari a Nuoro con un'unica piattaforma: risparmio 2 giorni di lavoro a settimana solo di burocrazia.",
+      author: "Antonio P.",
+      company: "Piras Costruzioni Srl",
+      city: "Cagliari",
+      initials: "AP",
+    },
+    localProblems: [
+      {
+        emoji: "☀️",
+        title: "Boom del turismo: hotel e strutture ricettive",
+        desc: "La Sardegna è una delle mete turistiche più ambite. Le imprese edili costruiscono e ristrutturano resort, hotel e ville private con tempi stagionali rigidissimi: tutto deve essere pronto per la stagione estiva.",
+      },
+      {
+        emoji: "🏝️",
+        title: "Logistica isolana: costi di trasporto elevati",
+        desc: "Ogni materiale in Sardegna arriva via traghetto o aereo. I costi logistici incidono significativamente sui budget. Tracciare questi costi per commessa è essenziale per preventivare correttamente.",
+      },
+      {
+        emoji: "🏗️",
+        title: "Fondi PNRR e investimenti pubblici: opportunità senza precedenti",
+        desc: "La Sardegna riceve importanti investimenti PNRR per infrastrutture, scuole e ospedali. Le imprese edili sarde che vogliono accedere a questi appalti devono dotarsi di strumenti di rendicontazione digitali.",
+      },
+    ],
+    relatedCities: [
+      { name: "Palermo", slug: "palermo" },
+      { name: "Catania", slug: "catania" },
+      { name: "Napoli", slug: "napoli" },
+    ],
+  },
+
+  perugia: {
+    name: "Perugia",
+    region: "Umbria",
+    slug: "perugia",
+    province: "PG",
+    lat: 43.1107,
+    lon: 12.3908,
+    heroTitle: "Gestionale Edilizia per Imprese di Perugia",
+    heroSubtitle:
+      "Software gestionale per imprese edili perugine e umbre: gestione cantieri, preventivi, SAL e fatturazione. Il cuore verde d'Italia merita imprese edili moderne e digitalmente competitive.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "12+", label: "Imprese edili umbre attive" },
+      { value: "€ 1.5M", label: "Fatturato gestito al mese in Umbria" },
+      { value: "22%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti umbri" },
+    ],
+    localTestimonial: {
+      quote:
+        "Dopo il sisma del 2016 il lavoro in Umbria non è mai mancato. Ma gestire tanti cantieri di ricostruzione contemporaneamente senza un gestionale era impossibile. Edilizia in Cloud ha cambiato tutto.",
+      author: "Davide C.",
+      company: "Caporali Costruzioni Srl",
+      city: "Perugia",
+      initials: "DC",
+    },
+    localProblems: [
+      {
+        emoji: "🏔️",
+        title: "Ricostruzione post-sisma: cantieri complessi con fondi pubblici",
+        desc: "L'Umbria è ancora in fase di ricostruzione dopo i terremoti del 2016-2017. Le imprese edili gestiscono cantieri con fondi statali che richiedono rendicontazione rigida, SAL certificati e DURC sempre aggiornato.",
+      },
+      {
+        emoji: "🫒",
+        title: "Turismo rurale e agriturismo: cantieri di riqualificazione",
+        desc: "L'Umbria è tra le regioni italiane con più agriturismi e strutture di turismo rurale. Le imprese edili ristrutturano casali e masserie, spesso con vincoli paesaggistici e contributi regionali.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Centri storici e borghi medievali: burocrazia intensa",
+        desc: "L'Umbria ha una densità altissima di borghi storici vincolati dalla soprintendenza. Ogni cantiere richiede autorizzazioni multiple e documentazione tecnica che senza un gestionale diventa ingestibile.",
+      },
+    ],
+    relatedCities: [
+      { name: "Firenze", slug: "firenze" },
+      { name: "Roma", slug: "roma" },
+      { name: "Ancona", slug: "ancona" },
+    ],
+  },
+
+  ancona: {
+    name: "Ancona",
+    region: "Marche",
+    slug: "ancona",
+    province: "AN",
+    lat: 43.6158,
+    lon: 13.5189,
+    heroTitle: "Gestionale Edilizia per Imprese di Ancona",
+    heroSubtitle:
+      "Software gestionale per imprese edili marchigiane: cantieri, preventivi, fatturazione elettronica e controllo margini. Le Marche crescono: le imprese edili di Ancona e della regione meritano strumenti all'altezza.",
+    heroImage:
+      "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "11+", label: "Imprese edili marchigiane attive" },
+      { value: "€ 1.4M", label: "Fatturato gestito al mese nelle Marche" },
+      { value: "21%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti marchigiani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Dopo il sisma del 2016 le Marche avevano bisogno di imprese edili organizzate. Edilizia in Cloud mi ha dato la struttura per crescere: ora gestisco 12 cantieri di ricostruzione con un team di 8 persone.",
+      author: "Massimo L.",
+      company: "Luchetti Costruzioni Srl",
+      city: "Ancona",
+      initials: "ML",
+    },
+    localProblems: [
+      {
+        emoji: "🏔️",
+        title: "Ricostruzione post-sisma: priorità regionale",
+        desc: "Le Marche sono ancora in piena fase di ricostruzione dopo i terremoti del 2016. Le imprese edili gestiscono cantieri con fondi statali che richiedono SAL puntuali, DURC regolare e rendicontazione digitale certificata.",
+      },
+      {
+        emoji: "⚓",
+        title: "Porto di Ancona: infrastrutture e logistica",
+        desc: "Il porto di Ancona è uno dei principali scali adriatici. Le imprese edili lavorano su infrastrutture portuali e logistiche con requisiti tecnici specifici e tempi stringenti.",
+      },
+      {
+        emoji: "🌊",
+        title: "Turismo adriatico: cantieri stagionali intensi",
+        desc: "La riviera marchigiana attrae milioni di turisti. Le imprese edili lavorano su strutture ricettive con tempi stagionali rigidi: tutto deve essere pronto entro giugno. Un gestionale digitale è l'unico modo per rispettare i tempi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Perugia", slug: "perugia" },
+      { name: "Bologna", slug: "bologna" },
+      { name: "Roma", slug: "roma" },
+    ],
+  },
 };
 
 const FEATURES = [

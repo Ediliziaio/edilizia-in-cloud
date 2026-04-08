@@ -517,6 +517,51 @@ const CITY_CONFIGS = {
     region: "Veneto",
     description: "Software gestionale per imprese edili a Padova. Preventivi professionali, gestione cantieri e fatturazione per il mercato veneto.",
   },
+  bergamo: {
+    city: "Bergamo",
+    region: "Lombardia",
+    description: "Software gestionale per imprese edili a Bergamo. Controllo cantieri, margini e fatturazione per il polo produttivo bergamasco.",
+  },
+  modena: {
+    city: "Modena",
+    region: "Emilia-Romagna",
+    description: "Software gestionale per imprese edili a Modena. Preventivi veloci, gestione cantieri e fatturazione per il distretto automotive emiliano.",
+  },
+  "reggio-emilia": {
+    city: "Reggio Emilia",
+    region: "Emilia-Romagna",
+    description: "Software gestionale per imprese edili a Reggio Emilia. Cantieri, preventivi e fatturazione nel cuore della cooperazione emiliana.",
+  },
+  parma: {
+    city: "Parma",
+    region: "Emilia-Romagna",
+    description: "Software gestionale per imprese edili a Parma. Gestione cantieri, SAL e fatturazione elettronica nella Food Valley italiana.",
+  },
+  salerno: {
+    city: "Salerno",
+    region: "Campania",
+    description: "Software gestionale per imprese edili a Salerno. Rendicontazione PNRR, SAL e gestione cantieri nella Campania meridionale.",
+  },
+  trieste: {
+    city: "Trieste",
+    region: "Friuli-Venezia Giulia",
+    description: "Software gestionale per imprese edili a Trieste. Gestione cantieri portuali, restauro e fatturazione nel crocevia adriatico.",
+  },
+  cagliari: {
+    city: "Cagliari",
+    region: "Sardegna",
+    description: "Software gestionale per imprese edili a Cagliari. Cantieri turistici, SAL e fatturazione per le imprese edili sarde.",
+  },
+  perugia: {
+    city: "Perugia",
+    region: "Umbria",
+    description: "Software gestionale per imprese edili a Perugia. Ricostruzione post-sisma, centri storici e cantieri umbri con Edilizia in Cloud.",
+  },
+  ancona: {
+    city: "Ancona",
+    region: "Marche",
+    description: "Software gestionale per imprese edili ad Ancona. Ricostruzione post-sisma, porto e turismo adriatico: gestisci tutto con Edilizia in Cloud.",
+  },
 };
 
 // Blog category meta

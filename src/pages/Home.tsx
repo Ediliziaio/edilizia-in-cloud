@@ -292,6 +292,15 @@ export default function Home() {
               { name: "Catania", slug: "catania" },
               { name: "Venezia", slug: "venezia" },
               { name: "Padova", slug: "padova" },
+              { name: "Bergamo", slug: "bergamo" },
+              { name: "Modena", slug: "modena" },
+              { name: "Parma", slug: "parma" },
+              { name: "Salerno", slug: "salerno" },
+              { name: "Trieste", slug: "trieste" },
+              { name: "Cagliari", slug: "cagliari" },
+              { name: "Perugia", slug: "perugia" },
+              { name: "Ancona", slug: "ancona" },
+              { name: "Reggio Emilia", slug: "reggio-emilia" },
             ].map((city) => (
               <Link
                 key={city.slug}
