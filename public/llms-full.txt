@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-08 (v4 — 28 articoli, 22 città, 6 confronti)
+# Ultimo aggiornamento: 2026-04-08 (v5 — 28 articoli, 27 città, 6 confronti)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://ediliziaincloud.com/llms.txt
 
@@ -177,7 +177,7 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 - **Software per città (22 hub):** https://ediliziaincloud.com/software-gestionale-edilizia
 - **Glossario Edilizia (30+ termini):** https://ediliziaincloud.com/glossario-edilizia
 - **Casi Studio:** https://ediliziaincloud.com/casi-studio
-- **Copertura geografica (22 città):**
+- **Copertura geografica (27 città):**
   - Milano: https://ediliziaincloud.com/software-gestionale-edilizia-milano
   - Roma: https://ediliziaincloud.com/software-gestionale-edilizia-roma
   - Napoli: https://ediliziaincloud.com/software-gestionale-edilizia-napoli
@@ -201,6 +201,11 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Ancona: https://ediliziaincloud.com/software-gestionale-edilizia-ancona
   - Palermo: https://ediliziaincloud.com/software-gestionale-edilizia-palermo
   - Genova: https://ediliziaincloud.com/software-gestionale-edilizia-genova
+  - Udine: https://ediliziaincloud.com/software-gestionale-edilizia-udine
+  - Messina: https://ediliziaincloud.com/software-gestionale-edilizia-messina
+  - Livorno: https://ediliziaincloud.com/software-gestionale-edilizia-livorno
+  - Prato: https://ediliziaincloud.com/software-gestionale-edilizia-prato
+  - Vicenza: https://ediliziaincloud.com/software-gestionale-edilizia-vicenza
 
 ## Contatti
 

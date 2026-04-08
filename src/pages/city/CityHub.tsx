@@ -30,6 +30,11 @@ const CITIES = [
   { name: "Cagliari", slug: "cagliari", region: "Sardegna", desc: "Principale mercato edile della Sardegna" },
   { name: "Perugia", slug: "perugia", region: "Umbria", desc: "PMI edili attive su ristrutturazioni e nuove costruzioni" },
   { name: "Ancona", slug: "ancona", region: "Marche", desc: "Polo edilizio marchigiano in espansione" },
+  { name: "Udine", slug: "udine", region: "Friuli-Venezia Giulia", desc: "Eccellenza costruttiva friulana con cantieri alpini e industriali" },
+  { name: "Messina", slug: "messina", region: "Sicilia", desc: "Polo edilizio dello Stretto con interventi antisismici e infrastrutturali" },
+  { name: "Livorno", slug: "livorno", region: "Toscana", desc: "Cantieri portuali, costieri e ristrutturazioni nella Toscana tirrenica" },
+  { name: "Prato", slug: "prato", region: "Toscana", desc: "Distretto industriale tessile: capannoni, logistica e residenziale" },
+  { name: "Vicenza", slug: "vicenza", region: "Veneto", desc: "Edilizia industriale e restauro palladiano nel cuore del Nord-Est" },
 ];
 
 const baseUrl = "https://ediliziaincloud.com";
@@ -37,7 +42,7 @@ const baseUrl = "https://ediliziaincloud.com";
 export default function CityHub() {
   useSEO({
     title: "Software Gestionale Edilizia per Città — Tutte le Province | Edilizia in Cloud",
-    description: "Scopri Edilizia in Cloud nella tua città: software gestionale per imprese edili disponibile in tutta Italia. 22 città con supporto locale, dalla Lombardia alla Sicilia.",
+    description: "Scopri Edilizia in Cloud nella tua città: software gestionale per imprese edili disponibile in tutta Italia. 27 città con supporto locale, dalla Lombardia alla Sicilia.",
     canonical: "/software-gestionale-edilizia",
     keywords: "software gestionale edilizia città, gestionale edilizia regioni, software impresa edile Italia, gestionale cantieri province italiane, software edilizia nord sud Italia",
   });
@@ -91,7 +96,7 @@ export default function CityHub() {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-[#F97415]/10 text-[#F97415] px-4 py-2 rounded-full text-sm font-semibold mb-6">
             <MapPin className="h-4 w-4" />
-            Copertura nazionale — 22 città
+            Copertura nazionale — 27 città
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
             Software Gestionale Edilizia<br />

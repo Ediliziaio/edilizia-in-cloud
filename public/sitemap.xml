@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-08 — 90+ URL, 28 articoli, 22 città, 6 confronti -->
+  <!-- Sitemap aggiornato: 2026-04-08 — 100+ URL, 28 articoli, 27 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -739,6 +739,46 @@
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-ancona"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-ancona"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-udine</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-udine"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-udine"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-messina</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-messina"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-messina"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-livorno</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-livorno"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-livorno"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-prato</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-prato"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-prato"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-vicenza</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-vicenza"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-vicenza"/>
   </url>
 
   <!-- ── Hub pages ──────────────────────────────────────────────── -->

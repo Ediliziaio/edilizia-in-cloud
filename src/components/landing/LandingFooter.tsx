@@ -61,6 +61,11 @@ export default function LandingFooter() {
               <li><Link to="/software-gestionale-edilizia-perugia" className="hover:text-[#F97415] transition-colors">Perugia</Link></li>
               <li><Link to="/software-gestionale-edilizia-ancona" className="hover:text-[#F97415] transition-colors">Ancona</Link></li>
               <li><Link to="/software-gestionale-edilizia-reggio-emilia" className="hover:text-[#F97415] transition-colors">Reggio Emilia</Link></li>
+              <li><Link to="/software-gestionale-edilizia-udine" className="hover:text-[#F97415] transition-colors">Udine</Link></li>
+              <li><Link to="/software-gestionale-edilizia-messina" className="hover:text-[#F97415] transition-colors">Messina</Link></li>
+              <li><Link to="/software-gestionale-edilizia-livorno" className="hover:text-[#F97415] transition-colors">Livorno</Link></li>
+              <li><Link to="/software-gestionale-edilizia-prato" className="hover:text-[#F97415] transition-colors">Prato</Link></li>
+              <li><Link to="/software-gestionale-edilizia-vicenza" className="hover:text-[#F97415] transition-colors">Vicenza</Link></li>
             </ul>
           </div>
 

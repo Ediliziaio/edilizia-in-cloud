@@ -1025,7 +1025,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     ],
     relatedCities: [
       { name: "Venezia", slug: "venezia" },
-      { name: "Udine", slug: "udine" },
+      { name: "Udine", slug: "udine" },   // udine config aggiunto in Fix 65
       { name: "Padova", slug: "padova" },
     ],
   },
@@ -1177,6 +1177,251 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Perugia", slug: "perugia" },
       { name: "Bologna", slug: "bologna" },
       { name: "Roma", slug: "roma" },
+    ],
+  },
+  udine: {
+    name: "Udine",
+    region: "Friuli-Venezia Giulia",
+    slug: "udine",
+    province: "UD",
+    lat: 46.0711,
+    lon: 13.2350,
+    heroTitle: "Gestionale Edilizia per Imprese di Udine",
+    heroSubtitle:
+      "Il software gestionale per imprese edili friulane: cantieri, margini, fatturazione elettronica e gestione squadre. Il Friuli ha una tradizione costruttiva d'eccellenza — noi la supportiamo con tecnologia.",
+    heroImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "12+", label: "Imprese edili friulane attive" },
+      { value: "€ 1.8M", label: "Fatturato gestito al mese in FVG" },
+      { value: "24%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti friulani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Lavoriamo su costruzioni residenziali e industriali in tutta la provincia. Con Edilizia in Cloud ho il controllo su ogni cantiere attivo, anche quelli in zone remote del Friuli.",
+      author: "Michele B.",
+      company: "Costruzioni Bellutti",
+      city: "Udine",
+      initials: "MB",
+    },
+    localProblems: [
+      {
+        emoji: "🏔️",
+        title: "Cantieri in zone alpine e pedemontane",
+        desc: "Il Friuli ha cantieri in zone montane e pedemontane dove la connettività è limitata. La modalità offline dell'app mobile è essenziale per aggiornare lo stato dei lavori senza segnale.",
+      },
+      {
+        emoji: "🌍",
+        title: "Filiera con fornitori del Sud Europa",
+        desc: "Le imprese friulane lavorano spesso con fornitori sloveni e austriaci. La gestione DDT e ordini fornitori in Edilizia in Cloud è multilingue e compatibile con i flussi transfrontalieri.",
+      },
+      {
+        emoji: "🏗️",
+        title: "Forte specializzazione in costruzioni industriali",
+        desc: "Il Friuli ha una densa presenza di imprese edili specializzate nel costruttivo industriale. I margini su queste commesse richiedono un controllo preciso dei costi per voce.",
+      },
+    ],
+    relatedCities: [
+      { name: "Trieste", slug: "trieste" },
+      { name: "Venezia", slug: "venezia" },
+      { name: "Padova", slug: "padova" },
+    ],
+  },
+  messina: {
+    name: "Messina",
+    region: "Sicilia",
+    slug: "messina",
+    province: "ME",
+    lat: 38.1938,
+    lon: 15.5542,
+    heroTitle: "Gestionale Edilizia per Imprese di Messina",
+    heroSubtitle:
+      "Il software gestionale per imprese edili messinesi: gestione cantieri, preventivi, fatturazione elettronica e squadre. Il mercato edilizio dello Stretto richiede organizzazione — noi te la diamo.",
+    heroImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "10+", label: "Imprese edili messinesi attive" },
+      { value: "€ 1.4M", label: "Fatturato gestito al mese in area" },
+      { value: "22%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti siciliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "A Messina lavoriamo su cantieri di ristrutturazione in tutto lo Stretto. Edilizia in Cloud ci ha permesso di avere il controllo su ogni commessa anche quando siamo su cantieri diversi contemporaneamente.",
+      author: "Salvatore R.",
+      company: "Recupero Edilizio Messina",
+      city: "Messina",
+      initials: "SR",
+    },
+    localProblems: [
+      {
+        emoji: "🌉",
+        title: "Mercato Stretto di Messina e cantieri infrastrutturali",
+        desc: "La zona dello Stretto è oggetto di investimenti infrastrutturali importanti. Le imprese edili messinesi devono essere pronte a gestire la documentazione di gara e i SAL puntualmente.",
+      },
+      {
+        emoji: "🏚️",
+        title: "Patrimonio edilizio datato e complesso",
+        desc: "Messina ha un patrimonio edilizio con problematiche sismiche rilevanti. Le imprese specializzate in consolidamento e adeguamento antisismico devono gestire pratiche tecniche complesse.",
+      },
+      {
+        emoji: "🌊",
+        title: "Turismo costiero: tempi stagionali rigidi",
+        desc: "La Sicilia nord-orientale attrae turisti da tutto il mondo. Le imprese edili lavorano su strutture ricettive con finestre temporali strette: serve un gestionale che tenga il punto.",
+      },
+    ],
+    relatedCities: [
+      { name: "Catania", slug: "catania" },
+      { name: "Palermo", slug: "palermo" },
+      { name: "Reggio Calabria", slug: "reggio-calabria" },
+    ],
+  },
+  livorno: {
+    name: "Livorno",
+    region: "Toscana",
+    slug: "livorno",
+    province: "LI",
+    lat: 43.5486,
+    lon: 10.3161,
+    heroTitle: "Gestionale Edilizia per Imprese di Livorno",
+    heroSubtitle:
+      "Il software gestionale per imprese edili livornesi: controllo cantieri, margini in tempo reale, fatturazione elettronica. Dalla costa agli appalti portuali, Edilizia in Cloud ti supporta.",
+    heroImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "9+", label: "Imprese edili livornesi attive" },
+      { value: "€ 1.2M", label: "Fatturato gestito al mese in area" },
+      { value: "23%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti toscani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Il porto di Livorno porta una tipologia di cantieri complessa e con documentazione rigorosa. Con Edilizia in Cloud ho tutto sotto controllo: DURC, SAL e fatturazione in un unico posto.",
+      author: "Fabio T.",
+      company: "Ediltosca Srl",
+      city: "Livorno",
+      initials: "FT",
+    },
+    localProblems: [
+      {
+        emoji: "⚓",
+        title: "Porto di Livorno: cantieri tecnici e documentazione rigorosa",
+        desc: "Il porto di Livorno è il secondo scalo italiano per traffico merci. Le imprese edili che lavorano su infrastrutture portuali devono gestire documentazione tecnica e di sicurezza complessa.",
+      },
+      {
+        emoji: "🏖️",
+        title: "Costa e turismo: cantieri stagionali",
+        desc: "La costa livornese è una destinazione turistica rilevante. Le imprese edili lavorano su stabilimenti balneari, hotel e strutture ricettive con tempi stagionali che non ammettono ritardi.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Ristrutturazione del centro storico",
+        desc: "Il centro storico di Livorno ha un patrimonio edilizio che richiede interventi di recupero e restauro. Le pratiche di tutela e le varianti in corso d'opera vanno gestite con precisione.",
+      },
+    ],
+    relatedCities: [
+      { name: "Firenze", slug: "firenze" },
+      { name: "Pisa", slug: "pisa" },
+      { name: "Prato", slug: "prato" },
+    ],
+  },
+  prato: {
+    name: "Prato",
+    region: "Toscana",
+    slug: "prato",
+    province: "PO",
+    lat: 43.8777,
+    lon: 11.1022,
+    heroTitle: "Gestionale Edilizia per Imprese di Prato",
+    heroSubtitle:
+      "Il software gestionale per imprese edili pratesi: cantieri, margini reali, fatturazione elettronica e gestione squadre. Il distretto tessile pratese ha bisogno di capannoni e logistica — noi gestiamo i cantieri.",
+    heroImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "11+", label: "Imprese edili pratesi attive" },
+      { value: "€ 1.5M", label: "Fatturato gestito al mese in area" },
+      { value: "25%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti pratesi" },
+    ],
+    localTestimonial: {
+      quote:
+        "A Prato lavoriamo molto su capannoni industriali e logistica per il distretto tessile. Con Edilizia in Cloud i preventivi sono precisi al centesimo e i margini non hanno più sorprese.",
+      author: "Giovanni M.",
+      company: "Edilprato Costruzioni",
+      city: "Prato",
+      initials: "GM",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Distretto tessile: capannoni e logistica",
+        desc: "Prato è il più grande distretto tessile d'Europa. Le imprese edili lavorano principalmente su capannoni industriali, magazzini e strutture logistiche con richieste tecniche precise.",
+      },
+      {
+        emoji: "🌆",
+        title: "Crescita residenziale nell'hinterland",
+        desc: "La crescita demografica dell'area metropolitana di Firenze-Prato-Pistoia spinge la domanda di residenziale. Le imprese edili gestiscono cantieri di nuova costruzione con cantieri paralleli.",
+      },
+      {
+        emoji: "🔧",
+        title: "Manutenzione del patrimonio industriale",
+        desc: "Il patrimonio industriale pratese richiede manutenzione continua. Le imprese specializzate devono gestire più commesse di manutenzione contemporaneamente con costi orari precisi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Firenze", slug: "firenze" },
+      { name: "Livorno", slug: "livorno" },
+      { name: "Bologna", slug: "bologna" },
+    ],
+  },
+  vicenza: {
+    name: "Vicenza",
+    region: "Veneto",
+    slug: "vicenza",
+    province: "VI",
+    lat: 45.5455,
+    lon: 11.5354,
+    heroTitle: "Gestionale Edilizia per Imprese di Vicenza",
+    heroSubtitle:
+      "Il software gestionale per imprese edili vicentine: controllo cantieri, margini per commessa, fatturazione elettronica. Il Veneto industriale ha bisogno di un gestionale all'altezza — questo è Edilizia in Cloud.",
+    heroImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "13+", label: "Imprese edili vicentine attive" },
+      { value: "€ 1.9M", label: "Fatturato gestito al mese in area" },
+      { value: "26%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti veneti" },
+    ],
+    localTestimonial: {
+      quote:
+        "Il Vicentino ha molta edilizia industriale e artigianale. Con Edilizia in Cloud riesco a gestire le commesse in parallelo senza perdere traccia dei costi di ogni cantiere.",
+      author: "Roberto V.",
+      company: "Costruzioni Venete Srl",
+      city: "Vicenza",
+      initials: "RV",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Polo industriale e artigianale denso",
+        desc: "Vicenza è nel cuore del Nord-Est produttivo. Le imprese edili lavorano su capannoni, ampliamenti e ristrutturazioni industriali con committenti esigenti sui tempi e sui costi.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Patrimonio palladiano: restauro di pregio",
+        desc: "Vicenza è Patrimonio UNESCO grazie all'architettura palladiana. Le imprese edili specializzate in restauro devono gestire pratiche di tutela complesse e materiali specifici.",
+      },
+      {
+        emoji: "🌿",
+        title: "Espansione residenziale nella fascia pedemontana",
+        desc: "La fascia pedemontana vicentina è in forte crescita residenziale. Le imprese edili gestiscono nuove costruzioni in zone con vincoli paesaggistici e idrogeologici.",
+      },
+    ],
+    relatedCities: [
+      { name: "Verona", slug: "verona" },
+      { name: "Padova", slug: "padova" },
+      { name: "Venezia", slug: "venezia" },
     ],
   },
 };

@@ -562,6 +562,31 @@ const CITY_CONFIGS = {
     region: "Marche",
     description: "Software gestionale per imprese edili ad Ancona. Ricostruzione post-sisma, porto e turismo adriatico: gestisci tutto con Edilizia in Cloud.",
   },
+  udine: {
+    city: "Udine",
+    region: "Friuli-Venezia Giulia",
+    description: "Software gestionale per imprese edili a Udine. Cantieri alpini, costruttivo industriale friulano e gestione subappalti con Edilizia in Cloud.",
+  },
+  messina: {
+    city: "Messina",
+    region: "Sicilia",
+    description: "Software gestionale per imprese edili a Messina. Cantieri infrastrutturali, interventi antisismici e SAL puntuali per le imprese dello Stretto.",
+  },
+  livorno: {
+    city: "Livorno",
+    region: "Toscana",
+    description: "Software gestionale per imprese edili a Livorno. Cantieri portuali, ristrutturazioni e lavori costieri: tutto gestito con Edilizia in Cloud.",
+  },
+  prato: {
+    city: "Prato",
+    region: "Toscana",
+    description: "Software gestionale per imprese edili a Prato. Capannoni industriali, logistica tessile e ristrutturazioni nel distretto più dinamico della Toscana.",
+  },
+  vicenza: {
+    city: "Vicenza",
+    region: "Veneto",
+    description: "Software gestionale per imprese edili a Vicenza. Edilizia industriale, restauro palladiano e cantieri residenziali nel cuore del Nord-Est produttivo.",
+  },
 };
 
 // Blog category meta
@@ -711,7 +736,7 @@ function resolveRoute(pathname) {
   if (pathname === "/software-gestionale-edilizia") {
     return {
       title: "Software Gestionale Edilizia per Città — Tutta Italia | Edilizia in Cloud",
-      description: "Edilizia in Cloud disponibile in 22 città italiane: Milano, Roma, Napoli, Torino, Bologna, Firenze e molte altre. Supporto locale, onboarding in 48 ore.",
+      description: "Edilizia in Cloud disponibile in 27 città italiane: Milano, Roma, Napoli, Torino, Bologna, Firenze e molte altre. Supporto locale, onboarding in 48 ore.",
       canonical: BASE + "/software-gestionale-edilizia",
       h1: "Software Gestionale Edilizia nella tua città",
       intro: "Edilizia in Cloud è il gestionale per imprese edili disponibile in tutta Italia. Con copertura in 22 città e supporto locale, il tuo onboarding è in 48 ore.",

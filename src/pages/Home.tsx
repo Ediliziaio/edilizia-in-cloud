@@ -301,6 +301,11 @@ export default function Home() {
               { name: "Perugia", slug: "perugia" },
               { name: "Ancona", slug: "ancona" },
               { name: "Reggio Emilia", slug: "reggio-emilia" },
+              { name: "Udine", slug: "udine" },
+              { name: "Messina", slug: "messina" },
+              { name: "Livorno", slug: "livorno" },
+              { name: "Prato", slug: "prato" },
+              { name: "Vicenza", slug: "vicenza" },
             ].map((city) => (
               <Link
                 key={city.slug}
