@@ -7,7 +7,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
 import GaranzieSection from "@/components/landing/GaranzieSection";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRight, Clock } from "lucide-react";
+import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRight, Clock, ChevronDown } from "lucide-react";
 
 
 const guides = [
@@ -473,6 +473,80 @@ export default function Formazione() {
             Inizia la prova gratuita <ArrowRight size={18} />
           </Link>
           <p className="text-white/25 text-xs mt-4">Nessuna carta di credito. Cancelli quando vuoi.</p>
+        </div>
+      </section>
+
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+      <JsonLd id="jsonld-faq-formazione" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "La formazione è inclusa nel costo dell'abbonamento?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, per tutti i piani è incluso l'onboarding guidato con il nostro team, accesso all'academy con video tutorial e documentazione scritta. Il piano Enterprise include sessioni live personalizzate illimitate con il proprio Customer Success Manager dedicato."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quanto tempo ci vuole per formare il team sull'uso del gestionale?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Il titolare o il responsabile amministrativo diventa operativo in 4-8 ore. Gli operai e i capicantierie imparano le funzioni mobile in 1-2 ore. Offriamo sessioni di formazione sul campo, direttamente in cantiere o in ufficio, per accelerare l'adozione del team."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "La formazione è disponibile in presenza o solo online?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Offriamo formazione sia online (video call, webinar registrati, academy on-demand) sia in presenza per i clienti Enterprise che lo richiedono. Le sessioni online sono registrate e disponibili in replay per il team."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Cosa succede se cambia il personale e devo formare nuovi dipendenti?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "L'accesso all'academy e ai video tutorial è permanente per tutta la durata dell'abbonamento. I nuovi dipendenti possono formarsi autonomamente con i materiali esistenti. Per i piani Professional ed Enterprise è possibile richiedere sessioni di re-onboarding aggiuntive."
+            }
+          }
+        ]
+      }} />
+
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-6">
+          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">Domande frequenti sulla formazione</h2>
+          <div className="space-y-3">
+            {[
+              {
+                q: "La formazione è inclusa nel costo dell'abbonamento?",
+                a: "Sì, per tutti i piani è incluso l'onboarding guidato, l'academy con video tutorial e documentazione scritta. Il piano Enterprise include sessioni live personalizzate con il proprio Customer Success Manager."
+              },
+              {
+                q: "Quanto tempo ci vuole per formare il team?",
+                a: "Il titolare diventa operativo in 4-8 ore. Gli operai e i capicantierie imparano le funzioni mobile in 1-2 ore. Offriamo sessioni di formazione sul campo, direttamente in cantiere o in ufficio."
+              },
+              {
+                q: "La formazione è disponibile in presenza o solo online?",
+                a: "Offriamo formazione sia online (video call, webinar registrati, academy on-demand) sia in presenza per i clienti Enterprise. Le sessioni online sono registrate e disponibili in replay."
+              },
+              {
+                q: "Cosa succede se cambia il personale e devo formare nuovi dipendenti?",
+                a: "L'accesso all'academy e ai video tutorial è permanente per tutta la durata dell'abbonamento. I nuovi dipendenti si formano autonomamente con i materiali esistenti, o su richiesta con sessioni aggiuntive."
+              },
+            ].map(({ q, a }) => (
+              <details key={q} className="bg-white rounded-xl border border-gray-200 group">
+                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
+                  <span>{q}</span>
+                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                </summary>
+                <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 
