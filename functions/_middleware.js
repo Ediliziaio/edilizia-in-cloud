@@ -487,6 +487,21 @@ const CITY_CONFIGS = {
     region: "Sicilia",
     description: "Software gestionale per imprese edili a Palermo. Preventivi, fatturazione e gestione squadre con Edilizia in Cloud.",
   },
+  bari: {
+    city: "Bari",
+    region: "Puglia",
+    description: "Software gestionale per imprese edili a Bari. Gestisci cantieri, appalti pubblici e fatturazione elettronica con Edilizia in Cloud.",
+  },
+  verona: {
+    city: "Verona",
+    region: "Veneto",
+    description: "Software gestionale per imprese edili a Verona. Controllo margini, preventivi e gestione squadre per il mercato veneto.",
+  },
+  brescia: {
+    city: "Brescia",
+    region: "Lombardia",
+    description: "Software gestionale per imprese edili a Brescia. Digitalizza cantieri, preventivi e fatturazione con Edilizia in Cloud.",
+  },
 };
 
 // Blog category meta
@@ -698,12 +713,24 @@ function resolveRoute(pathname) {
   // Blog post: /blog/{slug}
   const blogMatch = pathname.match(/^\/blog\/([^/]+)$/);
   if (blogMatch) {
+    const slug = blogMatch[1];
+    const POST_META = {
+      "sal-cantiere-come-funziona": { title: "SAL Cantiere: Cos'è, Come Funziona e Come Gestirlo | Blog Edilizia in Cloud", description: "Guida completa allo Stato di Avanzamento dei Lavori: come calcolare il SAL, emettere i certificati di pagamento e gestire la contabilità di cantiere." },
+      "durc-edilizia-guida-completa": { title: "DURC in Edilizia: Guida Completa 2026 | Blog Edilizia in Cloud", description: "Cos'è il DURC, come richiederlo, validità 120 giorni, DURC online e cosa fare se l'impresa risulta irregolare." },
+      "giornale-dei-lavori-cantiere": { title: "Il Giornale dei Lavori in Cantiere: Guida Pratica | Blog Edilizia in Cloud", description: "Come compilare il giornale dei lavori, chi lo tiene, valore legale e come digitalizzarlo con un software gestionale." },
+      "subappalto-edilizia-guida": { title: "Subappalto in Edilizia: Regole, Limiti e Come Gestirlo nel 2026 | Blog Edilizia in Cloud", description: "Tutto sul subappalto edile: limiti percentuali, autorizzazioni, obblighi DURC e responsabilità solidale." },
+      "acquisire-clienti-impresa-edile": { title: "Come Acquisire Clienti per un'Impresa Edile nel 2026 | Blog Edilizia in Cloud", description: "7 strategie efficaci per trovare nuovi clienti come impresa edile: referral, preventivi professionali, presenza online e molto altro." },
+      "gestione-operai-cantiere-presenze-ore": { title: "Gestione Operai in Cantiere: Presenze e Ore Lavorate | Blog Edilizia in Cloud", description: "Come gestire le presenze degli operai in cantiere, tracciare le ore lavorate per commessa e semplificare le buste paga." },
+      "sito-web-impresa-edile-guida": { title: "Come Creare un Sito Web per un'Impresa Edile: Guida Completa | Blog Edilizia in Cloud", description: "Guida passo passo per costruire un sito web professionale per la tua impresa edile: struttura, SEO locale e contenuti che convertono." },
+      "digitalizzazione-impresa-edile-passo-passo": { title: "Digitalizzazione dell'Impresa Edile: Guida Passo Passo | Blog Edilizia in Cloud", description: "Come digitalizzare la tua impresa edile in modo graduale: da carta e Excel a un gestionale cloud completo." },
+    };
+    const meta = POST_META[slug] || {};
     return {
-      title: "Blog Edilizia | Edilizia in Cloud",
-      description: "Articoli e guide pratiche per imprese edili italiane.",
+      title: meta.title || "Blog Edilizia | Edilizia in Cloud",
+      description: meta.description || "Articoli e guide pratiche per imprese edili italiane.",
       canonical: BASE + pathname,
-      h1: "Articolo del Blog",
-      intro: "Guida pratica per titolari di imprese edili.",
+      h1: meta.title ? meta.title.split("|")[0].trim() : "Articolo del Blog",
+      intro: meta.description || "Guida pratica per titolari di imprese edili.",
       links: [
         { href: "/blog", label: "Tutti gli Articoli" },
         { href: "/funzionalita", label: "Funzionalità" },
