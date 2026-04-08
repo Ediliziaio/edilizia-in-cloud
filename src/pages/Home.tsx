@@ -276,6 +276,14 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-lg font-bold text-[#111111] mb-4 text-center">Software Gestionale Edilizia per Città</h2>
           <p className="text-center text-sm text-gray-500 mb-6">Scelto dalle imprese edili di tutta Italia</p>
+          <div className="flex justify-center mb-4">
+            <Link
+              to="/software-gestionale-edilizia"
+              className="text-sm font-semibold text-[#F97415] hover:underline"
+            >
+              Vedi tutte le 27 città →
+            </Link>
+          </div>
           <div className="flex flex-wrap justify-center gap-3">
             {[
               { name: "Milano", slug: "milano" },
