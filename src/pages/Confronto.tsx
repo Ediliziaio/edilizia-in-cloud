@@ -169,6 +169,64 @@ export default function Confronto() {
           { "@type": "ListItem", "position": 2, "name": "Confronto Software Edilizia", "item": "https://ediliziaincloud.com/confronto" }
         ]
       }} />
+      <JsonLd id="jsonld-itemlist-confronto" data={{
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Confronto Edilizia in Cloud con le Alternative",
+        "description": "Confronto dettagliato tra Edilizia in Cloud e i principali software gestionali per imprese edili: Primus, Edilnet, TeamSystem, Excel.",
+        "url": "https://ediliziaincloud.com/confronto",
+        "numberOfItems": 4,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Edilizia in Cloud vs Primus",
+            "url": "https://ediliziaincloud.com/confronto/vs-primus",
+            "item": {
+              "@type": "Article",
+              "name": "Edilizia in Cloud vs Primus: Confronto Completo 2026",
+              "description": "Confronto dettagliato tra Edilizia in Cloud e Primus: funzionalità, prezzi, facilità d'uso e supporto.",
+              "url": "https://ediliziaincloud.com/confronto/vs-primus"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Edilizia in Cloud vs Edilnet",
+            "url": "https://ediliziaincloud.com/confronto/vs-edilnet",
+            "item": {
+              "@type": "Article",
+              "name": "Edilizia in Cloud vs Edilnet: Confronto Completo 2026",
+              "description": "Confronto dettagliato tra Edilizia in Cloud e Edilnet per imprese edili italiane.",
+              "url": "https://ediliziaincloud.com/confronto/vs-edilnet"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Edilizia in Cloud vs TeamSystem",
+            "url": "https://ediliziaincloud.com/confronto/vs-teamsystem",
+            "item": {
+              "@type": "Article",
+              "name": "Edilizia in Cloud vs TeamSystem: Confronto Completo 2026",
+              "description": "Confronto tra Edilizia in Cloud e TeamSystem per la gestione delle imprese edili.",
+              "url": "https://ediliziaincloud.com/confronto/vs-teamsystem"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Edilizia in Cloud vs Excel",
+            "url": "https://ediliziaincloud.com/confronto/vs-excel",
+            "item": {
+              "@type": "Article",
+              "name": "Edilizia in Cloud vs Excel: Perché il Foglio di Calcolo Non Basta",
+              "description": "Perché Excel non è sufficiente per gestire un'impresa edile moderna e come passare a un gestionale specifico.",
+              "url": "https://ediliziaincloud.com/confronto/vs-excel"
+            }
+          }
+        ]
+      }} />
       <LandingNavbar />
 
       {/* ── HERO ── */}
