@@ -1014,6 +1014,37 @@ export default function Funzionalita() {
         </div>
       </section>
 
+      {/* ── Guide del blog correlate ────────────────────────────────────── */}
+      <section className="py-14 bg-gray-50 border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <h2 className="text-xl font-extrabold text-[#111111] mb-2">Guide pratiche per imprese edili</h2>
+          <p className="text-gray-500 text-sm mb-8">Approfondisci con le nostre guide gratuite</p>
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              { slug: "sal-cantiere-come-funziona", label: "SAL Cantiere: Cos'è e Come Funziona" },
+              { slug: "computo-metrico-estimativo-guida", label: "Computo Metrico: Guida Pratica" },
+              { slug: "analisi-margini-imprese-edili", label: "Analisi dei Margini per Imprese Edili" },
+              { slug: "come-fare-preventivo-edilizia", label: "Come Fare un Preventivo Professionale" },
+              { slug: "durc-edilizia-guida-completa", label: "DURC in Edilizia: Guida Completa" },
+              { slug: "appalti-pubblici-edilizia-guida", label: "Appalti Pubblici: Come Partecipare" },
+            ].map((post) => (
+              <Link
+                key={post.slug}
+                to={`/blog/${post.slug}`}
+                className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group"
+              >
+                <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors leading-snug">
+                  {post.label}
+                </span>
+                <svg className="w-4 h-4 text-[#F97415] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );
