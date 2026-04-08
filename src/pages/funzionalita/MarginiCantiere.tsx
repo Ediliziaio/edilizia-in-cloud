@@ -8,7 +8,8 @@ import { blogPosts } from "@/data/blogPosts";
 const RELATED_SLUGS = [
   "analisi-margini-imprese-edili",
   "ridurre-costi-cantieri-edili",
-  "software-gestionale-vs-excel",
+  "computo-metrico-estimativo-guida",
+  "appalti-pubblici-edilizia-guida",
 ];
 const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
 import { ArrowRight } from "lucide-react";

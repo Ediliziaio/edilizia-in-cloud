@@ -7,10 +7,10 @@ import { CheckCircle2, ArrowRight } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
 
 const RELATED_SLUGS = [
-  "come-organizzare-cantiere-edile",
   "sal-cantiere-come-funziona",
-  "documentazione-obbligatoria-cantiere-2025",
   "giornale-dei-lavori-cantiere",
+  "computo-metrico-estimativo-guida",
+  "appalti-pubblici-edilizia-guida",
 ];
 const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
 
