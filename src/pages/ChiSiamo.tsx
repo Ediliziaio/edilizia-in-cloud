@@ -5,6 +5,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import GaranzieSection from "@/components/landing/GaranzieSection";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { ChevronDown } from "lucide-react";
 
 /* ─────────────────────────────────────────────
    ICONE EDILIZIA FLOATING
@@ -1017,6 +1018,80 @@ export default function ChiSiamo() {
               </svg>
               Scrivici su WhatsApp
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+      <JsonLd id="jsonld-faq-chisiamo" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Chi c'è dietro Edilizia in Cloud?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Edilizia in Cloud è sviluppato da Domus Group S.r.l., una software house milanese fondata nel 2021 da imprenditori con esperienza diretta nel settore edile. Il team combina competenze di sviluppo software, intelligenza artificiale e profonda conoscenza delle esigenze delle imprese edili italiane."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Il software è italiano e pensato per le imprese edili italiane?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, Edilizia in Cloud è sviluppato interamente in Italia da un team italiano. È progettato specificamente per il mercato italiano: fatturazione elettronica SDI, CCNL Edilizia, Cassa Edile, prezzari regionali, normativa sismica e paesaggistica italiana. Non è un software straniero adattato: è nato per il cantiere italiano."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Come viene garantita la sicurezza dei dati?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "I dati sono ospitati su infrastrutture cloud europee (UE) con certificazione ISO 27001. Tutti i dati sono crittografati in transito (TLS 1.3) e a riposo (AES-256). Backup automatici giornalieri con retention 90 giorni. Edilizia in Cloud è conforme al GDPR e non condivide mai i dati con terze parti per scopi commerciali."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Avete un programma di partnership per commercialisti e consulenti?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sì, offriamo il programma Diventa Partner rivolto a commercialisti, consulenti aziendali, geometri e tecnici che vogliono proporre Edilizia in Cloud ai propri clienti imprenditori edili. I partner ricevono formazione, materiali marketing e una commissione ricorrente su ogni cliente portato."
+            }
+          }
+        ]
+      }} />
+
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-6">
+          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">Domande frequenti su di noi</h2>
+          <div className="space-y-3">
+            {[
+              {
+                q: "Chi c'è dietro Edilizia in Cloud?",
+                a: "Edilizia in Cloud è sviluppato da Domus Group S.r.l., una software house milanese fondata nel 2021 da imprenditori con esperienza diretta nel settore edile."
+              },
+              {
+                q: "Il software è italiano e pensato per le imprese edili italiane?",
+                a: "Sì, è sviluppato interamente in Italia. È progettato specificatamente per il mercato italiano: fatturazione elettronica SDI, CCNL Edilizia, Cassa Edile, prezzari regionali. Non è un software straniero adattato."
+              },
+              {
+                q: "Come viene garantita la sicurezza dei dati?",
+                a: "I dati sono ospitati su infrastrutture cloud europee (UE) con certificazione ISO 27001. Crittografia TLS 1.3 in transito, AES-256 a riposo. Backup automatici giornalieri, retention 90 giorni. Conformi al GDPR."
+              },
+              {
+                q: "Avete un programma di partnership per commercialisti e consulenti?",
+                a: "Sì, il programma Diventa Partner è rivolto a commercialisti, consulenti aziendali, geometri e tecnici. I partner ricevono formazione, materiali marketing e commissioni ricorrenti."
+              },
+            ].map(({ q, a }) => (
+              <details key={q} className="bg-white rounded-xl border border-gray-200 group">
+                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
+                  <span>{q}</span>
+                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                </summary>
+                <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
