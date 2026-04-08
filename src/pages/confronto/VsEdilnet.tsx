@@ -273,7 +273,7 @@ export default function VsEdilnet() {
             Operativo in 48 ore, senza costi di setup
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. Migrazione gratuita dai tuoi dati esistenti.
+            31 giorni gratis. Migrazione gratuita dai tuoi dati esistenti. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"

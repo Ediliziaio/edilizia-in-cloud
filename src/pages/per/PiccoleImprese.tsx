@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo: ti mostriamo come gestire fatture, preventivi e cantieri in meno di 30 minuti al giorno. Nessun contratto. Nessuna carta di credito.",
+    "30 minuti di demo: ti mostriamo come gestire fatture, preventivi e cantieri in meno di 30 minuti al giorno. Nessun contratto. Cancella quando vuoi.",
 
   // Schema FAQ
   schemaFaq: [

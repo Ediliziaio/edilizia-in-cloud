@@ -35,7 +35,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-03-10",
     readTime: 8,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -100,7 +100,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-05",
     updatedAt: "2026-03-05",
     readTime: 10,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -169,7 +169,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-20",
     updatedAt: "2026-02-20",
     readTime: 7,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -233,7 +233,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-10",
     updatedAt: "2026-02-10",
     readTime: 9,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -296,7 +296,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-25",
     updatedAt: "2026-01-25",
     readTime: 11,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -369,7 +369,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-15",
     updatedAt: "2026-01-15",
     readTime: 8,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -432,7 +432,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-05",
     updatedAt: "2026-02-05",
     readTime: 6,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -494,7 +494,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-28",
     updatedAt: "2026-01-28",
     readTime: 9,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -581,7 +581,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-22",
     updatedAt: "2026-03-22",
     readTime: 12,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -663,7 +663,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud organizza il cantiere per te",
-        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Margine di commessa in tempo reale, presenze dal telefono, DDT collegati al cantiere. Prova gratis 31 giorni — nessuna carta di credito richiesta.",
+        body: "Apri e gestisci ogni cantiere con fasi, scadenze, budget e squadre assegnate. Margine di commessa in tempo reale, presenze dal telefono, DDT collegati al cantiere. Prova gratis 31 giorni — cancella quando vuoi, nessun obbligo.",
       },
     ],
   },
@@ -679,7 +679,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-15",
     updatedAt: "2026-03-15",
     readTime: 11,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -771,7 +771,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud archivia la documentazione di ogni cantiere",
-        body: "POS, DURC, contratti, DDT e SAL sempre disponibili in un click. Alert automatici per scadenze. Accesso da telefono anche offline. Prova gratis 31 giorni — nessuna carta di credito.",
+        body: "POS, DURC, contratti, DDT e SAL sempre disponibili in un click. Alert automatici per scadenze. Accesso da telefono anche offline. Prova gratis 31 giorni — cancella quando vuoi, nessun obbligo.",
       },
     ],
   },
@@ -787,7 +787,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-08",
     updatedAt: "2026-03-08",
     readTime: 11,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -863,7 +863,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Crea preventivi professionali in 5 minuti con Edilizia in Cloud",
-        body: "Template personalizzabili, calcolo automatico dei margini, conversione in contratto e firma digitale integrata. Archivia automaticamente preventivo, contratto e SAL per ogni cantiere. Prova gratis 31 giorni — nessuna carta di credito.",
+        body: "Template personalizzabili, calcolo automatico dei margini, conversione in contratto e firma digitale integrata. Archivia automaticamente preventivo, contratto e SAL per ogni cantiere. Prova gratis 31 giorni — cancella quando vuoi, nessun obbligo.",
       },
     ],
   },
@@ -879,7 +879,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-03-01",
     readTime: 10,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -958,7 +958,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Edilizia in Cloud: l'alternativa a Excel pensata per il cantiere",
-        body: "Migrazione guidata da Excel inclusa. App mobile per il cantiere. Margini in tempo reale. Fatturazione SDI integrata. Prova gratis 31 giorni — nessuna carta di credito. Mai tornati a Excel.",
+        body: "Migrazione guidata da Excel inclusa. App mobile per il cantiere. Margini in tempo reale. Fatturazione SDI integrata. Prova gratis 31 giorni — cancella quando vuoi, nessun obbligo. Mai tornati a Excel.",
       },
     ],
   },
@@ -973,7 +973,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 9,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1044,7 +1044,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 7,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1109,7 +1109,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 6,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1165,7 +1165,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 8,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1219,7 +1219,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 8,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1273,7 +1273,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 7,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1326,7 +1326,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 9,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1375,7 +1375,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 10,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1685,7 +1685,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 10,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1749,7 +1749,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 11,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1808,7 +1808,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 9,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1872,7 +1872,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 10,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
       "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -1930,7 +1930,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 13,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
@@ -2016,7 +2016,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Controlla la tua liquidità in tempo reale con Edilizia in Cloud",
-        body: "Dashboard finanziaria con previsione a 90 giorni, tracciamento SAL e scadenzario fornitori integrato. Smetti di gestire le emergenze — inizia a pianificare. Prova gratis 31 giorni, nessuna carta di credito.",
+        body: "Dashboard finanziaria con previsione a 90 giorni, tracciamento SAL e scadenzario fornitori integrato. Smetti di gestire le emergenze — inizia a pianificare. Prova gratis 31 giorni, cancella quando vuoi, nessun obbligo.",
       },
     ],
   },
@@ -2030,7 +2030,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 12,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
@@ -2125,7 +2125,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 12,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80",
     content: [
       {
@@ -2209,7 +2209,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Prova Edilizia in Cloud con una demo personalizzata",
-        body: "Ti mostriamo il software sul tuo caso specifico — non una demo generica. 30 minuti con un consulente specializzato in imprese edili. Poi prova gratis 31 giorni senza carta di credito. Se non vale il costo, rimborso garantito.",
+        body: "Ti mostriamo il software sul tuo caso specifico — non una demo generica. 30 minuti con un consulente specializzato in imprese edili. Poi prova gratis 31 giorni cancella quando vuoi, nessun obbligo. Se non vale il costo, rimborso garantito.",
       },
     ],
   },
@@ -2223,7 +2223,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-08",
     updatedAt: "2026-04-08",
     readTime: 11,
-    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
     content: [
       {

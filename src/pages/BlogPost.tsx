@@ -533,7 +533,7 @@ export default function BlogPost() {
                 Prova Edilizia in Cloud Gratis
               </h3>
               <p className="text-white/60 text-sm mb-5 leading-relaxed">
-                31 giorni di prova gratuita. Nessuna carta di credito. Onboarding 1:1 incluso.
+                31 giorni di prova gratuita. Cancella quando vuoi. Onboarding 1:1 incluso.
               </p>
               <Link
                 to="/demo"

@@ -248,7 +248,7 @@ export default function FatturazioneElettronica() {
             Fattura in modo professionale dal primo giorno
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. Operativo in 48 ore.
+            31 giorni gratis. Operativo in 48 ore. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"

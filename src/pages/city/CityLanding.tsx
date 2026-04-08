@@ -1,4 +1,4 @@
-import { Link, useParams, Navigate } from "react-router-dom";
+import { Link, useParams, useLocation, Navigate } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Star, MapPin, Phone } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -1710,7 +1710,11 @@ const FEATURES = [
 ];
 
 export default function CityLanding() {
-  const { city } = useParams<{ city: string }>();
+  const { city: cityParam } = useParams<{ city: string }>();
+  const { pathname } = useLocation();
+  // React Router v7 does not match params embedded mid-segment (/path-:param),
+  // so fall back to extracting the city slug from the pathname directly.
+  const city = cityParam ?? pathname.match(/^\/software-gestionale-edilizia-(.+)$/)?.[1];
   const config = city ? CITY_CONFIGS[city] : undefined;
 
   if (!config) return <Navigate to="/" replace />;
@@ -1931,7 +1935,7 @@ export default function CityLanding() {
           </h2>
           <p className="text-white/60 text-lg mb-8">
             31 giorni di prova gratuita. Il nostro team configura tutto con te in 48 ore.
-            Nessuna carta di credito, nessun contratto.
+            Cancella quando vuoi, nessun obbligo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link

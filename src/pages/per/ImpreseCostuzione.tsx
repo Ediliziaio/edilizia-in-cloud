@@ -217,7 +217,7 @@ const config: PerTipoConfig = {
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo: ti mostriamo i margini reali su un cantiere tipo, con i tuoi numeri. Nessun impegno. Nessuna carta di credito.",
+    "30 minuti di demo: ti mostriamo i margini reali su un cantiere tipo, con i tuoi numeri. Nessun impegno. Cancella quando vuoi.",
 
   schemaFaq: [
     {

@@ -140,6 +140,20 @@ function SubdomainTitleSetter() {
   return null;
 }
 
+/**
+ * CityOrNotFound — smart catch-all that handles city landing pages.
+ * React Router v7 does not support params embedded mid-segment (e.g. /path-:param),
+ * so city URLs (/software-gestionale-edilizia-*) fall through to the "*" catch-all.
+ * This component intercepts them and renders CityLanding; otherwise renders NotFound.
+ */
+function CityOrNotFound() {
+  const { pathname } = useLocation();
+  if (/^\/software-gestionale-edilizia-.+$/.test(pathname)) {
+    return <CityLanding />;
+  }
+  return <NotFound />;
+}
+
 /** Tracks SPA route changes in Google Analytics 4 */
 function GARouteTracker() {
   const location = useLocation();
@@ -181,7 +195,6 @@ const App = () => (
               <Route path="/casi-studio" element={<CasiStudio />} />
               <Route path="/glossario-edilizia" element={<Glossario />} />
               <Route path="/software-gestionale-edilizia" element={<CityHub />} />
-              <Route path="/software-gestionale-edilizia-:city" element={<CityLanding />} />
               <Route path="/integrazioni" element={<Integrazioni />} />
               <Route path="/per/imprese-costruzione" element={<ImpreseCostuzione />} />
               <Route path="/per/impiantisti" element={<Impiantisti />} />
@@ -238,8 +251,8 @@ const App = () => (
               {/* Portale Cliente — magic link, no auth required */}
               {portaleClienteRoutes()}
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
+              {/* Catch-all — also handles city landing pages (React Router v7 does not match mid-segment params) */}
+              <Route path="*" element={<CityOrNotFound />} />
             </Routes>
           </Suspense>
           </BillingModeProvider>

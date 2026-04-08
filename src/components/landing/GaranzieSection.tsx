@@ -17,9 +17,9 @@ const GARANZIE = [
     highlightBg: "bg-emerald-50 border-emerald-200",
     label: "Garanzia 1",
     title: "Prova 31 Giorni",
-    tagline: "31 giorni gratis, senza carta di credito.",
+    tagline: "31 giorni gratis — cancella quando vuoi.",
     lines: [
-      { bold: false, text: "Provi, vede come funziona, decide con calma." },
+      { bold: false, text: "Prova, vedi come funziona, decidi con calma." },
     ],
   },
   {
@@ -32,9 +32,9 @@ const GARANZIE = [
     highlightBg: "bg-blue-50 border-blue-200",
     label: "Garanzia 2",
     title: "Onboarding Dedicato",
-    tagline: "Non la lasciamo sola davanti a uno schermo.",
+    tagline: "Non ti lasciamo solo davanti a uno schermo.",
     lines: [
-      { bold: false, text: "La affianchiamo finché il software non diventa il suo strumento di lavoro." },
+      { bold: false, text: "Ti affianchiamo finché il software non diventa il tuo strumento di lavoro." },
     ],
   },
   {
@@ -49,13 +49,13 @@ const GARANZIE = [
     title: "Risultato in 60 Giorni",
     tagline: "Risultato garantito o rimborso totale.",
     lines: [
-      { bold: false, text: "Entro 60 giorni vede un miglioramento concreto nella gestione del suo cantiere — o le rimborsiamo ogni centesimo, senza domande." },
-      { bold: false, text: "Quante ore perde ogni settimana in burocrazia e telefonate inutili." },
+      { bold: false, text: "Entro 60 giorni vedi un miglioramento concreto nella gestione del tuo cantiere — o ti rimborsiamo ogni centesimo, senza domande." },
+      { bold: false, text: "Quante ore perdi ogni settimana in burocrazia e telefonate inutili." },
       { bold: false, text: "Dove stanno andando i soldi del cantiere — in tempo reale, non a fine mese." },
       { bold: false, text: "Se i preventivi vengono firmati più velocemente rispetto a prima." },
-      { bold: false, text: "Quanto tempo risparmia il suo team su ogni commessa." },
+      { bold: false, text: "Quanto tempo risparmia il tuo team su ogni commessa." },
       { bold: false, text: "Se i clienti pagano nei tempi concordati o serve un sistema di sollecito." },
-      { bold: true, text: "Se dopo 60 giorni non vede miglioramenti concreti, le rimborsiamo tutto. Senza domande, senza burocrazia." },
+      { bold: true, text: "Se dopo 60 giorni non vedi miglioramenti concreti, ti rimborsiamo tutto. Senza domande, senza burocrazia." },
     ],
   },
   {
@@ -70,7 +70,7 @@ const GARANZIE = [
     title: "Rottamazione Gestionale",
     tagline: "Nessun doppio costo durante la transizione.",
     lines: [
-      { bold: false, text: "Sta già pagando un altro gestionale? Le copriamo i costi di passaggio. Nessun doppio costo durante la transizione." },
+      { bold: false, text: "Stai già pagando un altro gestionale? Ti copriamo i costi di passaggio. Nessun doppio costo durante la transizione." },
     ],
   },
 ];
@@ -114,7 +114,7 @@ export default function GaranzieSection({ variant = "full" }: GaranzieSectionPro
           >
             Prova 31 giorni gratis <ArrowRight size={14} />
           </Link>
-          <p className="text-gray-400 text-xs mt-2">Nessuna carta di credito. Cancelli quando vuoi.</p>
+          <p className="text-gray-400 text-xs mt-2">Cancella quando vuoi. Nessun obbligo.</p>
         </div>
       </div>
     );
@@ -363,7 +363,7 @@ export default function GaranzieSection({ variant = "full" }: GaranzieSectionPro
           <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full border border-[#F97316]/25 bg-[#F97316]/8">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-[#F97316] text-sm font-bold">
-              31 giorni gratis + onboarding dedicato — nessuna carta di credito
+              31 giorni gratis + onboarding dedicato — cancella quando vuoi
             </p>
           </div>
           <div>
@@ -375,7 +375,7 @@ export default function GaranzieSection({ variant = "full" }: GaranzieSectionPro
             </Link>
           </div>
           <p className="text-gray-400 text-sm mt-4">
-            Nessun contratto · Nessuna carta di credito · Cancelli quando vuoi — senza spiegazioni
+            Nessun contratto · Cancella quando vuoi · Nessun obbligo — senza spiegazioni
           </p>
         </div>
       </div>

@@ -694,7 +694,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 </div>
               </div>
               <div className="space-y-2 text-gray-600 text-sm leading-relaxed">
-                <p>31 giorni gratis. <strong className="text-[#111111]">Nessuna carta di credito.</strong></p>
+                <p>31 giorni gratis. <strong className="text-[#111111]">Cancella quando vuoi.</strong></p>
                 <p>Nessun commerciale che ti chiama.</p>
                 <p>Entri, lo usi, decidi tu.</p>
                 <p className="mt-3 pt-3 border-t border-gray-100">
@@ -865,7 +865,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/30 bg-[#F97415]/10">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
             <p className="text-[#F97415] text-sm font-bold">
-              ⏰ 31 giorni gratis + onboarding dedicato incluso — senza carta di credito
+              ⏰ 31 giorni gratis + onboarding dedicato incluso — cancella quando vuoi
             </p>
           </div>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">{config.ctaTitle}</h2>
@@ -896,7 +896,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
           {/* Micro-copy garanzia */}
           <p className="text-white/25 text-xs">
-            Nessuna carta di credito. Nessun contratto. Cancelli quando vuoi — senza spiegazioni.
+            Nessun contratto. Cancella quando vuoi — senza spiegazioni.
           </p>
         </div>
       </section>

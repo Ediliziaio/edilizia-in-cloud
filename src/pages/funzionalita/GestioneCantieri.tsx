@@ -271,7 +271,7 @@ export default function GestioneCantieri() {
             Inizia a controllare i tuoi cantieri oggi
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. Il tuo team operativo in 48 ore.
+            31 giorni gratis. Il tuo team operativo in 48 ore. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"

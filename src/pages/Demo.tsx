@@ -113,7 +113,7 @@ export default function Demo() {
             Prenota la tua Demo Gratuita
           </h1>
           <p className="text-lg md:text-xl text-white/70 leading-relaxed">
-            Vedi come funziona in 30 minuti. Nessun impegno, nessuna carta di credito.
+            Vedi come funziona in 30 minuti. Nessun impegno, cancella quando vuoi.
           </p>
 
           {/* Benefit bar */}

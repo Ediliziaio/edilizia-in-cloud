@@ -298,7 +298,7 @@ export default function VsBuildertrend() {
             Pronto a passare a un gestionale nato per l'edilizia italiana?
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. In italiano. Con SDI, Cassa Edile e CCNL integrati.
+            31 giorni gratis. In italiano. Con SDI, Cassa Edile e CCNL integrati. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"

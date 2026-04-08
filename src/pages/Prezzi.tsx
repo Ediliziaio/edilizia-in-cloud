@@ -101,7 +101,7 @@ const tableRows: TableRow[] = [
 const faqItems = [
   {
     q: "C'è un periodo di prova gratuita?",
-    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 31 giorni di accesso completo al piano Professional. Nessuna carta di credito richiesta per iniziare.",
+    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 31 giorni di accesso completo al piano Professional. Cancella quando vuoi, nessun obbligo.",
   },
   {
     q: "Posso cambiare piano in qualsiasi momento?",
@@ -335,11 +335,11 @@ export default function Prezzi() {
                 Prova <span className="text-[#F97415]">GRATUITA</span> di <span className="text-[#F97415]">31 GIORNI</span>
               </h2>
               <p className="text-white/60 text-lg mb-6">
-                Accesso completo a tutti i moduli del tuo piano — senza carta di credito, senza obbligo, senza vincoli. Se non ti piace, non paghi nulla. Punto.
+                Accesso completo a tutti i moduli del tuo piano — senza obbligo, senza vincoli. Se non ti piace, non paghi nulla. Punto.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4 mb-6 text-sm">
                 {[
-                  "✓ Nessuna carta di credito",
+                  "✓ Cancella quando vuoi",
                   "✓ Accesso completo al piano scelto",
                   "✓ Setup e migrazione dati inclusi",
                   "✓ Cancelli in un click, senza penali",
@@ -853,7 +853,7 @@ export default function Prezzi() {
             "name": "Posso provare Edilizia in Cloud gratuitamente?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, offriamo una prova gratuita di 14 giorni senza carta di credito. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+              "text": "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
             }
           },
           {
@@ -898,7 +898,7 @@ export default function Prezzi() {
             {[
               {
                 q: "Posso provare Edilizia in Cloud gratuitamente?",
-                a: "Sì, offriamo una prova gratuita di 14 giorni senza carta di credito. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+                a: "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
               },
               {
                 q: "Cosa succede se supero il numero di cantieri inclusi nel piano Starter?",

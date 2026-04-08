@@ -282,7 +282,7 @@ export default function VsPrimus() {
             Pronto a passare a un gestionale completo?
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. Migrazione gratuita dai tuoi dati esistenti.
+            31 giorni gratis. Migrazione gratuita dai tuoi dati esistenti. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"

@@ -472,7 +472,7 @@ export default function Formazione() {
           <Link to="/demo" className="inline-flex items-center gap-2 px-8 py-4 bg-[#F97415] text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
             Inizia la prova gratuita <ArrowRight size={18} />
           </Link>
-          <p className="text-white/25 text-xs mt-4">Nessuna carta di credito. Cancelli quando vuoi.</p>
+          <p className="text-white/25 text-xs mt-4">Cancella quando vuoi. Nessun obbligo.</p>
         </div>
       </section>
 

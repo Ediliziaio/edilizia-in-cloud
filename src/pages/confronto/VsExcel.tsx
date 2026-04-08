@@ -385,7 +385,7 @@ export default function VsExcel() {
             Pronto a smettere con i fogli di calcolo?
           </h2>
           <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis, senza carta di credito. Migrazione gratuita da Excel in 48 ore.
+            31 giorni gratis. Migrazione gratuita da Excel in 48 ore. Cancella quando vuoi.
           </p>
           <Link
             to="/demo"
