@@ -48,6 +48,9 @@ export default function LandingFooter() {
               <li><Link to="/software-gestionale-edilizia-bari" className="hover:text-[#F97415] transition-colors">Bari</Link></li>
               <li><Link to="/software-gestionale-edilizia-verona" className="hover:text-[#F97415] transition-colors">Verona</Link></li>
               <li><Link to="/software-gestionale-edilizia-brescia" className="hover:text-[#F97415] transition-colors">Brescia</Link></li>
+              <li><Link to="/software-gestionale-edilizia-catania" className="hover:text-[#F97415] transition-colors">Catania</Link></li>
+              <li><Link to="/software-gestionale-edilizia-venezia" className="hover:text-[#F97415] transition-colors">Venezia</Link></li>
+              <li><Link to="/software-gestionale-edilizia-padova" className="hover:text-[#F97415] transition-colors">Padova</Link></li>
             </ul>
           </div>
 

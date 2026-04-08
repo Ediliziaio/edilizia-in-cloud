@@ -502,6 +502,21 @@ const CITY_CONFIGS = {
     region: "Lombardia",
     description: "Software gestionale per imprese edili a Brescia. Digitalizza cantieri, preventivi e fatturazione con Edilizia in Cloud.",
   },
+  catania: {
+    city: "Catania",
+    region: "Sicilia",
+    description: "Software gestionale per imprese edili a Catania. Gestisci cantieri nel polo tech siciliano, appalti PNRR e restauro con Edilizia in Cloud.",
+  },
+  venezia: {
+    city: "Venezia",
+    region: "Veneto",
+    description: "Software gestionale per imprese edili a Venezia. Controlla costi lagunari, SAL e documentazione vincoli soprintendenza con Edilizia in Cloud.",
+  },
+  padova: {
+    city: "Padova",
+    region: "Veneto",
+    description: "Software gestionale per imprese edili a Padova. Preventivi professionali, gestione cantieri e fatturazione per il mercato veneto.",
+  },
 };
 
 // Blog category meta

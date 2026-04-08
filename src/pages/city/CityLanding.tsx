@@ -579,6 +579,156 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
     ],
   },
+
+  catania: {
+    name: "Catania",
+    region: "Sicilia",
+    slug: "catania",
+    province: "CT",
+    lat: 37.5079,
+    lon: 15.0830,
+    heroTitle: "Gestionale Edilizia per Imprese di Catania",
+    heroSubtitle:
+      "Software gestionale per imprese edili catanesi: gestione cantieri, preventivi, fatturazione elettronica e controllo margini in tempo reale. Il polo economico della Sicilia orientale merita strumenti all'altezza.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "12+", label: "Imprese edili catanesi attive" },
+      { value: "€ 1.5M", label: "Fatturato gestito al mese in provincia di Catania" },
+      { value: "22%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti siciliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Catania è in forte sviluppo grazie al polo tecnologico. Con Edilizia in Cloud gestisco i cantieri del distretto tech e quelli residenziali con lo stesso strumento, senza confusione.",
+      author: "Giuseppe T.",
+      company: "Tecnocostruzioni Srl",
+      city: "Catania",
+      initials: "GT",
+    },
+    localProblems: [
+      {
+        emoji: "🖥️",
+        title: "Polo tecnologico in espansione: commesse complesse",
+        desc: "Catania ospita uno dei principali hub tecnologici d'Italia. Le imprese edili lavorano per aziende tech e startup con requisiti tecnici elevati e tempi di consegna rigidi. Un gestionale preciso è indispensabile.",
+      },
+      {
+        emoji: "🏗️",
+        title: "Ricostruzione post-sismica ed efficienza energetica",
+        desc: "Il territorio etneo è soggetto a rischio sismico. Molte imprese gestiscono contemporaneamente cantieri di ricostruzione con fondi pubblici e ristrutturazioni energetiche con Superbonus, richiedendo doppia rendicontazione.",
+      },
+      {
+        emoji: "🌊",
+        title: "Sviluppo costiero e turismo: boom dell'ospitalità",
+        desc: "La costa catanese vede una forte crescita di strutture ricettive e residenziali. Gestire cantieri stagionali con picchi di lavoro estivi richiede flessibilità nelle squadre e un controllo rigoroso dei costi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Palermo", slug: "palermo" },
+      { name: "Napoli", slug: "napoli" },
+      { name: "Bari", slug: "bari" },
+    ],
+  },
+
+  venezia: {
+    name: "Venezia",
+    region: "Veneto",
+    slug: "venezia",
+    province: "VE",
+    lat: 45.4408,
+    lon: 12.3155,
+    heroTitle: "Gestionale Edilizia per Imprese di Venezia",
+    heroSubtitle:
+      "Software gestionale per imprese edili veneziane: gestione cantieri lagunari, preventivi per restauro e conservazione, fatturazione elettronica e controllo margini. L'edilizia veneziana ha bisogno di strumenti su misura.",
+    heroImage:
+      "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "14+", label: "Imprese edili veneziane attive" },
+      { value: "€ 1.8M", label: "Fatturato gestito al mese in provincia di Venezia" },
+      { value: "24%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti veneti" },
+    ],
+    localTestimonial: {
+      quote:
+        "Lavorare a Venezia è unico: ogni cantiere ha vincoli soprintendenza, logistica via acqua e costi altissimi. Edilizia in Cloud mi permette di tenere sotto controllo ogni euro e ogni ora lavorata.",
+      author: "Roberto M.",
+      company: "Marinelli Restauri Srl",
+      city: "Venezia",
+      initials: "RM",
+    },
+    localProblems: [
+      {
+        emoji: "🚤",
+        title: "Logistica lagunare: costi di trasporto altissimi",
+        desc: "A Venezia ogni materiale arriva via acqua. I costi di trasporto possono incidere del 30-40% sul budget. Tracciare questi costi per cantiere — e ribaltarli correttamente sul cliente — è fondamentale per non lavorare in perdita.",
+      },
+      {
+        emoji: "🏛️",
+        title: "Vincoli soprintendenza su quasi tutti gli edifici",
+        desc: "La stragrande maggioranza degli edifici veneziani è soggetta a vincoli storici e paesaggistici. Le imprese devono gestire autorizzazioni complesse, varianti continue e documentazione specifica per ogni intervento.",
+      },
+      {
+        emoji: "💧",
+        title: "Moto ondoso e acqua alta: cantieri con imprevisti costanti",
+        desc: "L'acqua alta e il moto ondoso creano danni e ritardi imprevedibili. Gestire le varianti in corso d'opera e aggiornare i SAL in tempo reale è essenziale per non perdere il controllo dei costi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Verona", slug: "verona" },
+      { name: "Padova", slug: "padova" },
+      { name: "Bologna", slug: "bologna" },
+    ],
+  },
+
+  padova: {
+    name: "Padova",
+    region: "Veneto",
+    slug: "padova",
+    province: "PD",
+    lat: 45.4064,
+    lon: 11.8768,
+    heroTitle: "Gestionale Edilizia per Imprese di Padova",
+    heroSubtitle:
+      "Software gestionale per imprese edili padovane: gestione cantieri, preventivi professionali, fatturazione elettronica e controllo margini. Il Veneto produttivo merita un gestionale all'altezza.",
+    heroImage:
+      "https://images.unsplash.com/photo-1567604458536-1fcb6a4f9c91?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "18+", label: "Imprese edili padovane attive" },
+      { value: "€ 2.1M", label: "Fatturato gestito al mese in provincia di Padova" },
+      { value: "26%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti padovani" },
+    ],
+    localTestimonial: {
+      quote:
+        "Padova è una piazza competitiva tra università, terziario avanzato e residenziale di qualità. Edilizia in Cloud mi ha permesso di presentare preventivi professionali e vincere commesse che prima perdevo.",
+      author: "Andrea P.",
+      company: "Padovani Costruzioni Srl",
+      city: "Padova",
+      initials: "AP",
+    },
+    localProblems: [
+      {
+        emoji: "🎓",
+        title: "Edilizia universitaria e residenze studenti in crescita",
+        desc: "Padova è sede di una delle università più grandi d'Italia. La domanda di residenze universitarie, studentati e co-living è in forte crescita. Le imprese edili devono gestire cantieri veloci con alta rotazione di subappaltatori.",
+      },
+      {
+        emoji: "🏭",
+        title: "Polo produttivo veneto: capannoni e logistica",
+        desc: "La provincia di Padova è uno dei poli produttivi più attivi del Veneto. Le imprese costruiscono e ristrutturano capannoni per PMI in continua espansione, con tempi stretti e budget precisi.",
+      },
+      {
+        emoji: "🌿",
+        title: "Riqualificazione energetica del patrimonio esistente",
+        desc: "Il patrimonio edilizio padovano degli anni '70-'80 richiede interventi massicci di efficienza energetica. Gestire 10-20 cantieri di ristrutturazione contemporaneamente richiede un software che faccia ordine tra SAL, pratiche bonus e fatture.",
+      },
+    ],
+    relatedCities: [
+      { name: "Venezia", slug: "venezia" },
+      { name: "Verona", slug: "verona" },
+      { name: "Bologna", slug: "bologna" },
+    ],
+  },
 };
 
 const FEATURES = [
