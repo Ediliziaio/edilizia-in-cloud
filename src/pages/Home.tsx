@@ -88,7 +88,6 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           },
@@ -116,7 +115,6 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           },
@@ -144,7 +142,6 @@ export default function Home() {
               "applicableCountry": "IT",
               "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
               "merchantReturnDays": 31,
-              "returnMethod": "https://schema.org/ReturnByMail",
               "returnFees": "https://schema.org/FreeReturn"
             }
           }
