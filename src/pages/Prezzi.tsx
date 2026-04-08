@@ -177,13 +177,91 @@ export default function Prezzi() {
       <JsonLd id="jsonld-prezzi" data={{
         "@context": "https://schema.org",
         "@type": "Product",
+        "@id": "https://ediliziaincloud.com/#product",
         "name": "Edilizia in Cloud",
         "description": "Software gestionale completo per imprese edili italiane",
+        "image": [
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
+          "https://ediliziaincloud.com/icons/icon-512.png"
+        ],
         "brand": { "@type": "Brand", "name": "Edilizia in Cloud" },
+        "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://ediliziaincloud.com" },
         "offers": [
-          { "@type": "Offer", "name": "Starter", "price": "79", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" },
-          { "@type": "Offer", "name": "Professional", "price": "159", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" },
-          { "@type": "Offer", "name": "Enterprise", "price": "319", "priceCurrency": "EUR", "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" }, "availability": "https://schema.org/InStock" }
+          {
+            "@type": "Offer", "name": "Starter", "price": "79", "priceCurrency": "EUR",
+            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
+          },
+          {
+            "@type": "Offer", "name": "Professional", "price": "159", "priceCurrency": "EUR",
+            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
+          },
+          {
+            "@type": "Offer", "name": "Enterprise", "price": "319", "priceCurrency": "EUR",
+            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
+          }
         ],
         "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127", "bestRating": "5" }
       }} />
@@ -193,36 +271,6 @@ export default function Prezzi() {
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
           { "@type": "ListItem", "position": 2, "name": "Prezzi", "item": "https://ediliziaincloud.com/prezzi" }
-        ]
-      }} />
-      <JsonLd id="jsonld-faq-prezzi" data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Quanto costa Edilizia in Cloud al mese?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "I piani partono da €79/mese (Starter). Il piano Professional è €159/mese e include tutti i moduli. Il piano Enterprise è €319/mese con funzionalità multi-azienda e API. Con il piano annuale risparmiate il 20%."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "C'è una prova gratuita?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, tutti i piani includono 31 giorni di prova gratuita senza carta di credito. Potete testare tutte le funzionalità prima di decidere."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso cambiare piano in qualsiasi momento?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, potete fare upgrade o downgrade del piano in qualsiasi momento. Le modifiche sono attive immediatamente."
-            }
-          }
         ]
       }} />
       <LandingNavbar />

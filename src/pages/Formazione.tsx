@@ -197,11 +197,6 @@ export default function Formazione() {
           { "@type": "ListItem", "position": 2, "name": "Formazione", "item": "https://ediliziaincloud.com/formazione" }
         ]
       }} />
-      <JsonLd id="jsonld-faq-formazione" data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": faqs.map(({ q, a }) => ({ "@type": "Question", "name": q, "acceptedAnswer": { "@type": "Answer", "text": a } }))
-      }} />
 
       <LandingNavbar />
 

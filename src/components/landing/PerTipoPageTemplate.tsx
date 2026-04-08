@@ -215,15 +215,6 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           { "@type": "ListItem", "position": 3, "name": config.badge, "item": `https://ediliziaincloud.com${config.seoCanonical}` },
         ]
       }} />
-      <JsonLd id={faqId} data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": config.schemaFaq.map(({ q, a }) => ({
-          "@type": "Question",
-          "name": q,
-          "acceptedAnswer": { "@type": "Answer", "text": a }
-        }))
-      }} />
 
       <LandingNavbar />
 

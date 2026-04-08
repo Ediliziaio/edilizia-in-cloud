@@ -44,72 +44,24 @@ export default function Home() {
           {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/"}
         ]
       }} />
-      <JsonLd id="jsonld-home" data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          { "@type": "Question", "name": "Quanto costa Edilizia in Cloud?", "acceptedAnswer": { "@type": "Answer", "text": "I piani partono da €79/mese per il piano Starter, fino a €319/mese per Enterprise. Tutti i piani includono 31 giorni di prova gratuita." }},
-          { "@type": "Question", "name": "In quanto tempo si imposta il software?", "acceptedAnswer": { "@type": "Answer", "text": "Il setup completo richiede 48 ore. Il nostro team ti affianca nella configurazione iniziale e nella migrazione dei dati." }},
-          { "@type": "Question", "name": "Il software funziona anche dal cantiere?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, Edilizia in Cloud è accessibile da qualsiasi dispositivo: smartphone, tablet e computer, anche con connessione limitata." }},
-          { "@type": "Question", "name": "I dati sono al sicuro?", "acceptedAnswer": { "@type": "Answer", "text": "Sì, tutti i dati sono conservati su server in Europa, conformi al GDPR, con backup automatico giornaliero e crittografia end-to-end." }}
-        ]
-      }} />
-
-      <JsonLd id="jsonld-faq-home" data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Devo essere esperto di informatica per usare Edilizia in Cloud?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. Il sistema è progettato per imprenditori edili, non per informatici. L'interfaccia è intuitiva e il nostro team ti configura tutto in 48 ore."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Quanto costa Edilizia in Cloud?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "I piani partono da €79/mese (Starter). Il piano Professional è a €159/mese e include CRM, marketing e HR. Tutti i piani includono 31 giorni di prova gratuita."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso importare i dati che ho su Excel?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì. Il team di onboarding migra i tuoi dati esistenti gratuitamente: Excel, CSV o altri gestionali. Di solito bastano 48 ore per essere operativi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Funziona da smartphone e tablet in cantiere?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, completamente. App mobile nativa per iOS e Android con modalità offline per zone senza segnale."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Posso disdire quando voglio?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, puoi disdire in qualsiasi momento senza penali. E se il software non ti fa guadagnare più di quanto spendi, è gratis per sempre — garanzia scritta."
-            }
-          }
-        ]
-      }} />
-
       <JsonLd id="jsonld-offer-home" data={{
         "@context": "https://schema.org",
         "@type": "Product",
+        "@id": "https://ediliziaincloud.com/#product",
         "name": "Edilizia in Cloud — Software Gestionale Imprese Edili",
         "description": "Software gestionale completo per imprese edili: gestione cantieri, margini in tempo reale, fatturazione elettronica, CRM, HR e intelligenza artificiale.",
+        "image": [
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
+          "https://ediliziaincloud.com/icons/icon-512.png"
+        ],
         "brand": {
           "@type": "Brand",
           "name": "Edilizia in Cloud"
+        },
+        "seller": {
+          "@type": "Organization",
+          "name": "Domus Group S.r.l.",
+          "url": "https://ediliziaincloud.com"
         },
         "offers": [
           {
@@ -120,7 +72,25 @@ export default function Home() {
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://ediliziaincloud.com/prezzi",
-            "description": "Gestione cantieri, finanza e documenti base"
+            "description": "Gestione cantieri, finanza e documenti base",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
           },
           {
             "@type": "Offer",
@@ -130,7 +100,25 @@ export default function Home() {
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://ediliziaincloud.com/prezzi",
-            "description": "Tutto Starter + CRM, marketing, HR completo e AI"
+            "description": "Tutto Starter + CRM, marketing, HR completo e AI",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
           },
           {
             "@type": "Offer",
@@ -140,7 +128,25 @@ export default function Home() {
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
             "url": "https://ediliziaincloud.com/prezzi",
-            "description": "Multi-azienda, API, supporto dedicato"
+            "description": "Multi-azienda, API, supporto dedicato",
+            "shippingDetails": {
+              "@type": "OfferShippingDetails",
+              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+              "deliveryTime": {
+                "@type": "ShippingDeliveryTime",
+                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+              }
+            },
+            "hasMerchantReturnPolicy": {
+              "@type": "MerchantReturnPolicy",
+              "applicableCountry": "IT",
+              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+              "merchantReturnDays": 31,
+              "returnMethod": "https://schema.org/ReturnByMail",
+              "returnFees": "https://schema.org/FreeReturn"
+            }
           }
         ],
         "aggregateRating": {
