@@ -76,6 +76,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     relatedCities: [
       { name: "Roma", slug: "roma" },
       { name: "Torino", slug: "torino" },
+      { name: "Bologna", slug: "bologna" },
     ],
   },
 
@@ -125,6 +126,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     relatedCities: [
       { name: "Milano", slug: "milano" },
       { name: "Torino", slug: "torino" },
+      { name: "Napoli", slug: "napoli" },
     ],
   },
 
@@ -174,6 +176,257 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     relatedCities: [
       { name: "Milano", slug: "milano" },
       { name: "Roma", slug: "roma" },
+      { name: "Napoli", slug: "napoli" },
+    ],
+  },
+
+  napoli: {
+    name: "Napoli",
+    region: "Campania",
+    slug: "napoli",
+    province: "NA",
+    lat: 40.8518,
+    lon: 14.2681,
+    heroTitle: "Gestionale Edilizia per Imprese di Napoli",
+    heroSubtitle:
+      "Software gestionale per imprese edili napoletane e campane: gestione cantieri, margini reali, SAL e fatturazione elettronica. Già usato da imprese edili in tutta la Campania.",
+    heroImage:
+      "https://images.unsplash.com/photo-1533676802871-eca1ae998cd5?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "25+", label: "Imprese edili campane attive" },
+      { value: "€ 3.4M", label: "Fatturato gestito al mese in Campania" },
+      { value: "26%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti campani" },
+    ],
+    localTestimonial: {
+      quote:
+        "A Napoli il mercato edile è vivace ma gestire più cantieri contemporaneamente senza un software è impossibile. Con Edilizia in Cloud ho il controllo su tutto, da qualsiasi posto mi trovi.",
+      author: "Antonio F.",
+      company: "Costruzioni Ferrara Srl",
+      city: "Napoli",
+      initials: "AF",
+    },
+    localProblems: [
+      {
+        emoji: "🏗️",
+        title: "Cantieri multipli difficili da coordinare",
+        desc: "Napoli e la sua area metropolitana offrono molte opportunità, ma gestire squadre su più cantieri contemporaneamente senza strumenti digitali significa perdere il controllo dei costi.",
+      },
+      {
+        emoji: "📑",
+        title: "Burocrazia e tempi comunali dilatati",
+        desc: "Permessi, varianti e SCIA a Napoli richiedono una gestione documentale precisa. Senza un sistema centralizzato si rischia di perdere scadenze e bloccare i lavori.",
+      },
+      {
+        emoji: "💰",
+        title: "Liquidità e pagamenti ritardati",
+        desc: "Il mercato campano soffre spesso di ritardi nei pagamenti, soprattutto negli appalti pubblici. Avere una previsione di cassa aggiornata è vitale per la sopravvivenza dell'impresa.",
+      },
+    ],
+    relatedCities: [
+      { name: "Roma", slug: "roma" },
+      { name: "Palermo", slug: "palermo" },
+      { name: "Milano", slug: "milano" },
+    ],
+  },
+
+  bologna: {
+    name: "Bologna",
+    region: "Emilia-Romagna",
+    slug: "bologna",
+    province: "BO",
+    lat: 44.4949,
+    lon: 11.3426,
+    heroTitle: "Gestionale Edilizia per Imprese di Bologna",
+    heroSubtitle:
+      "Software gestionale per imprese edili bolognesi e dell'Emilia-Romagna: controllo cantieri, margini in tempo reale e fatturazione elettronica integrata.",
+    heroImage:
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "18+", label: "Imprese edili emiliane attive" },
+      { value: "€ 2.6M", label: "Fatturato gestito al mese in Emilia-Romagna" },
+      { value: "25%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti emiliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Emilia le imprese edili sono strutturate e competitive. Edilizia in Cloud mi ha permesso di lavorare con la stessa efficienza delle grandi imprese ma con i costi di un piccolo team.",
+      author: "Stefano C.",
+      company: "SC Costruzioni Srl",
+      city: "Bologna",
+      initials: "SC",
+    },
+    localProblems: [
+      {
+        emoji: "🏭",
+        title: "Mercato industriale e capannoni in forte crescita",
+        desc: "L'Emilia-Romagna ha uno dei mercati più attivi in Italia per costruzioni industriali e capannoni. Gestire commesse di grandi dimensioni richiede un software in grado di tracciare tutto in tempo reale.",
+      },
+      {
+        emoji: "🌊",
+        title: "Ricostruzioni post-alluvione con finanziamenti pubblici",
+        desc: "I cantieri finanziati dal Commissario Alluvione richiedono rendicontazione puntuale, SAL certificati e tracciabilità dei pagamenti. Senza un gestionale ad hoc si rischia di perdere i rimborsi.",
+      },
+      {
+        emoji: "👷",
+        title: "Subappalti complessi e filiere strutturate",
+        desc: "Il tessuto produttivo emiliano è fatto di reti di subappaltatori specializzati. Gestire contratti, DURC e pagamenti di 10+ fornitori per cantiere senza un software è un incubo logistico.",
+      },
+    ],
+    relatedCities: [
+      { name: "Milano", slug: "milano" },
+      { name: "Firenze", slug: "firenze" },
+      { name: "Torino", slug: "torino" },
+    ],
+  },
+
+  firenze: {
+    name: "Firenze",
+    region: "Toscana",
+    slug: "firenze",
+    province: "FI",
+    lat: 43.7696,
+    lon: 11.2558,
+    heroTitle: "Gestionale Edilizia per Imprese di Firenze",
+    heroSubtitle:
+      "Software gestionale per imprese edili fiorentine e toscane: gestione cantieri storici, SAL, fatturazione elettronica e controllo margini in tempo reale.",
+    heroImage:
+      "https://images.unsplash.com/photo-1541343672885-9be56236302a?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "15+", label: "Imprese edili toscane attive" },
+      { value: "€ 2.1M", label: "Fatturato gestito al mese in Toscana" },
+      { value: "23%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.9/5", label: "Valutazione media clienti toscani" },
+    ],
+    localTestimonial: {
+      quote:
+        "A Firenze si lavora molto nei centri storici: vincoli, soprintendenza, lavori delicati. Con Edilizia in Cloud tengo tutto sotto controllo e posso dimostrare ai clienti la qualità del nostro lavoro con dati reali.",
+      author: "Riccardo M.",
+      company: "Restauri e Costruzioni Martini",
+      city: "Firenze",
+      initials: "RM",
+    },
+    localProblems: [
+      {
+        emoji: "🏛️",
+        title: "Cantieri nei centri storici UNESCO",
+        desc: "Firenze è patrimonio UNESCO: ogni intervento in centro storico richiede autorizzazioni soprintendenza, piani di sicurezza dettagliati e documentazione fotografica puntuale. Senza un sistema digitale si perde tutto.",
+      },
+      {
+        emoji: "🎨",
+        title: "Restauro e conservazione: lavori non standardizzabili",
+        desc: "I lavori di restauro e conservazione hanno costi difficili da preventivare. Servono strumenti che permettano di aggiornare il computo in corso d'opera e di comunicare varianti al cliente in tempo reale.",
+      },
+      {
+        emoji: "🌿",
+        title: "Riqualificazione energetica con incentivi regionali",
+        desc: "La Toscana ha incentivi regionali per la riqualificazione energetica. Le pratiche richiedono una rendicontazione precisa e l'integrazione con i portali regionali. Un gestionale semplifica tutto.",
+      },
+    ],
+    relatedCities: [
+      { name: "Bologna", slug: "bologna" },
+      { name: "Roma", slug: "roma" },
+      { name: "Milano", slug: "milano" },
+    ],
+  },
+
+  genova: {
+    name: "Genova",
+    region: "Liguria",
+    slug: "genova",
+    province: "GE",
+    lat: 44.4056,
+    lon: 8.9463,
+    heroTitle: "Gestionale Edilizia per Imprese di Genova",
+    heroSubtitle:
+      "Software gestionale per imprese edili genovesi e liguri: gestione cantieri, controllo margini e fatturazione elettronica. Perfetto per le sfide del territorio ligure.",
+    heroImage:
+      "https://images.unsplash.com/photo-1554629947-334ff61d85dc?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "12+", label: "Imprese edili liguri attive" },
+      { value: "€ 1.8M", label: "Fatturato gestito al mese in Liguria" },
+      { value: "21%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti liguri" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Liguria i cantieri sono spesso in luoghi difficili da raggiungere. L'app offline di Edilizia in Cloud è stata la svolta: i miei capocantiere aggiornano tutto anche senza connessione.",
+      author: "Gianluca B.",
+      company: "Bianchi Costruzioni Liguria",
+      city: "Genova",
+      initials: "GB",
+    },
+    localProblems: [
+      {
+        emoji: "⛰️",
+        title: "Cantieri su terreni scoscesi e difficili",
+        desc: "La morfologia ligure rende ogni cantiere un caso a sé: strade strette, terreni in pendenza, logistica complessa. Coordinare squadre in queste condizioni richiede strumenti digitali precisi.",
+      },
+      {
+        emoji: "🌊",
+        title: "Manutenzione e consolidamento di edifici a rischio",
+        desc: "Il dissesto idrogeologico è una realtà in Liguria. I lavori di consolidamento e messa in sicurezza richiedono documentazione puntuale, SAL e rendicontazione per accedere ai fondi regionali.",
+      },
+      {
+        emoji: "🏚️",
+        title: "Ristrutturazione di patrimonio edilizio datato",
+        desc: "Genova ha un patrimonio edilizio antico e spesso degradato. Le ristrutturazioni sono complesse e imprevedibili: un gestionale flessibile è l'unico modo per mantenere il controllo dei costi.",
+      },
+    ],
+    relatedCities: [
+      { name: "Milano", slug: "milano" },
+      { name: "Torino", slug: "torino" },
+      { name: "Firenze", slug: "firenze" },
+    ],
+  },
+
+  palermo: {
+    name: "Palermo",
+    region: "Sicilia",
+    slug: "palermo",
+    province: "PA",
+    lat: 38.1157,
+    lon: 13.3615,
+    heroTitle: "Gestionale Edilizia per Imprese di Palermo",
+    heroSubtitle:
+      "Software gestionale per imprese edili palermitane e siciliane: controllo cantieri, SAL, fatturazione elettronica e gestione squadre in un'unica piattaforma cloud.",
+    heroImage:
+      "https://images.unsplash.com/photo-1612595434655-c758e8ea9b79?auto=format&fit=crop&w=1400&q=80",
+    localStats: [
+      { value: "10+", label: "Imprese edili siciliane attive" },
+      { value: "€ 1.2M", label: "Fatturato gestito al mese in Sicilia" },
+      { value: "20%", label: "Riduzione media dei costi nascosti" },
+      { value: "4.8/5", label: "Valutazione media clienti siciliani" },
+    ],
+    localTestimonial: {
+      quote:
+        "In Sicilia le opportunità non mancano, ma la gestione burocratica è pesante. Con Edilizia in Cloud ho ridotto il tempo dedicato alla burocrazia del 60% e posso concentrarmi sui cantieri.",
+      author: "Salvatore G.",
+      company: "Garofalo Costruzioni Srl",
+      city: "Palermo",
+      initials: "SG",
+    },
+    localProblems: [
+      {
+        emoji: "🏛️",
+        title: "Fondi PNRR e appalti pubblici in forte crescita",
+        desc: "La Sicilia è tra le regioni con più fondi PNRR per infrastrutture ed edilizia pubblica. Accedere a questi appalti richiede documentazione digitale, SAL puntuali e DURC sempre aggiornati.",
+      },
+      {
+        emoji: "☀️",
+        title: "Boom del fotovoltaico e dell'efficienza energetica",
+        desc: "La Sicilia guida la transizione energetica in Italia. Installatori e imprese edili che lavorano nel settore fotovoltaico hanno bisogno di un gestionale flessibile per gestire cantieri distribuiti.",
+      },
+      {
+        emoji: "📋",
+        title: "Rendicontazione complessa per fondi regionali",
+        desc: "I finanziamenti regionali siciliani richiedono rendicontazione dettagliata e documentazione puntuale. Senza un gestionale specifico si rischia di perdere i rimborsi per errori formali.",
+      },
+    ],
+    relatedCities: [
+      { name: "Napoli", slug: "napoli" },
+      { name: "Roma", slug: "roma" },
+      { name: "Milano", slug: "milano" },
     ],
   },
 };

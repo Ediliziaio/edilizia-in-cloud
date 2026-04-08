@@ -376,6 +376,46 @@
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-torino"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-torino"/>
   </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-napoli</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-napoli"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-napoli"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bologna</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bologna"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-bologna"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-firenze</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-firenze"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-firenze"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-genova</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-genova"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-genova"/>
+  </url>
+  <url>
+    <loc>https://ediliziaincloud.com/software-gestionale-edilizia-palermo</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-palermo"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/software-gestionale-edilizia-palermo"/>
+  </url>
 
   <!-- ── Hub pages ──────────────────────────────────────────────── -->
   <url>
