@@ -962,6 +962,252 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "13",
+    slug: "sal-cantiere-come-funziona",
+    title: "SAL Cantiere: Cos'è, Come Si Fa e Come Automatizzarlo nel 2026",
+    excerpt:
+      "Guida completa allo Stato Avanzamento Lavori: come si calcola, cosa deve contenere, come si certifica e come automatizzarlo con un software gestionale per imprese edili.",
+    category: "Gestione Cantieri",
+    tags: ["SAL cantiere", "stato avanzamento lavori", "gestione cantieri", "software edilizia"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 9,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Lo Stato Avanzamento Lavori (SAL) è uno degli strumenti più importanti per le imprese edili: determina quando e quanto puoi fatturare al committente. Eppure molte imprese lo gestiscono ancora con Excel o con carta e penna, perdendo tempo e rischiando errori che bloccano i pagamenti.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è il SAL cantiere e a cosa serve",
+        body: "Il SAL (Stato Avanzamento Lavori) è un documento che certifica la percentuale di completamento di un'opera in un dato momento. Serve a tre scopi fondamentali: (1) giustificare i pagamenti intermedi previsti dal contratto, (2) tenere traccia dell'avanzamento reale rispetto al programma lavori, (3) identificare scostamenti dal preventivo prima che diventino problemi gravi.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve contenere un SAL corretto",
+        items: [
+          "Dati del cantiere: committente, ubicazione, numero contratto, importo totale",
+          "Elenco delle lavorazioni eseguite con percentuale di completamento",
+          "Importo maturato fino alla data del SAL",
+          "Importo già certificato nei SAL precedenti",
+          "Saldo da certificare (importo del SAL corrente)",
+          "Data di esecuzione e firma del direttore lavori",
+          "Eventuali riserve o varianti in corso d'opera",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Ogni quanto si fa un SAL?",
+        body: "La frequenza dei SAL dipende dal contratto. Negli appalti privati è tipicamente mensile o bimestrale. Negli appalti pubblici la frequenza è stabilita dal capitolato speciale d'appalto, spesso mensile o al raggiungimento di soglie percentuali (es. ogni 25% di avanzamento). È fondamentale rispettare le scadenze: un SAL in ritardo significa un pagamento in ritardo.",
+      },
+      {
+        type: "section",
+        heading: "SAL su Excel vs software gestionale: il confronto reale",
+        body: "Con Excel il SAL richiede 2-4 ore di lavoro manuale per ogni emissione: raccogliere i dati dalle squadre, aggiornare il foglio, calcolare i totali, generare il PDF, inviarlo. Con un software gestionale come Edilizia in Cloud il SAL viene generato automaticamente dai dati di avanzamento inseriti direttamente in cantiere dalle squadre tramite app mobile. L'ufficio deve solo verificare e approvare.",
+      },
+      {
+        type: "list",
+        heading: "Come automatizzare i SAL con Edilizia in Cloud",
+        items: [
+          "Il capocantiere aggiorna l'avanzamento da app mobile ogni giorno",
+          "Il sistema calcola automaticamente la percentuale di completamento per voce",
+          "A fine periodo, il titolare genera il SAL in un click",
+          "Il documento viene inviato al committente con firma digitale integrata",
+          "Il SAL approvato genera automaticamente la fattura SAL",
+          "Il pagamento viene tracciato nello scadenzario",
+        ],
+      },
+      {
+        type: "quote",
+        quote: "Prima passavo 3 ore ogni fine mese a fare i SAL su Excel. Ora lo faccio in 20 minuti e non rischio più errori di calcolo che bloccano i pagamenti.",
+        author: "Alessandro M., impresa edile Milano",
+      },
+      {
+        type: "cta",
+        heading: "Automatizza i tuoi SAL con Edilizia in Cloud",
+        body: "Genera SAL professionali in automatico dai dati di avanzamento inseriti in cantiere. Firma digitale integrata, tracciamento pagamenti e generazione fattura automatica. Prova gratis 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "14",
+    slug: "durc-edilizia-guida-completa",
+    title: "DURC Edilizia 2026: Guida Completa per Imprese Edili",
+    excerpt:
+      "Tutto quello che devi sapere sul DURC per le imprese edili: cos'è, come richiederlo, quando scade, cosa fare se è irregolare e come gestirlo con un software gestionale.",
+    category: "Gestione Cantieri",
+    tags: ["DURC edilizia", "regolarità contributiva", "appalti edilizia", "gestione documenti"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 7,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il DURC — Documento Unico di Regolarità Contributiva — è uno dei documenti più importanti per le imprese edili italiane. Senza DURC in regola non puoi partecipare a gare d'appalto pubbliche, non puoi ricevere pagamenti superiori a 5.000€ dalla PA e rischi di perdere contratti privati importanti.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è il DURC e chi lo rilascia",
+        body: "Il DURC è un certificato che attesta la regolarità dei versamenti contributivi di un'impresa verso INPS, INAIL e Casse Edili. Viene rilasciato esclusivamente in formato digitale tramite il portale INPS (durc.coasco.it o il portale unico durc online). Dal 2014 è obbligatoriamente in formato elettronico e ha validità di 120 giorni dalla data di emissione.",
+      },
+      {
+        type: "list",
+        heading: "Quando serve il DURC per un'impresa edile",
+        items: [
+          "Partecipazione a gare d'appalto pubbliche (obbligo assoluto)",
+          "Stipula di contratti con la Pubblica Amministrazione",
+          "Riscossione di pagamenti PA superiori a 5.000€ (D.Lgs. 231/2002)",
+          "Subappalti: il subappaltatore deve presentare DURC al general contractor",
+          "Benefici normativi (riduzioni contributive, incentivi fiscali)",
+          "Registrazione di atti traslativi di proprietà immobiliare",
+          "Concessione di sovvenzioni e contributi pubblici",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come richiedere il DURC online",
+        body: "Il DURC si richiede esclusivamente online attraverso il portale INPS (durc.coasco.it) o tramite intermediario abilitato. Devi avere credenziali SPID o CNS. La richiesta è gratuita. Il documento viene rilasciato automaticamente entro 30 giorni, ma spesso in pochi giorni se tutti i versamenti sono in regola. Se il sistema rileva irregolarità, si apre un contraddittorio di 15 giorni per regolarizzare.",
+      },
+      {
+        type: "section",
+        heading: "Cosa fare se il DURC è irregolare",
+        body: "Se ricevi una comunicazione di irregolarità, hai 15 giorni per regolarizzare la posizione. Le cause più comuni di DURC irregolare sono: versamenti INPS in ritardo, omissioni INAIL, mancati pagamenti alla Cassa Edile. Puoi regolarizzare pagando le somme dovute con F24 o aderendo a un piano di rateazione. Affidati a un consulente del lavoro per i casi più complessi.",
+      },
+      {
+        type: "list",
+        heading: "Come gestire i DURC di subappaltatori con un software",
+        items: [
+          "Archivia digitalmente il DURC di ogni subappaltatore con data di scadenza",
+          "Imposta alert automatici 30 giorni prima della scadenza",
+          "Blocca i pagamenti ai subappaltatori con DURC scaduto",
+          "Genera automaticamente la lista subappaltatori con status DURC per ogni cantiere",
+          "Esporta la documentazione per le stazioni appaltanti in un click",
+        ],
+      },
+      {
+        type: "cta",
+        heading: "Gestisci DURC e documenti di cantiere con Edilizia in Cloud",
+        body: "Archiviazione digitale di tutti i documenti di cantiere, alert automatici sulle scadenze e gestione completa dei subappaltatori. Nessun DURC scaduto passerà inosservato.",
+      },
+    ],
+  },
+  {
+    id: "15",
+    slug: "giornale-dei-lavori-cantiere",
+    title: "Giornale dei Lavori: Cos'è, Chi Lo Compila e Come Digitale nel 2026",
+    excerpt:
+      "Il giornale dei lavori è obbligatorio negli appalti pubblici e utile in quelli privati. Guida completa su chi lo compila, cosa deve contenere e come passare al digitale.",
+    category: "Gestione Cantieri",
+    tags: ["giornale dei lavori", "documentazione cantiere", "appalti edilizia", "direttore lavori"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 6,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il giornale dei lavori è il diario ufficiale di un cantiere: registra giorno per giorno le attività svolte, le maestranze presenti, le condizioni meteo e qualsiasi evento rilevante. Negli appalti pubblici è obbligatorio per legge; in quelli privati è altamente consigliato perché tutela l'impresa in caso di contestazioni.",
+      },
+      {
+        type: "section",
+        heading: "Chi è obbligato a tenere il giornale dei lavori",
+        body: "Negli appalti pubblici regolati dal Codice dei Contratti (D.Lgs. 36/2023) il giornale dei lavori è tenuto dal Direttore dei Lavori (DL), che lo firma quotidianamente. L'impresa appaltatrice ha l'obbligo di cooperare fornendo le informazioni necessarie. Negli appalti privati non c'è obbligo di legge, ma il giornale dei lavori è uno strumento di tutela fondamentale in caso di controversie con il committente.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve contenere il giornale dei lavori",
+        items: [
+          "Data e condizioni meteo (temperatura, precipitazioni, vento)",
+          "Numero e qualifica delle maestranze presenti per ogni ditta",
+          "Lavorazioni eseguite nel giorno con descrizione dettagliata",
+          "Materiali e forniture consegnati in cantiere",
+          "Macchinari e attrezzature utilizzati",
+          "Eventuali varianti o ordini di servizio ricevuti",
+          "Sospensioni lavori con motivazione",
+          "Annotazioni del DL su qualità e conformità delle lavorazioni",
+          "Firma del Direttore dei Lavori",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Giornale dei lavori cartaceo vs digitale",
+        body: "Il giornale dei lavori cartaceo ha due grandi problemi: si perde facilmente (o si deteriora) e richiede la presenza fisica del DL in cantiere per la firma. Il giornale digitale risolve entrambi i problemi: i dati vengono inseriti da app mobile direttamente in cantiere, archiviati automaticamente nel cloud e firmati digitalmente dal DL. In caso di contenziosi, il giornale digitale è immediatamente esportabile in PDF con data e ora certificate.",
+      },
+      {
+        type: "section",
+        heading: "Come gestire il giornale dei lavori con Edilizia in Cloud",
+        body: "In Edilizia in Cloud il giornale dei lavori è integrato nel modulo Gestione Cantieri. Il capocantiere aggiorna il giornale da app mobile ogni giorno: inserisce le maestranze presenti, le lavorazioni eseguite, le consegne di materiali e le note. Il DL riceve una notifica e firma digitalmente. Tutto è archiviato in modo automatico e collegato alla commessa.",
+      },
+      {
+        type: "cta",
+        heading: "Digitalizza il giornale dei lavori con Edilizia in Cloud",
+        body: "Compilazione da app mobile in cantiere, firma digitale del DL, archiviazione automatica e export PDF. Il tuo cantiere sempre documentato, anche in caso di contestazioni.",
+      },
+    ],
+  },
+  {
+    id: "16",
+    slug: "subappalto-edilizia-guida",
+    title: "Subappalto in Edilizia: Regole, Limiti e Come Gestirlo nel 2026",
+    excerpt:
+      "Guida completa al subappalto in edilizia: limiti normativi dopo il nuovo Codice Appalti, obblighi documentali, come si gestisce il pagamento diretto e come tenere traccia di tutto con un software.",
+    category: "Finanza",
+    tags: ["subappalto edilizia", "codice appalti", "gestione subappaltatori", "appalti pubblici"],
+    publishedAt: "2026-04-08",
+    updatedAt: "2026-04-08",
+    readTime: 8,
+    author: { name: "Marco Verdi", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il subappalto è una realtà quotidiana per le imprese edili italiane: difficilmente un'impresa riesce a eseguire con le proprie maestranze tutte le lavorazioni di un cantiere complesso. Ma il subappalto porta con sé obblighi normativi precisi che, se non rispettati, possono portare a sanzioni gravi o alla risoluzione del contratto.",
+      },
+      {
+        type: "section",
+        heading: "Limiti al subappalto dopo il nuovo Codice dei Contratti (D.Lgs. 36/2023)",
+        body: "Il nuovo Codice dei Contratti ha introdotto importanti novità sul subappalto. Il limite generale del 30% del valore del contratto (che aveva caratterizzato la normativa precedente) è stato eliminato per i contratti sopra soglia comunitaria. Per i contratti sotto soglia rimane una regolamentazione più restrittiva. Tuttavia, ogni stazione appaltante può fissare limiti più stringenti nel bando. È fondamentale leggere il capitolato speciale d'appalto prima di subappaltare.",
+      },
+      {
+        type: "list",
+        heading: "Obblighi documentali per il subappalto",
+        items: [
+          "Comunicazione preventiva alla stazione appaltante (almeno 20 giorni prima)",
+          "DURC regolare del subappaltatore (verificato prima di ogni pagamento)",
+          "Certificazione SOA del subappaltatore (se richiesta per la categoria di lavori)",
+          "Contratto di subappalto scritto con indicazione delle lavorazioni affidate",
+          "Dichiarazione antimafia del subappaltatore (per contratti PA)",
+          "Piano di sicurezza coordinato con il subappaltatore",
+          "Polizza RC del subappaltatore con massimale adeguato",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Pagamento diretto al subappaltatore: quando è obbligatorio",
+        body: "Negli appalti pubblici il committente (stazione appaltante) può effettuare il pagamento diretto al subappaltatore in caso di inadempimento del general contractor. Dal 2023, con il nuovo Codice, il pagamento diretto è diventato obbligatorio su richiesta del subappaltatore se l'appaltatore è in ritardo superiore a 30 giorni. Questo impone al general contractor di avere una gestione finanziaria precisa dei SAL e dei pagamenti ai subappaltatori.",
+      },
+      {
+        type: "section",
+        heading: "Come gestire i subappaltatori con un software",
+        body: "Un software gestionale come Edilizia in Cloud permette di centralizzare tutta la gestione dei subappaltatori: anagrafica con documenti e scadenze, contratti collegati alle commesse, tracciamento delle lavorazioni affidate, verifica automatica del DURC prima di ogni pagamento e rendicontazione per le stazioni appaltanti. Ogni subappaltatore è visibile sulla commessa con il suo stato documentale in tempo reale.",
+      },
+      {
+        type: "cta",
+        heading: "Gestisci i subappaltatori con Edilizia in Cloud",
+        body: "Registro subappaltatori con DURC, contratti e scadenze. Alert automatici, verifica documentale pre-pagamento e reportistica per stazioni appaltanti. Tutto in un'unica piattaforma.",
+      },
+    ],
+  },
 ];
 
 export const categories = [
