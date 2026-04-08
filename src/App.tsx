@@ -96,8 +96,10 @@ const PreventiviEdilizia     = lazy(() => import("@/pages/funzionalita/Preventiv
 const MarginiCantiere        = lazy(() => import("@/pages/funzionalita/MarginiCantiere"));
 
 // Confronto sub-pages
-const VsPrimus  = lazy(() => import("@/pages/confronto/VsPrimus"));
-const VsEdilnet = lazy(() => import("@/pages/confronto/VsEdilnet"));
+const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
+const VsEdilnet     = lazy(() => import("@/pages/confronto/VsEdilnet"));
+const VsTeamSystem  = lazy(() => import("@/pages/confronto/VsTeamSystem"));
+const VsExcel       = lazy(() => import("@/pages/confronto/VsExcel"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -188,6 +190,8 @@ const App = () => (
               <Route path="/funzionalita/margini-cantiere" element={<MarginiCantiere />} />
               <Route path="/confronto/vs-primus" element={<VsPrimus />} />
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
+              <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />
+              <Route path="/confronto/vs-excel" element={<VsExcel />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/termini" element={<TerminiServizio />} />
