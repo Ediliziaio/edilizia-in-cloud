@@ -1,130 +1,32 @@
 # robots.txt — ediliziaincloud.com
 # Aggiornato: 2026-04-08
 
-# ─── MOTORI DI RICERCA TRADIZIONALI ─────────────────────────────────────────
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /admin/
+Disallow: /login
+Disallow: /accetta-preventivo/
+Disallow: /firma/
+Disallow: /booking/
+Disallow: /nps/
+Disallow: /cambia-password
+Disallow: /reset-password
+Disallow: /accetta-invito/
+Disallow: /portale-cliente/
+Disallow: /portale-tecnico/
 
+# Allow specific bots full access to all public content
 User-agent: Googlebot
 Allow: /
 
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /
-
-User-agent: DuckDuckBot
-Allow: /
-
-User-agent: Baiduspider
-Allow: /
-
-User-agent: YandexBot
-Allow: /
-
-# ─── CRAWLER AI — ESPLICITAMENTE PERMESSI ────────────────────────────────────
-# Tutti i crawler AI hanno accesso completo alle pagine pubbliche.
-# Questo permette la citabilità nei motori AI (ChatGPT, Claude, Perplexity, Gemini).
-
 User-agent: GPTBot
-Allow: /
-
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: ChatGPT-User
 Allow: /
 
 User-agent: ClaudeBot
 Allow: /
 
-User-agent: anthropic-ai
-Allow: /
-
 User-agent: PerplexityBot
 Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: YouBot
-Allow: /
-
-User-agent: cohere-ai
-Allow: /
-
-User-agent: Diffbot
-Allow: /
-
-User-agent: Bytespider
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: Meta-ExternalAgent
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: Amazonbot
-Allow: /
-
-User-agent: FacebookExternalHit
-Allow: /
-
-User-agent: LinkedInBot
-Allow: /
-
-User-agent: BingPreview
-Allow: /
-
-# ─── SOCIAL MEDIA CRAWLERS ───────────────────────────────────────────────────
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: WhatsApp
-Allow: /
-
-User-agent: Slackbot
-Allow: /
-
-User-agent: Telegrambot
-Allow: /
-
-# ─── REGOLE GENERALI ─────────────────────────────────────────────────────────
-# Blocca le aree private/autenticate — non indicizzare
-
-User-agent: *
-Allow: /
-Allow: /home
-Allow: /funzionalita
-Allow: /funzionalita/
-Allow: /prezzi
-Allow: /confronto
-Allow: /chi-siamo
-Allow: /demo
-Allow: /blog
-Allow: /blog/
-Allow: /casi-studio
-Allow: /llms.txt
-Allow: /llms-full.txt
-
-Disallow: /azienda/
-Disallow: /admin/
-Disallow: /clienti/
-Disallow: /dipendente/
-Disallow: /agente/
-Disallow: /partner/
-Disallow: /reset-password
-Disallow: /cambia-password
-Disallow: /prenota/
-Disallow: /offerta/
-Disallow: /firma/
-Disallow: /firma-odv/
-Disallow: /preventivo/
-
-# ─── SITEMAP ─────────────────────────────────────────────────────────────────
 
 Sitemap: https://ediliziaincloud.com/sitemap.xml
