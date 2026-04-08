@@ -77,6 +77,7 @@ Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, so
 - **vs EdilNet:** https://ediliziaincloud.com/confronto/vs-edilnet
 - **vs TeamSystem:** https://ediliziaincloud.com/confronto/vs-teamsystem
 - **vs Excel:** https://ediliziaincloud.com/confronto/vs-excel
+- **vs Buildertrend:** https://ediliziaincloud.com/confronto/vs-buildertrend
 - **Integrazioni:** https://ediliziaincloud.com/integrazioni
 - **Glossario Edilizia:** https://ediliziaincloud.com/glossario-edilizia
 - **Supporto:** info@ediliziaincloud.com

@@ -229,6 +229,21 @@ const ROUTES = {
     },
   },
 
+  "/confronto/vs-buildertrend": {
+    title: "Edilizia in Cloud vs Buildertrend: Confronto 2026 | Alternativa Italiana",
+    description:
+      "Confronto Edilizia in Cloud vs Buildertrend per imprese edili italiane. Buildertrend è americano, senza SDI, senza Cassa Edile e solo in inglese. Ecco la differenza.",
+    canonical: BASE + "/confronto/vs-buildertrend",
+    h1: "Edilizia in Cloud vs Buildertrend: il gestionale italiano per le imprese edili",
+    intro:
+      "Buildertrend è nato per il mercato americano. Non ha la fatturazione SDI, non conosce la Cassa Edile e non parla italiano. Ecco perché le imprese edili italiane scelgono Edilizia in Cloud.",
+    links: [
+      { href: "/confronto", label: "Tutti i Confronti" },
+      { href: "/confronto/vs-teamsystem", label: "vs TeamSystem" },
+      { href: "/demo", label: "Prova Gratis" },
+    ],
+  },
+
   "/confronto/vs-primus": {
     title: "Edilizia in Cloud vs Primus: Confronto 2026",
     description:

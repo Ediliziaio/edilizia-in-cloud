@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-08 (v7 — 32 articoli, 35 città, 6 confronti)
+# Ultimo aggiornamento: 2026-04-08 (v7 — 32 articoli, 35 città, 7 confronti)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://ediliziaincloud.com/llms.txt
 
@@ -106,6 +106,7 @@ Confronti approfonditi:
 - Edilizia in Cloud vs EdilNet: https://ediliziaincloud.com/confronto/vs-edilnet
 - Edilizia in Cloud vs TeamSystem: https://ediliziaincloud.com/confronto/vs-teamsystem
 - Edilizia in Cloud vs Excel: https://ediliziaincloud.com/confronto/vs-excel
+- Edilizia in Cloud vs Buildertrend: https://ediliziaincloud.com/confronto/vs-buildertrend
 
 ---
 

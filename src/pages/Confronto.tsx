@@ -691,6 +691,20 @@ export default function Confronto() {
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
+            <Link
+              to="/confronto/vs-buildertrend"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+            >
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+                Edilizia in Cloud vs Buildertrend
+              </h3>
+              <p className="text-sm text-[#111111]/60 leading-relaxed">
+                Software americano vs gestionale italiano: SDI, Cassa Edile, italiano e prezzo a confronto.
+              </p>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+                Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
+              </span>
+            </Link>
           </div>
         </div>
       </section>

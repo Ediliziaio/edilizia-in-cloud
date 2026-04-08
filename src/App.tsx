@@ -103,6 +103,7 @@ const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
 const VsEdilnet     = lazy(() => import("@/pages/confronto/VsEdilnet"));
 const VsTeamSystem  = lazy(() => import("@/pages/confronto/VsTeamSystem"));
 const VsExcel       = lazy(() => import("@/pages/confronto/VsExcel"));
+const VsBuildertrend = lazy(() => import("@/pages/confronto/VsBuildertrend"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -198,6 +199,7 @@ const App = () => (
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />
               <Route path="/confronto/vs-excel" element={<VsExcel />} />
+              <Route path="/confronto/vs-buildertrend" element={<VsBuildertrend />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/termini" element={<TerminiServizio />} />

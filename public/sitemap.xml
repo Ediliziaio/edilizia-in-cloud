@@ -603,6 +603,14 @@
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-excel"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/confronto/vs-excel"/>
   </url>
+  <url>
+    <loc>https://ediliziaincloud.com/confronto/vs-buildertrend</loc>
+    <lastmod>2026-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-buildertrend"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/confronto/vs-buildertrend"/>
+  </url>
 
   <!-- ── City hub page ───────────────────────────────────────────── -->
   <url>
