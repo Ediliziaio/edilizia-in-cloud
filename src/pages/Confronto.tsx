@@ -4,7 +4,6 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import GaranzieSection from "@/components/landing/GaranzieSection";
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 
 
@@ -709,7 +708,6 @@ export default function Confronto() {
         </div>
       </section>
 
-      <GaranzieSection />
 
       {/* ── CTA FINALE ── */}
       <section

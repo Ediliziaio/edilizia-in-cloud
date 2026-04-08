@@ -3,7 +3,6 @@ import { useParams, Link } from "react-router-dom";
 import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import GaranzieSection from "@/components/landing/GaranzieSection";
 import { blogPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -518,7 +517,6 @@ export default function BlogPost() {
 
             {/* Garanzie inline article */}
             <div className="mt-12 pt-8 border-t border-gray-200">
-              <GaranzieSection variant="compact" />
             </div>
           </article>
 

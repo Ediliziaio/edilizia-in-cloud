@@ -21,7 +21,6 @@ import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
-import GaranzieSection from "@/components/landing/GaranzieSection";
 import FounderLetterBottom from "@/components/landing/FounderLetterBottom";
 import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
@@ -267,7 +266,6 @@ export default function Home() {
       <PricingSection />
       <TestimonialsSection />
       <FAQSection />
-      <GaranzieSection />
       <FinalCtaSection />
       <FounderLetterBottom />
 

@@ -4,7 +4,6 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import GaranzieSection from "@/components/landing/GaranzieSection";
 import {
   Check,
   X,
@@ -335,7 +334,7 @@ export default function Prezzi() {
                 Prova <span className="text-[#F97415]">GRATUITA</span> di <span className="text-[#F97415]">31 GIORNI</span>
               </h2>
               <p className="text-white/60 text-lg mb-6">
-                Accesso completo a tutti i moduli del tuo piano — senza obbligo, senza vincoli. Se non ti piace, non paghi nulla. Punto.
+                Accesso completo a tutti i moduli del tuo piano — cancella quando vuoi, senza obbligo, senza vincoli. Se non ti piace, non paghi nulla. Punto.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4 mb-6 text-sm">
                 {[
@@ -802,7 +801,6 @@ export default function Prezzi() {
         </div>
       </section>
 
-      <GaranzieSection />
 
       {/* ── 8. CTA FINALE ───────────────────────────────────────────────────── */}
       <section
@@ -853,7 +851,7 @@ export default function Prezzi() {
             "name": "Posso provare Edilizia in Cloud gratuitamente?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+              "text": "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Cancella quando vuoi. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
             }
           },
           {

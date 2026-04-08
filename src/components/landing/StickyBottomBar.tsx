@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Gift, ArrowRight } from "lucide-react";
+import { ShieldCheck, ArrowRight } from "lucide-react";
 import { getTimeLeft } from "@/lib/urgencyUtils";
 
 export default function StickyBottomBar() {
@@ -68,12 +68,12 @@ export default function StickyBottomBar() {
 
         {/* Text */}
         <p className="flex items-center gap-2 text-center text-xs font-medium leading-snug md:text-sm">
-          <Gift size={18} className="shrink-0 text-[#F97415]" />
+          <ShieldCheck size={18} className="shrink-0 text-[#F97415]" />
           <span className="md:hidden">
-            In regalo: Corso Vendita Edile — <strong>+40% vendite</strong> <strong>(val. 497€)</strong>
+            <strong>PROVA GRATUITA 31 GIORNI</strong> + <strong>3 GARANZIE SCRITTE</strong>
           </span>
           <span className="hidden md:inline">
-            In regalo: <strong>4 lezioni</strong> sul Metodo Vendita Edile — <strong>+40% vendite</strong> in Edilizia <strong>(valore 497€)</strong>
+            <strong>PROVA GRATUITA DI 31 GIORNI</strong> + <strong>3 GARANZIE SCRITTE</strong>
           </span>
         </p>
 

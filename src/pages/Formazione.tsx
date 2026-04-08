@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
-import GaranzieSection from "@/components/landing/GaranzieSection";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { BookOpen, Play, MessageCircle, HelpCircle, TrendingUp, Users, ArrowRight, Clock, ChevronDown } from "lucide-react";
 
@@ -434,7 +433,6 @@ export default function Formazione() {
       </section>
 
       {/* ── GARANZIE ── */}
-      <GaranzieSection />
 
       {/* ── FAQ ── */}
       <section className="py-16 md:py-24 bg-white">
