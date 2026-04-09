@@ -196,8 +196,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
       <Accordion type="multiple" defaultValue={["piastrelle_parete", "pavimento"]} className="space-y-1">
         {/* ── Piastrelle parete ─────────────────────────────────── */}
         <AccordionItem value="piastrelle_parete" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.piastrelle_parete}
                 onCheckedChange={(v) =>
@@ -206,11 +205,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     piastrelle_parete: { ...value.piastrelle_parete, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Piastrelle parete</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Piastrelle parete</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Effetto</Label>
@@ -292,8 +291,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Pavimento ─────────────────────────────────────────── */}
         <AccordionItem value="pavimento" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.pavimento}
                 onCheckedChange={(v) =>
@@ -302,11 +300,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     pavimento: { ...value.pavimento, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Pavimento</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Pavimento</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Effetto</Label>
@@ -371,8 +369,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Doccia ────────────────────────────────────────────── */}
         <AccordionItem value="doccia" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.doccia}
                 onCheckedChange={(v) =>
@@ -381,11 +378,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     doccia: { ...value.doccia, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Doccia</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Doccia</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Tipo</Label>
@@ -477,8 +474,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Vasca ─────────────────────────────────────────────── */}
         <AccordionItem value="vasca" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.vasca}
                 onCheckedChange={(v) =>
@@ -487,11 +483,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     vasca: { ...value.vasca, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Vasca</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Vasca</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Tipo</Label>
@@ -548,8 +544,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Mobile bagno ──────────────────────────────────────── */}
         <AccordionItem value="mobile_bagno" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.mobile_bagno}
                 onCheckedChange={(v) =>
@@ -558,11 +553,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     vanity: { ...value.vanity, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Mobile bagno</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Mobile bagno</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Stile</Label>
@@ -649,8 +644,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Sanitari ──────────────────────────────────────────── */}
         <AccordionItem value="sanitari" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.sanitari}
                 onCheckedChange={(v) =>
@@ -659,11 +653,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     sanitari: { ...value.sanitari, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Sanitari</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Sanitari</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">WC</Label>
@@ -752,8 +746,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Rubinetteria ──────────────────────────────────────── */}
         <AccordionItem value="rubinetteria" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.rubinetteria}
                 onCheckedChange={(v) =>
@@ -762,11 +755,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     rubinetteria: { ...value.rubinetteria, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Rubinetteria</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Rubinetteria</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Finitura</Label>
@@ -808,8 +801,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
 
         {/* ── Pareti non piastrellate ───────────────────────────── */}
         <AccordionItem value="parete_colore" className="border rounded-lg px-3">
-          <AccordionTrigger className="text-sm py-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 py-2">
               <Switch
                 checked={value.sostituzione.parete_colore}
                 onCheckedChange={(v) =>
@@ -818,11 +810,11 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                     parete: { ...value.parete, attivo: v },
                   })
                 }
-                onClick={(e) => e.stopPropagation()}
               />
-              <span>Pareti non piastrellate</span>
-            </div>
-          </AccordionTrigger>
+              <AccordionTrigger className="text-sm flex-1 py-0">
+                <span>Pareti non piastrellate</span>
+              </AccordionTrigger>
+          </div>
           <AccordionContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Azione</Label>

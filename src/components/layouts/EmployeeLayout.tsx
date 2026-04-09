@@ -106,7 +106,7 @@ function EmployeeSidebar() {
                       to={item.url} 
                       end={item.url === "/dipendente"}
                       className="hover:bg-muted/50" 
-                      activeClassName="bg-muted text-primary font-medium"
+                      activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-medium"
                     >
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}

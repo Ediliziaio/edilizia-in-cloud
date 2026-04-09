@@ -222,7 +222,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 <SidebarMenuButton
                   className={cn(
                     "flex items-center justify-center transition-colors",
-                    hasActiveChild ? "bg-primary/10 text-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
+                    hasActiveChild ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
                   )}
                 >
                   <AreaIcon className="h-4 w-4" />
@@ -260,7 +260,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           to={item.url}
                           className={cn(
                             "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                            active && "bg-primary/10 text-primary font-semibold border-l-primary"
+                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                           )}
                         >
                           <ItemIcon className="h-3.5 w-3.5 shrink-0" />
@@ -302,16 +302,16 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <SidebarGroup className={cn(
         "py-0 rounded-lg mx-1.5 transition-colors duration-200",
-        open ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60"
+        open ? "bg-sidebar-accent/50" : "hover:bg-sidebar-accent/40"
       )}>
         <CollapsibleTrigger className={cn(
           "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150 group",
           (open || hasActiveChild)
-            ? "text-primary/80"
+            ? "text-sidebar-primary/80"
             : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
         )}>
           <span className="flex items-center gap-2">
-            <AreaIcon className={cn("h-4 w-4 transition-colors duration-150", (open || hasActiveChild) && "text-primary")} />
+            <AreaIcon className={cn("h-4 w-4 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
             {area.title}
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
@@ -342,7 +342,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           to={item.url}
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
-                            active && "bg-primary/10 text-primary font-semibold border-l-primary"
+                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                           )}
                         >
                           <ItemIcon className="h-4 w-4" />
@@ -403,7 +403,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                     to={item.url}
                     end={item.url === "/azienda"}
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
-                    activeClassName="bg-primary/10 text-primary font-semibold border-l-primary"
+                    activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="font-medium">{item.title}</span>
@@ -574,7 +574,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   const navLinkClass =
     "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";
   const navLinkActive =
-    "bg-muted text-foreground font-semibold border-l-primary";
+    "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary";
 
   return (
     <>
@@ -856,7 +856,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                         <NavLink
                           to="/azienda/impostazioni"
                           className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
-                          activeClassName="bg-muted text-foreground font-semibold border-l-primary"
+                          activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                         >
                           <Settings className="h-4 w-4" />
                           <span>Impostazioni</span>
@@ -872,7 +872,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Avatar className="h-8 w-8 cursor-default ring-2 ring-sidebar-border">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                          <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
                             {profile?.first_name?.[0]}{profile?.last_name?.[0]}
                           </AvatarFallback>
                         </Avatar>
@@ -901,7 +901,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
                     <div className="flex items-center gap-3 mb-3">
                       <Avatar className="h-8 w-8 ring-2 ring-sidebar-border">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                        <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
                           {profile?.first_name?.[0]}{profile?.last_name?.[0]}
                         </AvatarFallback>
                       </Avatar>

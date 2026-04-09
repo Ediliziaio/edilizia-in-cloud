@@ -189,7 +189,7 @@ function AdminSettingsSidebar() {
     .filter((g) => g.items.length > 0);
 
   const navLinkClass = "flex items-start gap-3 rounded-lg px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground group";
-  const activeClass = "bg-primary/10 text-primary font-medium";
+  const activeClass = "bg-sidebar-primary/10 text-sidebar-primary font-medium";
 
   return (
     <Sidebar className="border-r">
@@ -247,7 +247,7 @@ function AdminSettingsSidebar() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm">{item.label}</span>
                                   {item.badge && (
-                                    <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                    <span className="inline-flex items-center rounded-full bg-sidebar-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-sidebar-primary">
                                       {item.badge}
                                     </span>
                                   )}
@@ -360,7 +360,7 @@ function AdminMainSidebar() {
   };
 
   const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
-  const activeClass = "bg-primary/10 text-primary font-semibold border-l-2 border-primary";
+  const activeClass = "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-2 border-sidebar-primary";
   
   return (
     <Sidebar className="border-r">
@@ -482,7 +482,7 @@ function AdminMainSidebar() {
                                           ? "bg-destructive text-destructive-foreground"
                                           : badge.variant === "warning"
                                           ? "bg-orange-500 text-white dark:bg-orange-600"
-                                          : "bg-primary/15 text-primary"
+                                          : "bg-sidebar-primary/15 text-sidebar-primary"
                                       }`}
                                     >
                                       {badge.count > 99 ? "99+" : badge.count}
