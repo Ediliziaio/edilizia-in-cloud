@@ -248,7 +248,10 @@ function determineEffectiveRole(roles: string[]): EffectiveRole {
 }
 
 export function UsersConfig() {
-  const { user, effectiveCompany } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
+  // Gating UI: solo admin aziendali e super_admin possono eliminare/bulk-delete utenti.
+  // RLS blocca comunque l'azione lato DB, ma nascondere le azioni evita confusione.
+  const canManageUsers = role === "company_admin" || role === "super_admin";
   
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -759,6 +762,7 @@ export function UsersConfig() {
                 <Button size="sm" variant="outline" disabled={bulkActionLoading} onClick={handleBulkLock}>
                   <Lock className="h-3.5 w-3.5 mr-1" /> Blocca
                 </Button>
+                {canManageUsers && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button size="sm" variant="destructive" disabled={bulkActionLoading}>
@@ -776,6 +780,7 @@ export function UsersConfig() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => setSelectedUsers(new Set())}>
                   Deseleziona
                 </Button>
@@ -986,7 +991,8 @@ export function UsersConfig() {
                                 Sblocca account
                               </DropdownMenuItem>
                             ) : null}
-                            <DropdownMenuSeparator />
+                            {canManageUsers && <DropdownMenuSeparator />}
+                            {canManageUsers && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
@@ -1012,6 +1018,7 @@ export function UsersConfig() {
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}

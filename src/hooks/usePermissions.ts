@@ -233,8 +233,23 @@ export function usePermissions(): Permissions {
         (permissions?.can_view_settings_customization ?? false) ||
         (permissions?.can_view_settings_people ?? false) ||
         (permissions?.can_view_settings_security ?? false),
-      canViewMarketing: permissions?.can_view_marketing ?? false,
-      canEditMarketing: permissions?.can_edit_marketing ?? false,
+      // Aggregate: true se legacy flag OR qualsiasi flag marketing granulare è abilitato
+      canViewMarketing:
+        (permissions?.can_view_marketing ?? false) ||
+        (permissions?.can_view_marketing_dashboard ?? false) ||
+        (permissions?.can_view_marketing_contacts ?? false) ||
+        (permissions?.can_view_marketing_opportunities ?? false) ||
+        (permissions?.can_view_marketing_activities ?? false) ||
+        (permissions?.can_view_marketing_appointments ?? false) ||
+        (permissions?.can_view_marketing_automations ?? false) ||
+        (permissions?.can_view_marketing_ai_agent ?? false) ||
+        (permissions?.can_view_marketing_email ?? false) ||
+        (permissions?.can_view_marketing_whatsapp ?? false) ||
+        (permissions?.can_view_marketing_reports ?? false),
+      canEditMarketing:
+        (permissions?.can_edit_marketing ?? false) ||
+        (permissions?.can_edit_marketing_contacts ?? false) ||
+        (permissions?.can_edit_marketing_opportunities ?? false),
       canViewCruscotto: permissions?.can_view_cruscotto ?? false,
       canViewBilling: permissions?.can_view_billing ?? false,
       canViewScadenzario: permissions?.can_view_scadenzario ?? false,
@@ -275,8 +290,20 @@ export function usePermissions(): Permissions {
   // This can happen if a TOKEN_REFRESHED fetch previously failed and left role unresolved.
   // Returning isLoading:true prevents filterNavItems from blanking the sidebar
   // until the next successful auth resolution.
-  if (user) {
+  if (user && role == null) {
     return { ...NO_PERMISSIONS, isLoading: true };
+  }
+
+  // Defensive: user is authenticated with a role that doesn't match any branch above
+  // (e.g. 'customer', 'worker', 'referrer', 'multi_company_user', 'platform_*' or
+  //  un nuovo ruolo aggiunto all'enum senza mapping in usePermissions).
+  // Log esplicito per facilitare debug + NO_PERMISSIONS per fail-safe.
+  if (user && role) {
+    logger.warn(
+      `[usePermissions] Ruolo '${role}' senza mapping esplicito: fallback NO_PERMISSIONS. ` +
+      `Aggiungere branch dedicato se il ruolo deve accedere a funzionalit\u00e0 aziendali.`
+    );
+    return NO_PERMISSIONS;
   }
 
   // Default: no permissions (unauthenticated)
