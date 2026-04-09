@@ -170,7 +170,7 @@ export function TabWhiteLabel({ companyId }: Props) {
     },
   });
 
-  const currentTier = tiers?.find(t => (t as any).tier_name === form.whitelabel_tier);
+  const currentTier = tiers?.find(t => (t as any).slug === form.whitelabel_tier);
 
   if (isLoading) {
     return (
@@ -211,15 +211,15 @@ export function TabWhiteLabel({ companyId }: Props) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {tiers?.map((tier: any) => (
                   <button
-                    key={tier.tier_name}
-                    onClick={() => setForm(f => ({ ...f, whitelabel_tier: tier.tier_name }))}
+                    key={tier.slug}
+                    onClick={() => setForm(f => ({ ...f, whitelabel_tier: tier.slug }))}
                     className={`p-3 rounded-lg border-2 text-left transition-all ${
-                      form.whitelabel_tier === tier.tier_name
+                      form.whitelabel_tier === tier.slug
                         ? "border-primary bg-primary/5"
                         : "border-muted hover:border-muted-foreground/30"
                     }`}
                   >
-                    <div className="font-semibold text-sm">{TIER_LABELS[tier.tier_name] || tier.tier_name}</div>
+                    <div className="font-semibold text-sm">{TIER_LABELS[tier.slug] || tier.slug}</div>
                     <div className="text-xs text-muted-foreground mt-1">€{tier.price_monthly}/mese</div>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {tier.can_change_logo && <Badge variant="outline" className="text-[10px]">Logo</Badge>}

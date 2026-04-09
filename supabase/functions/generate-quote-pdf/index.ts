@@ -580,7 +580,7 @@ Deno.serve(async (req) => {
       // ── QR firma digitale ──────────────────────────────────────────
       if (!isPreview && (quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
-          const siteUrl = branding.siteUrl;
+          const siteUrl = branding?.siteUrl || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
           const qr = qrcode(0, "M");
           qr.addData(signUrl);
