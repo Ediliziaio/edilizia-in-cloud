@@ -67,17 +67,15 @@ export function SettingsLayout() {
     <div className="flex flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente */}
       <div className="border-b bg-background px-6 py-5">
-        <div className="max-w-4xl">
+        <div>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
         </div>
       </div>
 
-      {/* Contenuto della pagina figlia — max-w-4xl per leggibilità dei form */}
+      {/* Contenuto della pagina figlia — larghezza piena */}
       <div className="flex-1 px-6 py-6">
-        <div className="max-w-4xl">
-          <Outlet />
-        </div>
+        <Outlet />
       </div>
     </div>
   );
