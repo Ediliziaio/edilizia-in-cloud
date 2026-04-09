@@ -2,16 +2,21 @@
  * Shared CORS + security headers for all edge functions.
  * Import this instead of defining corsHeaders locally.
  *
- * SECURITY: CORS è ora ristretto a una whitelist statica + validazione
- * dinamica per custom domain white-label (query company_branding).
- * - Usa getCorsHeaders(req) per rispondere con l'Origin corretto del chiamante.
- * - corsHeaders è mantenuto per retrocompatibilità (webhook server-to-server).
+ * SECURITY: CORS è ristretto a una whitelist statica + subdomain matching
+ * + validazione dinamica per custom domain white-label (cache in-memory).
+ * - getCorsHeaders(req) è SINCRONA — sicura da usare ovunque senza await.
+ * - I custom domain vengono validati via DB e cachati per 5 min.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Whitelist statica — domini piattaforma + dev ──────────────────────────────
 const STATIC_ORIGINS = [
+  "https://app.ediliziaincloud.com",
+  "https://clienti.ediliziaincloud.com",
+  "https://admin.ediliziaincloud.com",
+  "https://lavori.ediliziaincloud.com",
+  "https://www.ediliziaincloud.com",
   "https://app.ediliziaincloud.it",
   "https://clienti.ediliziaincloud.it",
   "https://admin.ediliziaincloud.it",
@@ -27,12 +32,37 @@ const PLATFORM_SUFFIXES = [".ediliziaincloud.it", ".ediliziaincloud.com"];
 const ALLOW_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-api-key, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version";
 
-// ── Cache in-memory per custom domains (TTL 5 min) ────────────────────────────
-const domainCache = new Map<string, { allowed: boolean; expiresAt: number }>();
+// ── Cache in-memory per custom domains verificati (TTL 5 min) ────────────────
+const verifiedDomainCache = new Set<string>();
+let cacheLoadedAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** Verifica se un Origin è ammesso (whitelist statica + subdomain + custom domain). */
-async function isAllowedOrigin(origin: string): Promise<boolean> {
+/** Carica i custom domain verificati dal DB in background (fire-and-forget). */
+function refreshDomainCacheInBackground(): void {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceKey) return;
+
+  const sb = createClient(supabaseUrl, serviceKey);
+  sb.from("company_branding")
+    .select("custom_domain")
+    .eq("custom_domain_verified", true)
+    .eq("is_active", true)
+    .not("custom_domain", "is", null)
+    .then(({ data }) => {
+      verifiedDomainCache.clear();
+      if (data) {
+        for (const row of data) {
+          if (row.custom_domain) verifiedDomainCache.add(row.custom_domain);
+        }
+      }
+      cacheLoadedAt = Date.now();
+    })
+    .catch(() => { /* silently fail — cache remains stale */ });
+}
+
+/** Verifica sincrona se un Origin è ammesso. */
+function isAllowedOriginSync(origin: string): boolean {
   // 1. Whitelist statica
   if (STATIC_ORIGINS.includes(origin)) return true;
 
@@ -48,45 +78,25 @@ async function isAllowedOrigin(origin: string): Promise<boolean> {
     if (hostname.endsWith(suffix)) return true;
   }
 
-  // 3. Custom domain — check cache first
-  const cached = domainCache.get(hostname);
-  if (cached && cached.expiresAt > Date.now()) return cached.allowed;
+  // 3. Custom domain — check in-memory cache
+  if (verifiedDomainCache.has(hostname)) return true;
 
-  // 4. Custom domain — query DB
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!supabaseUrl || !serviceKey) {
-      // Senza credenziali, rifiutiamo i custom domain
-      domainCache.set(hostname, { allowed: false, expiresAt: Date.now() + CACHE_TTL_MS });
-      return false;
-    }
-    const sb = createClient(supabaseUrl, serviceKey);
-    const { data } = await sb
-      .from("company_branding")
-      .select("id")
-      .eq("custom_domain", hostname)
-      .eq("custom_domain_verified", true)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    const allowed = !!data;
-    domainCache.set(hostname, { allowed, expiresAt: Date.now() + CACHE_TTL_MS });
-    return allowed;
-  } catch {
-    // In caso di errore DB, rifiuta ma con TTL breve (30s)
-    domainCache.set(hostname, { allowed: false, expiresAt: Date.now() + 30_000 });
-    return false;
+  // 4. Trigger background refresh se cache è scaduta
+  if (Date.now() - cacheLoadedAt > CACHE_TTL_MS) {
+    refreshDomainCacheInBackground();
   }
+
+  return false;
 }
 
 /**
  * Restituisce gli header CORS con l'Origin specifico del chiamante se è ammesso,
  * altrimenti usa il dominio di produzione principale.
+ * SINCRONA — sicura da usare senza await.
  */
-export async function getCorsHeaders(req: Request): Promise<Record<string, string>> {
+export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
-  const allowed = await isAllowedOrigin(origin);
+  const allowed = isAllowedOriginSync(origin);
   const allowedOrigin = allowed ? origin : STATIC_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -95,28 +105,8 @@ export async function getCorsHeaders(req: Request): Promise<Record<string, strin
   };
 }
 
-/**
- * Versione sincrona per retrocompatibilità — valida solo per whitelist statica.
- * Per supporto custom domain, usa getCorsHeaders(req) (async).
- */
-export function getCorsHeadersSync(req: Request): Record<string, string> {
-  const origin = req.headers.get("Origin") ?? "";
-  let allowed = STATIC_ORIGINS.includes(origin);
-  if (!allowed) {
-    try {
-      const hostname = new URL(origin).hostname;
-      for (const suffix of PLATFORM_SUFFIXES) {
-        if (hostname.endsWith(suffix)) { allowed = true; break; }
-      }
-    } catch { /* ignore */ }
-  }
-  const allowedOrigin = allowed ? origin : STATIC_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": ALLOW_HEADERS,
-    "Vary": "Origin",
-  };
-}
+/** Alias per chiarezza — identica a getCorsHeaders. */
+export const getCorsHeadersSync = getCorsHeaders;
 
 /**
  * @deprecated Usa getCorsHeaders(req) per rispondere con l'Origin corretto.
@@ -142,17 +132,17 @@ export const secureHeaders: Record<string, string> = {
 };
 
 /** Helper: restituisce una risposta JSON di errore con header di sicurezza. */
-export function errorResponse(message: string, status = 400): Response {
+export function errorResponse(message: string, status = 400, corsOverride?: Record<string, string>): Response {
   return new Response(
     JSON.stringify({ error: message }),
-    { status, headers: secureHeaders }
+    { status, headers: { ...(corsOverride ?? secureHeaders), "Content-Type": "application/json" } }
   );
 }
 
 /** Helper: restituisce una risposta JSON di successo con header di sicurezza. */
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(data: unknown, status = 200, corsOverride?: Record<string, string>): Response {
   return new Response(
     JSON.stringify(data),
-    { status, headers: secureHeaders }
+    { status, headers: { ...(corsOverride ?? secureHeaders), "Content-Type": "application/json" } }
   );
 }
