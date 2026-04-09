@@ -17,6 +17,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CreateCustomerDialogProps {
   open: boolean;
@@ -47,6 +51,7 @@ export function CreateCustomerDialog({
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [createdCustomerId, setCreatedCustomerId] = useState("");
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   const resetForm = () => {
     setFirstName("");
@@ -61,11 +66,32 @@ export function CreateCustomerDialog({
     setGeneratedPassword("");
     setCreatedCustomerId("");
     setPasswordCopied(false);
+    setShowConfirmClose(false);
   };
+
+  // Considera "dirty" ogni stato con almeno un campo compilato, tranne step password
+  const isDirty =
+    !showPasswordStep &&
+    (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
+     phone.trim() !== "" || address.trim() !== "" || fiscalCode.trim() !== "" ||
+     siteAddress.trim() !== "" || notes.trim() !== "");
 
   const handleClose = () => {
     resetForm();
     onOpenChange(false);
+  };
+
+  const requestClose = () => {
+    if (isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      handleClose();
+    }
+  };
+
+  const confirmDiscardAndClose = () => {
+    setShowConfirmClose(false);
+    handleClose();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,8 +179,13 @@ export function CreateCustomerDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+    <>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}>
+      <DialogContent
+        className="max-w-md max-h-[80vh] overflow-y-auto"
+        onPointerDownOutside={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
+        onEscapeKeyDown={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
+      >
         {!showPasswordStep ? (
           <>
             <DialogHeader>
@@ -318,5 +349,27 @@ export function CreateCustomerDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Conferma annullamento creazione */}
+    <AlertDialog open={showConfirmClose} onOpenChange={setShowConfirmClose}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Annullare la creazione del cliente?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Continua creazione</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmDiscardAndClose}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Esci e annulla
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

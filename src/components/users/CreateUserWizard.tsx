@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -137,6 +141,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [copied, setCopied] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
   const totalSteps = showPermissions ? 4 : 3;
@@ -149,9 +154,30 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
+    setShowConfirmClose(false);
   };
 
+  // Considera "in corso" ogni stato con dati inseriti o step > 1 (tranne success).
+  // Nello success step la password è già stata mostrata → chiusura diretta senza conferma.
+  const isDirty =
+    !isSuccessStep &&
+    (step > 1 || firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" || password.trim() !== "");
+
   const handleClose = () => { resetForm(); onOpenChange(false); };
+
+  // Chiusura "richiesta" (outside click, ESC, pulsante X): se dirty chiedi conferma
+  const requestClose = () => {
+    if (isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      handleClose();
+    }
+  };
+
+  const confirmDiscardAndClose = () => {
+    setShowConfirmClose(false);
+    handleClose();
+  };
 
   const applyRolePreset = (role: StaffRoleType) => {
     setRoleType(role);
@@ -254,8 +280,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const currentRoleOption = ROLE_OPTIONS.find(r => r.value === roleType);
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] !flex !flex-col overflow-hidden">
+    <>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}>
+      <DialogContent
+        className="sm:max-w-[600px] max-h-[85vh] !flex !flex-col overflow-hidden"
+        onPointerDownOutside={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
+        onEscapeKeyDown={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
+      >
         {/* Fixed header */}
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
@@ -540,5 +571,27 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Conferma annullamento creazione */}
+    <AlertDialog open={showConfirmClose} onOpenChange={setShowConfirmClose}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Annullare la creazione dell'utente?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Continua creazione</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmDiscardAndClose}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Esci e annulla
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
