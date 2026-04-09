@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
+import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 
 import {
   DropdownMenu,
@@ -178,8 +179,8 @@ export function CustomerLayout() {
         </div>
       </main>
       {!effectiveBrand.hidePoweredBy && (
-        <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
-          Powered by EdiliziaInCloud
+        <footer className="text-center py-2 border-t bg-background">
+          <PoweredByBadge />
         </footer>
       )}
     </div>

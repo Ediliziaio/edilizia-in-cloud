@@ -10,6 +10,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useBreadcrumb } from "@/hooks/useBreadcrumb";
+import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { 
@@ -1081,11 +1082,9 @@ export function CompanyLayout() {
               <Outlet />
             </ErrorBoundary>
           </main>
-          {!effectiveBrand.hidePoweredBy && (
-            <footer className="hidden md:block text-center py-2 text-xs text-muted-foreground border-t bg-background">
-              Powered by EdiliziaInCloud
-            </footer>
-          )}
+          <footer className="hidden md:block text-center py-2 border-t bg-background">
+            <PoweredByBadge />
+          </footer>
         </div>
       </div>
       {showSupport && (
