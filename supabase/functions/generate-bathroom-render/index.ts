@@ -25,6 +25,22 @@ async function fetchWithTimeout(
   }
 }
 
+// ── fetchWithRetry ───────────────────────────────────────────────────
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || i === retries) return res;
+      // Non-ok but retryable (5xx)
+      if (res.status < 500) return res;
+    } catch (err) {
+      if (i === retries) throw err;
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 // ── Inline prompt builder (server-side, mirrors client module) ────────
 // We inline a simplified version to avoid import issues in Deno edge functions.
 function buildBathroomPromptServer(session: Record<string, unknown>): {
@@ -319,7 +335,7 @@ Deno.serve(async (req) => {
       ],
     };
 
-    const aiResp = await fetchWithTimeout(
+    const aiResp = await fetchWithRetry(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
@@ -329,7 +345,6 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify(aiBody),
       },
-      180_000,
     );
 
     if (!aiResp.ok) {

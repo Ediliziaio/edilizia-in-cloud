@@ -26,6 +26,22 @@ async function fetchWithTimeout(
   }
 }
 
+// ── fetchWithRetry ───────────────────────────────────────────────────────────
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || i === retries) return res;
+      // Non-ok but retryable (5xx)
+      if (res.status < 500) return res;
+    } catch (err) {
+      if (i === retries) throw err;
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 // ── FLOOR_PHYSICS ─────────────────────────────────────────────────────────────
 const FLOOR_PHYSICS: Record<string, string> = {
   parquet_massello: "solid hardwood parquet — natural wood grain visible, color variation between planks, subtle knot patterns, beveled edges, warm finish",
@@ -304,14 +320,13 @@ Return ONLY the JSON, no other text.`;
       };
 
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const resp = await fetchWithTimeout(
+      const resp = await fetchWithRetry(
         geminiUrl,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(geminiBody),
         },
-        60_000
       );
 
       if (!resp.ok) {
@@ -452,14 +467,13 @@ Return ONLY the JSON, no other text.`;
     };
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-generation:generateContent?key=${apiKey}`;
-    const resp = await fetchWithTimeout(
+    const resp = await fetchWithRetry(
       geminiUrl,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(geminiBody),
       },
-      120_000
     );
 
     if (!resp.ok) {

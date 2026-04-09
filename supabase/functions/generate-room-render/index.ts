@@ -33,6 +33,22 @@ const TIPO_STANZA_LABEL: Record<string, string> = {
   corridoio: "corridor / hallway", altro: "interior room",
 };
 
+// ── fetchWithRetry ──────────────────────────────────────────────────────────
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || i === retries) return res;
+      // Non-ok but retryable (5xx)
+      if (res.status < 500) return res;
+    } catch (err) {
+      if (i === retries) throw err;
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -219,7 +235,7 @@ Deno.serve(async (req: Request) => {
 
     if (provider.provider_key === "openai") {
       // OpenAI Images Edit / gpt-image-1
-      const openaiResp = await fetch("https://api.openai.com/v1/images/edits", {
+      const openaiResp = await fetchWithRetry("https://api.openai.com/v1/images/edits", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
@@ -294,7 +310,7 @@ Deno.serve(async (req: Request) => {
       const imgArrayBuffer = await imgBlob.arrayBuffer();
       const imgBase64 = btoa(String.fromCharCode(...new Uint8Array(imgArrayBuffer)));
 
-      const geminiResp = await fetch(
+      const geminiResp = await fetchWithRetry(
         `https://generativelanguage.googleapis.com/v1beta/models/${provider.model || "gemini-2.0-flash-exp"}:generateContent?key=${apiKey}`,
         {
           method: "POST",

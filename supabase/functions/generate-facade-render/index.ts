@@ -191,6 +191,22 @@ async function fetchWithTimeout(
   }
 }
 
+// ── fetchWithRetry ──────────────────────────────────────────────────────────
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || i === retries) return res;
+      // Non-ok but retryable (5xx)
+      if (res.status < 500) return res;
+    } catch (err) {
+      if (i === retries) throw err;
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -330,14 +346,13 @@ Deno.serve(async (req) => {
       max_tokens: 4096,
     };
 
-    const gatewayResp = await fetchWithTimeout(
+    const gatewayResp = await fetchWithRetry(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(gatewayBody),
       },
-      180_000,
     );
 
     if (!gatewayResp.ok) {

@@ -431,6 +431,22 @@ async function fetchWithTimeout(
   }
 }
 
+// ── fetchWithRetry ───────────────────────────────────────────────────────────
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || i === retries) return res;
+      // Non-ok but retryable (5xx)
+      if (res.status < 500) return res;
+    } catch (err) {
+      if (i === retries) throw err;
+    }
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -628,14 +644,13 @@ Deno.serve(async (req) => {
       form.append("size", renderSize);
       form.append("response_format", "b64_json");
 
-      const resp = await fetchWithTimeout(
+      const resp = await fetchWithRetry(
         "https://api.openai.com/v1/images/edits",
         {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}` },
           body: form,
         },
-        providerConfig.timeout_sec * 1000
       );
 
       if (!resp.ok) {
@@ -666,14 +681,13 @@ Deno.serve(async (req) => {
       };
 
       const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-      const resp = await fetchWithTimeout(
+      const resp = await fetchWithRetry(
         geminiUrl,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(geminiBody),
         },
-        providerConfig.timeout_sec * 1000
       );
 
       if (!resp.ok) {
