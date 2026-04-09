@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
     // Invia email OTP
     try {
       const emailSettings = await loadProviderSettings("transactional");
-      await sendViaProvider(emailSettings, {
+      await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
         from: emailSettings.fromDefault,
         to: [sigReq.signer_email],
         subject: `Codice OTP per la firma — ${brandName}`,

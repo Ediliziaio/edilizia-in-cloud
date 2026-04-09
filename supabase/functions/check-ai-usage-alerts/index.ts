@@ -5,7 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
+import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
@@ -158,8 +158,8 @@ Deno.serve(async (req) => {
           return `<li><strong>${name}</strong> — ${a.threshold_type === "daily" ? "giornaliero" : "mensile"}: €${a.usage_eur.toFixed(2)} / soglia €${a.limit_eur.toFixed(2)}</li>`;
         });
 
-        await sendEmail(providerSettings, {
-          from: providerSettings.fromAddress,
+        await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
+          from: providerSettings.fromDefault,
           to: adminEmails,
           subject: `⚠️ ${alertsToInsert.length} alert AI usage — soglie superate`,
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">

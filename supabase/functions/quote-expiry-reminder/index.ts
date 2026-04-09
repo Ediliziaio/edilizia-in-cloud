@@ -134,10 +134,10 @@ Deno.serve(async (req) => {
             </div>
           `;
 
-          const fromAddress = emailSettings.fromAddress || companyEmail || `noreply@${siteUrl.replace(/https?:\/\//, "")}`;
+          const fromAddress = emailSettings.fromEmail || companyEmail || `noreply@${siteUrl.replace(/https?:\/\//, "")}`;
           const fromName = emailSettings.fromName || companyName;
 
-          const result = await sendViaProvider(emailSettings, {
+          const result = await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
             from: `${fromName} <${fromAddress}>`,
             to: [quote.client_email],
             subject: `⏰ Promemoria offerta ${quote.quote_number} — scade tra ${giorniAnticipo} giorn${giorniAnticipo === 1 ? "o" : "i"}`,

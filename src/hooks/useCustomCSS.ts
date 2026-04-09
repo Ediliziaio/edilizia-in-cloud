@@ -10,7 +10,7 @@ export function useCustomCSS() {
   const styleRef = useRef<HTMLStyleElement | null>(null);
 
   useEffect(() => {
-    const customCSS = (branding as any)?.custom_css;
+    const customCSS = branding?.custom_css;
 
     // Remove previous injected style
     if (styleRef.current) {
@@ -39,5 +39,5 @@ export function useCustomCSS() {
         styleRef.current = null;
       }
     };
-  }, [(branding as any)?.custom_css]);
+  }, [branding?.custom_css]);
 }

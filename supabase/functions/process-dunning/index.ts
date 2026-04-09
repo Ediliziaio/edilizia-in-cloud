@@ -20,7 +20,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
+import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
@@ -179,8 +179,8 @@ async function notifySuperAdmin(providerSettings: any, companyId: string, compan
     const { data: profiles } = await supabase.from("profiles").select("email").in("id", admins.map((a: any) => a.user_id));
     const adminEmails = (profiles || []).map((p: any) => p.email).filter(Boolean);
     if (!adminEmails.length) return;
-    await sendEmail(providerSettings, {
-      from: providerSettings.fromAddress, to: adminEmails,
+    await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
+      from: providerSettings.fromDefault, to: adminEmails,
       subject: `Dunning fallita permanentemente — ${companyName}`,
       html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2 style="color:#dc2626;">Email Dunning Fallita</h2><p>Dopo ${MAX_RETRIES} tentativi, la email dunning per <strong>${companyName}</strong> (${dunningDay}) non e' stata inviata.</p><p>Errore: <code>${errorMessage}</code></p><p><a href="${APP_URL}/admin/aziende/${companyId}">Vai all'azienda</a></p></div>`,
     });
@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
             subject = subjects[attempt.dunning_day] || "Abbonamento — azione richiesta";
           }
 
-          await sendEmail(providerSettings, { from: providerSettings.fromAddress, to: [company.email], subject, html });
+          await sendViaProvider(providerSettings.provider, providerSettings.apiKey, { from: providerSettings.fromDefault, to: [company.email], subject, html });
           await updateDunningAttempt(attempt.id, "sent", undefined, attempt.retry_count);
           results.emails_sent++;
         } catch (retryErr) {
@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
             dunning_day7: "Ultimo avviso: account verra' sospeso tra 7 giorni",
           };
           try {
-            await sendEmail(providerSettings, { from: providerSettings.fromAddress, to: [company.email], subject: subjects[emailType], html });
+            await sendViaProvider(providerSettings.provider, providerSettings.apiKey, { from: providerSettings.fromDefault, to: [company.email], subject: subjects[emailType], html });
             await logDunningAttempt(company.id, emailType, "sent");
             results.emails_sent++;
           } catch (emailErr) {
@@ -341,8 +341,8 @@ Deno.serve(async (req) => {
         if (providerSettings && company.email) {
           const html = buildTrialEmail(company, daysLeft);
           try {
-            await sendEmail(providerSettings, {
-              from: providerSettings.fromAddress, to: [company.email],
+            await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
+              from: providerSettings.fromDefault, to: [company.email],
               subject: daysLeft <= 0 ? "Il tuo periodo di prova e' terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
               html,
             });

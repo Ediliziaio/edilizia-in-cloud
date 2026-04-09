@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     const aziendaNome = company?.name || branding.platformName;
 
     // Carica configurazione email provider
-    const providerSettings = await loadProviderSettings(supabaseAdmin, odv.company_id);
+    const providerSettings = await loadProviderSettings("transactional");
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -108,11 +108,11 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    await sendViaProvider(providerSettings, {
-      to: [{ email: customerEmail, name: customerName }],
+    await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
+      from: providerSettings.fromDefault,
+      to: [customerEmail],
       subject: `Approvazione richiesta: OdV #${odv.numero_odv} — ${odv.titolo} | ${aziendaNome}`,
       html: htmlBody,
-      text: `Ordine di Variazione #${odv.numero_odv}: ${odv.titolo}\n\nFirma qui: ${firmaUrl}`,
     });
 
     return jsonResponse({ success: true, token: firmaToken, email_inviata_a: customerEmail });

@@ -137,13 +137,12 @@ Deno.serve(async (req) => {
 
   try {
     if (channel === "email") {
-      const settings = await loadProviderSettings(supabase, profile.company_id);
-      const result = await sendViaProvider(settings, {
-        to: [{ email: to_email!, name: to_name }],
+      const settings = await loadProviderSettings("transactional");
+      const result = await sendViaProvider(settings.provider, settings.apiKey, {
+        from: settings.fromDefault,
+        to: [to_email!],
         subject: subject || "(nessun oggetto)",
         html: body.replace(/\n/g, "<br>"),
-        text: body,
-        metadata: { order_id, message_id: msgRecord.id },
       });
       externalId = (result as any)?.messageId || null;
 

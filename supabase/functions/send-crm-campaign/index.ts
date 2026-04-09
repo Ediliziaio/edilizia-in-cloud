@@ -6,7 +6,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
+import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
 interface ContactFilter {
   contact_type?: string;
@@ -183,8 +183,8 @@ Deno.serve(async (req) => {
             .replace(/\{\{cognome\}\}/gi, c.last_name ?? "")
             .replace(/\{\{email\}\}/gi, c.email);
 
-          await sendEmail(providerSettings!, {
-            from: providerSettings!.fromAddress,
+          await sendViaProvider(providerSettings!.provider, providerSettings!.apiKey, {
+            from: providerSettings!.fromDefault,
             to: [c.email],
             subject: campaign.subject,
             html: personalizedHtml,

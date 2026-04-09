@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
           minute: "2-digit",
         });
 
-        await sendViaProvider(emailSettings, {
+        await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
           from: emailSettings.fromDefault,
           to: [sigReq.signer_email],
           subject: "Copia del documento firmato",
