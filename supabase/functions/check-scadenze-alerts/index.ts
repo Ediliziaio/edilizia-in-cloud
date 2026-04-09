@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -103,7 +104,8 @@ Deno.serve(async (req) => {
             emailHtml += `</ul></div>`;
           }
 
-          const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+          const branding = await getBrandingForCompany(supabase, pref.company_id);
+          const siteUrl = branding.siteUrl;
           emailHtml += `
   <p style="margin-top: 24px;">
     <a href="${siteUrl}/scadenze" style="background: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">
@@ -111,7 +113,7 @@ Deno.serve(async (req) => {
     </a>
   </p>
   <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;">
-    Hai ricevuto questa email perché hai abilitato gli avvisi scadenze su Edilizia in Cloud.
+    Hai ricevuto questa email perché hai abilitato gli avvisi scadenze su ${branding.platformName}.
   </p>
 </div>`;
 

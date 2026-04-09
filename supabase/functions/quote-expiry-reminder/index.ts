@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 /**
  * IMP07 — Reminder automatico scadenza preventivi
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+    const defaultSiteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
     const now = new Date();
     const results: { quote_id: string; days_left: number; reminders_sent: number }[] = [];
     let totalSent = 0;
@@ -102,6 +103,8 @@ Deno.serve(async (req) => {
 
         // ── Email reminder al cliente (solo se ha email + signature_token) ──
         if (quote.client_email && quote.signature_token && emailSettings.apiKey) {
+          const quoteBranding = await getBrandingForCompany(supabase, quote.company_id);
+          const siteUrl = quoteBranding.siteUrl || defaultSiteUrl;
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${quote.signature_token}`;
           const html = `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">

@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 
@@ -72,6 +73,7 @@ Deno.serve(async (req) => {
     let company: any = null;
     let t: any;
     let attachmentRows: any[] = [];
+    let branding: any = null;
 
     if (isPreview) {
       // Use sample data – no DB lookups needed
@@ -181,6 +183,9 @@ Deno.serve(async (req) => {
         .eq("id", quote.company_id)
         .single();
       company = companyData;
+
+      // Branding dinamico per white-label
+      branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
 
       // Load attached PDF materials
       const { data: attRows = [] } = await supabaseAdmin
@@ -575,7 +580,7 @@ Deno.serve(async (req) => {
       // ── QR firma digitale ──────────────────────────────────────────
       if (!isPreview && (quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
-          const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+          const siteUrl = branding.siteUrl;
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
           const qr = qrcode(0, "M");
           qr.addData(signUrl);

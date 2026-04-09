@@ -2,6 +2,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -83,6 +84,7 @@ Deno.serve(async (req) => {
       .eq("id", quote.company_id)
       .single();
 
+    const branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
     const companyName = company?.name || "L'azienda";
 
     // Format total
@@ -152,7 +154,7 @@ Deno.serve(async (req) => {
     <!-- Footer -->
     <div style="background: #fafafa; border-radius: 0 0 12px 12px; padding: 20px 40px; border: 1px solid #e4e4e7; border-top: none; text-align: center;">
       <p style="color: #a1a1aa; font-size: 11px; margin: 0;">
-        Questa email è stata inviata da ${companyName} tramite Edilizia in Cloud.
+        Questa email è stata inviata da ${companyName}${!branding.hidePoweredBy ? ` tramite ${branding.platformName}` : ""}.
       </p>
     </div>
   </div>

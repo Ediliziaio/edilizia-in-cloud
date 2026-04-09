@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -63,9 +64,11 @@ Deno.serve(async (req) => {
         .eq("id", odv_id);
     }
 
-    const domain = Deno.env.get("PUBLIC_SITE_URL") || "https://app.ediliziaincloud.com";
+    // Branding dinamico
+    const branding = await getBrandingForCompany(supabaseAdmin, odv.company_id);
+    const domain = branding.siteUrl;
     const firmaUrl = `${domain}/firma-odv/${firmaToken}`;
-    const aziendaNome = company?.name || "Edilizia in Cloud";
+    const aziendaNome = company?.name || branding.platformName;
 
     // Carica configurazione email provider
     const providerSettings = await loadProviderSettings(supabaseAdmin, odv.company_id);
@@ -100,7 +103,7 @@ Deno.serve(async (req) => {
     </p>
   </div>
   <div style="background: #f0f0f0; padding: 12px; border-radius: 0 0 8px 8px; text-align: center; font-size: 11px; color: #888;">
-    ${aziendaNome} &bull; Gestito con Edilizia in Cloud
+    ${aziendaNome}${!branding.hidePoweredBy ? ` &bull; ${branding.poweredByText}` : ""}
   </div>
 </body>
 </html>`;

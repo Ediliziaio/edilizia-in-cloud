@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -39,7 +40,7 @@ interface Riepilogo {
   imposta: number;
 }
 
-function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>): string {
+function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>, brandFooter?: string): string {
   const righe: Riga[] = doc.righe || [];
   const riepilogo: Riepilogo[] = doc.riepilogo_iva || [];
   const snap = doc.cliente_snapshot || {};
@@ -213,7 +214,7 @@ ${azienda.regime_fiscale === 'RF19' ? `
 
 <div style="margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
   <div>${escHtml(azienda.ragione_sociale)} — P.IVA ${escHtml(azienda.partita_iva)}</div>
-  <div style="color:${colore};">Documento generato da Edilizia in Cloud</div>
+  <div style="color:${colore};">${brandFooter || "Documento generato da Edilizia in Cloud"}</div>
 </div>
 </body></html>`;
 }
@@ -273,7 +274,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: getCorsHeaders(req) });
     }
 
-    const html = buildNativeHtml(doc, azienda);
+    // Branding dinamico
+    const branding = await getBrandingForCompany(supabase, doc.company_id);
+    const brandFooter = branding.hidePoweredBy
+      ? `Documento generato da ${branding.platformName}`
+      : `Documento generato da ${branding.platformName}`;
+
+    const html = buildNativeHtml(doc, azienda, brandFooter);
 
     // Upload if requested
     if (upload) {

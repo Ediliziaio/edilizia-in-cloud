@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -64,7 +65,7 @@ const STATO_LABELS: Record<string, string> = {
   approvato: "APPROVATO",
 };
 
-function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null): string {
+function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null, brandFooter?: string): string {
   const colore = azienda.colore_primario || "#0ea5e9";
   const voci: SalVoce[] = sal.sal_voci || [];
   const totaleContrattuale = voci.reduce((s, v) => s + v.importo_contrattuale, 0);
@@ -220,7 +221,7 @@ function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, sig
   <!-- Footer -->
   <div style="margin-top:40px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
     <div>${escHtml(azienda.ragione_sociale)} — P.IVA ${escHtml(azienda.partita_iva)}</div>
-    <div style="color:${colore};">Edilizia in Cloud — www.ediliziaincloud.it</div>
+    <div style="color:${colore};">${brandFooter || "Edilizia in Cloud"}</div>
   </div>
 
 </div>
@@ -326,11 +327,17 @@ Deno.serve(async (req) => {
       .select("token")
       .single();
 
+    // Branding dinamico
+    const branding = await getBrandingForCompany(supabase, company_id);
+    const brandFooter = branding.hidePoweredBy
+      ? branding.platformName
+      : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
+
     const signatureUrl = signToken?.token
-      ? `https://app.ediliziaincloud.com/firma-sal/${signToken.token}`
+      ? `${branding.siteUrl}/firma-sal/${signToken.token}`
       : null;
 
-    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl);
+    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter);
     const filename = `sal-${sal.numero_sal}-${sal.data_emissione}.html`;
 
     return new Response(JSON.stringify({ html, filename, signature_url: signatureUrl, signature_token: signToken?.token }), {

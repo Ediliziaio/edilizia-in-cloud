@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -47,7 +48,8 @@ Deno.serve(async (req: Request) => {
       .eq("id", sigReq.company_id)
       .single();
 
-    const azienda_nome = company?.name ?? "Edilizia in Cloud";
+    const branding = await getBrandingForCompany(supabaseAdmin, sigReq.company_id);
+    const azienda_nome = company?.name ?? branding.platformName;
 
     // Carica dettagli documento in base al tipo
     let documento_titolo = "Documento";

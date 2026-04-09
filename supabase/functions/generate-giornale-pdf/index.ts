@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -60,6 +61,7 @@ function buildGiornaleHtml(
   order: Order | null,
   azienda: Azienda,
   companyId: string,
+  brandFooter?: string,
 ): string {
   const colore = azienda.colore_primario || "#0ea5e9";
   const title = order
@@ -204,7 +206,7 @@ function buildGiornaleHtml(
   <!-- Footer -->
   <div style="margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
     <div>${escHtml(azienda.ragione_sociale)} — P.IVA ${escHtml(azienda.partita_iva)}</div>
-    <div style="color:${colore};">Edilizia in Cloud — www.ediliziaincloud.it</div>
+    <div style="color:${colore};">${brandFooter || "Edilizia in Cloud"}</div>
   </div>
 </div>
 </body>
@@ -305,7 +307,13 @@ Deno.serve(async (req) => {
       giornale_foto: Array.isArray(e.giornale_foto) ? e.giornale_foto : [],
     }));
 
-    const html = buildGiornaleHtml(safeEntries, order, azienda, company_id);
+    // Branding dinamico
+    const branding = await getBrandingForCompany(supabase, company_id);
+    const brandFooter = branding.hidePoweredBy
+      ? branding.platformName
+      : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
+
+    const html = buildGiornaleHtml(safeEntries, order, azienda, company_id, brandFooter);
 
     // Build filename
     const today = new Date().toISOString().split("T")[0].replace(/-/g, "");

@@ -1,5 +1,6 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -66,7 +67,8 @@ Deno.serve(async (req: Request) => {
       .eq("id", company_id)
       .single();
 
-    const azienda_nome = company?.name ?? "Edilizia in Cloud";
+    const branding = await getBrandingForCompany(supabaseAdmin, company_id);
+    const azienda_nome = company?.name ?? branding.platformName;
 
     // Token univoco
     const token = crypto.randomUUID().replace(/-/g, "");

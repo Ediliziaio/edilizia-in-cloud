@@ -7,6 +7,7 @@
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -303,7 +304,9 @@ Deno.serve(async (req: Request) => {
     // ── Footer ────────────────────────────────────────────────────────────────
     const generatedAt = new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" });
     drawLine(page, margin, 40, width - margin, 40, 0.5, colorLight);
-    drawText(page, `Generato il ${generatedAt} · Edilizia in Cloud`, margin, 26, fontReg, 7, colorMuted);
+    // Branding dinamico
+    const branding = await getBrandingForCompany(supabaseAdmin, rap.company_id);
+    drawText(page, `Generato il ${generatedAt} · ${branding.platformName}`, margin, 26, fontReg, 7, colorMuted);
     const rapId = truncate(rapportino_id, 20);
     drawText(
       page,

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 /**
  * Item 18: Branded reset-password email.
@@ -39,21 +40,25 @@ Deno.serve(async (req) => {
     let logoUrl: string | null = null;
 
     if (profile?.company_id) {
-      const { data: branding } = await supabaseAdmin
+      const branding = await getBrandingForCompany(supabaseAdmin, profile.company_id);
+      platformName = branding.platformName;
+      primaryColor = branding.primaryColor;
+      logoUrl = branding.logoUrl;
+
+      // Legacy fallback for login_logo_url
+      const { data: brandingRow } = await supabaseAdmin
         .from("company_branding")
-        .select("platform_name, login_logo_url, logo_url, primary_color")
+        .select("login_logo_url")
         .eq("company_id", profile.company_id)
         .maybeSingle();
 
-      if (branding) {
-        platformName = (branding as any).platform_name || platformName;
-        primaryColor = (branding as any).primary_color || primaryColor;
-        logoUrl = (branding as any).login_logo_url || (branding as any).logo_url || null;
+      if ((brandingRow as any)?.login_logo_url) {
+        logoUrl = (brandingRow as any).login_logo_url;
       }
     }
 
     // Generate a password recovery link using the Supabase admin API
-    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziacloud.it";
+    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email,

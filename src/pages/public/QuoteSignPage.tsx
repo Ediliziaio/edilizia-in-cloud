@@ -30,6 +30,7 @@ type QuoteData = {
   notes: string;
   client_name: string;
   client_company: string;
+  company_id?: string;
   expires_at: string | null;
   subtotal: number;
   discount_percent: number;
@@ -75,6 +76,7 @@ export default function QuoteSignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [actionDone, setActionDone] = useState<"signed" | "refused" | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [poweredByText, setPoweredByText] = useState("Powered by Edilizia in Cloud");
 
   useEffect(() => {
     if (!token) return;
@@ -89,6 +91,25 @@ export default function QuoteSignPage() {
       });
       if (error) throw error;
       setData(result);
+
+      // Load branding for "Powered by" footer
+      if (result?.quote?.company_id) {
+        const { data: brandRow } = await supabase
+          .from("company_branding")
+          .select("platform_name, hide_platform_branding, powered_by_text")
+          .eq("company_id", result.quote.company_id)
+          .maybeSingle();
+        if (brandRow) {
+          if ((brandRow as any).hide_platform_branding) {
+            setPoweredByText("");
+          } else {
+            setPoweredByText(
+              (brandRow as any).powered_by_text ||
+              `Powered by ${(brandRow as any).platform_name || "Edilizia in Cloud"}`
+            );
+          }
+        }
+      }
     } catch {
       setData({ valid: false, reason: "error" });
     } finally {
@@ -440,9 +461,11 @@ export default function QuoteSignPage() {
         )}
 
         {/* Footer */}
-        <p className="text-center text-xs pt-4 pb-8" style={{ color: "#a1a1aa" }}>
-          Powered by Edilizia in Cloud
-        </p>
+        {poweredByText && (
+          <p className="text-center text-xs pt-4 pb-8" style={{ color: "#a1a1aa" }}>
+            {poweredByText}
+          </p>
+        )}
       </div>
 
       {/* Refuse Dialog */}

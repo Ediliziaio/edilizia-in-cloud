@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 function buildOTPEmail(otp: string, nome: string, azienda: string, link: string): string {
   return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
@@ -107,8 +108,9 @@ Deno.serve(async (req: Request) => {
       .eq("id", request_id);
 
     // Link firma — usa la nuova route /firma-fea/:token
-    const appUrl = Deno.env.get("PUBLIC_APP_URL") ?? "https://app.ediliziaincloud.it";
-    const firmaLink = `${appUrl}/firma-fea/${sigReq.token}`;
+    const branding = await getBrandingForCompany(supabaseAdmin, sigReq.company_id);
+    const firmaLink = `${branding.siteUrl}/firma-fea/${sigReq.token}`;
+    const brandName = azienda_nome ?? branding.platformName;
 
     // Invia email OTP
     try {
@@ -116,8 +118,8 @@ Deno.serve(async (req: Request) => {
       await sendViaProvider(emailSettings, {
         from: emailSettings.fromDefault,
         to: [sigReq.signer_email],
-        subject: `Codice OTP per la firma — ${azienda_nome ?? "Edilizia in Cloud"}`,
-        html: buildOTPEmail(otp, sigReq.signer_name, azienda_nome ?? "Edilizia in Cloud", firmaLink),
+        subject: `Codice OTP per la firma — ${brandName}`,
+        html: buildOTPEmail(otp, sigReq.signer_name, brandName, firmaLink),
       });
     } catch (emailErr) {
       console.error("Email send error:", emailErr);

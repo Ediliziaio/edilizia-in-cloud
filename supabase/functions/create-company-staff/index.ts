@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
@@ -174,17 +175,13 @@ Deno.serve(async (req) => {
 
     // Item 9: Send branded welcome email with credentials
     try {
-      const { data: branding } = await supabaseAdmin
-        .from("company_branding")
-        .select("platform_name, login_logo_url, logo_url, primary_color")
-        .eq("company_id", targetCompanyId)
-        .maybeSingle();
+      const branding = await getBrandingForCompany(supabaseAdmin, targetCompanyId);
 
-      const platformName = (branding as any)?.platform_name || "Edilizia in Cloud";
-      const logoUrl = (branding as any)?.login_logo_url || (branding as any)?.logo_url || null;
-      const primaryColor = (branding as any)?.primary_color || "#F97415";
+      const platformName = branding.platformName;
+      const logoUrl = branding.logoUrl;
+      const primaryColor = branding.primaryColor;
 
-      const loginUrl = `${Deno.env.get("SITE_URL") || "https://app.ediliziacloud.it"}/login`;
+      const loginUrl = `${branding.siteUrl}/login`;
 
       const emailHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
