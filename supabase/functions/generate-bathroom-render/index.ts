@@ -417,6 +417,9 @@ Deno.serve(async (req) => {
         prompt_usato: userPrompt,
         prompt_version: promptVersion,
         provider_key: "lovable_gemini_flash",
+        model_used: "google/gemini-2.5-flash-image",
+        cost_real: 0.04,
+        cost_billed: 0.10,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
