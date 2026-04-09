@@ -16,6 +16,7 @@ import {
   CheckCircle2, Download, Share2, RefreshCw, Wand2, ChevronDown, ChevronUp,
 } from "lucide-react";
 
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderConfigForm, type RenderConfig } from "@/components/render/RenderConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
@@ -126,6 +127,8 @@ export default function RenderNew() {
   const [resultUrls, setResultUrls] = useState<string[]>([]);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [savingGallery, setSavingGallery] = useState(false);
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const tipoAperturaAttuale = fotoAnalisi?.tipo_apertura as TipoApertura | undefined;
@@ -202,6 +205,8 @@ export default function RenderNew() {
           status: "pending",
           original_photo_url: path,
           config: config,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -557,6 +562,13 @@ export default function RenderNew() {
               </ul>
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full gap-2"

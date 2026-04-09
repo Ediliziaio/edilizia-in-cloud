@@ -20,6 +20,7 @@ import {
   type BathroomConfig,
 } from "@/components/render-bagno/BathroomConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 
@@ -69,6 +70,10 @@ export default function RenderBagnoNew() {
   const dotsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
   const elapsedRef = useRef(0);
+
+  // ── CRM linking ────────────────────────────────────────────────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   // ── Result ─────────────────────────────────────────────────────────
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -124,6 +129,8 @@ export default function RenderBagnoNew() {
           foto_originale_path: path,
           configurazione: config,
           tipo_intervento: config.tipo_intervento,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -471,6 +478,13 @@ export default function RenderBagnoNew() {
               </ul>
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full gap-2"

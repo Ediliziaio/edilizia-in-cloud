@@ -16,6 +16,7 @@ import {
 import { FacciataConfigForm, DEFAULT_FACCIATA_CONFIG } from "@/components/render-facciata/FacciataConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneFacciata } from "@/modules/render-facciata/lib/types";
 import type { AnalisiFacciata } from "@/modules/render-facciata/lib/types";
 
@@ -43,6 +44,8 @@ export default function RenderFacciataNew() {
   const [step, setStep] = useState<Step>(1);
 
   // ── Step 1: Photo ───────────────────────────────────────────────────────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
@@ -114,6 +117,8 @@ export default function RenderFacciataNew() {
           status: "pending",
           original_photo_url: path,
           config: config,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -392,6 +397,12 @@ export default function RenderFacciataNew() {
                     className="w-full h-full object-cover"
                   />
                 </div>
+                <RenderCrmLinker
+                  contactId={contactId}
+                  opportunityId={opportunityId}
+                  onContactChange={setContactId}
+                  onOpportunityChange={setOpportunityId}
+                />
                 <div className="flex gap-2 mt-3">
                   <Button
                     variant="outline"

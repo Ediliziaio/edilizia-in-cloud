@@ -19,6 +19,7 @@ import {
 } from "@/components/render-pavimento/PavimentoConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -49,6 +50,8 @@ export default function RenderPavimentoNew() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ── Analysis ───────────────────────────────────────────────────────────
@@ -118,6 +121,8 @@ export default function RenderPavimentoNew() {
           status: "pending",
           original_photo_url: path,
           config: config as unknown,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -428,6 +433,13 @@ export default function RenderPavimentoNew() {
               </ul>
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full gap-2 bg-amber-600 hover:bg-amber-700"

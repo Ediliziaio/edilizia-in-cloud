@@ -15,6 +15,7 @@ import {
 import { TettoConfigForm, DEFAULT_TETTO_CONFIG } from "@/components/render-tetto/TettoConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -46,6 +47,10 @@ export default function RenderTettoNew() {
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── CRM linking ───────────────────────────────────────────────────────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   // ── Session ───────────────────────────────────────────────────────────────
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -106,6 +111,8 @@ export default function RenderTettoNew() {
           status: "pending",
           original_photo_url: path,
           config: config,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -372,6 +379,13 @@ export default function RenderTettoNew() {
               />
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full bg-red-600 hover:bg-red-700"

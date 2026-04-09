@@ -25,6 +25,7 @@ import {
   DEFAULT_PERSIANE_CONFIG,
 } from "@/components/render-persiane/PersianeConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { ConfigurazionePersiane } from "@/modules/render-persiane/lib/types";
 
@@ -57,6 +58,10 @@ export default function RenderPersianeNew() {
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── CRM linking ────────────────────────────────────────────────────────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   // ── Step 2: Config ─────────────────────────────────────────────────────────
   const [config, setConfig] = useState<ConfigurazionePersiane>(DEFAULT_PERSIANE_CONFIG);
@@ -122,6 +127,8 @@ export default function RenderPersianeNew() {
           status: "pending",
           original_photo_url: path,
           config: config,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -430,6 +437,13 @@ export default function RenderPersianeNew() {
               )}
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full bg-green-600 hover:bg-green-700"

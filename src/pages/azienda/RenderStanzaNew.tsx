@@ -17,6 +17,7 @@ import {
 import { StanzaConfigForm, DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +49,10 @@ export default function RenderStanzaNew() {
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── CRM linking ─────────────────────────────────────────────────────────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   // ── Session ─────────────────────────────────────────────────────────────────
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -114,6 +119,8 @@ export default function RenderStanzaNew() {
           status: "pending",
           original_photo_url: path,
           config: config,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
         } as never)
         .select("id")
         .single();
@@ -426,6 +433,13 @@ export default function RenderStanzaNew() {
               </ul>
             </CardContent>
           </Card>
+
+          <RenderCrmLinker
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+          />
 
           <Button
             className="w-full gap-2 bg-purple-600 hover:bg-purple-700"
