@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -11,6 +12,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -5451,6 +5477,7 @@ export type Database = {
           pdf_url: string | null
           percentuale_avanzamento: number | null
           role_type: string
+          source: string | null
           stato: string
           ticket_aperto_id: string | null
           updated_at: string | null
@@ -5484,6 +5511,7 @@ export type Database = {
           pdf_url?: string | null
           percentuale_avanzamento?: number | null
           role_type: string
+          source?: string | null
           stato?: string
           ticket_aperto_id?: string | null
           updated_at?: string | null
@@ -5517,6 +5545,7 @@ export type Database = {
           pdf_url?: string | null
           percentuale_avanzamento?: number | null
           role_type?: string
+          source?: string | null
           stato?: string
           ticket_aperto_id?: string | null
           updated_at?: string | null
@@ -7659,6 +7688,7 @@ export type Database = {
           numero_ddt: string
           purchase_order_id: string
           quantita_ricevuta: number
+          source: string | null
           stato: string
         }
         Insert: {
@@ -7671,6 +7701,7 @@ export type Database = {
           numero_ddt: string
           purchase_order_id: string
           quantita_ricevuta?: number
+          source?: string | null
           stato?: string
         }
         Update: {
@@ -7683,6 +7714,7 @@ export type Database = {
           numero_ddt?: string
           purchase_order_id?: string
           quantita_ricevuta?: number
+          source?: string | null
           stato?: string
         }
         Relationships: [
@@ -9335,6 +9367,7 @@ export type Database = {
           monthly_hours: number
           net_salary: number
           phone: string | null
+          phone_whatsapp: string | null
           role_type: string
           updated_at: string
           user_id: string | null
@@ -9352,6 +9385,7 @@ export type Database = {
           monthly_hours?: number
           net_salary?: number
           phone?: string | null
+          phone_whatsapp?: string | null
           role_type?: string
           updated_at?: string
           user_id?: string | null
@@ -9369,6 +9403,7 @@ export type Database = {
           monthly_hours?: number
           net_salary?: number
           phone?: string | null
+          phone_whatsapp?: string | null
           role_type?: string
           updated_at?: string
           user_id?: string | null
@@ -10346,6 +10381,7 @@ export type Database = {
           longitudine: number | null
           order_id: string | null
           server_timestamp: string
+          source: string | null
           storage_path: string
           tags: string[] | null
           taken_at: string
@@ -10362,6 +10398,7 @@ export type Database = {
           longitudine?: number | null
           order_id?: string | null
           server_timestamp?: string
+          source?: string | null
           storage_path: string
           tags?: string[] | null
           taken_at: string
@@ -10378,6 +10415,7 @@ export type Database = {
           longitudine?: number | null
           order_id?: string | null
           server_timestamp?: string
+          source?: string | null
           storage_path?: string
           tags?: string[] | null
           taken_at?: string
@@ -11224,6 +11262,7 @@ export type Database = {
           ore_straordinario: number | null
           prima_entrata: string | null
           profilo_id: string
+          source: string | null
           stato: string | null
           ultima_uscita: string | null
           updated_at: string | null
@@ -11244,6 +11283,7 @@ export type Database = {
           ore_straordinario?: number | null
           prima_entrata?: string | null
           profilo_id: string
+          source?: string | null
           stato?: string | null
           ultima_uscita?: string | null
           updated_at?: string | null
@@ -11264,6 +11304,7 @@ export type Database = {
           ore_straordinario?: number | null
           prima_entrata?: string | null
           profilo_id?: string
+          source?: string | null
           stato?: string | null
           ultima_uscita?: string | null
           updated_at?: string | null
@@ -15502,44 +15543,65 @@ export type Database = {
         Row: {
           access_token_encrypted: string | null
           account_status: string
+          ai_auto_process: boolean | null
+          auto_assign_cantiere: boolean | null
+          bot_enabled: boolean | null
           business_name: string | null
           company_id: string
           created_at: string
           id: string
           is_connected: boolean
+          notify_titolare_on_ddt: boolean | null
+          notify_titolare_on_rapportino: boolean | null
+          notify_titolare_on_segnalazione: boolean | null
           phone_number: string | null
           phone_number_id: string | null
           quality_rating: string
           updated_at: string
           waba_id: string | null
+          welcome_message: string | null
         }
         Insert: {
           access_token_encrypted?: string | null
           account_status?: string
+          ai_auto_process?: boolean | null
+          auto_assign_cantiere?: boolean | null
+          bot_enabled?: boolean | null
           business_name?: string | null
           company_id: string
           created_at?: string
           id?: string
           is_connected?: boolean
+          notify_titolare_on_ddt?: boolean | null
+          notify_titolare_on_rapportino?: boolean | null
+          notify_titolare_on_segnalazione?: boolean | null
           phone_number?: string | null
           phone_number_id?: string | null
           quality_rating?: string
           updated_at?: string
           waba_id?: string | null
+          welcome_message?: string | null
         }
         Update: {
           access_token_encrypted?: string | null
           account_status?: string
+          ai_auto_process?: boolean | null
+          auto_assign_cantiere?: boolean | null
+          bot_enabled?: boolean | null
           business_name?: string | null
           company_id?: string
           created_at?: string
           id?: string
           is_connected?: boolean
+          notify_titolare_on_ddt?: boolean | null
+          notify_titolare_on_rapportino?: boolean | null
+          notify_titolare_on_segnalazione?: boolean | null
           phone_number?: string | null
           phone_number_id?: string | null
           quality_rating?: string
           updated_at?: string
           waba_id?: string | null
+          welcome_message?: string | null
         }
         Relationships: [
           {
@@ -26376,6 +26438,117 @@ export type Database = {
           },
         ]
       }
+      whatsapp_messages: {
+        Row: {
+          ai_confidence: number | null
+          ai_extracted_data: Json | null
+          ai_intent: string | null
+          cantiere_id: string | null
+          company_id: string
+          content_text: string | null
+          created_at: string | null
+          direction: string
+          from_phone: string
+          id: string
+          linked_record_id: string | null
+          linked_record_type: string | null
+          media_storage_path: string | null
+          media_url: string | null
+          message_type: string
+          operaio_id: string | null
+          processed_at: string | null
+          processing_error: string | null
+          processing_status: string | null
+          session_id: string | null
+          to_phone: string
+          wa_message_id: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_intent?: string | null
+          cantiere_id?: string | null
+          company_id: string
+          content_text?: string | null
+          created_at?: string | null
+          direction: string
+          from_phone: string
+          id?: string
+          linked_record_id?: string | null
+          linked_record_type?: string | null
+          media_storage_path?: string | null
+          media_url?: string | null
+          message_type: string
+          operaio_id?: string | null
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
+          session_id?: string | null
+          to_phone: string
+          wa_message_id: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_intent?: string | null
+          cantiere_id?: string | null
+          company_id?: string
+          content_text?: string | null
+          created_at?: string | null
+          direction?: string
+          from_phone?: string
+          id?: string
+          linked_record_id?: string | null
+          linked_record_type?: string | null
+          media_storage_path?: string | null
+          media_url?: string | null
+          message_type?: string
+          operaio_id?: string | null
+          processed_at?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
+          session_id?: string | null
+          to_phone?: string
+          wa_message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_operaio_id_fkey"
+            columns: ["operaio_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_pricing: {
         Row: {
           category: string
@@ -26417,6 +26590,71 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      whatsapp_sessions: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          current_cantiere_id: string | null
+          id: string
+          last_activity_at: string | null
+          operaio_id: string
+          phone_number: string
+          state: string | null
+          state_data: Json | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          current_cantiere_id?: string | null
+          id?: string
+          last_activity_at?: string | null
+          operaio_id: string
+          phone_number: string
+          state?: string | null
+          state_data?: Json | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          current_cantiere_id?: string | null
+          id?: string
+          last_activity_at?: string | null
+          operaio_id?: string
+          phone_number?: string
+          state?: string | null
+          state_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sessions_current_cantiere_id_fkey"
+            columns: ["current_cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sessions_current_cantiere_id_fkey"
+            columns: ["current_cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sessions_operaio_id_fkey"
+            columns: ["operaio_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whitelabel_audit_log: {
         Row: {
@@ -28102,6 +28340,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [

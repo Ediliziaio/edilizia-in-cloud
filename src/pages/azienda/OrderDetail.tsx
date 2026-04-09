@@ -50,6 +50,7 @@ import { SubappaltatoriOrderCard } from "@/components/orders/SubappaltatoriOrder
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 import { OrdineAssegnazioniCampo } from "@/components/orders/OrdineAssegnazioniCampo";
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -878,6 +879,7 @@ function OrderDetailInner() {
             <TabsContent value="campo" className="space-y-4 mt-4">
               <OrdineAssegnazioniCampo orderId={id!} companyId={effectiveCompany?.id ?? ""} />
               <OrdineRapportiniCampo orderId={id!} />
+              <WhatsAppActivityFeed cantiereId={id!} />
             </TabsContent>
 
             {/* Tab 6: Altro */}

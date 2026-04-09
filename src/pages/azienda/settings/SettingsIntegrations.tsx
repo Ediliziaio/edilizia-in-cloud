@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -348,6 +348,27 @@ export default function SettingsIntegrations() {
           />
         ))}
       </div>
+
+      {/* WhatsApp Bot AI Card */}
+      <Card
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => navigate("/azienda/impostazioni/whatsapp-bot")}
+      >
+        <CardHeader className="flex-row items-start gap-3 space-y-0">
+          <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+            <Bot className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-base">WhatsApp Bot AI per Cantiere</CardTitle>
+              <Badge variant="secondary" className="text-[10px]">Nuovo</Badge>
+            </div>
+            <CardDescription className="mt-1">
+              Ricevi rapportini, DDT, foto e presenze dagli operai via WhatsApp con elaborazione AI automatica.
+            </CardDescription>
+          </div>
+        </CardHeader>
+      </Card>
 
       {statusCards.length > 0 && (
         <>

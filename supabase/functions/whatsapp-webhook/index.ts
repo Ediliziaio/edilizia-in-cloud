@@ -215,6 +215,53 @@ Deno.serve(async (req) => {
               console.error("Error inserting message:", msgErr);
             }
 
+            // ── AI Bot Processing ──
+            // If company has bot_enabled, log in whatsapp_messages and invoke AI processor
+            const { data: botConfig } = await supabase
+              .from("messaging_whatsapp_config")
+              .select("bot_enabled, ai_auto_process")
+              .eq("company_id", companyId)
+              .eq("is_connected", true)
+              .maybeSingle();
+
+            if (botConfig?.bot_enabled) {
+              // Log raw message for AI processing
+              const waMessageId = msg.id || `wa_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+              const mediaId = msg.image?.id || msg.document?.id || msg.audio?.id || msg.video?.id || null;
+
+              const { data: waMsg, error: waMsgErr } = await supabase
+                .from("whatsapp_messages")
+                .insert({
+                  company_id: companyId,
+                  wa_message_id: waMessageId,
+                  direction: "inbound",
+                  from_phone: senderPhone,
+                  to_phone: phoneNumberId,
+                  message_type: messageType,
+                  content_text: content,
+                  media_url: mediaId ? `wa-media://${mediaId}` : null,
+                  processing_status: botConfig.ai_auto_process ? "received" : "processed",
+                })
+                .select("id")
+                .single();
+
+              if (waMsgErr) {
+                console.error("Error inserting whatsapp_messages:", waMsgErr);
+              } else if (botConfig.ai_auto_process && waMsg) {
+                // Invoke AI processor asynchronously
+                const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+                const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "x-cron-secret": serviceKey,
+                  },
+                  body: JSON.stringify({ message_id: waMsg.id }),
+                }).catch((err) => console.error("Error invoking AI processor:", err));
+              }
+            }
+
             // Fire automation trigger: whatsapp_received
             // Lookup marketing contact by phone
             const { data: mktContact } = await supabase

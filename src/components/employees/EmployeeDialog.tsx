@@ -30,6 +30,7 @@ const employeeSchema = z.object({
   last_name: z.string().min(1, "Cognome obbligatorio"),
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   phone: z.string().optional(),
+  phone_whatsapp: z.string().optional(),
   gross_salary: z.coerce.number().min(0, "Deve essere >= 0"),
   net_salary: z.coerce.number().min(0, "Deve essere >= 0"),
   monthly_hours: z.coerce.number().min(1, "Deve essere >= 1").max(744, "Max 744 ore"),
@@ -47,6 +48,7 @@ interface EmployeeDialogProps {
     last_name: string;
     email: string | null;
     phone: string | null;
+    phone_whatsapp?: string | null;
     gross_salary: number;
     net_salary: number;
     monthly_hours: number;
@@ -76,6 +78,7 @@ export function EmployeeDialog({
       last_name: "",
       email: "",
       phone: "",
+      phone_whatsapp: "",
       gross_salary: 0,
       net_salary: 0,
       monthly_hours: 160,
@@ -90,6 +93,7 @@ export function EmployeeDialog({
         last_name: employee.last_name,
         email: employee.email || "",
         phone: employee.phone || "",
+        phone_whatsapp: employee.phone_whatsapp || "",
         gross_salary: employee.gross_salary,
         net_salary: employee.net_salary,
         monthly_hours: employee.monthly_hours,
@@ -101,6 +105,7 @@ export function EmployeeDialog({
         last_name: "",
         email: "",
         phone: "",
+        phone_whatsapp: "",
         gross_salary: 0,
         net_salary: 0,
         monthly_hours: 160,
@@ -192,6 +197,23 @@ export function EmployeeDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="phone_whatsapp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Numero WhatsApp (Bot AI)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+39 333 1234567 (per il bot cantiere)" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Numero WhatsApp per inviare rapportini, DDT e foto via bot AI.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

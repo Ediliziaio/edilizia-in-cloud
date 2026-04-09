@@ -25,6 +25,7 @@ const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"))
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
+const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/SettingsWhatsAppBot"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
@@ -341,6 +342,7 @@ export function companyRoutes() {
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
           <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
           <Route path="integrazioni" element={<SettingsIntegrations />} />
+          <Route path="whatsapp-bot" element={<SettingsWhatsAppBot />} />
           <Route path="lead-forms" element={<FacebookFormsPage />} />
           <Route path="crediti" element={<SettingsCredits />} />
           <Route path="api" element={<SettingsApiKeys />} />

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
+import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 
 interface Props { orderId: string; }
 
@@ -181,6 +182,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                           )}
                           <Badge variant="outline" className="text-[10px] py-0">{r.percentuale_avanzamento}%</Badge>
                           <StatoBadge stato={stato} />
+                          <SourceBadge source={r.source} />
                           {r.firma_cliente_url && <PenLine className="h-3 w-3 text-blue-500" />}
                           {r.firma_operaio_url && <PenLine className="h-3 w-3 text-amber-500" />}
                           {r.foto_urls?.length > 0 && <ImageIcon className="h-3 w-3 text-slate-400" />}
