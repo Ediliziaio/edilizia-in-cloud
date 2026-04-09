@@ -69,7 +69,8 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    const isSuperAdmin = claimsData.claims.user_role === "super_admin";
+    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+    const isSuperAdmin = roleData?.role === "super_admin";
     if (!isSuperAdmin && profile?.company_id !== conv.company_id) {
       return new Response(
         JSON.stringify({ error: "Non autorizzato per questa conversazione" }),

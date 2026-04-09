@@ -55,7 +55,8 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    const isSuperAdmin = claimsData.claims.user_role === "super_admin";
+    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+    const isSuperAdmin = roleData?.role === "super_admin";
     if (!isSuperAdmin && profile?.company_id !== company_id) {
       return new Response(
         JSON.stringify({ error: "Non autorizzato" }),
@@ -116,12 +117,9 @@ Deno.serve(async (req) => {
 
     const { data: rawContacts, error: contactsErr } = await query.limit(10000);
 
-    // Log opt-out exclusions for audit
-    if (rawContacts && contact_ids?.length) {
-      const excluded = contact_ids.length - rawContacts.length;
-      if (excluded > 0) {
-        console.log(`[WhatsApp Broadcast] ${excluded} contatti esclusi per opt-out WhatsApp (GDPR)`);
-      }
+    // Log count for audit
+    if (rawContacts?.length) {
+      console.log(`[WhatsApp Broadcast] ${rawContacts.length} contatti trovati per segmento "${seg}"`);
     }
 
     if (contactsErr) {
