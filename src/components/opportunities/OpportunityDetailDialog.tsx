@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
@@ -860,6 +861,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   companyId={companyId!}
                   linkToOpportunity
                 />
+              )}
+
+              {tab === "activities" && (
+                <LinkedRendersList contactId={opportunity.contact_id} opportunityId={opportunity.id} />
               )}
 
               {tab === "quotes" && opportunity.contact_id && companyId && (

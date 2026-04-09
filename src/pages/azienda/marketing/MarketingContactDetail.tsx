@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
 import { ContactDndTab } from "@/components/marketing/ContactDndTab";
@@ -1013,6 +1014,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   category="contatti"
                   companyId={companyId}
                 />
+              )}
+
+              {/* Render AI panel */}
+              {rightTab === "activities" && id && (
+                <LinkedRendersList contactId={id} />
               )}
 
               {/* Notes panel */}
