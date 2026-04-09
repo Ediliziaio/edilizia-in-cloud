@@ -3,6 +3,7 @@ import { Link, Outlet } from "react-router-dom";
 import { Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import { 
@@ -45,6 +46,7 @@ const navItems = [
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
   const { effectiveBrand } = useBrandSettings(company?.id);
+  useCustomCSS();
   const unreadCount = useCustomerUnreadCount();
   // Modalità SuperAdmin-preview (token da URL)
   const previewSession = usePreviewToken();

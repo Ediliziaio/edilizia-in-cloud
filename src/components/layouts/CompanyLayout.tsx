@@ -9,6 +9,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
@@ -938,6 +939,7 @@ export function CompanyLayout() {
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const { effectiveBrand } = useBrandSettings();
+  useCustomCSS();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
