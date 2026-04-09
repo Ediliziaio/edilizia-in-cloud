@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Sofa, Plus, GalleryHorizontalEnd } from "lucide-react";
+import { ArrowLeft, Sofa, Plus, GalleryHorizontalEnd, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -14,6 +16,7 @@ export default function RenderStanzaGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const [search, setSearch] = useState("");
 
   const { data: gallery = [], isLoading } = useQuery({
     queryKey: ["render-stanza-gallery", companyId],
@@ -39,6 +42,17 @@ export default function RenderStanzaGallery() {
     enabled: !!companyId,
   });
 
+  const filtered = gallery.filter((item) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    const cfg = item.config as { tipo_stanza?: string; stile_target?: string } | null;
+    return (
+      (cfg?.tipo_stanza ?? "").toLowerCase().includes(s) ||
+      (cfg?.stile_target ?? "").toLowerCase().includes(s) ||
+      format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -51,13 +65,25 @@ export default function RenderStanzaGallery() {
             <GalleryHorizontalEnd className="h-5 w-5 text-purple-600" />
             Galleria Render Stanza
           </h1>
-          <p className="text-sm text-muted-foreground">{gallery.length} render completati</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} render completati</p>
         </div>
         <Button onClick={() => navigate("/azienda/render/stanza/new")}>
           <Plus className="h-4 w-4 mr-2" />
           Nuovo render
         </Button>
       </div>
+
+      {gallery.length > 3 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca render..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 max-w-sm"
+          />
+        </div>
+      )}
 
       {/* Grid */}
       {isLoading ? (
@@ -82,7 +108,7 @@ export default function RenderStanzaGallery() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {gallery.map(item => {
+          {filtered.map(item => {
             const resultUrl = item.result_urls?.[0];
             const cfg = item.config as { tipo_stanza?: string; stile_target?: string } | null;
             return (

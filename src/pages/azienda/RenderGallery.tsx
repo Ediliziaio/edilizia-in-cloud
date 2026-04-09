@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Image, Plus, GalleryHorizontalEnd } from "lucide-react";
+import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -14,6 +16,7 @@ export default function RenderGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const [search, setSearch] = useState("");
 
   const { data: gallery = [], isLoading } = useQuery({
     queryKey: ["render-gallery", companyId],
@@ -38,6 +41,16 @@ export default function RenderGallery() {
     enabled: !!companyId,
   });
 
+  const filtered = gallery.filter((item) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      (item.title ?? "").toLowerCase().includes(s) ||
+      (item.tags ?? []).some((t) => t.toLowerCase().includes(s)) ||
+      format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -50,13 +63,25 @@ export default function RenderGallery() {
             <GalleryHorizontalEnd className="h-5 w-5 text-primary" />
             Galleria Render
           </h1>
-          <p className="text-sm text-muted-foreground">{gallery.length} render salvati</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} render salvati</p>
         </div>
         <Button onClick={() => navigate("/azienda/render/infissi/new")}>
           <Plus className="h-4 w-4 mr-2" />
           Nuovo render
         </Button>
       </div>
+
+      {gallery.length > 3 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca render..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 max-w-sm"
+          />
+        </div>
+      )}
 
       {/* Grid */}
       {isLoading ? (
@@ -81,7 +106,7 @@ export default function RenderGallery() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {gallery.map(item => (
+          {filtered.map(item => (
             <div
               key={item.id}
               className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-primary/50 transition-all hover:shadow-md bg-muted"

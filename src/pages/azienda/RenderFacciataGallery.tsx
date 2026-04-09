@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Building2 } from "lucide-react";
+import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Building2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -14,6 +16,7 @@ export default function RenderFacciataGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const [search, setSearch] = useState("");
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["render-facciata-gallery", companyId],
@@ -38,6 +41,16 @@ export default function RenderFacciataGallery() {
     enabled: !!companyId,
   });
 
+  const filtered = sessions.filter((item) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    const tipoIntervento = (item.config as { tipo_intervento?: string } | null)?.tipo_intervento ?? "";
+    return (
+      tipoIntervento.toLowerCase().includes(s) ||
+      format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -50,13 +63,25 @@ export default function RenderFacciataGallery() {
             <GalleryHorizontalEnd className="h-5 w-5 text-orange-600" />
             Galleria Facciata
           </h1>
-          <p className="text-sm text-muted-foreground">{sessions.length} render completati</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} render completati</p>
         </div>
         <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
           <Plus className="h-4 w-4 mr-2" />
           Nuovo render
         </Button>
       </div>
+
+      {sessions.length > 3 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca render..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 max-w-sm"
+          />
+        </div>
+      )}
 
       {/* Grid */}
       {isLoading ? (
@@ -81,7 +106,7 @@ export default function RenderFacciataGallery() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {sessions.map(item => {
+          {filtered.map(item => {
             const resultUrl = item.result_urls?.[0];
             const tipoIntervento = (item.config as { tipo_intervento?: string } | null)?.tipo_intervento;
             return (
