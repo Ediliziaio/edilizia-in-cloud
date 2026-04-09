@@ -70,11 +70,10 @@ export function CostFormDialog({
     formData.allocations || []
   );
 
-  // Sync allocations to formData
+  // Sync allocations to formData — usa callback per evitare stale closure su formData
   useEffect(() => {
-    setFormData({ ...formData, allocations });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allocations]);
+    setFormData(prev => ({ ...prev, allocations }));
+  }, [allocations, setFormData]);
 
   // Load allocations from editingCost
   useEffect(() => {

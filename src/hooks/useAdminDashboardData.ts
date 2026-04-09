@@ -308,8 +308,10 @@ export function useAdminDashboardData() {
 
   // Realtime: aggiorna quando cambiano companies o subscriptions
   useEffect(() => {
+    // Channel name unico per evitare conflitti se il componente si smonta/rimonta rapidamente
+    const channelId = `admin-dashboard-realtime-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const channel = supabase
-      .channel("admin-dashboard-realtime")
+      .channel(channelId)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "companies" },

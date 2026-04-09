@@ -99,7 +99,16 @@ export default function NuovaRichiesta() {
     );
   }
 
-  if (!valido || !cliente) return null;
+  if (!valido || !cliente) {
+    return (
+      <div className="min-h-[100dvh] bg-[#1E3A5F] flex items-center justify-center">
+        <div className="text-center text-white space-y-3">
+          <p className="text-lg font-medium">Accesso non valido</p>
+          <p className="text-sm text-white/70">Il link potrebbe essere scaduto o non valido.</p>
+        </div>
+      </div>
+    );
+  }
 
   const selectedImpiantoObj = impianti.find((i: any) => i.id === selectedImpianto);
 

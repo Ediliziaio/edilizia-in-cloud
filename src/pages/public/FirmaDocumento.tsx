@@ -38,13 +38,21 @@ export default function FirmaDocumento() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Countdown OTP
+  // Countdown OTP — usa ref per evitare stale closure su timer ID
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (step !== 'otp') return;
-    const t = setInterval(() => {
-      setOtpTimer(prev => { if (prev <= 1) { clearInterval(t); return 0; } return prev - 1; });
+    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+    otpTimerRef.current = setInterval(() => {
+      setOtpTimer(prev => {
+        if (prev <= 1) {
+          if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; }
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-    return () => clearInterval(t);
+    return () => { if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; } };
   }, [step]);
 
   // Geolocation silenzioso

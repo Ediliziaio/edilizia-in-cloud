@@ -39,10 +39,10 @@ export default function CampoTimbratura() {
   const { data: hrProfilo } = useMyHrProfilo();
   const profiloId = hrProfilo?.id ?? null;
 
-  // Request GPS on mount
+  // Request GPS on mount (requestPosition è stabile via useCallback)
   useEffect(() => {
     requestPosition();
-  }, []);
+  }, [requestPosition]);
 
   // Today's timbrature
   const today = format(new Date(), "yyyy-MM-dd");

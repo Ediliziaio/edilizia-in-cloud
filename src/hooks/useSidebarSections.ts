@@ -78,14 +78,15 @@ export function useSidebarSections(options?: UseSidebarSectionsOptions) {
   // Auto-expand on route change
   useEffect(() => {
     const active = findActiveSection(location.pathname, routeMap);
-    if (active && !sections[active]) {
+    if (active) {
       setSections((prev) => {
+        if (prev[active]) return prev; // già aperta, nessun update
         const next = { ...prev, [active]: true };
         saveState(storageKey, next);
         return next;
       });
     }
-  }, [location.pathname]);
+  }, [location.pathname, routeMap, storageKey]);
 
   const toggle = useCallback((sectionId: string) => {
     setSections((prev) => {

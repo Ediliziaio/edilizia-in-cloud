@@ -37,11 +37,12 @@ export function usePortaleAuth(token: string | undefined): PortaleAuthState {
     async function validateToken() {
       setState({ loading: true, valido: false, cliente: null, error: null });
 
-      const { data, error } = await (supabase as any).rpc("valida_portale_token", {
-        p_token: token,
-      });
+      try {
+        const { data, error } = await (supabase as any).rpc("valida_portale_token", {
+          p_token: token,
+        });
 
-      if (cancelled) return;
+        if (cancelled) return;
 
       if (error) {
         setState({
@@ -77,6 +78,15 @@ export function usePortaleAuth(token: string | undefined): PortaleAuthState {
         },
         error: null,
       });
+      } catch (err) {
+        if (cancelled) return;
+        setState({
+          loading: false,
+          valido: false,
+          cliente: null,
+          error: err instanceof Error ? err.message : "Errore di rete durante la validazione",
+        });
+      }
     }
 
     validateToken();
