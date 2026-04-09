@@ -20,6 +20,8 @@ const CampoDocumenti      = lazy(() => import("@/pages/campo/CampoDocumenti"));
 const CampoTesserino      = lazy(() => import("@/pages/campo/CampoTesserino"));
 const CampoTicketNuovo    = lazy(() => import("@/pages/campo/CampoTicketNuovo"));
 const CampoProfilo        = lazy(() => import("@/pages/campo/CampoProfilo"));
+const CampoChecklistSicurezza = lazy(() => import("@/pages/campo/CampoChecklistSicurezza"));
+const CampoRapportinoVoce = lazy(() => import("@/pages/campo/CampoRapportinoVoce"));
 const SubSAL              = lazy(() => import("@/pages/campo/subappaltatore/SubSAL"));
 const SubDocumenti        = lazy(() => import("@/pages/campo/subappaltatore/SubDocumenti"));
 
@@ -40,6 +42,9 @@ export function campoRoutes() {
       <Route path="lavoro/:orderId" element={<CampoLavoroDetail />} />
       <Route path="lavoro/:orderId/rapportino" element={<CampoRapportino />} />
       <Route path="lavoro/:orderId/rapportino/:rapportinoId" element={<CampoRapportino />} />
+      <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
+      <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
+      <Route path="lavoro/:orderId/rapportino-vocale" element={<CampoRapportinoVoce />} />
       <Route path="timbratura" element={<CampoTimbratura />} />
       <Route path="magazzino" element={<CampoMagazzino />} />
       <Route path="chat" element={<CampoChat />} />

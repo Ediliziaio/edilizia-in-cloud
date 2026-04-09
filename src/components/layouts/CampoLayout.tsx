@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
+import OfflineBanner from "@/components/campo/OfflineBanner";
 
 export default function CampoLayout() {
   const navigate = useNavigate();
@@ -79,6 +80,10 @@ export default function CampoLayout() {
           Token preview non valido: {previewSession.error}
         </div>
       )}
+
+      {/* Banner offline / sync status */}
+      <OfflineBanner />
+
       {/* Header fisso */}
       <header
         className="flex-none bg-slate-900 border-b border-slate-800 px-4 pb-3 flex items-center justify-between"

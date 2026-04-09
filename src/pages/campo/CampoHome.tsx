@@ -11,6 +11,7 @@ import {
   Clock, MapPin, AlertTriangle, QrCode,
   Truck, MessageSquare, FileText, ChevronRight,
   CheckCircle, XCircle, PlayCircle, Loader2,
+  ShieldCheck, Mic,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -447,6 +448,24 @@ export default function CampoHome() {
           Accesso rapido
         </h2>
         <div className="grid grid-cols-2 gap-3">
+          {isOperaio && (
+            <button
+              onClick={() => navigate("/campo/sicurezza")}
+              className="bg-slate-900 border border-amber-500/40 rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
+            >
+              <ShieldCheck className="w-8 h-8 text-amber-400" />
+              <span className="text-xs font-medium text-white">Sicurezza</span>
+            </button>
+          )}
+          {isOperaio && (
+            <button
+              onClick={() => navigate("/campo/rapportino-vocale")}
+              className="bg-slate-900 border border-amber-500/40 rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
+            >
+              <Mic className="w-8 h-8 text-amber-400" />
+              <span className="text-xs font-medium text-white">Rapportino Vocale</span>
+            </button>
+          )}
           {isOperaio && (
             <button
               onClick={() => navigate("/campo/tesserino")}
