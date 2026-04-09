@@ -92,25 +92,55 @@ export default function RenderCategoryHub() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
+  interface RecentRender {
+    id: string;
+    status: string;
+    result_url: string | null;
+    created_at: string;
+    render_type: string;
+  }
+
   const { data: recentSessions = [], isLoading } = useQuery({
-    queryKey: ["render-sessions-all", companyId],
+    queryKey: ["render-sessions-all-cross", companyId],
     queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("render_sessions" as never)
-        .select("id, status, original_photo_url, result_urls, config, created_at")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
-        .limit(4);
-      if (error) throw error;
-      return (data ?? []) as {
-        id: string;
-        status: string;
-        original_photo_url: string | null;
-        result_urls: string[] | null;
-        config: Record<string, unknown> | null;
-        created_at: string;
-      }[];
+      if (!companyId) return [] as RecentRender[];
+
+      const tables = [
+        { table: "render_sessions", type: "infissi", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_bagno_sessions", type: "bagno", cols: "id,stato,render_result_url,created_at", statusField: "stato", completedVal: "completato" },
+        { table: "render_facciata_sessions", type: "facciata", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_pavimento_sessions", type: "pavimento", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_persiane_sessions", type: "persiane", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_tetto_sessions", type: "tetto", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_stanza_sessions", type: "stanza", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+      ] as const;
+
+      const results = await Promise.all(
+        tables.map(async (t) => {
+          const { data } = await supabase
+            .from(t.table as never)
+            .select(t.cols as never)
+            .eq("company_id" as never, companyId as never)
+            .order("created_at" as never, { ascending: false })
+            .limit(4);
+          return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+            id: row.id as string,
+            status: t.type === "bagno"
+              ? (row.stato === "completato" ? "completed" : row.stato === "errore" ? "failed" : String(row.stato))
+              : String(row.status ?? "pending"),
+            result_url: t.type === "bagno"
+              ? (row.render_result_url as string | null)
+              : ((row.result_urls as string[] | null)?.[0] ?? null),
+            created_at: row.created_at as string,
+            render_type: t.type,
+          }));
+        })
+      );
+
+      return results
+        .flat()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 8);
     },
     enabled: !!companyId,
   });
@@ -195,16 +225,19 @@ export default function RenderCategoryHub() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {recentSessions.map((s) => {
-                const resultUrl = (s.result_urls as string[] | null)?.[0];
+                const typeLabel: Record<string, string> = {
+                  infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
+                  pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
+                };
                 return (
                   <div
-                    key={s.id}
+                    key={`${s.render_type}-${s.id}`}
                     className="aspect-video rounded-xl overflow-hidden cursor-pointer hover:ring-2 ring-primary/40 transition-all group relative bg-muted"
-                    onClick={() => navigate(`/azienda/render/infissi/gallery/${s.id}`)}
+                    onClick={() => navigate(`/azienda/render/${s.render_type}/gallery/${s.id}`)}
                   >
-                    {resultUrl ? (
+                    {s.result_url ? (
                       <img
-                        src={resultUrl}
+                        src={s.result_url}
                         alt="Render"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -219,6 +252,12 @@ export default function RenderCategoryHub() {
                         className="text-[10px] px-1 py-0 bg-black/60 text-white border-0"
                       >
                         {s.status === "completed" ? "Completato" : s.status === "processing" ? "In corso..." : s.status}
+                      </Badge>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1 py-0 bg-black/40 text-white border-0"
+                      >
+                        {typeLabel[s.render_type] ?? s.render_type}
                       </Badge>
                     </div>
                     <div className="absolute bottom-1 right-1">
