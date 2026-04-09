@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import {
-  ArrowLeft, Download, Share2, Loader2, Image,
+  ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -182,6 +182,19 @@ export default function RenderGalleryDetail() {
               className="aspect-video"
             />
             <div className="flex gap-2 mt-4 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={() => {
+                  if (!resultUrl) return;
+                  const text = encodeURIComponent(`Guarda il render AI che ho creato! ${resultUrl}`);
+                  window.open(`https://wa.me/?text=${text}`, "_blank");
+                }}
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                WhatsApp
+              </Button>
               <Button variant="outline" size="sm" onClick={handleShare}>
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import {
-  ArrowLeft, Download, Share2, Loader2, Image, Home,
+  ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Home,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -189,13 +189,25 @@ export default function RenderTettoGalleryDetail() {
       {/* Actions */}
       {session.status === "completed" && resultUrl && (
         <div className="flex gap-2">
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
-            <Download className="h-4 w-4" />
-            Download
+          <Button
+            variant="outline"
+            className="flex-1 gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+            onClick={() => {
+              if (!resultUrl) return;
+              const text = encodeURIComponent(`Guarda il render AI che ho creato! ${resultUrl}`);
+              window.open(`https://wa.me/?text=${text}`, "_blank");
+            }}
+          >
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
           </Button>
           <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
-            WhatsApp
+            Condividi
+          </Button>
+          <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
+            <Download className="h-4 w-4" />
+            Download
           </Button>
         </div>
       )}
