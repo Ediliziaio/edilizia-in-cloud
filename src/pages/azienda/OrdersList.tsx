@@ -1233,7 +1233,7 @@ export default function OrdersList() {
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="border-b">
-        <nav className="-mb-px flex gap-6 overflow-x-auto" role="tablist" aria-label="Sezioni ordini">
+        <nav className="-mb-px flex gap-3 sm:gap-6 overflow-x-auto scrollbar-none" role="tablist" aria-label="Sezioni ordini">
           {tabs.map((t) => (
             <button
               key={t.id}

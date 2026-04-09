@@ -46,7 +46,7 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
                 <CardTitle className="flex items-center gap-1.5 flex-wrap">
                   {urgentItems.length > 0 && <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />}
                   <Package className="h-4 w-4 text-primary shrink-0" />
-                  <span className="truncate">Alert Magazzino</span>
+                  <span>Alert Magazzino</span>
                   {urgentItems.length > 0 ? (
                     <Badge variant="destructive" className="shrink-0">{urgentItems.length}</Badge>
                   ) : (
@@ -97,8 +97,8 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
 }
 
 function DeltaIndicator({ current, previous }: { current: number; previous: number }) {
-  if (previous === 0 && current === 0) return null;
-  const delta = previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
+  if (previous === 0) return null; // no meaningful % comparison against zero baseline
+  const delta = ((current - previous) / previous) * 100;
   if (delta === 0) return null;
   const isPositive = delta > 0;
   const Icon = isPositive ? TrendingUp : TrendingDown;

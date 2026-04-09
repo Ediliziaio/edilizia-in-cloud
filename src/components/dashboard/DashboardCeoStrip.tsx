@@ -23,7 +23,7 @@ interface DashboardCeoStripProps {
 
 function calcDelta(current: number, previous: number): number | null {
   if (previous === 0 && current === 0) return null;
-  if (previous === 0) return current > 0 ? 100 : -100;
+  if (previous === 0) return null; // no meaningful % comparison against zero baseline
   return ((current - previous) / previous) * 100;
 }
 
