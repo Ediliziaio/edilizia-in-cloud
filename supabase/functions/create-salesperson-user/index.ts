@@ -103,6 +103,7 @@ Deno.serve(async (req) => {
 
     const permissionsRecord: Record<string, any> = {
       user_id: newUser.user.id,
+      company_id: salesperson.company_id,
       can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
       can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
       can_view_customers: false, can_edit_customers: false, can_view_employees: false,

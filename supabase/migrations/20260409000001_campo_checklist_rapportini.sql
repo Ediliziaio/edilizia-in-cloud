@@ -61,9 +61,9 @@ CREATE POLICY checklist_sel_company ON checklist_sicurezza
   USING (
     company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
     AND EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-        AND p.role IN ('admin','hr_manager','safety_manager','foreman')
+      SELECT 1 FROM user_roles ur
+      WHERE ur.user_id = auth.uid()
+        AND ur.role IN ('super_admin','company_admin','company_staff')
     )
   );
 
@@ -135,9 +135,9 @@ CREATE POLICY rapportini_vocali_sel_company ON rapportini_vocali
   USING (
     company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
     AND EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid()
-        AND p.role IN ('admin','hr_manager','safety_manager','foreman')
+      SELECT 1 FROM user_roles ur
+      WHERE ur.user_id = auth.uid()
+        AND ur.role IN ('super_admin','company_admin','company_staff')
     )
   );
 
