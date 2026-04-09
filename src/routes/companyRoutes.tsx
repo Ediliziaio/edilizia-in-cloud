@@ -75,10 +75,35 @@ const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
+const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
 const RenderNew = lazy(() => import("@/pages/azienda/RenderNew"));
 const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
 const RenderGalleryDetail = lazy(() => import("@/pages/azienda/RenderGalleryDetail"));
+const RenderBagnoHub = lazy(() => import("@/pages/azienda/RenderBagnoHub"));
+const RenderBagnoNew = lazy(() => import("@/pages/azienda/RenderBagnoNew"));
+const RenderBagnoGallery = lazy(() => import("@/pages/azienda/RenderBagnoGallery"));
+const RenderBagnoGalleryDetail = lazy(() => import("@/pages/azienda/RenderBagnoGalleryDetail"));
+const RenderPavimentoHub = lazy(() => import("@/pages/azienda/RenderPavimentoHub"));
+const RenderPavimentoNew = lazy(() => import("@/pages/azienda/RenderPavimentoNew"));
+const RenderPavimentoGallery = lazy(() => import("@/pages/azienda/RenderPavimentoGallery"));
+const RenderPavimentoGalleryDetail = lazy(() => import("@/pages/azienda/RenderPavimentoGalleryDetail"));
+const RenderFacciataHub = lazy(() => import("@/pages/azienda/RenderFacciataHub"));
+const RenderFacciataNew = lazy(() => import("@/pages/azienda/RenderFacciataNew"));
+const RenderFacciataGallery = lazy(() => import("@/pages/azienda/RenderFacciataGallery"));
+const RenderFacciataGalleryDetail = lazy(() => import("@/pages/azienda/RenderFacciataGalleryDetail"));
+const RenderPersianeHub = lazy(() => import("@/pages/azienda/RenderPersianeHub"));
+const RenderPersianeNew = lazy(() => import("@/pages/azienda/RenderPersianeNew"));
+const RenderPersianeGallery = lazy(() => import("@/pages/azienda/RenderPersianeGallery"));
+const RenderPersianeGalleryDetail = lazy(() => import("@/pages/azienda/RenderPersianeGalleryDetail"));
+const RenderTettoHub = lazy(() => import("@/pages/azienda/RenderTettoHub"));
+const RenderTettoNew = lazy(() => import("@/pages/azienda/RenderTettoNew"));
+const RenderTettoGallery = lazy(() => import("@/pages/azienda/RenderTettoGallery"));
+const RenderTettoGalleryDetail = lazy(() => import("@/pages/azienda/RenderTettoGalleryDetail"));
+const RenderStanzaHub = lazy(() => import("@/pages/azienda/RenderStanzaHub"));
+const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
+const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
+const RenderStanzaGalleryDetail = lazy(() => import("@/pages/azienda/RenderStanzaGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -266,10 +291,41 @@ export function companyRoutes() {
         <Route path="agenti-ai/:agentId" element={<AgentDetailPage />} />
 
         {/* Render AI Routes */}
-        <Route path="render" element={<RenderHub />} />
-        <Route path="render/new" element={<RenderNew />} />
-        <Route path="render/gallery" element={<RenderGallery />} />
-        <Route path="render/gallery/:id" element={<RenderGalleryDetail />} />
+        <Route path="render" element={<RenderCategoryHub />} />
+        {/* Render Infissi */}
+        <Route path="render/infissi" element={<RenderHub />} />
+        <Route path="render/infissi/new" element={<RenderNew />} />
+        <Route path="render/infissi/gallery" element={<RenderGallery />} />
+        <Route path="render/infissi/gallery/:id" element={<RenderGalleryDetail />} />
+        {/* Render Bagno */}
+        <Route path="render/bagno" element={<RenderBagnoHub />} />
+        <Route path="render/bagno/new" element={<RenderBagnoNew />} />
+        <Route path="render/bagno/gallery" element={<RenderBagnoGallery />} />
+        <Route path="render/bagno/gallery/:id" element={<RenderBagnoGalleryDetail />} />
+        {/* Render Pavimento */}
+        <Route path="render/pavimento" element={<RenderPavimentoHub />} />
+        <Route path="render/pavimento/new" element={<RenderPavimentoNew />} />
+        <Route path="render/pavimento/gallery" element={<RenderPavimentoGallery />} />
+        <Route path="render/pavimento/gallery/:id" element={<RenderPavimentoGalleryDetail />} />
+        <Route path="render/facciata" element={<RenderFacciataHub />} />
+        <Route path="render/facciata/new" element={<RenderFacciataNew />} />
+        <Route path="render/facciata/gallery" element={<RenderFacciataGallery />} />
+        <Route path="render/facciata/gallery/:id" element={<RenderFacciataGalleryDetail />} />
+        {/* Render Persiane */}
+        <Route path="render/persiane" element={<RenderPersianeHub />} />
+        <Route path="render/persiane/new" element={<RenderPersianeNew />} />
+        <Route path="render/persiane/gallery" element={<RenderPersianeGallery />} />
+        <Route path="render/persiane/gallery/:id" element={<RenderPersianeGalleryDetail />} />
+        {/* Render Tetto */}
+        <Route path="render/tetto" element={<RenderTettoHub />} />
+        <Route path="render/tetto/new" element={<RenderTettoNew />} />
+        <Route path="render/tetto/gallery" element={<RenderTettoGallery />} />
+        <Route path="render/tetto/gallery/:id" element={<RenderTettoGalleryDetail />} />
+        {/* Render Stanza */}
+        <Route path="render/stanza" element={<RenderStanzaHub />} />
+        <Route path="render/stanza/new" element={<RenderStanzaNew />} />
+        <Route path="render/stanza/gallery" element={<RenderStanzaGallery />} />
+        <Route path="render/stanza/gallery/:id" element={<RenderStanzaGalleryDetail />} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import {
-  ArrowLeft, Download, Share2, Loader2, Image,
+  ArrowLeft, Download, Share2, Loader2, Sofa,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -22,18 +22,18 @@ const STATUS_CONFIG = {
   failed:     { label: "Fallito",        variant: "destructive", icon: XCircle },
 } as const;
 
-export default function RenderGalleryDetail() {
+export default function RenderStanzaGalleryDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data: session, isLoading } = useQuery({
-    queryKey: ["render-session-detail", id],
+    queryKey: ["render-stanza-session-detail", id],
     queryFn: async () => {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
-        .from("render_sessions" as never)
+        .from("render_stanza_sessions" as never)
         .select("*")
         .eq("id" as never, id as never)
         .eq("company_id" as never, companyId as never)
@@ -59,19 +59,19 @@ export default function RenderGalleryDetail() {
       data?.status === "processing" ? 5_000 : false,
   });
 
-  // Build signed URL for private render-originals bucket
+  // Build signed URL for private stanza-originals bucket
   const { data: originalUrl = null } = useQuery({
-    queryKey: ["render-original-signed", session?.original_photo_url],
+    queryKey: ["stanza-original-signed", session?.original_photo_url],
     queryFn: async () => {
       if (!session?.original_photo_url) return null;
       const { data, error } = await supabase.storage
-        .from("render-originals")
+        .from("stanza-originals")
         .createSignedUrl(session.original_photo_url, 3600);
       if (error) return null;
       return data.signedUrl;
     },
     enabled: !!session?.original_photo_url,
-    staleTime: 50 * 60 * 1000, // 50 min (URL valido 60 min)
+    staleTime: 50 * 60 * 1000,
   });
 
   const resultUrl = session?.result_urls?.[0] ?? null;
@@ -80,14 +80,14 @@ export default function RenderGalleryDetail() {
     if (!resultUrl) return;
     const a = document.createElement("a");
     a.href = resultUrl;
-    a.download = `render_${id}.png`;
+    a.download = `render_stanza_${id}.png`;
     a.click();
   };
 
   const handleShare = async () => {
     if (!resultUrl) return;
     if (navigator.share) {
-      await navigator.share({ title: "Render AI — Infissi", url: resultUrl });
+      await navigator.share({ title: "Render AI — Stanza", url: resultUrl });
     } else {
       await navigator.clipboard.writeText(resultUrl);
       toast.success("Link copiato negli appunti");
@@ -107,7 +107,7 @@ export default function RenderGalleryDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Sessione non trovata</p>
-        <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/render/infissi")}>
+        <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/render/stanza")}>
           Torna ai render
         </Button>
       </div>
@@ -117,17 +117,17 @@ export default function RenderGalleryDetail() {
   const statusCfg = STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const config = session.config as Record<string, unknown> | null;
+  const config = session.config as { tipo_stanza?: string; stile_target?: string; intensita?: string } | null;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/infissi/gallery")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/stanza/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Dettaglio render</h1>
+          <h1 className="text-xl font-bold">Dettaglio render stanza</h1>
           <p className="text-sm text-muted-foreground">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
@@ -140,13 +140,13 @@ export default function RenderGalleryDetail() {
 
       {/* Processing state */}
       {session.status === "processing" && (
-        <Card className="border-primary/30 bg-primary/5">
+        <Card className="border-purple-300/30 bg-purple-50/50 dark:bg-purple-950/20">
           <CardContent className="py-4 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
             <div>
               <p className="text-sm font-medium">Render in elaborazione...</p>
               <p className="text-xs text-muted-foreground">
-                L&apos;AI sta modificando la foto. Aggiornamento automatico ogni 5 secondi.
+                L&apos;AI sta trasformando la stanza. Aggiornamento automatico ogni 5 secondi.
               </p>
             </div>
           </CardContent>
@@ -168,7 +168,7 @@ export default function RenderGalleryDetail() {
         </Card>
       )}
 
-      {/* Before/After slider (solo se completato) */}
+      {/* Before/After slider */}
       {session.status === "completed" && resultUrl && originalUrl && (
         <Card>
           <CardHeader className="pb-3">
@@ -195,7 +195,7 @@ export default function RenderGalleryDetail() {
         </Card>
       )}
 
-      {/* Solo foto render se non c'è originale con signed URL */}
+      {/* Solo render se non c'e originale */}
       {session.status === "completed" && resultUrl && !originalUrl && (
         <Card>
           <CardContent className="p-4">
@@ -215,7 +215,7 @@ export default function RenderGalleryDetail() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Image className="h-4 w-4" />
+              <Sofa className="h-4 w-4" />
               Foto originale
             </CardTitle>
           </CardHeader>
@@ -228,7 +228,7 @@ export default function RenderGalleryDetail() {
                   className="w-full h-full object-cover opacity-60"
                 />
               ) : (
-                <Image className="h-10 w-10 text-muted-foreground/30" />
+                <Sofa className="h-10 w-10 text-muted-foreground/30" />
               )}
             </div>
           </CardContent>
@@ -239,20 +239,28 @@ export default function RenderGalleryDetail() {
       {config && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione infissi</CardTitle>
+            <CardTitle className="text-sm">Configurazione stanza</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(config).filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className="bg-muted/50 rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground capitalize">
-                    {k.replace(/_/g, " ")}
-                  </p>
-                  <p className="text-sm font-medium capitalize">
-                    {String(v).replace(/-/g, " ")}
-                  </p>
+              {config.tipo_stanza && (
+                <div className="bg-muted/50 rounded-md p-2">
+                  <p className="text-[10px] text-muted-foreground">Tipo stanza</p>
+                  <p className="text-sm font-medium capitalize">{String(config.tipo_stanza).replace(/_/g, " ")}</p>
                 </div>
-              ))}
+              )}
+              {config.stile_target && (
+                <div className="bg-muted/50 rounded-md p-2">
+                  <p className="text-[10px] text-muted-foreground">Stile target</p>
+                  <p className="text-sm font-medium capitalize">{String(config.stile_target).replace(/_/g, " ")}</p>
+                </div>
+              )}
+              {config.intensita && (
+                <div className="bg-muted/50 rounded-md p-2">
+                  <p className="text-[10px] text-muted-foreground">Intensita</p>
+                  <p className="text-sm font-medium capitalize">{String(config.intensita)}</p>
+                </div>
+              )}
             </div>
             <div className="flex gap-2 mt-3 flex-wrap">
               {session.provider_key && (
@@ -263,7 +271,7 @@ export default function RenderGalleryDetail() {
               )}
               {session.cost_billed != null && (
                 <Badge variant="outline" className="text-xs">
-                  €{session.cost_billed?.toFixed(3)} addebitato
+                  &euro;{session.cost_billed?.toFixed(3)} addebitato
                 </Badge>
               )}
             </div>

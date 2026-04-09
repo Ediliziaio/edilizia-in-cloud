@@ -16,24 +16,24 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
 const STATUS_CONFIG = {
-  pending:    { label: "In coda",        variant: "secondary",   icon: Clock },
-  processing: { label: "In elaborazione", variant: "default",    icon: Zap },
-  completed:  { label: "Completato",     variant: "secondary",   icon: CheckCircle2 },
-  failed:     { label: "Fallito",        variant: "destructive", icon: XCircle },
+  pending:    { label: "In coda",         variant: "secondary",   icon: Clock },
+  processing: { label: "In elaborazione", variant: "default",     icon: Zap },
+  completed:  { label: "Completato",      variant: "secondary",   icon: CheckCircle2 },
+  failed:     { label: "Fallito",         variant: "destructive", icon: XCircle },
 } as const;
 
-export default function RenderGalleryDetail() {
+export default function RenderPavimentoGalleryDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data: session, isLoading } = useQuery({
-    queryKey: ["render-session-detail", id],
+    queryKey: ["render-pavimento-session-detail", id],
     queryFn: async () => {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
-        .from("render_sessions" as never)
+        .from("render_pavimento_sessions" as never)
         .select("*")
         .eq("id" as never, id as never)
         .eq("company_id" as never, companyId as never)
@@ -59,19 +59,19 @@ export default function RenderGalleryDetail() {
       data?.status === "processing" ? 5_000 : false,
   });
 
-  // Build signed URL for private render-originals bucket
+  // Signed URL for private bucket
   const { data: originalUrl = null } = useQuery({
-    queryKey: ["render-original-signed", session?.original_photo_url],
+    queryKey: ["pavimento-original-signed", session?.original_photo_url],
     queryFn: async () => {
       if (!session?.original_photo_url) return null;
       const { data, error } = await supabase.storage
-        .from("render-originals")
+        .from("pavimento-originals")
         .createSignedUrl(session.original_photo_url, 3600);
       if (error) return null;
       return data.signedUrl;
     },
     enabled: !!session?.original_photo_url,
-    staleTime: 50 * 60 * 1000, // 50 min (URL valido 60 min)
+    staleTime: 50 * 60 * 1000,
   });
 
   const resultUrl = session?.result_urls?.[0] ?? null;
@@ -80,14 +80,14 @@ export default function RenderGalleryDetail() {
     if (!resultUrl) return;
     const a = document.createElement("a");
     a.href = resultUrl;
-    a.download = `render_${id}.png`;
+    a.download = `render_pavimento_${id}.png`;
     a.click();
   };
 
   const handleShare = async () => {
     if (!resultUrl) return;
     if (navigator.share) {
-      await navigator.share({ title: "Render AI — Infissi", url: resultUrl });
+      await navigator.share({ title: "Render AI — Pavimento", url: resultUrl });
     } else {
       await navigator.clipboard.writeText(resultUrl);
       toast.success("Link copiato negli appunti");
@@ -107,7 +107,7 @@ export default function RenderGalleryDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Sessione non trovata</p>
-        <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/render/infissi")}>
+        <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/render/pavimento")}>
           Torna ai render
         </Button>
       </div>
@@ -123,11 +123,11 @@ export default function RenderGalleryDetail() {
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/infissi/gallery")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/pavimento/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Dettaglio render</h1>
+          <h1 className="text-xl font-bold">Dettaglio render pavimento</h1>
           <p className="text-sm text-muted-foreground">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
@@ -140,13 +140,13 @@ export default function RenderGalleryDetail() {
 
       {/* Processing state */}
       {session.status === "processing" && (
-        <Card className="border-primary/30 bg-primary/5">
+        <Card className="border-amber-500/30 bg-amber-50/50">
           <CardContent className="py-4 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="h-5 w-5 animate-spin text-amber-600" />
             <div>
               <p className="text-sm font-medium">Render in elaborazione...</p>
               <p className="text-xs text-muted-foreground">
-                L&apos;AI sta modificando la foto. Aggiornamento automatico ogni 5 secondi.
+                L'AI sta modificando il pavimento. Aggiornamento automatico ogni 5 secondi.
               </p>
             </div>
           </CardContent>
@@ -168,7 +168,7 @@ export default function RenderGalleryDetail() {
         </Card>
       )}
 
-      {/* Before/After slider (solo se completato) */}
+      {/* Before/After slider */}
       {session.status === "completed" && resultUrl && originalUrl && (
         <Card>
           <CardHeader className="pb-3">
@@ -186,7 +186,7 @@ export default function RenderGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
-              <Button size="sm" onClick={handleDownload}>
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
               </Button>
@@ -195,13 +195,13 @@ export default function RenderGalleryDetail() {
         </Card>
       )}
 
-      {/* Solo foto render se non c'è originale con signed URL */}
+      {/* Solo foto render se non c'e' originale */}
       {session.status === "completed" && resultUrl && !originalUrl && (
         <Card>
           <CardContent className="p-4">
-            <img src={resultUrl} alt="Render AI" className="w-full rounded-lg" />
+            <img src={resultUrl} alt="Render AI Pavimento" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
-              <Button size="sm" onClick={handleDownload}>
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
               </Button>
@@ -239,20 +239,22 @@ export default function RenderGalleryDetail() {
       {config && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione infissi</CardTitle>
+            <CardTitle className="text-sm">Configurazione pavimento</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(config).filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className="bg-muted/50 rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground capitalize">
-                    {k.replace(/_/g, " ")}
-                  </p>
-                  <p className="text-sm font-medium capitalize">
-                    {String(v).replace(/-/g, " ")}
-                  </p>
-                </div>
-              ))}
+              {Object.entries(config)
+                .filter(([k, v]) => v && typeof v !== "object")
+                .map(([k, v]) => (
+                  <div key={k} className="bg-muted/50 rounded-md p-2">
+                    <p className="text-[10px] text-muted-foreground capitalize">
+                      {k.replace(/_/g, " ")}
+                    </p>
+                    <p className="text-sm font-medium capitalize">
+                      {String(v).replace(/_/g, " ")}
+                    </p>
+                  </div>
+                ))}
             </div>
             <div className="flex gap-2 mt-3 flex-wrap">
               {session.provider_key && (
@@ -263,7 +265,7 @@ export default function RenderGalleryDetail() {
               )}
               {session.cost_billed != null && (
                 <Badge variant="outline" className="text-xs">
-                  €{session.cost_billed?.toFixed(3)} addebitato
+                  EUR {session.cost_billed?.toFixed(3)} addebitato
                 </Badge>
               )}
             </div>

@@ -10,29 +10,30 @@ import { ArrowLeft, Image, Plus, GalleryHorizontalEnd } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-export default function RenderGallery() {
+export default function RenderBagnoGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data: gallery = [], isLoading } = useQuery({
-    queryKey: ["render-gallery", companyId],
+    queryKey: ["render-bagno-gallery", companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_gallery" as never)
-        .select("id, title, original_url, render_url, tags, created_at, session_id")
+        .from("render_bagno_sessions" as never)
+        .select("id, galleria_titolo, foto_originale_url, render_result_url, tipo_intervento, salvato_in_galleria, created_at")
         .eq("company_id" as never, companyId as never)
+        .eq("stato" as never, "completato" as never)
         .order("created_at" as never, { ascending: false });
       if (error) throw error;
       return (data ?? []) as {
         id: string;
-        title: string | null;
-        original_url: string | null;
-        render_url: string | null;
-        tags: string[] | null;
+        galleria_titolo: string | null;
+        foto_originale_url: string | null;
+        render_result_url: string | null;
+        tipo_intervento: string | null;
+        salvato_in_galleria: boolean;
         created_at: string;
-        session_id: string | null;
       }[];
     },
     enabled: !!companyId,
@@ -42,17 +43,17 @@ export default function RenderGallery() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/infissi")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/bagno")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <GalleryHorizontalEnd className="h-5 w-5 text-primary" />
-            Galleria Render
+            <GalleryHorizontalEnd className="h-5 w-5 text-cyan-600" />
+            Galleria Render Bagno
           </h1>
-          <p className="text-sm text-muted-foreground">{gallery.length} render salvati</p>
+          <p className="text-sm text-muted-foreground">{gallery.length} render completati</p>
         </div>
-        <Button onClick={() => navigate("/azienda/render/infissi/new")}>
+        <Button onClick={() => navigate("/azienda/render/bagno/new")}>
           <Plus className="h-4 w-4 mr-2" />
           Nuovo render
         </Button>
@@ -61,7 +62,7 @@ export default function RenderGallery() {
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
         </div>
       ) : gallery.length === 0 ? (
         <Card>
@@ -70,10 +71,10 @@ export default function RenderGallery() {
             <div>
               <p className="font-medium">Galleria vuota</p>
               <p className="text-sm text-muted-foreground mt-1">
-                I render completati appariranno qui
+                I render bagno completati appariranno qui
               </p>
             </div>
-            <Button onClick={() => navigate("/azienda/render/infissi/new")}>
+            <Button onClick={() => navigate("/azienda/render/bagno/new")}>
               <Plus className="h-4 w-4 mr-2" />
               Crea primo render
             </Button>
@@ -84,13 +85,13 @@ export default function RenderGallery() {
           {gallery.map(item => (
             <div
               key={item.id}
-              className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-primary/50 transition-all hover:shadow-md bg-muted"
-              onClick={() => item.session_id && navigate(`/azienda/render/infissi/gallery/${item.session_id}`)}
+              className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-cyan-400/50 transition-all hover:shadow-md bg-muted"
+              onClick={() => navigate(`/azienda/render/bagno/gallery/${item.id}`)}
             >
-              {item.render_url ? (
+              {item.render_result_url ? (
                 <img
-                  src={item.render_url}
-                  alt={item.title ?? "Render"}
+                  src={item.render_result_url}
+                  alt={item.galleria_titolo ?? "Render bagno"}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
               ) : (
@@ -102,15 +103,13 @@ export default function RenderGallery() {
               {/* Overlay info */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
                 <p className="text-white text-xs font-medium truncate">
-                  {item.title ?? format(new Date(item.created_at), "d MMM yyyy", { locale: it })}
+                  {item.galleria_titolo ?? format(new Date(item.created_at), "d MMM yyyy", { locale: it })}
                 </p>
-                {item.tags && item.tags.length > 0 && (
-                  <div className="flex gap-1 mt-1 flex-wrap">
-                    {item.tags.slice(0, 2).map(tag => (
-                      <Badge key={tag} variant="secondary" className="text-[10px] py-0">
-                        {tag}
-                      </Badge>
-                    ))}
+                {item.tipo_intervento && (
+                  <div className="flex gap-1 mt-1">
+                    <Badge variant="secondary" className="text-[10px] py-0 capitalize">
+                      {item.tipo_intervento.replace(/_/g, " ")}
+                    </Badge>
                   </div>
                 )}
               </div>

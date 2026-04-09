@@ -1,0 +1,121 @@
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Building2 } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+export default function RenderFacciataGallery() {
+  const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ["render-facciata-gallery", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("render_facciata_sessions" as never)
+        .select("id, status, original_photo_url, result_urls, config, created_at")
+        .eq("company_id" as never, companyId as never)
+        .eq("status" as never, "completed" as never)
+        .order("created_at" as never, { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string;
+        status: string;
+        original_photo_url: string | null;
+        result_urls: string[] | null;
+        config: Record<string, unknown> | null;
+        created_at: string;
+      }[];
+    },
+    enabled: !!companyId,
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/facciata")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <GalleryHorizontalEnd className="h-5 w-5 text-orange-600" />
+            Galleria Facciata
+          </h1>
+          <p className="text-sm text-muted-foreground">{sessions.length} render completati</p>
+        </div>
+        <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nuovo render
+        </Button>
+      </div>
+
+      {/* Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+        </div>
+      ) : sessions.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
+            <Building2 className="h-14 w-14 text-muted-foreground/30" />
+            <div>
+              <p className="font-medium">Galleria vuota</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                I render facciata completati appariranno qui
+              </p>
+            </div>
+            <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Crea primo render
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {sessions.map(item => {
+            const resultUrl = item.result_urls?.[0];
+            const tipoIntervento = (item.config as { tipo_intervento?: string } | null)?.tipo_intervento;
+            return (
+              <div
+                key={item.id}
+                className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-orange-400 transition-all hover:shadow-md bg-muted"
+                onClick={() => navigate(`/azienda/render/facciata/gallery/${item.id}`)}
+              >
+                {resultUrl ? (
+                  <img
+                    src={resultUrl}
+                    alt="Render facciata"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Image className="h-8 w-8 text-muted-foreground/40" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
+                  <p className="text-white text-xs font-medium truncate">
+                    {format(new Date(item.created_at), "d MMM yyyy", { locale: it })}
+                  </p>
+                  {tipoIntervento && (
+                    <Badge variant="secondary" className="text-[10px] py-0 mt-1 w-fit capitalize">
+                      {tipoIntervento.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
