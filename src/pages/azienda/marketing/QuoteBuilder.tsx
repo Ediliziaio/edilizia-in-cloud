@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
+import { QuoteRenderPicker } from "@/components/render/QuoteRenderPicker";
 import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import {
@@ -602,6 +603,7 @@ export default function QuoteBuilder() {
   const [validityDays, setValidityDays] = useState(30);
   const [notes, setNotes] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
+  const [selectedRenders, setSelectedRenders] = useState<{ id: string; result_url: string | null; render_type: string; session_table: string }[]>([]);
 
   // P03: Step 0 extras
   const [tipoLavoro, setTipoLavoro] = useState("");
@@ -2431,6 +2433,13 @@ export default function QuoteBuilder() {
             )}
 
             {/* Documents */}
+            {/* Render AI allegati */}
+            <QuoteRenderPicker
+              contactId={contactId}
+              selectedRenderIds={selectedRenders.map(r => r.id)}
+              onSelectionChange={(renders) => setSelectedRenders(renders)}
+            />
+
             {selectedMaterials.length > 0 && (
               <div>
                 <h3 className="font-medium mb-2">
