@@ -115,7 +115,12 @@ export function CreateCustomerDialog({
       queryClient.invalidateQueries({ queryKey: ["customers", effectiveCompany?.id] });
 
       // Show password step
-      setCreatedCustomerId(data.user_id);
+      // L'edge function `create-customer` ritorna { customer: { id, ... } }
+      const newCustomerId = data?.customer?.id ?? data?.user_id ?? data?.customer_id;
+      if (!newCustomerId) {
+        throw new Error("Risposta non valida dal server (ID cliente mancante).");
+      }
+      setCreatedCustomerId(newCustomerId);
       setGeneratedPassword(data.password);
       setShowPasswordStep(true);
     } catch (error: any) {
