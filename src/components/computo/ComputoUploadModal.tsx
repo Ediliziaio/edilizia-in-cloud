@@ -5,8 +5,9 @@
  * Step 3: Processing AI (progress bar)
  * Step 4: Preview & Review (ComputoPreviewEditor)
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -100,6 +101,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
     setStep(1);
     setFile(null);
     setVociLocali([]);
+    hasInitializedRef.current = false;
     onOpenChange(false);
   };
 
@@ -107,9 +109,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXT.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
+      toast.error("Formato file non supportato. Usa PDF, Excel, XPWE o DCF.");
       return;
     }
     if (f.size > MAX_SIZE) {
+      toast.error("File troppo grande. Massimo 50MB.");
       return;
     }
     setFile(f);
@@ -133,19 +137,29 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
   };
 
   // When extraction reaches "review", jump to step 4
-  if (status === "review" && step === 3 && voci.length > 0 && vociLocali.length === 0) {
-    const ric = applyRicarico ? ricarico : 0;
-    setVociLocali(
-      voci.map((v) => ({
-        ...v,
-        _prezzoImpresa: v.prezzo_unitario_computo * (1 + ric / 100),
-        _ricarico: ric,
-        _importoImpresa: v.quantita * v.prezzo_unitario_computo * (1 + ric / 100),
-        _isIncluded: v.is_included,
-      }))
-    );
-    setStep(4);
-  }
+  const hasInitializedRef = useRef(false);
+  useEffect(() => {
+    if (status === "review" && step === 3 && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      if (voci.length === 0) {
+        // AI extracted zero voci — show error
+        toast.error("Nessuna voce estratta dal documento. Prova con un file diverso.");
+        setStep(3); // stay on step 3 with failed state
+        return;
+      }
+      const ric = applyRicarico ? ricarico : 0;
+      setVociLocali(
+        voci.map((v) => ({
+          ...v,
+          _prezzoImpresa: v.prezzo_unitario_computo * (1 + ric / 100),
+          _ricarico: ric,
+          _importoImpresa: v.quantita * v.prezzo_unitario_computo * (1 + ric / 100),
+          _isIncluded: v.is_included,
+        }))
+      );
+      setStep(4);
+    }
+  }, [status, step, voci, applyRicarico, ricarico]);
 
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {

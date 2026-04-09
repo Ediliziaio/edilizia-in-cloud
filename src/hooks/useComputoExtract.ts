@@ -2,7 +2,7 @@
  * Hook per gestire l'upload e l'estrazione AI di computi metrici.
  * Gestisce: upload file → invoca edge function → polling stato → carica voci estratte.
  */
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -238,14 +238,14 @@ export function useComputoExtract() {
           quote_id: quote.id,
           company_id: companyId,
           sort_order: index + 1,
-          item_type: "service" as const,
+          item_type: "product" as const,
           item_category: "prodotto" as const,
           name: voce.descrizione_breve,
           description: voce.descrizione_estesa || "",
           unit_of_measure: voce.unita_misura || "cad",
           quantity: voce.quantita,
           unit_price: voce.prezzo_unitario,
-          line_total: voce.importo,
+          line_total: voce.importo * (1 - (voce.sconto_percentuale || 0) / 100),
           discount_percent: voce.sconto_percentuale || 0,
           vat_rate: 10,
           computo_voce_id: voce.id,

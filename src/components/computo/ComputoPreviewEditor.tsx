@@ -94,7 +94,9 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
   const applyBulkRicaricoToCapitolo = (capNome: string) => {
     onChange(
       voci.map((v) => {
-        if (v.capitolo_nome !== capNome) return v;
+        // Match on capitolo_nome, treating null as "Generale"
+        const voceCapNome = v.capitolo_nome || "Generale";
+        if (voceCapNome !== capNome) return v;
         return {
           ...v,
           _ricarico: bulkRicarico,
