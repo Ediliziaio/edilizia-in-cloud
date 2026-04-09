@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, Ticket, ListChecks, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, Ticket, ListChecks, ShieldAlert, Palette } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ import { TabComunicazioni } from "@/components/admin/company/TabComunicazioni";
 import { TabSupporto } from "@/components/admin/company/TabSupporto";
 import { TabOnboarding } from "@/components/admin/company/TabOnboarding";
 import { AuditLogTab } from "@/components/admin/company/AuditLogTab";
+import { TabWhiteLabel } from "@/components/admin/company/TabWhiteLabel";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -222,6 +223,9 @@ export default function CompanyDetail() {
           <TabsTrigger value="onboarding" className="gap-1.5">
             <ListChecks className="h-3.5 w-3.5" /> Onboarding
           </TabsTrigger>
+          <TabsTrigger value="whitelabel" className="gap-1.5">
+            <Palette className="h-3.5 w-3.5" /> White-Label
+          </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ShieldAlert className="h-3.5 w-3.5" /> Audit Log
           </TabsTrigger>
@@ -319,6 +323,10 @@ export default function CompanyDetail() {
 
         <TabsContent value="onboarding">
           <TabOnboarding companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="whitelabel">
+          <TabWhiteLabel companyId={h.company.id} />
         </TabsContent>
 
         <TabsContent value="audit">

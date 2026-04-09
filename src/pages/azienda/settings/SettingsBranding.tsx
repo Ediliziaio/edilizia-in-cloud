@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useBranding } from "@/hooks/useBranding";
+import { useWhitelabelGate } from "@/hooks/useWhitelabelGate";
 import { useSaveSubdomain, useRequestDomainVerification, useVerifyCustomDomain } from "@/hooks/useBrandingByDomain";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -66,6 +67,7 @@ export default function SettingsBranding() {
   const { effectiveCompany, user } = useAuth();
   const { brand, effectiveBrand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
   const { branding: companyBranding } = useBranding();
+  const wlGate = useWhitelabelGate();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -164,7 +166,7 @@ export default function SettingsBranding() {
     );
   }
 
-  const isWhiteLabel = brand?.white_label_enabled ?? false;
+  const isWhiteLabel = wlGate.isWhiteLabel || (brand?.white_label_enabled ?? false);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -201,12 +203,15 @@ export default function SettingsBranding() {
             <div>
               <h3 className="text-lg font-semibold">White Label — Funzione Premium</h3>
               <p className="text-muted-foreground mt-1 max-w-md mx-auto">
-                Personalizza completamente il tuo brand: colori, nome piattaforma, favicon e sfondo login.
+                Personalizza completamente il tuo brand: colori, nome piattaforma, favicon, dominio personalizzato e molto altro.
               </p>
+              {wlGate.tier && wlGate.tier !== "none" && (
+                <Badge variant="secondary" className="mt-2">Piano attuale: {wlGate.tier}</Badge>
+              )}
             </div>
             <Button variant="outline" onClick={() => window.open("/cliente/assistenza", "_blank")}>
               <HeadphonesIcon className="h-4 w-4 mr-2" />
-              Contatta il Supporto
+              Contatta il Supporto per l'Upgrade
             </Button>
           </CardContent>
         </Card>
