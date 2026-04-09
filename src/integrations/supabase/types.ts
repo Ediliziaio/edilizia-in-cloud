@@ -5964,6 +5964,9 @@ export type Database = {
           brand_text_on_primary: string | null
           business_name: string | null
           company_size: string | null
+          computo_ai_monthly_count: number | null
+          computo_ai_monthly_limit: number | null
+          computo_ai_reset_date: string | null
           consecutive_payment_failures: number | null
           created_at: string
           dunning_started_at: string | null
@@ -6055,6 +6058,9 @@ export type Database = {
           brand_text_on_primary?: string | null
           business_name?: string | null
           company_size?: string | null
+          computo_ai_monthly_count?: number | null
+          computo_ai_monthly_limit?: number | null
+          computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
           dunning_started_at?: string | null
@@ -6146,6 +6152,9 @@ export type Database = {
           brand_text_on_primary?: string | null
           business_name?: string | null
           company_size?: string | null
+          computo_ai_monthly_count?: number | null
+          computo_ai_monthly_limit?: number | null
+          computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
           dunning_started_at?: string | null
@@ -7057,6 +7066,193 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      computo_uploads: {
+        Row: {
+          committente: string | null
+          company_id: string
+          created_at: string | null
+          data_computo: string | null
+          extraction_completed_at: string | null
+          extraction_confidence: number | null
+          extraction_error: string | null
+          extraction_method: string | null
+          extraction_status: string
+          file_name: string
+          file_size: number
+          file_type: string
+          id: string
+          oggetto_lavori: string | null
+          progettista: string | null
+          quote_id: string | null
+          raw_extracted_json: Json | null
+          storage_path: string
+          updated_at: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          committente?: string | null
+          company_id: string
+          created_at?: string | null
+          data_computo?: string | null
+          extraction_completed_at?: string | null
+          extraction_confidence?: number | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          extraction_status?: string
+          file_name: string
+          file_size: number
+          file_type: string
+          id?: string
+          oggetto_lavori?: string | null
+          progettista?: string | null
+          quote_id?: string | null
+          raw_extracted_json?: Json | null
+          storage_path: string
+          updated_at?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          committente?: string | null
+          company_id?: string
+          created_at?: string | null
+          data_computo?: string | null
+          extraction_completed_at?: string | null
+          extraction_confidence?: number | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          extraction_status?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          oggetto_lavori?: string | null
+          progettista?: string | null
+          quote_id?: string | null
+          raw_extracted_json?: Json | null
+          storage_path?: string
+          updated_at?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computo_uploads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "computo_uploads_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "computo_uploads_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
+      computo_voci_estratte: {
+        Row: {
+          ai_notes: string | null
+          capitolo_nome: string | null
+          capitolo_numero: number | null
+          codice_prezzario: string | null
+          codice_voce: string | null
+          company_id: string
+          computo_upload_id: string
+          confidence: number | null
+          created_at: string | null
+          descrizione_breve: string
+          descrizione_estesa: string | null
+          id: string
+          importo_computo: number | null
+          importo_impresa: number | null
+          is_included: boolean | null
+          is_modified: boolean | null
+          ordine: number | null
+          prezzo_unitario_computo: number | null
+          prezzo_unitario_impresa: number | null
+          quantita: number | null
+          ricarico_percentuale: number | null
+          sconto_percentuale: number | null
+          unita_misura: string | null
+          warnings: string[] | null
+        }
+        Insert: {
+          ai_notes?: string | null
+          capitolo_nome?: string | null
+          capitolo_numero?: number | null
+          codice_prezzario?: string | null
+          codice_voce?: string | null
+          company_id: string
+          computo_upload_id: string
+          confidence?: number | null
+          created_at?: string | null
+          descrizione_breve: string
+          descrizione_estesa?: string | null
+          id?: string
+          importo_computo?: number | null
+          importo_impresa?: number | null
+          is_included?: boolean | null
+          is_modified?: boolean | null
+          ordine?: number | null
+          prezzo_unitario_computo?: number | null
+          prezzo_unitario_impresa?: number | null
+          quantita?: number | null
+          ricarico_percentuale?: number | null
+          sconto_percentuale?: number | null
+          unita_misura?: string | null
+          warnings?: string[] | null
+        }
+        Update: {
+          ai_notes?: string | null
+          capitolo_nome?: string | null
+          capitolo_numero?: number | null
+          codice_prezzario?: string | null
+          codice_voce?: string | null
+          company_id?: string
+          computo_upload_id?: string
+          confidence?: number | null
+          created_at?: string | null
+          descrizione_breve?: string
+          descrizione_estesa?: string | null
+          id?: string
+          importo_computo?: number | null
+          importo_impresa?: number | null
+          is_included?: boolean | null
+          is_modified?: boolean | null
+          ordine?: number | null
+          prezzo_unitario_computo?: number | null
+          prezzo_unitario_impresa?: number | null
+          quantita?: number | null
+          ricarico_percentuale?: number | null
+          sconto_percentuale?: number | null
+          unita_misura?: string | null
+          warnings?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computo_voci_estratte_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "computo_voci_estratte_computo_upload_id_fkey"
+            columns: ["computo_upload_id"]
+            isOneToOne: false
+            referencedRelation: "computo_uploads"
             referencedColumns: ["id"]
           },
         ]
@@ -18415,6 +18611,88 @@ export type Database = {
           },
         ]
       }
+      prezzari: {
+        Row: {
+          anno: number
+          company_id: string | null
+          created_at: string | null
+          fonte: string | null
+          id: string
+          is_default: boolean | null
+          nome: string
+          regione: string | null
+        }
+        Insert: {
+          anno: number
+          company_id?: string | null
+          created_at?: string | null
+          fonte?: string | null
+          id?: string
+          is_default?: boolean | null
+          nome: string
+          regione?: string | null
+        }
+        Update: {
+          anno?: number
+          company_id?: string | null
+          created_at?: string | null
+          fonte?: string | null
+          id?: string
+          is_default?: boolean | null
+          nome?: string
+          regione?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prezzari_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prezzario_voci: {
+        Row: {
+          categoria: string | null
+          codice: string
+          descrizione: string
+          id: string
+          prezzario_id: string
+          prezzo: number | null
+          sotto_categoria: string | null
+          unita_misura: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          codice: string
+          descrizione: string
+          id?: string
+          prezzario_id: string
+          prezzo?: number | null
+          sotto_categoria?: string | null
+          unita_misura?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          codice?: string
+          descrizione?: string
+          id?: string
+          prezzario_id?: string
+          prezzo?: number | null
+          sotto_categoria?: string | null
+          unita_misura?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prezzario_voci_prezzario_id_fkey"
+            columns: ["prezzario_id"]
+            isOneToOne: false
+            referencedRelation: "prezzari"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prima_nota_entries: {
         Row: {
           account_label: string | null
@@ -18987,7 +19265,9 @@ export type Database = {
       quote_items: {
         Row: {
           article_template_id: string | null
+          codice_prezzario: string | null
           company_id: string
+          computo_voce_id: string | null
           created_at: string
           custom_field_values: Json | null
           description: string | null
@@ -19016,7 +19296,9 @@ export type Database = {
         }
         Insert: {
           article_template_id?: string | null
+          codice_prezzario?: string | null
           company_id: string
+          computo_voce_id?: string | null
           created_at?: string
           custom_field_values?: Json | null
           description?: string | null
@@ -19045,7 +19327,9 @@ export type Database = {
         }
         Update: {
           article_template_id?: string | null
+          codice_prezzario?: string | null
           company_id?: string
+          computo_voce_id?: string | null
           created_at?: string
           custom_field_values?: Json | null
           description?: string | null
@@ -19085,6 +19369,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_computo_voce_id_fkey"
+            columns: ["computo_voce_id"]
+            isOneToOne: false
+            referencedRelation: "computo_voci_estratte"
             referencedColumns: ["id"]
           },
           {
@@ -19402,6 +19693,7 @@ export type Database = {
           client_phone: string | null
           client_vat_number: string | null
           company_id: string
+          computo_upload_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string
@@ -19430,6 +19722,7 @@ export type Database = {
           signed_at: string | null
           signed_by_ip: string | null
           signed_by_name: string | null
+          source: string | null
           status: string
           subtotal: number | null
           template_id: string | null
@@ -19455,6 +19748,7 @@ export type Database = {
           client_phone?: string | null
           client_vat_number?: string | null
           company_id: string
+          computo_upload_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by: string
@@ -19483,6 +19777,7 @@ export type Database = {
           signed_at?: string | null
           signed_by_ip?: string | null
           signed_by_name?: string | null
+          source?: string | null
           status?: string
           subtotal?: number | null
           template_id?: string | null
@@ -19508,6 +19803,7 @@ export type Database = {
           client_phone?: string | null
           client_vat_number?: string | null
           company_id?: string
+          computo_upload_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string
@@ -19536,6 +19832,7 @@ export type Database = {
           signed_at?: string | null
           signed_by_ip?: string | null
           signed_by_name?: string | null
+          source?: string | null
           status?: string
           subtotal?: number | null
           template_id?: string | null
@@ -19557,6 +19854,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_computo_upload_id_fkey"
+            columns: ["computo_upload_id"]
+            isOneToOne: false
+            referencedRelation: "computo_uploads"
             referencedColumns: ["id"]
           },
           {

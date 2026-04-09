@@ -23,6 +23,7 @@ interface QuoteRow {
   total: number | null;
   created_at: string;
   expires_at: string | null;
+  source?: string | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -98,7 +99,10 @@ import {
   Clock,
   Target,
   BrainCircuit,
+  FileUp,
+  Sparkles,
 } from "lucide-react";
+import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 
 export default function Preventivi() {
   const { effectiveCompany, user, role } = useAuth();
@@ -117,6 +121,7 @@ export default function Preventivi() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [showComputoModal, setShowComputoModal] = useState(false);
   const PAGE_SIZE = 50;
 
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
@@ -136,7 +141,7 @@ export default function Preventivi() {
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
@@ -395,6 +400,10 @@ export default function Preventivi() {
               Esporta Excel
             </Button>
           )}
+          <Button variant="outline" onClick={() => setShowComputoModal(true)}>
+            <FileUp className="h-4 w-4 mr-2" />
+            Da Computo Metrico
+          </Button>
           <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
             <Plus className="h-4 w-4 mr-2" />
             Nuovo Preventivo
@@ -522,10 +531,16 @@ export default function Preventivi() {
           <FileSignature className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
           <h3 className="text-lg font-medium mb-1">Nessun preventivo</h3>
           <p className="text-muted-foreground mb-4">Crea il tuo primo preventivo</p>
-          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuovo Preventivo
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" onClick={() => setShowComputoModal(true)}>
+              <FileUp className="h-4 w-4 mr-2" />
+              Da Computo Metrico
+            </Button>
+            <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo Preventivo
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="border rounded-lg">
@@ -550,7 +565,15 @@ export default function Preventivi() {
                     className="cursor-pointer"
                     onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
                   >
-                    <TableCell className="font-mono text-sm">{q.quote_number}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {q.quote_number}
+                      {q.source === "computo_ai" && (
+                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
+                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                          Computo AI
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{q.client_name || "—"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
                     <TableCell>
@@ -663,6 +686,13 @@ export default function Preventivi() {
       )}
 
       {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
+
+      {/* Modal Computo Metrico AI */}
+      <ComputoUploadModal
+        open={showComputoModal}
+        onOpenChange={setShowComputoModal}
+        onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+      />
     </div>
   );
 }

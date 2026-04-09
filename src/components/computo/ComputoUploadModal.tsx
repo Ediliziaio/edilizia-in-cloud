@@ -1,0 +1,450 @@
+/**
+ * Modal a 4 step per upload computo metrico e generazione preventivo AI.
+ * Step 1: Upload file (drag & drop)
+ * Step 2: Configurazione (cliente, ricarico)
+ * Step 3: Processing AI (progress bar)
+ * Step 4: Preview & Review (ComputoPreviewEditor)
+ */
+import { useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  FileUp,
+  FileText,
+  FileSpreadsheet,
+  FileCode,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  Upload,
+  Image as ImageIcon,
+} from "lucide-react";
+import { useComputoExtract } from "@/hooks/useComputoExtract";
+import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
+import type { ComputoVoceLocal } from "@/types/computo";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onComplete?: (quoteId: string) => void;
+}
+
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/xml",
+  "application/xml",
+  "image/jpeg",
+  "image/png",
+];
+const ACCEPTED_EXT = [".pdf", ".xlsx", ".xls", ".xpwe", ".dcf", ".jpg", ".jpeg", ".png"];
+const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIcon(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return <FileText className="h-8 w-8 text-red-500" />;
+  if (ext === "xlsx" || ext === "xls") return <FileSpreadsheet className="h-8 w-8 text-green-600" />;
+  if (ext === "xpwe" || ext === "dcf") return <FileCode className="h-8 w-8 text-blue-500" />;
+  if (["jpg", "jpeg", "png"].includes(ext || "")) return <ImageIcon className="h-8 w-8 text-purple-500" />;
+  return <FileUp className="h-8 w-8 text-slate-400" />;
+}
+
+export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
+  const navigate = useNavigate();
+  const {
+    status,
+    progress,
+    error,
+    voci,
+    vociLoading,
+    computoUpload,
+    upload,
+    isUploading,
+    generatePreventivo,
+    isGenerating,
+    reset,
+  } = useComputoExtract();
+
+  const [step, setStep] = useState(1);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [ricarico, setRicarico] = useState(15);
+  const [applyRicarico, setApplyRicarico] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voci locali per il preview editor
+  const [vociLocali, setVociLocali] = useState<ComputoVoceLocal[]>([]);
+
+  const handleClose = () => {
+    reset();
+    setStep(1);
+    setFile(null);
+    setVociLocali([]);
+    onOpenChange(false);
+  };
+
+  // ── Step 1: File selection ─────────────────────────────────────────────────
+  const handleFileSelect = useCallback((f: File) => {
+    const ext = "." + f.name.split(".").pop()?.toLowerCase();
+    if (!ACCEPTED_EXT.includes(ext) && !ACCEPTED_TYPES.includes(f.type)) {
+      return;
+    }
+    if (f.size > MAX_SIZE) {
+      return;
+    }
+    setFile(f);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const f = e.dataTransfer.files[0];
+      if (f) handleFileSelect(f);
+    },
+    [handleFileSelect]
+  );
+
+  // ── Step 2 → 3: Start processing ──────────────────────────────────────────
+  const handleStartProcessing = () => {
+    if (!file) return;
+    setStep(3);
+    upload(file);
+  };
+
+  // When extraction reaches "review", jump to step 4
+  if (status === "review" && step === 3 && voci.length > 0 && vociLocali.length === 0) {
+    const ric = applyRicarico ? ricarico : 0;
+    setVociLocali(
+      voci.map((v) => ({
+        ...v,
+        _prezzoImpresa: v.prezzo_unitario_computo * (1 + ric / 100),
+        _ricarico: ric,
+        _importoImpresa: v.quantita * v.prezzo_unitario_computo * (1 + ric / 100),
+        _isIncluded: v.is_included,
+      }))
+    );
+    setStep(4);
+  }
+
+  // ── Step 4 → Generate ──────────────────────────────────────────────────────
+  const handleGenerate = () => {
+    const incluse = vociLocali
+      .filter((v) => v._isIncluded)
+      .map((v) => ({
+        id: v.id,
+        is_included: true,
+        descrizione_breve: v.descrizione_breve,
+        descrizione_estesa: v.descrizione_estesa,
+        capitolo_nome: v.capitolo_nome,
+        codice_voce: v.codice_voce,
+        codice_prezzario: v.codice_prezzario,
+        unita_misura: v.unita_misura,
+        quantita: v.quantita,
+        prezzo_unitario: v._prezzoImpresa,
+        importo: v._importoImpresa,
+        sconto_percentuale: v.sconto_percentuale || 0,
+      }));
+
+    generatePreventivo(
+      {
+        vociIncluse: incluse,
+        config: {
+          oggetto: computoUpload?.oggetto_lavori || undefined,
+        },
+      },
+      {
+        onSuccess: (quoteId: string) => {
+          handleClose();
+          if (onComplete) {
+            onComplete(quoteId);
+          } else {
+            navigate(`/azienda/marketing/preventivi/${quoteId}`);
+          }
+        },
+      }
+    );
+  };
+
+  // ── Progress percentage ────────────────────────────────────────────────────
+  const progressPercent = (() => {
+    switch (status) {
+      case "uploading": return 15;
+      case "extracting_text": return 30;
+      case "analyzing_ai": return 60;
+      case "validating": return 85;
+      case "review": return 100;
+      case "failed": return 100;
+      default: return 0;
+    }
+  })();
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className={step === 4 ? "max-w-6xl max-h-[90vh] overflow-hidden flex flex-col" : "sm:max-w-lg"}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-orange-500" />
+            {step === 1 && "Importa Computo Metrico"}
+            {step === 2 && "Configurazione"}
+            {step === 3 && "Estrazione AI in corso..."}
+            {step === 4 && "Revisione Voci Estratte"}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* ── Step 1: Upload ────────────────────────────────────────────── */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                dragOver ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:border-slate-300"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept={ACCEPTED_EXT.join(",")}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileSelect(f);
+                }}
+              />
+              {file ? (
+                <div className="flex items-center gap-3 justify-center">
+                  {getFileIcon(file.name)}
+                  <div className="text-left">
+                    <p className="font-medium text-sm">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+                  <p className="text-sm font-medium">Trascina qui il computo metrico</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PDF, Excel (.xlsx), XPWE, DCF — Max 50MB
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={() => setStep(2)} disabled={!file}>
+                Avanti <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Config ────────────────────────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              {file && getFileIcon(file.name)}
+              <div>
+                <p className="text-sm font-medium">{file?.name}</p>
+                <p className="text-xs text-muted-foreground">{file && formatBytes(file.size)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="applyRicarico"
+                  checked={applyRicarico}
+                  onChange={(e) => setApplyRicarico(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="applyRicarico" className="text-sm">
+                  Applica ricarico automatico ai prezzi
+                </Label>
+              </div>
+              {applyRicarico && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm min-w-fit">Ricarico %</Label>
+                  <Input
+                    type="number"
+                    value={ricarico}
+                    onChange={(e) => setRicarico(Number(e.target.value))}
+                    min={0}
+                    max={100}
+                    className="w-24"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+              </Button>
+              <Button onClick={handleStartProcessing} disabled={isUploading}>
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Avvia Estrazione AI
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Processing ────────────────────────────────────────── */}
+        {step === 3 && (
+          <div className="space-y-6 py-4">
+            <div className="text-center">
+              {status === "failed" ? (
+                <XCircle className="h-12 w-12 mx-auto text-red-500 mb-3" />
+              ) : (
+                <Loader2 className="h-12 w-12 mx-auto text-orange-500 animate-spin mb-3" />
+              )}
+              <p className="text-sm font-medium">{progress}</p>
+              {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+            </div>
+
+            <Progress value={progressPercent} className="h-2" />
+
+            <p className="text-xs text-center text-muted-foreground">
+              {status === "failed"
+                ? "L'estrazione ha riscontrato un errore. Riprova con un file diverso."
+                : "L'AI sta analizzando il computo metrico..."}
+            </p>
+
+            {status === "failed" && (
+              <div className="flex justify-center">
+                <Button variant="outline" onClick={() => { reset(); setStep(1); setFile(null); }}>
+                  Riprova
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Step 4: Preview Editor ────────────────────────────────────── */}
+        {step === 4 && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {/* Metadata header */}
+            {computoUpload && (
+              <div className="flex items-center gap-4 text-xs text-muted-foreground pb-3 border-b mb-3 flex-wrap">
+                {computoUpload.oggetto_lavori && (
+                  <span><strong>Oggetto:</strong> {computoUpload.oggetto_lavori}</span>
+                )}
+                {computoUpload.committente && (
+                  <span><strong>Committente:</strong> {computoUpload.committente}</span>
+                )}
+                {computoUpload.extraction_method && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {computoUpload.extraction_method.replace("_", " ")}
+                  </Badge>
+                )}
+                {computoUpload.extraction_confidence != null && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      computoUpload.extraction_confidence > 0.85
+                        ? "border-green-400 text-green-600"
+                        : computoUpload.extraction_confidence > 0.7
+                        ? "border-amber-400 text-amber-600"
+                        : "border-red-400 text-red-600"
+                    }`}
+                  >
+                    Confidence: {(computoUpload.extraction_confidence * 100).toFixed(0)}%
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="flex gap-4 text-xs mb-3">
+              <span>
+                <strong>{vociLocali.filter((v) => v._isIncluded).length}</strong> /{" "}
+                {vociLocali.length} voci incluse
+              </span>
+              <span>
+                <strong>
+                  {new Set(vociLocali.map((v) => v.capitolo_nome)).size}
+                </strong>{" "}
+                capitoli
+              </span>
+            </div>
+
+            {/* Editor table */}
+            <div className="flex-1 overflow-auto">
+              <ComputoPreviewEditor
+                voci={vociLocali}
+                onChange={setVociLocali}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t mt-3">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Totale impresa: </span>
+                <strong className="text-orange-600">
+                  {new Intl.NumberFormat("it-IT", {
+                    style: "currency",
+                    currency: "EUR",
+                  }).format(
+                    vociLocali
+                      .filter((v) => v._isIncluded)
+                      .reduce((s, v) => s + v._importoImpresa, 0)
+                  )}
+                </strong>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleClose}>
+                  Annulla
+                </Button>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || vociLocali.filter((v) => v._isIncluded).length === 0}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                  )}
+                  Genera Preventivo
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
