@@ -50,7 +50,6 @@ import {
   Image,
   Wrench,
   Settings,
-  MousePointerClick,
   Calculator,
   ShieldCheck,
 } from "lucide-react";

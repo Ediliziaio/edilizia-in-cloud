@@ -8,7 +8,6 @@
  * Cache-Control: max-age=300 (5 min) to reduce DB load.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 

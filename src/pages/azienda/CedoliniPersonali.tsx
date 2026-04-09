@@ -5,8 +5,6 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Receipt, Download, Loader2, UserX, ChevronDown, ChevronUp, ShieldAlert,
 } from "lucide-react";

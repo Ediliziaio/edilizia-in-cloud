@@ -1,4 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";

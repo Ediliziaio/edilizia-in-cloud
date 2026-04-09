@@ -1,7 +1,7 @@
 // nps-survey-respond: public endpoint to record NPS survey responses
 // Validates token, records score + feedback, marks as responded.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

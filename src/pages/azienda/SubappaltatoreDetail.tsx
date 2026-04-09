@@ -24,8 +24,7 @@ import {
   Alert, AlertDescription,
 } from '@/components/ui/alert';
 import {
-  ArrowLeft, HardHat, FileText, Euro, Shield, Loader2, Plus,
-  Upload, AlertTriangle, CheckCircle2, ExternalLink, Check,
+  ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink, Check,
 } from 'lucide-react';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,

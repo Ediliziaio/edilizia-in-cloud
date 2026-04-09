@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getAvatarColor, getInitials } from "@/lib/contactUtils";
+import { getAvatarColor } from "@/lib/contactUtils";
 import type { TecnicoLivePosition } from "@/types/fleet";
 
 const STALE_THRESHOLD_SEC = 120; // tecnico considerato "offline" dopo 2 min

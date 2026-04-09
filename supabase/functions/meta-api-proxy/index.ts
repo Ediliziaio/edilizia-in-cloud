@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 

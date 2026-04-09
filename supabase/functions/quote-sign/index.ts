@@ -1,4 +1,4 @@
-import { corsHeaders, getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /**

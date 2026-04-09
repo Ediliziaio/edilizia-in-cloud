@@ -21,7 +21,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
-import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
 const SUPPORT_PHONE = "+39 0424 123456";

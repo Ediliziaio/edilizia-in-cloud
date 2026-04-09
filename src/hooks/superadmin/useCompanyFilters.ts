@@ -121,10 +121,10 @@ export function useCompanyFilters(initialFilters: CompanyFilters = EMPTY_FILTERS
 
 /** Costruisce la query Supabase aggiungendo i filtri di segmentazione */
 export function applyFiltersToQuery(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   query: ReturnType<typeof Object.create>,
   filters: CompanyFilters
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
 ): ReturnType<typeof Object.create> {
   if (filters.regions.length > 0) query = query.in("region", filters.regions);
   if (filters.sizes.length > 0) query = query.in("company_size", filters.sizes);

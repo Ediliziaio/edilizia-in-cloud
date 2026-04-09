@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const MAX_RETRIES = 10;

@@ -9,7 +9,7 @@ import {
   determineStatus,
 } from "./scoring.ts";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 interface DirectionsLeg {
   distance_m: number;

@@ -6,8 +6,7 @@ import { useState, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  AlertTriangle, Clock, ShieldCheck, Shield, Download, Filter,
-  Loader2, Users, FileText,
+  AlertTriangle, Clock, ShieldCheck, Shield, Download, Filter, Users, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

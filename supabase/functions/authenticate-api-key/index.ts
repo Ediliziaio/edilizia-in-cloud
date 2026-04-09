@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, errorResponse, jsonResponse, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse, secureHeaders } from "../_shared/headers.ts";
 
 /**
  * Edge Function: authenticate-api-key

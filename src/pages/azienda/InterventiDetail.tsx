@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, MapPin, User, Calendar, Clock, FileText,
-  ExternalLink, Wrench, Plus, AlertCircle, CheckCircle2, Loader2
+  ExternalLink, Plus, AlertCircle, CheckCircle2, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";

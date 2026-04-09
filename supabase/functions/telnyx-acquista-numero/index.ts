@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
     if (!account) return json({ error: "Account Telnyx non trovato. Contatta il supporto." }, 404);
 
     let telnyxPhoneNumberId = `mock_num_${numero_e164.replace(/[^0-9]/g, "")}`;
-    let messagingProfileId  = `mock_profile_${company_id.slice(0, 8)}`;
+    const messagingProfileId  = `mock_profile_${company_id.slice(0, 8)}`;
 
     // Acquisto reale se API key disponibile
     if (masterApiKey) {

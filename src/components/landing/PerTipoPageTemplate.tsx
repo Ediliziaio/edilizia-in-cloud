@@ -9,7 +9,7 @@ import {
   CheckCircle2, ArrowRight, Star, TrendingUp, Clock, Shield,
   ChevronDown, ChevronUp, XCircle, Zap,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
 

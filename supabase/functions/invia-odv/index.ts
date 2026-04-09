@@ -1,6 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 
 Deno.serve(async (req) => {

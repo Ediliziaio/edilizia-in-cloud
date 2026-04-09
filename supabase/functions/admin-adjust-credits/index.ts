@@ -1,6 +1,5 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { getCorsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

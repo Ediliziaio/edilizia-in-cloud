@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Plus, ChevronRight, CheckCircle, Clock, XCircle,
+  Plus, CheckCircle, Clock, XCircle,
   FileText, Loader2, Euro, AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";

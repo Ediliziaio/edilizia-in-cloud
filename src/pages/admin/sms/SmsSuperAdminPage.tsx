@@ -3,7 +3,7 @@
  * P&L globale, tabella tenant, editor prezzi e pacchetti.
  */
 import { useState } from "react";
-import { BarChart3, Users, Euro, TrendingUp, Loader2, Settings2, RefreshCw } from "lucide-react";
+import { BarChart3, Users, Euro, TrendingUp, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";

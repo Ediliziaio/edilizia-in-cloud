@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
-import Home from "@/pages/Home";
 
 // Extend window type for GA4 gtag
 declare global {

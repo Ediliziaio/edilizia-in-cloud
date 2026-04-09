@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { HardHat, ExternalLink, AlertTriangle } from 'lucide-react';
+import { HardHat, ExternalLink } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard } from '@/types/subappaltatori';
 

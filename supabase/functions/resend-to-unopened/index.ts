@@ -14,7 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 // How many hours after campaign completion to re-send to non-openers
 const DEFAULT_RESEND_DELAY_HOURS = 24;

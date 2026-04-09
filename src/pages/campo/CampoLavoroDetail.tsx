@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ArrowLeft, MapPin, Phone, Plus, AlertCircle,
-  CheckCircle, Clock, ChevronRight, Loader2, FileText,
+  CheckCircle, Clock, Loader2, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";

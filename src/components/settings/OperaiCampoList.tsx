@@ -2,15 +2,13 @@
  * Lista degli operai (ruolo employee) con gestione documenti e cantieri.
  * Usato nel tab "Operai" di SettingsPeople.tsx.
  */
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
 import { HardHat, ExternalLink, Loader2, UserCheck, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 
 export function OperaiCampoList() {
   const { effectiveCompany } = useAuth();

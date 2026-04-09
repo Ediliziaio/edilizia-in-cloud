@@ -30,8 +30,6 @@ import {
   ClipboardList,
   Info,
 } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -192,7 +190,7 @@ export default function ChiusuraIntervento() {
 
       // 2. Determine or create rapportino
       let rapportinoId: string;
-      let nextNumero = 1;
+      const nextNumero = 1;
 
       if (rapportiniEsistenti.length > 0) {
         // Use the most recent one

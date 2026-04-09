@@ -12,9 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ArrowRight, Upload, Image as ImageIcon, Loader2, Zap,
+  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
   CheckCircle2, Download, Share2, RefreshCw, Wand2, ChevronDown, ChevronUp,
-  AlertTriangle,
 } from "lucide-react";
 
 import { RenderConfigForm, type RenderConfig } from "@/components/render/RenderConfigForm";

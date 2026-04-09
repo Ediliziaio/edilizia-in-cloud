@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getGoCardlessToken } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {

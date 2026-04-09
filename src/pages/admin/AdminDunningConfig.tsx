@@ -181,8 +181,6 @@ function StatusBadge({ status, permanent }: { status: string; permanent?: boolea
 
 export default function AdminDunningConfig() {
   const { permissions } = useSuperAdminPermissions();
-  if (!permissions.billing_write) return <AccessDenied />;
-
   const qc = useQueryClient();
   const { data: stats } = useDunningStats();
   const { data: attempts = [], isLoading: attemptsLoading } = useDunningAttempts();
@@ -242,6 +240,9 @@ export default function AdminDunningConfig() {
   });
 
   const permanentFails = attempts.filter((a) => a.permanently_failed);
+
+  // Guard DOPO tutti gli hooks (Rules of Hooks)
+  if (!permissions.billing_write) return <AccessDenied />;
 
   return (
     <div className="space-y-6">

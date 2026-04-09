@@ -5,12 +5,11 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, differenceInMinutes, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { format, differenceInMinutes, parseISO, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   LogIn, LogOut, Coffee, PauseCircle, Clock, CalendarDays,
-  Building2, AlertTriangle, CheckCircle2, Loader2, UserX,
-  ChevronLeft, ChevronRight, ShieldAlert,
+  Building2, AlertTriangle, CheckCircle2, Loader2, UserX, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

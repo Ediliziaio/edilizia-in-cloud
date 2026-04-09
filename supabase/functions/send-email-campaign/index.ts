@@ -3,7 +3,7 @@ import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

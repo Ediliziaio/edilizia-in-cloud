@@ -3,7 +3,6 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { CheckCircle2, Circle, Clock, Play, SkipForward, Plus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";

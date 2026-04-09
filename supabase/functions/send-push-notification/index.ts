@@ -21,7 +21,6 @@
  * }
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
 
 // Usa npm: specifier (supportato in Supabase Edge Functions / Deno 1.37+)
 import webpush from "npm:web-push@3.6.7";

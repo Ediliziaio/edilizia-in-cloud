@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ChevronLeft, Wrench, Calendar, Eye, Zap, CheckCircle2, ArrowRight } from "lucide-react";
+import { Loader2, ChevronLeft, Wrench, CheckCircle2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

@@ -81,23 +81,25 @@ export default function BlogCategory() {
   const { slug } = useParams<{ slug: string }>();
   const meta = slug ? CATEGORY_MAP[slug] : undefined;
 
-  // Redirect to blog if slug unknown
-  if (!meta) return <Navigate to="/blog" replace />;
-
   const posts = useMemo(
     () =>
-      blogPosts
-        .filter((p) => p.category === meta.category)
-        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()),
-    [meta.category]
+      meta
+        ? blogPosts
+            .filter((p) => p.category === meta.category)
+            .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+        : [],
+    [meta]
   );
 
   useSEO({
-    title: meta.title,
-    description: meta.description,
-    canonical: `/blog/categoria/${slug}`,
-    keywords: `${meta.category.toLowerCase()} edilizia, guide ${meta.category.toLowerCase()}, articoli ${meta.category.toLowerCase()} impresa edile`,
+    title: meta?.title ?? "Blog",
+    description: meta?.description ?? "",
+    canonical: slug ? `/blog/categoria/${slug}` : "/blog",
+    keywords: meta ? `${meta.category.toLowerCase()} edilizia, guide ${meta.category.toLowerCase()}, articoli ${meta.category.toLowerCase()} impresa edile` : "",
   });
+
+  // Redirect to blog if slug unknown (DOPO i hooks)
+  if (!meta) return <Navigate to="/blog" replace />;
 
   const colorClass = categoryColors[meta.category] ?? "bg-gray-100 text-gray-700";
   const [featured, ...rest] = posts;

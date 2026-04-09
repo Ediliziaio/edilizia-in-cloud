@@ -5,15 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
-import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText, AlertCircle } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/formatters";
+import { ArrowLeft, MessageSquare, FileText, AlertCircle } from "lucide-react";
+import { formatDate } from "@/lib/formatters";
 import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
 export default function CustomerOrderDetail() {

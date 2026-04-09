@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
-import { generateXML, escXml, fmtNum, fmtDate, naturaToXml, TIPO_TO_TD, TIPI_INVERSIONE } from "../_shared/generateXML.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
+import { generateXML } from "../_shared/generateXML.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
     // ── Firma digitale per PA ──
     // Le fatture verso PA (FPA12) devono essere firmate digitalmente (CAdES-BES / p7m)
     const requiresFirma = isPaCliente;
-    let xmlToSend = xml;
+    const xmlToSend = xml;
     let firmatoP7m = false;
     let p7mUrl: string | null = null;
 

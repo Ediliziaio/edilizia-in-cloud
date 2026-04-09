@@ -452,9 +452,6 @@ function CampaigneTab() {
 
 export default function AdminCRM() {
   const { permissions } = useSuperAdminPermissions();
-  if (!permissions.can_view_platform_stats && !permissions.can_manage_admins) {
-    return <AccessDenied />;
-  }
 
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
@@ -469,6 +466,11 @@ export default function AdminCRM() {
   });
 
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
+
+  // Guard DOPO tutti gli hooks (Rules of Hooks)
+  if (!permissions.can_view_platform_stats && !permissions.can_manage_admins) {
+    return <AccessDenied />;
+  }
 
   const handleSearch = () => {
     setSearch(searchInput);

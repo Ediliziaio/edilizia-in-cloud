@@ -3,11 +3,8 @@
  */
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
-import {
-  User, Mail, Phone, Building2, LogOut,
-  ShieldCheck, HardHat, Loader2,
+import { Mail, Phone, Building2, LogOut,
+  ShieldCheck, HardHat,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";

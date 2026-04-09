@@ -6,7 +6,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   getCorsHeaders,
-  secureHeaders,
   errorResponse,
   jsonResponse,
 } from "../_shared/headers.ts";

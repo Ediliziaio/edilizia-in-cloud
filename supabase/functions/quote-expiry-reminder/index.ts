@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 /**

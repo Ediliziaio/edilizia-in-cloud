@@ -6,7 +6,6 @@
  * Usa service_role key — mai esporre al frontend.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   getCorsHeaders,
   errorResponse,

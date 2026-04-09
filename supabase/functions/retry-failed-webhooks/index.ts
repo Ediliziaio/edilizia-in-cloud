@@ -4,7 +4,7 @@
  * Ritenta i webhook falliti con backoff esponenziale (5m → 15m → 60m).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const BACKOFF_MINUTES = [5, 15, 60]; // minuti di attesa per ogni tentativo
 

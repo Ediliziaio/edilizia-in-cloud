@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 // meta-health-check does not use META_APP_ID/SECRET directly (only checks DB state)
 // No getMetaCredentials import needed here
 

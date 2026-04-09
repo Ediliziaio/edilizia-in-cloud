@@ -35,7 +35,7 @@ import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
 import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/company/CompanyFilterPresets";
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
-import { useCompanyFilters, EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
+import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { formatCurrency } from '@/lib/formatters';
-import { toast } from 'sonner';
 import { useRitenuteGaranzia } from '@/hooks/useRitenuteGaranzia';
 import { RitenuteTable } from './RitenuteTable';
 import { RitenutaFormModal } from './RitenutaFormModal';

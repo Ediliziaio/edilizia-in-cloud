@@ -6,13 +6,13 @@
  * 4. Firma cliente (canvas touch)
  * 5. Conferma e invio
  */
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Check, Loader2, Send, PenLine
+  Camera, X, Minus, Plus, Loader2, Send, PenLine
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";

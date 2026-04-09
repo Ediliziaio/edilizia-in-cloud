@@ -3,12 +3,12 @@
  * Flusso: Entrata → Pausa inizio → Pausa fine → Uscita
  * Storico ultimi 14 giorni.
  */
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, differenceInMinutes, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  LogIn, LogOut, Coffee, MapPin, Clock,
+  LogIn, LogOut, Coffee,
   CheckCircle, Loader2, AlertCircle, Navigation, PauseCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";

@@ -259,21 +259,8 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
 
   const isLoading = loadingStati || loadingGiornale || loadingSal || loadingVarianti || loadingRapportini;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="flex gap-4">
-            <Skeleton className="w-10 h-10 rounded-full shrink-0" />
-            <Skeleton className="flex-1 h-20 rounded-lg" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  // 5. Merge e sort tutti gli eventi — memoizzato per evitare re-sort ad ogni render
-  const events: TimelineEvent[] = useMemo(() => [
+  // Merge e sort tutti gli eventi — memoizzato per evitare re-sort ad ogni render (PRIMA del guard)
+  const events: TimelineEvent[] = useMemo(() => isLoading ? [] : [
     ...statusHistory.map(s => ({
       id: `stato-${s.id}`,
       type: 'stato' as EventType,
@@ -329,7 +316,22 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
   ]
     .filter(e => !!e.date)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-  [statusHistory, giornale, sal, varianti, rapportini]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [isLoading, statusHistory, giornale, sal, varianti, rapportini]);
+
+  // Guard loading DOPO gli hooks
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex gap-4">
+            <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+            <Skeleton className="flex-1 h-20 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (events.length === 0) {
     return (

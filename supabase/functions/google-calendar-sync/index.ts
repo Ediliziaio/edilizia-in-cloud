@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
-import { corsHeaders, getCorsHeaders, secureHeaders, jsonResponse as json, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 
 function getSupabaseAdmin() {
   return createClient(

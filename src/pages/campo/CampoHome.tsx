@@ -5,12 +5,11 @@
  */
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import {
-  Clock, MapPin, AlertTriangle, QrCode,
+import { MapPin, AlertTriangle, QrCode,
   Truck, MessageSquare, FileText, ChevronRight,
-  CheckCircle, XCircle, PlayCircle, Loader2,
+  CheckCircle, Loader2,
   ShieldCheck, Mic,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";

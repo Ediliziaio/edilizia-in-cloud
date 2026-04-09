@@ -417,7 +417,7 @@ Deno.serve(async (req: Request) => {
 
     // 4. Call Claude API (with tool_use agentic loop)
     let finalText = "";
-    let loopMessages = [...claudeMessages];
+    const loopMessages = [...claudeMessages];
     let iterations = 0;
     const MAX_ITERATIONS = 5;
 

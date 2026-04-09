@@ -1,4 +1,4 @@
-import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
@@ -149,7 +149,7 @@ OUTPUT JSON:
     }
 
     // Strip ```json ... ``` wrappers if present
-    let text = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+    const text = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
 
     let parsedData: any;
     try {

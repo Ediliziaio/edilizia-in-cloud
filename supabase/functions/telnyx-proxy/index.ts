@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decrypt, encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
-import { corsHeaders, getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 const TELNYX_BASE = "https://api.telnyx.com/v2";
 

@@ -1717,17 +1717,18 @@ export default function CityLanding() {
   const city = cityParam ?? pathname.match(/^\/software-gestionale-edilizia-(.+)$/)?.[1];
   const config = city ? CITY_CONFIGS[city] : undefined;
 
-  if (!config) return <Navigate to="/" replace />;
-
   const baseUrl = "https://ediliziaincloud.com";
-  const pageUrl = `${baseUrl}/software-gestionale-edilizia-${config.slug}`;
+  const pageUrl = config ? `${baseUrl}/software-gestionale-edilizia-${config.slug}` : baseUrl;
 
   useSEO({
-    title: `${config.heroTitle} | Edilizia in Cloud`,
-    description: config.heroSubtitle,
-    canonical: `/software-gestionale-edilizia-${config.slug}`,
-    keywords: `gestionale edilizia ${config.name}, software impresa edile ${config.name}, software cantieri ${config.name}, gestione cantieri ${config.region}, ERP edilizia ${config.name}`,
+    title: config ? `${config.heroTitle} | Edilizia in Cloud` : "Edilizia in Cloud",
+    description: config?.heroSubtitle ?? "",
+    canonical: config ? `/software-gestionale-edilizia-${config.slug}` : "/",
+    keywords: config ? `gestionale edilizia ${config.name}, software impresa edile ${config.name}, software cantieri ${config.name}, gestione cantieri ${config.region}, ERP edilizia ${config.name}` : "",
   });
+
+  // Guard DOPO tutti gli hooks (Rules of Hooks)
+  if (!config) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">

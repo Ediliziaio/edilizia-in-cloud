@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 interface IntegrationResult {
   name: string;

@@ -15,7 +15,6 @@ import {
   Clock,
   ClipboardCheck,
   CheckCircle2,
-  AlertTriangle,
   PlayCircle,
   PauseCircle,
   LogOut,

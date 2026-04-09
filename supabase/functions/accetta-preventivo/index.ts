@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, getCorsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 /** Verifica firma HMAC-SHA256 del token preventivo (SEC-014) */
 async function verifyToken(payloadB64: string, sigHex: string, secret: string): Promise<boolean> {

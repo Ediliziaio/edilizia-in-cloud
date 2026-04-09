@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Plus, AlertTriangle, Wrench, ClipboardList, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { PortaleLayout } from "@/components/portale/PortaleLayout";
 import { usePortaleAuth } from "@/hooks/usePortaleAuth";
 import { supabase } from "@/integrations/supabase/client";
