@@ -42,7 +42,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_arrivo' | 'in_magazzino' | 'prenotato' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_arrivo' | 'in_magazzino' | 'installato';
 
 export const PAYMENT_METHODS = [
   { value: "bonifico_unico", label: "Bonifico unico" },
@@ -120,11 +120,6 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
     label: "In Magazzino", 
     badgeColor: "bg-emerald-500 text-white hover:bg-emerald-500",
     borderColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
-  },
-  prenotato: {
-    label: "Prenotato",
-    badgeColor: "bg-purple-500 text-white hover:bg-purple-500",
-    borderColor: "border-l-4 border-l-purple-500 bg-purple-50 dark:bg-purple-950/20"
   },
   installato: { 
     label: "Installato", 
