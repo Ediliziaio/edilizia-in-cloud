@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -362,6 +362,24 @@ export function OrderItemsList({
     } else if (!supplierId) {
       setItemPaymentMethod("");
     }
+  };
+
+  const handleDuplicateItem = (index: number) => {
+    const source = items[index];
+    const duplicate: OrderItem = {
+      ...source,
+      id: undefined,
+      position: items.length,
+      status: "da_ordinare",
+      is_paid: false,
+      paid_date: undefined,
+      deposit_paid: false,
+      deposit_paid_date: undefined,
+      balance_paid: false,
+      balance_paid_date: undefined,
+      attachments: [],
+    };
+    onItemsChange([...items, duplicate]);
   };
 
   const handleDeleteItem = (index: number) => {
@@ -763,11 +781,16 @@ export function OrderItemsList({
                   )}
                   {(editable || allowEdit) && (
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title="Modifica">
                         <Pencil className="h-4 w-4" />
                       </Button>
                       {editable && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDuplicateItem(index)} title="Duplica">
+                          <Copy className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                      {editable && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title="Elimina">
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       )}
