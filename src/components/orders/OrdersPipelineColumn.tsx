@@ -51,10 +51,10 @@ export function OrdersPipelineColumn({ status, orders, isDragEnabled = true }: O
       </div>
 
       {/* Cards */}
-      <div className="flex-1 px-2 pb-2">
+      <div className="flex-1 px-2 pb-2 min-w-0 overflow-hidden">
         {orders.length > 0 ? (
           <ScrollArea className="h-[calc(100vh-380px)]">
-            <div className="space-y-2 pr-1">
+            <div className="space-y-2 pr-1 w-full">
               {orders.map(order => (
                 <OrdersPipelineCard
                   key={order.id}
