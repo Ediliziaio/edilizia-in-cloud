@@ -620,9 +620,9 @@ export function OrderItemsList({
             ) as [OrderItemStatus, number][]).map(([status, count]) => (
               <span
                 key={status}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CONFIG[status].badgeColor}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${(STATUS_CONFIG[status] ?? STATUS_CONFIG.da_ordinare).badgeColor}`}
               >
-                {count} {STATUS_CONFIG[status].label}
+                {count} {(STATUS_CONFIG[status] ?? STATUS_CONFIG.da_ordinare).label}
               </span>
             ))}
           </div>
