@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, GripVertical, Eye, Pencil, AlertTriangle } from "lucide-react";
+import { Calendar as CalendarIcon, GripVertical, Eye, Pencil, AlertTriangle, Check } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -18,36 +18,36 @@ function PaymentProgress({ order }: { order: OrderWithDetails }) {
   const collected = getAmountCollected(order);
   const pct = Math.min(100, Math.round((collected / total) * 100));
   const due = getAmountDue(order);
-
-  if (due === 0 && collected > 0) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="flex-1 h-1.5 rounded-full bg-emerald-200 dark:bg-emerald-900">
-          <div className="h-full rounded-full bg-emerald-500" style={{ width: "100%" }} />
-        </div>
-        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">Saldato</span>
-      </div>
-    );
-  }
-
-  if (collected === 0) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
-        <span className="text-[10px] text-muted-foreground shrink-0">0%</span>
-      </div>
-    );
-  }
+  const isPaid = due === 0 && collected > 0;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="flex-1 h-1.5 rounded-full bg-orange-200 dark:bg-orange-900">
-        <div
-          className="h-full rounded-full bg-orange-500 transition-all"
-          style={{ width: `${pct}%` }}
-        />
+    <div className="flex items-center gap-2">
+      <div className={cn(
+        "flex-1 h-2 rounded-full",
+        isPaid ? "bg-emerald-200 dark:bg-emerald-900" :
+        collected > 0 ? "bg-orange-200 dark:bg-orange-900" :
+        "bg-gray-200 dark:bg-gray-700"
+      )}>
+        {(collected > 0 || isPaid) && (
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              isPaid ? "bg-emerald-500" : "bg-orange-500"
+            )}
+            style={{ width: `${isPaid ? 100 : pct}%` }}
+          />
+        )}
       </div>
-      <span className="text-[10px] font-medium text-orange-600 dark:text-orange-400 shrink-0">{pct}%</span>
+      {isPaid ? (
+        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      ) : (
+        <span className={cn(
+          "text-[10px] font-medium shrink-0 w-6 text-right",
+          collected > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+        )}>
+          {pct}%
+        </span>
+      )}
     </div>
   );
 }
