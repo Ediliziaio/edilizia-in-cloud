@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
@@ -584,17 +585,34 @@ function OrdersListInner() {
   // Column visibility state
   const OPTIONAL_COLUMNS = [
     { key: "date", label: "Data Ordine" },
+    { key: "customer", label: "Cliente" },
+    { key: "totalIvato", label: "Tot. Ivato" },
+    { key: "imponibile", label: "Imponibile" },
+    { key: "collected", label: "Incassato" },
+    { key: "due", label: "Da Ricevere" },
+    { key: "variableCosts", label: "Costi Variabili" },
     { key: "margin", label: "Margine" },
+    { key: "deposit", label: "Acconti" },
+    { key: "balance", label: "Saldo" },
+    { key: "payments", label: "Pagamenti" },
     { key: "salesperson", label: "Venditore" },
     { key: "labor", label: "Manodopera" },
+    { key: "supplier", label: "Fornitore" },
+    { key: "expected_date", label: "Data Posa" },
+    { key: "warehouse_date", label: "Arrivo Merce" },
+    { key: "work_start", label: "Inizio Lavori" },
+    { key: "work_end", label: "Fine Lavori" },
+    { key: "payment_type", label: "Tipo Pagamento" },
   ] as const;
+
+  const DEFAULT_COLUMNS = new Set(["date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
 
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem("orders-visible-columns");
+      const saved = localStorage.getItem("orders-visible-columns-v2");
       if (saved) return new Set(JSON.parse(saved));
     } catch { /* storage non disponibile — silenzioso */ }
-    return new Set(["date"]);
+    return new Set(DEFAULT_COLUMNS);
   });
 
   const toggleColumn = (key: string) => {
@@ -602,7 +620,7 @@ function OrdersListInner() {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      localStorage.setItem("orders-visible-columns", JSON.stringify([...next]));
+      localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...next]));
       return next;
     });
   };
@@ -1028,6 +1046,47 @@ function OrdersListInner() {
               <Columns3 className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
+          {/* Colonne visibili */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="hidden sm:flex">
+                <Columns className="h-4 w-4 mr-1" />
+                Colonne
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[280px] p-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Colonne visibili</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVisibleColumns(new Set(DEFAULT_COLUMNS));
+                      localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...DEFAULT_COLUMNS]));
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Ripristina
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
+                  {OPTIONAL_COLUMNS.map(col => (
+                    <label
+                      key={col.key}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={visibleColumns.has(col.key)}
+                        onCheckedChange={() => toggleColumn(col.key)}
+                        className="shrink-0"
+                      />
+                      <span className="text-xs truncate">{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon">
@@ -1041,14 +1100,6 @@ function OrdersListInner() {
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" /> Importa da file
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs">Colonne visibili</DropdownMenuLabel>
-              {OPTIONAL_COLUMNS.map(col => (
-                <DropdownMenuItem key={col.key} onSelect={(e) => e.preventDefault()} onClick={() => toggleColumn(col.key)}>
-                  <Checkbox checked={visibleColumns.has(col.key)} className="mr-2" />
-                  {col.label}
-                </DropdownMenuItem>
-              ))}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button asChild>
@@ -1078,6 +1129,18 @@ function OrdersListInner() {
         onClose={() => setSidebarOpen(false)}
         salespeople={uniqueSalespeople}
         laborList={uniqueLabor}
+        customerFilter={customerFilter}
+        onCustomerFilterChange={setCustomerFilter}
+        uniqueCustomers={uniqueCustomers}
+        supplierFilter={supplierFilter}
+        onSupplierFilterChange={setSupplierFilter}
+        uniqueSuppliers={uniqueSuppliers}
+        contractDateRange={contractDateRange}
+        onContractDateRangeChange={setContractDateRange}
+        warehouseDateRange={warehouseDateRange}
+        onWarehouseDateRangeChange={setWarehouseDateRange}
+        expectedDateRange={expectedDateRange}
+        onExpectedDateRangeChange={setExpectedDateRange}
       />
 
       <div className="space-y-4">
@@ -1091,30 +1154,8 @@ function OrdersListInner() {
             onPaymentFilterChange={setPaymentFilter}
             monthFilter={monthFilter}
             onMonthFilterChange={handleMonthChange}
-            customerFilter={customerFilter}
-            onCustomerFilterChange={setCustomerFilter}
-            uniqueCustomers={uniqueCustomers}
-            amountMin={amountMin}
-            amountMax={amountMax}
-            onAmountMinChange={setAmountMin}
-            onAmountMaxChange={setAmountMax}
-            contractDateRange={contractDateRange}
-            onContractDateRangeChange={setContractDateRange}
-            warehouseDateRange={warehouseDateRange}
-            onWarehouseDateRangeChange={setWarehouseDateRange}
-            expectedDateRange={expectedDateRange}
-            onExpectedDateRangeChange={setExpectedDateRange}
             hasAnyFilter={hasAnyFilter}
             onClearAllFilters={clearAllFilters}
-            salespersonFilter={salespersonFilter}
-            onSalespersonFilterChange={setSalespersonFilter}
-            uniqueSalespeople={uniqueSalespeople}
-            laborFilter={laborFilter}
-            onLaborFilterChange={setLaborFilter}
-            uniqueLabor={uniqueLabor}
-            supplierFilter={supplierFilter}
-            onSupplierFilterChange={setSupplierFilter}
-            uniqueSuppliers={uniqueSuppliers}
             hideCompleted={hideCompleted}
             onHideCompletedChange={setHideCompleted}
           />
@@ -1174,6 +1215,7 @@ function OrdersListInner() {
                 visibleColumns={visibleColumns}
                 salespeopleMap={salespeopleMap}
                 laborMap={laborMap}
+                supplierMap={supplierMap}
               />
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">

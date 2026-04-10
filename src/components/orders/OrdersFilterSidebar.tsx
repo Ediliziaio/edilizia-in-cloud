@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw, Search } from "lucide-react";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +64,11 @@ export function countActiveFilters(filters: OrdersFilterState): number {
   return count;
 }
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 interface OrdersFilterSidebarProps {
   filters: OrdersFilterState;
   onFiltersChange: (filters: OrdersFilterState) => void;
@@ -71,6 +78,19 @@ interface OrdersFilterSidebarProps {
   onClose: () => void;
   salespeople?: Array<{ id: string; name: string }>;
   laborList?: Array<{ id: string; name: string }>;
+  // URL-based filters (from "Più Filtri")
+  customerFilter?: string;
+  onCustomerFilterChange?: (value: string) => void;
+  uniqueCustomers?: Array<{ id: string; name: string }>;
+  supplierFilter?: string;
+  onSupplierFilterChange?: (value: string) => void;
+  uniqueSuppliers?: Array<{ id: string; name: string }>;
+  contractDateRange?: DateRange;
+  onContractDateRangeChange?: (range: DateRange) => void;
+  warehouseDateRange?: DateRange;
+  onWarehouseDateRangeChange?: (range: DateRange) => void;
+  expectedDateRange?: DateRange;
+  onExpectedDateRangeChange?: (range: DateRange) => void;
 }
 
 function CollapsibleSection({
@@ -102,6 +122,187 @@ function CollapsibleSection({
   );
 }
 
+function SearchableRadioList({
+  items,
+  value,
+  onChange,
+  allLabel = "Tutti",
+  placeholder = "Cerca...",
+}: {
+  items: Array<{ id: string; name: string }>;
+  value: string;
+  onChange: (value: string) => void;
+  allLabel?: string;
+  placeholder?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    if (!search) return items;
+    const q = search.toLowerCase();
+    return items.filter((item) => item.name.toLowerCase().includes(q));
+  }, [items, search]);
+
+  return (
+    <div className="space-y-2">
+      {items.length > 5 && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-sm pl-8 h-8"
+          />
+        </div>
+      )}
+      <div className="space-y-1.5 max-h-44 overflow-y-auto">
+        {!search && (
+          <label className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-gray-50 transition-colors">
+            <input
+              type="radio"
+              name="searchable-radio"
+              checked={value === "all" || value === ""}
+              onChange={() => onChange("all")}
+              className="accent-primary"
+            />
+            <span className="text-sm font-medium">{allLabel}</span>
+          </label>
+        )}
+        {filtered.map((item) => (
+          <label key={item.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-gray-50 transition-colors">
+            <input
+              type="radio"
+              name="searchable-radio"
+              checked={value === item.id}
+              onChange={() => onChange(item.id)}
+              className="accent-primary"
+            />
+            <span className="text-sm truncate">{item.name}</span>
+          </label>
+        ))}
+        {filtered.length === 0 && search && (
+          <p className="text-xs text-muted-foreground text-center py-2">Nessun risultato</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SearchableCheckboxList({
+  items,
+  selected,
+  onToggle,
+  placeholder = "Cerca...",
+}: {
+  items: Array<{ id: string; name: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+  placeholder?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    if (!search) return items;
+    const q = search.toLowerCase();
+    return items.filter((item) => item.name.toLowerCase().includes(q));
+  }, [items, search]);
+
+  return (
+    <div className="space-y-2">
+      {items.length > 5 && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-sm pl-8 h-8"
+          />
+        </div>
+      )}
+      <div className="space-y-1.5 max-h-44 overflow-y-auto">
+        {filtered.map((item) => (
+          <div key={item.id} className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 transition-colors">
+            <Checkbox
+              id={`searchable-${item.id}`}
+              checked={selected.includes(item.id)}
+              onCheckedChange={() => onToggle(item.id)}
+            />
+            <Label
+              htmlFor={`searchable-${item.id}`}
+              className="cursor-pointer text-sm font-normal truncate"
+            >
+              {item.name}
+            </Label>
+          </div>
+        ))}
+        {filtered.length === 0 && search && (
+          <p className="text-xs text-muted-foreground text-center py-2">Nessun risultato</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DateRangeSidebarSection({
+  title,
+  range,
+  onRangeChange,
+  defaultOpen = false,
+}: {
+  title: string;
+  range: DateRange;
+  onRangeChange: (range: DateRange) => void;
+  defaultOpen?: boolean;
+}) {
+  const hasValue = range.from || range.to;
+  return (
+    <CollapsibleSection title={title} defaultOpen={defaultOpen || !!hasValue}>
+      <div className="space-y-2">
+        {hasValue && (
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground">
+              {range.from ? format(range.from, "dd/MM/yyyy", { locale: it }) : "..."} — {range.to ? format(range.to, "dd/MM/yyyy", { locale: it }) : "..."}
+            </span>
+            <button
+              type="button"
+              onClick={() => onRangeChange({ from: undefined, to: undefined })}
+              className="text-xs text-muted-foreground hover:text-gray-700 underline"
+            >
+              Cancella
+            </button>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(t) }); }}>Oggi</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfWeek(t, { locale: it }), to: endOfWeek(t, { locale: it }) }); }}>Settimana</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfMonth(t), to: endOfMonth(t) }); }}>Mese</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(addDays(t, 7)) }); }}>+7gg</Button>
+        </div>
+        <div>
+          <Label className="text-xs text-gray-500 mb-1 block">Dal</Label>
+          <Input
+            type="date"
+            value={range.from ? format(range.from, "yyyy-MM-dd") : ""}
+            onChange={(e) => onRangeChange({ ...range, from: e.target.value ? new Date(e.target.value) : undefined })}
+            className="text-sm"
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-gray-500 mb-1 block">Al</Label>
+          <Input
+            type="date"
+            value={range.to ? format(range.to, "yyyy-MM-dd") : ""}
+            onChange={(e) => onRangeChange({ ...range, to: e.target.value ? new Date(e.target.value) : undefined })}
+            className="text-sm"
+          />
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function SidebarContent({
   filters,
   onFiltersChange,
@@ -110,8 +311,28 @@ function SidebarContent({
   onClose,
   salespeople = [],
   laborList = [],
+  customerFilter = "all",
+  onCustomerFilterChange,
+  uniqueCustomers = [],
+  supplierFilter = "all",
+  onSupplierFilterChange,
+  uniqueSuppliers = [],
+  contractDateRange = { from: undefined, to: undefined },
+  onContractDateRangeChange,
+  warehouseDateRange = { from: undefined, to: undefined },
+  onWarehouseDateRangeChange,
+  expectedDateRange = { from: undefined, to: undefined },
+  onExpectedDateRangeChange,
 }: Omit<OrdersFilterSidebarProps, "isOpen">) {
-  const activeCount = countActiveFilters(filters);
+  const sidebarCount = countActiveFilters(filters);
+  const urlCount = [
+    customerFilter !== "all",
+    supplierFilter !== "all",
+    !!contractDateRange.from || !!contractDateRange.to,
+    !!warehouseDateRange.from || !!warehouseDateRange.to,
+    !!expectedDateRange.from || !!expectedDateRange.to,
+  ].filter(Boolean).length;
+  const activeCount = sidebarCount + urlCount;
 
   const update = (partial: Partial<OrdersFilterState>) => {
     onFiltersChange({ ...filters, ...partial });
@@ -138,7 +359,14 @@ function SidebarContent({
     update({ laborIds: next });
   };
 
-  const reset = () => onFiltersChange({ ...INITIAL_FILTER_STATE });
+  const reset = () => {
+    onFiltersChange({ ...INITIAL_FILTER_STATE });
+    onCustomerFilterChange?.("all");
+    onSupplierFilterChange?.("all");
+    onContractDateRangeChange?.({ from: undefined, to: undefined });
+    onWarehouseDateRangeChange?.({ from: undefined, to: undefined });
+    onExpectedDateRangeChange?.({ from: undefined, to: undefined });
+  };
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -349,57 +577,80 @@ function SidebarContent({
 
         {/* ── Commerciale ──────────────────────────────────── */}
         {salespeople.length > 0 && (
-          <CollapsibleSection title="Commerciale" defaultOpen={false}>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="salesperson"
-                  value=""
-                  checked={filters.salespersonId === ""}
-                  onChange={() => update({ salespersonId: "" })}
-                  className="accent-primary"
-                />
-                <span className="text-sm">Tutti</span>
-              </label>
-              {salespeople.map((sp) => (
-                <label key={sp.id} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="salesperson"
-                    value={sp.id}
-                    checked={filters.salespersonId === sp.id}
-                    onChange={() => update({ salespersonId: sp.id })}
-                    className="accent-primary"
-                  />
-                  <span className="text-sm">{sp.name}</span>
-                </label>
-              ))}
-            </div>
+          <CollapsibleSection title="Commerciale" defaultOpen={!!filters.salespersonId}>
+            <SearchableRadioList
+              items={salespeople}
+              value={filters.salespersonId || "all"}
+              onChange={(v) => update({ salespersonId: v === "all" ? "" : v })}
+              allLabel="Tutti i commerciali"
+              placeholder="Cerca commerciale..."
+            />
           </CollapsibleSection>
         )}
 
         {/* ── Manodopera ───────────────────────────────────── */}
         {laborList.length > 0 && (
-          <CollapsibleSection title="Manodopera" defaultOpen={false}>
-            <div className="space-y-2 max-h-44 overflow-y-auto">
-              {laborList.map((l) => (
-                <div key={l.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`labor-${l.id}`}
-                    checked={filters.laborIds.includes(l.id)}
-                    onCheckedChange={() => toggleLabor(l.id)}
-                  />
-                  <Label
-                    htmlFor={`labor-${l.id}`}
-                    className="cursor-pointer text-sm font-normal"
-                  >
-                    {l.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
+          <CollapsibleSection title="Manodopera" defaultOpen={filters.laborIds.length > 0}>
+            <SearchableCheckboxList
+              items={laborList}
+              selected={filters.laborIds}
+              onToggle={toggleLabor}
+              placeholder="Cerca manodopera..."
+            />
           </CollapsibleSection>
+        )}
+
+        {/* ── Cliente ─────────────────────────────────────── */}
+        {uniqueCustomers.length > 0 && onCustomerFilterChange && (
+          <CollapsibleSection title="Cliente" defaultOpen={customerFilter !== "all"}>
+            <SearchableRadioList
+              items={uniqueCustomers}
+              value={customerFilter}
+              onChange={onCustomerFilterChange}
+              allLabel="Tutti i clienti"
+              placeholder="Cerca cliente..."
+            />
+          </CollapsibleSection>
+        )}
+
+        {/* ── Fornitore ───────────────────────────────────── */}
+        {uniqueSuppliers.length > 0 && onSupplierFilterChange && (
+          <CollapsibleSection title="Fornitore" defaultOpen={supplierFilter !== "all"}>
+            <SearchableRadioList
+              items={uniqueSuppliers}
+              value={supplierFilter}
+              onChange={onSupplierFilterChange}
+              allLabel="Tutti i fornitori"
+              placeholder="Cerca fornitore..."
+            />
+          </CollapsibleSection>
+        )}
+
+        {/* ── Data Contratto ──────────────────────────────── */}
+        {onContractDateRangeChange && (
+          <DateRangeSidebarSection
+            title="Data Contratto"
+            range={contractDateRange}
+            onRangeChange={onContractDateRangeChange}
+          />
+        )}
+
+        {/* ── Arrivo Merce ────────────────────────────────── */}
+        {onWarehouseDateRangeChange && (
+          <DateRangeSidebarSection
+            title="Arrivo Merce"
+            range={warehouseDateRange}
+            onRangeChange={onWarehouseDateRangeChange}
+          />
+        )}
+
+        {/* ── Data Posa ───────────────────────────────────── */}
+        {onExpectedDateRangeChange && (
+          <DateRangeSidebarSection
+            title="Data Posa"
+            range={expectedDateRange}
+            onRangeChange={onExpectedDateRangeChange}
+          />
         )}
       </div>
 
@@ -430,6 +681,18 @@ export function OrdersFilterSidebar({
   onClose,
   salespeople,
   laborList,
+  customerFilter,
+  onCustomerFilterChange,
+  uniqueCustomers,
+  supplierFilter,
+  onSupplierFilterChange,
+  uniqueSuppliers,
+  contractDateRange,
+  onContractDateRangeChange,
+  warehouseDateRange,
+  onWarehouseDateRangeChange,
+  expectedDateRange,
+  onExpectedDateRangeChange,
 }: OrdersFilterSidebarProps) {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -445,6 +708,18 @@ export function OrdersFilterSidebar({
           onClose={onClose}
           salespeople={salespeople}
           laborList={laborList}
+          customerFilter={customerFilter}
+          onCustomerFilterChange={onCustomerFilterChange}
+          uniqueCustomers={uniqueCustomers}
+          supplierFilter={supplierFilter}
+          onSupplierFilterChange={onSupplierFilterChange}
+          uniqueSuppliers={uniqueSuppliers}
+          contractDateRange={contractDateRange}
+          onContractDateRangeChange={onContractDateRangeChange}
+          warehouseDateRange={warehouseDateRange}
+          onWarehouseDateRangeChange={onWarehouseDateRangeChange}
+          expectedDateRange={expectedDateRange}
+          onExpectedDateRangeChange={onExpectedDateRangeChange}
         />
       </SheetContent>
     </Sheet>
