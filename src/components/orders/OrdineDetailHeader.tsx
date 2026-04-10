@@ -53,11 +53,11 @@ export function OrdineDetailHeader({
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Creato il{" "}
-            {format(new Date(dataCreazione), "dd MMM yyyy", { locale: it })} ·{" "}
+            {(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} ·{" "}
             {nomeCliente}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           <Button
             variant="outline"
             size="sm"

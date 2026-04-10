@@ -663,7 +663,10 @@ function OrderDetailInner() {
         }
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
-        onNuovoSAL={() => {/* SAL creation is handled inside SalTab */}}
+        onNuovoSAL={() => {
+          const salEl = document.getElementById('section-sal');
+          if (salEl) salEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
         isGeneratingPDF={isGeneratingPDF}
@@ -705,20 +708,20 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full grid grid-cols-8 h-auto">
-              <TabsTrigger value="stato" className="text-xs py-2">Stato</TabsTrigger>
-              <TabsTrigger value="articoli" className="text-xs py-2">Articoli</TabsTrigger>
-              <TabsTrigger value="finanza" className="text-xs py-2">Finanza</TabsTrigger>
-              <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-              <TabsTrigger value="cantiere" className="text-xs py-2">Cantiere</TabsTrigger>
-              <TabsTrigger value="campo" className="text-xs py-2">
+            <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5">
+              <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0">Stato</TabsTrigger>
+              <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0">Articoli</TabsTrigger>
+              <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0">Finanza</TabsTrigger>
+              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0">SAL</TabsTrigger>
+              <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0">Cantiere</TabsTrigger>
+              <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0">
                 <div className="flex items-center gap-1">
                   <HardHat className="w-3 h-3" />
                   Campo
                 </div>
               </TabsTrigger>
-              <TabsTrigger value="altro" className="text-xs py-2">Altro</TabsTrigger>
-              <TabsTrigger value="ritenute" className="text-xs py-2">Ritenute</TabsTrigger>
+              <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0">Altro</TabsTrigger>
+              <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0">Ritenute</TabsTrigger>
             </TabsList>
 
             {/* Tab 1: Stato + Cliente + Date */}
@@ -966,17 +969,50 @@ function OrderDetailInner() {
             />
 
             {/* SAL */}
-            {companyId && (
-              <OrdineSAL
-                orderId={id!}
-                companyId={companyId}
-                orderTotalAmount={order.total_amount ?? undefined}
-              />
-            )}
+            <div id="section-sal">
+              {companyId && (
+                <OrdineSAL
+                  orderId={id!}
+                  companyId={companyId}
+                  orderTotalAmount={order.total_amount ?? undefined}
+                />
+              )}
+            </div>
 
             {/* Variazioni + OdV */}
             {effectiveCompany?.id && (
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
+            )}
+
+            {/* Timeline Cantiere */}
+            {effectiveCompany?.id && (
+              <div className="space-y-2">
+                <div>
+                  <h2 className="text-base font-semibold">Timeline Cantiere</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
+                  </p>
+                </div>
+                <TimelineCantiere
+                  orderId={id!}
+                  companyId={effectiveCompany.id}
+                  adminView={true}
+                />
+              </div>
+            )}
+
+            {/* Campo: Assegnazioni + Rapportini + WhatsApp */}
+            {effectiveCompany?.id && (
+              <>
+                <OrdineAssegnazioniCampo orderId={id!} companyId={effectiveCompany.id} />
+                <OrdineRapportiniCampo orderId={id!} />
+                <WhatsAppActivityFeed cantiereId={id!} />
+              </>
+            )}
+
+            {/* Subappaltatori */}
+            {effectiveCompany?.id && (
+              <SubappaltatoriOrderCard orderId={id!} companyId={effectiveCompany.id} />
             )}
           </div>
 

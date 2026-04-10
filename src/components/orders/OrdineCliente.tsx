@@ -32,7 +32,7 @@ export function OrdineCliente({ customer }: OrdineClienteProps) {
     );
   }
 
-  const initials = `${customer.first_name[0] ?? ""}${customer.last_name[0] ?? ""}`.toUpperCase();
+  const initials = `${(customer.first_name || "")[0] ?? ""}${(customer.last_name || "")[0] ?? ""}`.toUpperCase();
   const fullName = `${customer.first_name} ${customer.last_name}`;
 
   return (

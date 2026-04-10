@@ -82,7 +82,7 @@ export function OrdineStatusStrip({
                   )}
                 </div>
                 <span
-                  className="text-xs whitespace-nowrap max-w-[80px] text-center leading-tight transition-colors"
+                  className="text-xs whitespace-nowrap max-w-[90px] overflow-hidden text-ellipsis text-center leading-tight transition-colors"
                   style={labelStyle}
                 >
                   {status.name}

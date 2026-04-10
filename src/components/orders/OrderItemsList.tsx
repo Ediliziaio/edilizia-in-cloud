@@ -42,7 +42,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_arrivo' | 'in_magazzino' | 'prenotato' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_arrivo' | 'in_magazzino' | 'prenotato' | 'installato';
 
 export const PAYMENT_METHODS = [
   { value: "bonifico_unico", label: "Bonifico unico" },
@@ -101,10 +101,15 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
     badgeColor: "bg-amber-500 text-white hover:bg-amber-500",
     borderColor: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20"
   },
-  ordinato: { 
-    label: "Ordinato", 
+  ordinato: {
+    label: "Ordinato",
     badgeColor: "bg-blue-500 text-white hover:bg-blue-500",
     borderColor: "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20"
+  },
+  in_produzione: {
+    label: "In Produzione",
+    badgeColor: "bg-cyan-500 text-white hover:bg-cyan-500",
+    borderColor: "border-l-4 border-l-cyan-500 bg-cyan-50 dark:bg-cyan-950/20"
   },
   in_arrivo: {
     label: "In Arrivo",
@@ -734,15 +739,25 @@ export function OrderItemsList({
                 <div className="flex items-center justify-between gap-2">
                   {showStatusControls ? (
                     <Select
-                      value={item.status}
+                      value={item.status || "da_ordinare"}
                       onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
                     >
-                      <SelectTrigger className="flex-1 sm:flex-none sm:w-36">
-                        <SelectValue />
+                      <SelectTrigger className={cn(
+                        "flex-1 sm:flex-none sm:w-40 h-8 text-xs font-medium border",
+                        STATUS_CONFIG[item.status]
+                          ? STATUS_CONFIG[item.status].badgeColor.replace(/hover:\S+/g, '')
+                          : STATUS_CONFIG.da_ordinare.badgeColor.replace(/hover:\S+/g, '')
+                      )}>
+                        <SelectValue placeholder="Seleziona stato..." />
                       </SelectTrigger>
                       <SelectContent>
                         {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                          <SelectItem key={status} value={status}>{config.label}</SelectItem>
+                          <SelectItem key={status} value={status}>
+                            <span className="flex items-center gap-2">
+                              <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
+                              {config.label}
+                            </span>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
