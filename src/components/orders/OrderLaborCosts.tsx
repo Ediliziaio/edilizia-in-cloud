@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { HardHat, Users, Building2, Plus, Trash2, Check, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
+import { HardHat, Users, Building2, Plus, Trash2, Check, Clock, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { differenceInDays, parseISO } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AssignEmployeeDialog } from "@/components/employees/AssignEmployeeDialog";
 import { AssignExternalTeamDialog } from "@/components/employees/AssignExternalTeamDialog";
+import type { SubappaltatoreConDashboard } from "@/types/subappaltatori";
 
 interface OrderEmployee {
   id: string;
@@ -51,6 +54,14 @@ interface OrderExternalTeam {
   };
 }
 
+function DurcBadge({ scadenza }: { scadenza: string | null }) {
+  if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
+  const daysLeft = differenceInDays(parseISO(scadenza), new Date());
+  if (daysLeft < 0) return <Badge className="text-xs bg-red-600 text-white">DURC scaduto</Badge>;
+  if (daysLeft <= 30) return <Badge className="text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
+  return <Badge className="text-xs bg-green-600 text-white">DURC OK</Badge>;
+}
+
 interface OrderLaborCostsProps {
   orderId: string;
   editable?: boolean;
@@ -58,7 +69,7 @@ interface OrderLaborCostsProps {
 
 export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsProps) {
   const { effectiveCompany } = useAuth();
-  
+
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -101,6 +112,22 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     },
     enabled: !!orderId,
     staleTime: 2 * 60 * 1000, // 2 minuti
+  });
+
+  // Fetch subappaltatori from dashboard view
+  const { data: subappaltatori = [] } = useQuery({
+    queryKey: ["subappaltatori-order", orderId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("v_subappaltatori_dashboard")
+        .select("*")
+        .eq("order_id", orderId)
+        .eq("company_id", effectiveCompanyId);
+      if (error) throw error;
+      return (data ?? []) as SubappaltatoreConDashboard[];
+    },
+    enabled: !!orderId && !!effectiveCompanyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Delete order employee mutation
@@ -153,7 +180,8 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
 
   const totalEmployeeCost = orderEmployees.reduce((sum, e) => sum + e.total_cost, 0);
   const totalTeamCost = orderExternalTeams.reduce((sum, t) => sum + t.total_cost, 0);
-  const totalLaborCost = totalEmployeeCost + totalTeamCost;
+  const totalSubappCost = subappaltatori.reduce((s, sub) => s + (sub.totale_sal_lordo ?? 0), 0);
+  const totalLaborCost = totalEmployeeCost + totalTeamCost + totalSubappCost;
 
   return (
     <Card>
@@ -172,7 +200,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
             </TabsTrigger>
             <TabsTrigger value="teams" className="gap-2">
               <Building2 className="h-4 w-4" />
-              Squadre ({orderExternalTeams.length})
+              Subappaltatori ({orderExternalTeams.length + subappaltatori.length})
             </TabsTrigger>
           </TabsList>
 
@@ -250,14 +278,66 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
             )}
           </TabsContent>
 
-          {/* External Teams Tab */}
+          {/* Subappaltatori Tab */}
           <TabsContent value="teams" className="space-y-3 mt-4">
-            {orderExternalTeams.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                Nessuna squadra esterna assegnata
-              </p>
-            ) : (
+            {/* Subappaltatori from dashboard view */}
+            {subappaltatori.length > 0 && (
               <div className="space-y-2">
+                {subappaltatori.map((sub) => {
+                  const lordo = sub.totale_sal_lordo ?? 0;
+                  const contr = sub.importo_contrattuale ?? 0;
+                  const pct = contr > 0 ? Math.min(100, Math.round((lordo / contr) * 100)) : 0;
+                  return (
+                    <div key={sub.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{sub.ragione_sociale}</p>
+                          {sub.tipo_lavori && (
+                            <p className="text-xs text-muted-foreground">{sub.tipo_lavori}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <DurcBadge scadenza={sub.durc_scadenza} />
+                        </div>
+                      </div>
+                      {contr > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Contratto eseguito</span>
+                            <span className="font-medium">{pct}%</span>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-orange-500 rounded-full transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
+                            {sub.ritenute_in_corso > 0 && (
+                              <span className="text-amber-600 font-medium">
+                                {formatCurrency(sub.ritenute_in_corso)} ritenuta
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
+                        <Link to={`/azienda/subappaltatori/${sub.id}`}>
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Gestisci
+                        </Link>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* External teams (legacy) */}
+            {orderExternalTeams.length > 0 && (
+              <div className="space-y-2">
+                {subappaltatori.length > 0 && <Separator />}
                 {orderExternalTeams.map((ot) => (
                   <div
                     key={ot.id}
@@ -312,9 +392,9 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Rimuovere squadra?</AlertDialogTitle>
+                                <AlertDialogTitle>Rimuovere subappaltatore?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  La squadra verrà rimossa da questo ordine.
+                                  Il subappaltatore verrà rimosso da questo ordine.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -334,10 +414,16 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                   </div>
                 ))}
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Totale Squadre</span>
+                  <span className="font-medium">Totale Squadre Esterne</span>
                   <span className="font-semibold">{formatCurrency(totalTeamCost)}</span>
                 </div>
               </div>
+            )}
+
+            {orderExternalTeams.length === 0 && subappaltatori.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">
+                Nessun subappaltatore assegnato
+              </p>
             )}
 
             {editable && (
@@ -348,7 +434,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                 onClick={() => setAssignTeamOpen(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Aggiungi Squadra
+                Aggiungi Subappaltatore
               </Button>
             )}
           </TabsContent>

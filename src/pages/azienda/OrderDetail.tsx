@@ -899,9 +899,6 @@ function OrderDetailInner() {
               />
               <OrdineManodopera orderId={id!} editable={true} />
               <OrderErrors orderId={id!} />
-              {effectiveCompany?.id && (
-                <SubappaltatoriOrderCard orderId={id!} companyId={effectiveCompany.id} />
-              )}
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
               <OrdineAcquisto
@@ -1010,10 +1007,6 @@ function OrderDetailInner() {
               </>
             )}
 
-            {/* Subappaltatori */}
-            {effectiveCompany?.id && (
-              <SubappaltatoriOrderCard orderId={id!} companyId={effectiveCompany.id} />
-            )}
           </div>
 
           {/* ── Right Column (1/3) ──────────────────────────────── */}
