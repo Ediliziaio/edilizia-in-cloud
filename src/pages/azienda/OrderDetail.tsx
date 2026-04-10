@@ -46,9 +46,9 @@ import { OrdineNote } from "@/components/orders/OrdineNote";
 import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
-import { SubappaltatoriOrderCard } from "@/components/orders/SubappaltatoriOrderCard";
+
 import { useOrdinePDF } from "@/hooks/useOrdinePDF";
-import { OrdineAssegnazioniCampo } from "@/components/orders/OrdineAssegnazioniCampo";
+
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 
@@ -878,9 +878,8 @@ function OrderDetailInner() {
               </div>
             </TabsContent>
 
-            {/* Tab Campo: assegnazioni operai + rapportini */}
+            {/* Tab Campo: rapportini + whatsapp */}
             <TabsContent value="campo" className="space-y-4 mt-4">
-              <OrdineAssegnazioniCampo orderId={id!} companyId={effectiveCompany?.id ?? ""} />
               <OrdineRapportiniCampo orderId={id!} />
               <WhatsAppActivityFeed cantiereId={id!} />
             </TabsContent>
@@ -998,10 +997,9 @@ function OrderDetailInner() {
               </div>
             )}
 
-            {/* Campo: Assegnazioni + Rapportini + WhatsApp */}
+            {/* Campo: Rapportini + WhatsApp */}
             {effectiveCompany?.id && (
               <>
-                <OrdineAssegnazioniCampo orderId={id!} companyId={effectiveCompany.id} />
                 <OrdineRapportiniCampo orderId={id!} />
                 <WhatsAppActivityFeed cantiereId={id!} />
               </>
