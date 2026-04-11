@@ -140,7 +140,8 @@ export default function Warehouse() {
         .from("warehouse_stock")
         .select("id, company_id, name, description, quantity, unit_cost, vat_rate, supplier_id, section_id, min_stock_level, created_at, updated_at")
         .eq("company_id", effectiveCompany.id)
-        .order("name");
+        .order("name")
+        .limit(2000);
       if (error) throw error;
       return data as StockItem[];
     },

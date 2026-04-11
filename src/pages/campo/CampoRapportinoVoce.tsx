@@ -75,16 +75,16 @@ export default function CampoRapportinoVoce(): JSX.Element {
             }
           }}
           aria-label="Indietro"
-          className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center active:scale-95 transition-transform"
+          className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-transform"
         >
-          <ChevronLeft className="w-5 h-5 text-white" />
+          <ChevronLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-white leading-tight flex items-center gap-2">
-            <Mic className="w-5 h-5 text-amber-400" />
+          <h1 className="text-lg font-bold text-foreground leading-tight flex items-center gap-2">
+            <Mic className="w-5 h-5 text-primary" />
             Rapportino Vocale
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Racconta cosa hai fatto, l&apos;AI compila il rapportino
           </p>
         </div>
@@ -94,7 +94,7 @@ export default function CampoRapportinoVoce(): JSX.Element {
       {error && !activeDraft && (
         <div
           role="alert"
-          className="rounded-xl bg-red-950/60 border border-red-500 p-3 text-sm text-red-200"
+          className="rounded-xl bg-red-50 border border-red-500 p-3 text-sm text-red-600"
         >
           {error}
         </div>
@@ -103,8 +103,8 @@ export default function CampoRapportinoVoce(): JSX.Element {
       {/* Contenuto condizionale */}
       {!activeDraft && !transcribing && !uploading && (
         <div className="space-y-4">
-          <div className="rounded-xl bg-amber-500/10 border border-amber-500/40 p-3">
-            <p className="text-xs text-amber-200 leading-relaxed">
+          <div className="rounded-xl bg-primary/10 border border-primary/40 p-3">
+            <p className="text-xs text-primary leading-relaxed">
               Tocca il microfono e descrivi il lavoro svolto: ore, lavorazione,
               materiali usati, note. Massimo <strong>2 minuti</strong>.
             </p>

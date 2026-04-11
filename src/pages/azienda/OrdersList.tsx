@@ -204,7 +204,7 @@ function OrdersListInner() {
         query = query.eq("current_status_id", statusFilter);
       }
       if (hideCompleted && lastStatusId) {
-        query = query.neq("current_status_id", lastStatusId);
+        query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       }
       if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
       if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
@@ -275,7 +275,7 @@ function OrdersListInner() {
       else if (paymentFilter === "paid") q = q.eq("deposit_paid", true).eq("balance_paid", true);
       if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
-      if (hideCompleted && lastStatusId) q = q.neq("current_status_id", lastStatusId);
+      if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (amountMin) q = q.gte("total_amount", parseFloat(amountMin));
       if (amountMax) q = q.lte("total_amount", parseFloat(amountMax));
       if (contractDateRange.from) q = q.gte("created_at", contractDateRange.from.toISOString());
@@ -316,7 +316,7 @@ function OrdersListInner() {
         .order("created_at", { ascending: false });
       if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
-      if (hideCompleted && lastStatusId) q = q.neq("current_status_id", lastStatusId);
+      if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
       // Cap pipeline to 200 most recent orders to prevent performance issues with large datasets
       q = q.limit(200);
@@ -878,7 +878,7 @@ function OrdersListInner() {
     else if (paymentFilter === "paid") query = query.eq("deposit_paid", true).eq("balance_paid", true);
     if (debouncedSearch) query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
     if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
-    if (hideCompleted && lastStatusId) query = query.neq("current_status_id", lastStatusId);
+    if (hideCompleted && lastStatusId) query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
     if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
     if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
     if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());

@@ -105,7 +105,7 @@ export default function CampoMagazzino() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab selector */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3">
+      <div className="bg-muted border-b border-border px-4 py-3">
         <div className="flex gap-2">
           {(["furgone", "cantiere"] as Tab[]).map(tab => (
             <button
@@ -114,8 +114,8 @@ export default function CampoMagazzino() {
               className={cn(
                 "flex-1 py-2 rounded-xl text-sm font-medium transition-colors",
                 activeTab === tab
-                  ? "bg-amber-500 text-black"
-                  : "bg-slate-800 text-slate-400"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
               )}
             >
               {tab === "furgone" ? "Furgone" : "Cantiere"}
@@ -130,9 +130,9 @@ export default function CampoMagazzino() {
         {activeTab === "furgone" && (
           <>
             {scarseCount > 0 && (
-              <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-4">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <p className="text-xs text-amber-400">
+              <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl mb-4">
+                <AlertTriangle className="w-4 h-4 text-primary shrink-0" />
+                <p className="text-xs text-primary">
                   {scarseCount} articol{scarseCount > 1 ? "i" : "o"} in esaurimento
                 </p>
               </div>
@@ -140,12 +140,12 @@ export default function CampoMagazzino() {
 
             {loadingScorte ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : scorte.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-3 text-center">
-                <Package className="w-10 h-10 text-slate-700" />
-                <p className="text-slate-400 text-sm">Nessuna scorta assegnata</p>
+                <Package className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Nessuna scorta assegnata</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -155,17 +155,17 @@ export default function CampoMagazzino() {
                     <div
                       key={s.id}
                       className={cn(
-                        "bg-slate-900 border rounded-2xl p-4",
-                        isScarso ? "border-amber-500/30" : "border-slate-800"
+                        "bg-muted border rounded-2xl p-4",
+                        isScarso ? "border-primary/30" : "border-border"
                       )}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <p className="font-medium text-white">{s.nome_materiale}</p>
-                          {s.codice && <p className="text-xs text-slate-500">{s.codice}</p>}
+                          <p className="font-medium text-foreground">{s.nome_materiale}</p>
+                          {s.codice && <p className="text-xs text-muted-foreground">{s.codice}</p>}
                         </div>
                         {isScarso && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full px-2 py-0.5">
+                          <span className="text-[10px] bg-primary/10 text-primary border border-primary/30 rounded-full px-2 py-0.5">
                             Scarso
                           </span>
                         )}
@@ -176,33 +176,33 @@ export default function CampoMagazzino() {
                           <button
                             onClick={() => updateQtaMutation.mutate({ id: s.id, delta: -1 })}
                             disabled={s.quantita_attuale <= 0 || updateQtaMutation.isPending}
-                            className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center active:bg-slate-700 disabled:opacity-30"
+                            className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:bg-muted disabled:opacity-30"
                           >
-                            <Minus className="w-4 h-4 text-white" />
+                            <Minus className="w-4 h-4 text-foreground" />
                           </button>
-                          <span className="text-xl font-bold text-white w-12 text-center">
+                          <span className="text-xl font-bold text-foreground w-12 text-center">
                             {s.quantita_attuale}
                           </span>
                           <button
                             onClick={() => updateQtaMutation.mutate({ id: s.id, delta: 1 })}
                             disabled={updateQtaMutation.isPending}
-                            className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center active:bg-slate-700"
+                            className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:bg-muted"
                           >
-                            <Plus className="w-4 h-4 text-white" />
+                            <Plus className="w-4 h-4 text-foreground" />
                           </button>
-                          <span className="text-xs text-slate-500">{s.unita_misura ?? "pz"}</span>
+                          <span className="text-xs text-muted-foreground">{s.unita_misura ?? "pz"}</span>
                         </div>
 
                         {isScarso && segnalazioneId !== s.id && (
                           <button
                             onClick={() => { setSegnalazioneId(s.id); segnalaMutation.mutate(s); }}
-                            className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg"
+                            className="text-xs bg-primary/10 text-primary border border-primary/30 px-3 py-1.5 rounded-lg"
                           >
                             Segnala
                           </button>
                         )}
                         {segnalazioneId === s.id && segnalaMutation.isPending && (
-                          <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
                         )}
                       </div>
                     </div>
@@ -220,7 +220,7 @@ export default function CampoMagazzino() {
               <select
                 value={selectedCantiere}
                 onChange={e => setSelectedCantiere(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm mb-4 focus:outline-none focus:border-amber-500"
+                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm mb-4 focus:outline-none focus:border-primary"
               >
                 <option value="">— Seleziona cantiere —</option>
                 {cantieri.map((c: any) => (
@@ -239,30 +239,30 @@ export default function CampoMagazzino() {
 
             {!selectedCantiere && cantieri.length !== 1 ? (
               <div className="flex flex-col items-center py-16 gap-3 text-center">
-                <Warehouse className="w-10 h-10 text-slate-700" />
-                <p className="text-slate-400 text-sm">Seleziona un cantiere</p>
+                <Warehouse className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Seleziona un cantiere</p>
               </div>
             ) : loadingWarehouse ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : warehouseItems.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-3 text-center">
-                <Package className="w-10 h-10 text-slate-700" />
-                <p className="text-slate-400 text-sm">Nessun materiale in magazzino cantiere</p>
+                <Package className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Nessun materiale in magazzino cantiere</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {warehouseItems.map((item: any) => (
-                  <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                  <div key={item.id} className="bg-muted border border-border rounded-2xl p-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium text-white">{item.name || item.description}</p>
-                        {item.sku && <p className="text-xs text-slate-500">SKU: {item.sku}</p>}
+                        <p className="font-medium text-foreground">{item.name || item.description}</p>
+                        {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-white">
-                          {item.quantity ?? 0} <span className="text-sm text-slate-400">{item.unit ?? "pz"}</span>
+                        <p className="text-lg font-bold text-foreground">
+                          {item.quantity ?? 0} <span className="text-sm text-muted-foreground">{item.unit ?? "pz"}</span>
                         </p>
                       </div>
                     </div>

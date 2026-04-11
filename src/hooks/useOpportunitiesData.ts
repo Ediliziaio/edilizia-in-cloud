@@ -128,9 +128,10 @@ export function useOpportunities(pipelineId: string | null) {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Auto-fetch all remaining pages in background
+  // Auto-fetch capped: fetch at most 3 extra pages (1500 records total) to avoid memory bloat
   useEffect(() => {
-    if (infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
+    const pageCount = infiniteQuery.data?.pages.length ?? 0;
+    if (pageCount < 3 && infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
       infiniteQuery.fetchNextPage();
     }
   }, [infiniteQuery.hasNextPage, infiniteQuery.isFetchingNextPage, infiniteQuery.data?.pages.length]);
@@ -452,12 +453,12 @@ export function useBulkUpdateOpportunities() {
 
   return useMutation({
     mutationFn: async ({ ids, data }: { ids: string[]; data: Record<string, any> }) => {
-      const promises = ids.map((id) =>
-        supabase.from("marketing_opportunities").update(data).eq("id", id).then(({ error }) => {
-          if (error) throw error;
-        })
-      );
-      await Promise.all(promises);
+      // Batch update: use .in() instead of N individual requests
+      const { error } = await supabase
+        .from("marketing_opportunities")
+        .update(data)
+        .in("id", ids);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
@@ -474,12 +475,12 @@ export function useBulkDeleteOpportunities() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      const promises = ids.map((id) =>
-        supabase.from("marketing_opportunities").delete().eq("id", id).then(({ error }) => {
-          if (error) throw error;
-        })
-      );
-      await Promise.all(promises);
+      // Batch delete: use .in() instead of N individual requests
+      const { error } = await supabase
+        .from("marketing_opportunities")
+        .delete()
+        .in("id", ids);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });

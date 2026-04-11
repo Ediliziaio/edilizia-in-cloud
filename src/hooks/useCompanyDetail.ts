@@ -88,9 +88,9 @@ export function useCompanyDetail(id: string | undefined) {
       if (!id) return null;
       const [companyRes, ordersRes, profilesRes, ticketsRes] = await Promise.all([
         supabase.from("companies").select("*").eq("id", id).single(),
-        supabase.from("orders").select("id, total_amount").eq("company_id", id),
-        supabase.from("profiles").select("id", { count: "exact" }).eq("company_id", id),
-        supabase.from("tickets").select("id, status").eq("company_id", id),
+        supabase.from("orders").select("id, total_amount").eq("company_id", id).limit(5000),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", id),
+        supabase.from("tickets").select("id, status").eq("company_id", id).limit(5000),
       ]);
       if (!companyRes.data) return null;
       const company = companyRes.data as unknown as Company;

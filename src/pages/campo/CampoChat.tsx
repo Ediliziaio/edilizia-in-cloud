@@ -128,18 +128,18 @@ export default function CampoChat() {
     return (
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => navigate("/campo/chat")}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-800 active:bg-slate-700 shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0"
           >
-            <ArrowLeft className="w-5 h-5 text-white" />
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <Hash className="w-4 h-4 text-slate-400" />
+          <Hash className="w-4 h-4 text-muted-foreground" />
           <div>
-            <p className="font-bold text-white">{currentChannel?.name ?? "Canale"}</p>
+            <p className="font-bold text-foreground">{currentChannel?.name ?? "Canale"}</p>
             {currentChannel?.description && (
-              <p className="text-xs text-slate-400">{currentChannel.description}</p>
+              <p className="text-xs text-muted-foreground">{currentChannel.description}</p>
             )}
           </div>
         </div>
@@ -148,12 +148,12 @@ export default function CampoChat() {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {loadingMsg ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : messaggi.length === 0 ? (
             <div className="flex flex-col items-center py-16 gap-3">
-              <MessageCircle className="w-10 h-10 text-slate-700" />
-              <p className="text-slate-400 text-sm">Nessun messaggio. Inizia la conversazione!</p>
+              <MessageCircle className="w-10 h-10 text-muted-foreground" />
+              <p className="text-muted-foreground text-sm">Nessun messaggio. Inizia la conversazione!</p>
             </div>
           ) : (
             messaggi.map((msg) => {
@@ -164,25 +164,25 @@ export default function CampoChat() {
               return (
                 <div key={msg.id} className={cn("flex gap-2", isMe ? "flex-row-reverse" : "flex-row")}>
                   {!isMe && (
-                    <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0 mt-1">
-                      <span className="text-[10px] font-bold text-slate-300">
+                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
+                      <span className="text-[10px] font-bold text-foreground">
                         {senderName[0]?.toUpperCase() ?? "?"}
                       </span>
                     </div>
                   )}
                   <div className={cn("max-w-[75%]", isMe ? "items-end" : "items-start", "flex flex-col gap-0.5")}>
                     {!isMe && (
-                      <span className="text-[10px] text-slate-500 ml-1">{senderName}</span>
+                      <span className="text-[10px] text-muted-foreground ml-1">{senderName}</span>
                     )}
                     <div className={cn(
                       "px-3 py-2 rounded-2xl text-sm",
                       isMe
-                        ? "bg-amber-500 text-black rounded-tr-sm"
-                        : "bg-slate-800 text-white rounded-tl-sm"
+                        ? "bg-primary text-primary-foreground rounded-tr-sm"
+                        : "bg-muted text-foreground rounded-tl-sm"
                     )}>
                       {msg.content}
                     </div>
-                    <span className="text-[10px] text-slate-600 mx-1">
+                    <span className="text-[10px] text-muted-foreground mx-1">
                       {formatMsgDate(msg.created_at)}
                     </span>
                   </div>
@@ -195,7 +195,7 @@ export default function CampoChat() {
 
         {/* Input */}
         <div
-          className="bg-slate-900 border-t border-slate-800 px-4 pt-3"
+          className="bg-muted border-t border-border px-4 pt-3"
           style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
         >
           <div className="flex items-center gap-2">
@@ -204,17 +204,17 @@ export default function CampoChat() {
               onChange={e => setTesto(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="Scrivi un messaggio..."
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+              className="flex-1 bg-muted border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
             />
             <button
               onClick={handleSend}
               disabled={!testo.trim() || sendMutation.isPending}
-              className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform shrink-0"
+              className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform shrink-0"
             >
               {sendMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin text-black" />
+                <Loader2 className="w-4 h-4 animate-spin text-primary-foreground" />
               ) : (
-                <Send className="w-4 h-4 text-black" />
+                <Send className="w-4 h-4 text-primary-foreground" />
               )}
             </button>
           </div>
@@ -226,36 +226,36 @@ export default function CampoChat() {
   // Channel list view
   return (
     <div className="flex flex-col h-full overflow-y-auto px-4 py-4 space-y-3">
-      <p className="text-xs text-slate-500 uppercase tracking-wide">I tuoi canali</p>
+      <p className="text-xs text-muted-foreground uppercase tracking-wide">I tuoi canali</p>
 
       {loadingCanali ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : canali.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3 text-center">
-          <MessageCircle className="w-10 h-10 text-slate-700" />
-          <p className="text-slate-400 text-sm">Nessun canale disponibile</p>
-          <p className="text-slate-600 text-xs">Verrai aggiunto automaticamente al canale del cantiere</p>
+          <MessageCircle className="w-10 h-10 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm">Nessun canale disponibile</p>
+          <p className="text-muted-foreground text-xs">Verrai aggiunto automaticamente al canale del cantiere</p>
         </div>
       ) : (
         canali.map(c => (
           <button
             key={c.id}
             onClick={() => navigate(`/campo/chat/${c.id}`)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-left flex items-center gap-3 active:scale-[0.98] transition-transform"
+            className="w-full bg-muted border border-border rounded-2xl p-4 text-left flex items-center gap-3 active:scale-[0.98] transition-transform"
           >
-            <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
               {c.channel_emoji ? (
                 <span className="text-lg">{c.channel_emoji}</span>
               ) : (
-                <Hash className="w-4 h-4 text-slate-400" />
+                <Hash className="w-4 h-4 text-muted-foreground" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-white truncate">{c.name}</p>
+              <p className="font-medium text-foreground truncate">{c.name}</p>
               {c.description && (
-                <p className="text-xs text-slate-400 truncate">{c.description}</p>
+                <p className="text-xs text-muted-foreground truncate">{c.description}</p>
               )}
             </div>
           </button>

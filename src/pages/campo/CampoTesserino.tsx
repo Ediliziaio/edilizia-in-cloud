@@ -100,15 +100,15 @@ export default function CampoTesserino() {
     <div className="flex flex-col h-full items-center justify-center px-4 py-6 gap-6">
 
       {/* Card tesserino */}
-      <div className="w-full max-w-sm bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+      <div className="w-full max-w-sm bg-muted rounded-3xl overflow-hidden border border-border shadow-2xl">
         {/* Amber top bar */}
-        <div className="h-2 bg-amber-500" />
+        <div className="h-2 bg-primary" />
 
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center gap-2 mb-6">
-            <HardHat className="w-5 h-5 text-amber-400" />
-            <span className="text-xs text-amber-400 font-semibold uppercase tracking-widest">
+            <HardHat className="w-5 h-5 text-primary" />
+            <span className="text-xs text-primary font-semibold uppercase tracking-widest">
               Edilizia in Cloud
             </span>
           </div>
@@ -117,26 +117,26 @@ export default function CampoTesserino() {
             {/* Left: dati */}
             <div className="flex-1">
               {/* Avatar */}
-              <div className="w-16 h-16 rounded-2xl bg-amber-500 flex items-center justify-center mb-3">
-                <span className="text-2xl font-bold text-black">{initials}</span>
+              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-3">
+                <span className="text-2xl font-bold text-primary-foreground">{initials}</span>
               </div>
 
-              <p className="text-xl font-bold text-white leading-tight">{nome}</p>
+              <p className="text-xl font-bold text-foreground leading-tight">{nome}</p>
               <div className="flex items-center gap-1 mt-1">
                 {isSubappaltatore ? (
-                  <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                  <Building2 className="w-3.5 h-3.5 text-primary" />
                 ) : (
-                  <HardHat className="w-3.5 h-3.5 text-amber-400" />
+                  <HardHat className="w-3.5 h-3.5 text-primary" />
                 )}
-                <span className="text-sm text-amber-400">
+                <span className="text-sm text-primary">
                   {isSubappaltatore ? "Subappaltatore" : "Operaio"}
                 </span>
               </div>
 
-              <p className="text-xs text-slate-400 mt-2">{companyName}</p>
+              <p className="text-xs text-muted-foreground mt-2">{companyName}</p>
 
               {user?.email && (
-                <p className="text-xs text-slate-500 mt-1 break-all">{user.email}</p>
+                <p className="text-xs text-muted-foreground mt-1 break-all">{user.email}</p>
               )}
             </div>
 
@@ -150,22 +150,22 @@ export default function CampoTesserino() {
                 />
                 {!qrReady && !qrError && (
                   <div className="w-[90px] h-[90px] flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
                 )}
                 {qrError && (
                   <div className="w-[90px] h-[90px] flex items-center justify-center">
-                    <p className="text-[10px] text-slate-500 text-center">QR non disponibile</p>
+                    <p className="text-[10px] text-muted-foreground text-center">QR non disponibile</p>
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-slate-600 mt-1">Scansiona per verifica</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Scansiona per verifica</p>
             </div>
           </div>
 
           {/* ID footer */}
-          <div className="mt-4 pt-3 border-t border-slate-800">
-            <p className="text-[10px] text-slate-600 font-mono">
+          <div className="mt-4 pt-3 border-t border-border">
+            <p className="text-[10px] text-muted-foreground font-mono">
               ID: {user?.id?.slice(0, 16)}...
             </p>
           </div>
@@ -176,13 +176,13 @@ export default function CampoTesserino() {
       <button
         onClick={handleDownload}
         disabled={!qrReady}
-        className="flex items-center gap-2 bg-slate-800 text-white font-medium px-6 py-3 rounded-xl disabled:opacity-40 active:scale-[0.98] transition-transform"
+        className="flex items-center gap-2 bg-muted text-foreground font-medium px-6 py-3 rounded-xl disabled:opacity-40 active:scale-[0.98] transition-transform"
       >
         <Download className="w-4 h-4" />
         Salva immagine
       </button>
 
-      <p className="text-xs text-slate-500 text-center max-w-xs">
+      <p className="text-xs text-muted-foreground text-center max-w-xs">
         Il codice QR può essere scansionato in cantiere per verificare la tua identità.
       </p>
     </div>

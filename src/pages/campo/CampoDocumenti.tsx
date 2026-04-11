@@ -53,7 +53,7 @@ export default function CampoDocumenti() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -70,17 +70,17 @@ export default function CampoDocumenti() {
 
       {/* Alert scadenze */}
       {scadutiCount > 0 && (
-        <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-xl">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-          <p className="text-xs text-red-400">
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">
+          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+          <p className="text-xs text-red-600">
             {scadutiCount} document{scadutiCount > 1 ? "i" : "o"} scadut{scadutiCount > 1 ? "i" : "o"} — contatta l'ufficio
           </p>
         </div>
       )}
       {inScadenzaCount > 0 && (
-        <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-400">
+        <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+          <Clock className="w-4 h-4 text-primary shrink-0" />
+          <p className="text-xs text-primary">
             {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza entro 30 giorni
           </p>
         </div>
@@ -88,9 +88,9 @@ export default function CampoDocumenti() {
 
       {documenti.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3 text-center">
-          <FileText className="w-10 h-10 text-slate-700" />
-          <p className="text-slate-400 text-sm">Nessun documento disponibile</p>
-          <p className="text-slate-600 text-xs">I tuoi documenti caricati dall'ufficio appariranno qui</p>
+          <FileText className="w-10 h-10 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm">Nessun documento disponibile</p>
+          <p className="text-muted-foreground text-xs">I tuoi documenti caricati dall'ufficio appariranno qui</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -100,22 +100,22 @@ export default function CampoDocumenti() {
               <div
                 key={doc.id}
                 className={cn(
-                  "bg-slate-900 border rounded-2xl p-4",
+                  "bg-muted border rounded-2xl p-4",
                   status === "scaduto" ? "border-red-500/30" :
-                  status === "in_scadenza" ? "border-amber-500/30" :
-                  "border-slate-800"
+                  status === "in_scadenza" ? "border-primary/30" :
+                  "border-border"
                 )}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-slate-400" />
+                    <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-medium text-white">
+                      <p className="font-medium text-foreground">
                         {doc.nome_file || TIPO_LABELS[doc.tipo] || doc.tipo}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         {TIPO_LABELS[doc.tipo] || doc.tipo}
                       </p>
                     </div>
@@ -123,19 +123,19 @@ export default function CampoDocumenti() {
 
                   {/* Scadenza badge */}
                   {status === "scaduto" && (
-                    <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-400 border border-red-500/20 rounded-full px-2 py-0.5 shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-600 border border-red-500/20 rounded-full px-2 py-0.5 shrink-0">
                       <AlertTriangle className="w-3 h-3" />
                       Scaduto
                     </span>
                   )}
                   {status === "in_scadenza" && (
-                    <span className="flex items-center gap-1 text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-full px-2 py-0.5 shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 shrink-0">
                       <Clock className="w-3 h-3" />
                       In scadenza
                     </span>
                   )}
                   {status === "valido" && (
-                    <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-400 border border-green-500/20 rounded-full px-2 py-0.5 shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-600 border border-green-500/20 rounded-full px-2 py-0.5 shrink-0">
                       <CheckCircle className="w-3 h-3" />
                       Valido
                     </span>
@@ -143,10 +143,10 @@ export default function CampoDocumenti() {
                 </div>
 
                 {doc.data_scadenza && (
-                  <p className="text-xs text-slate-500 mt-1 ml-12">
+                  <p className="text-xs text-muted-foreground mt-1 ml-12">
                     Scadenza: {format(parseISO(doc.data_scadenza), "d MMMM yyyy", { locale: it })}
                     {status === "in_scadenza" && (
-                      <span className="text-amber-400 ml-1">
+                      <span className="text-primary ml-1">
                         (tra {differenceInDays(parseISO(doc.data_scadenza), today)} giorni)
                       </span>
                     )}
@@ -156,7 +156,7 @@ export default function CampoDocumenti() {
                 {doc.url && (
                   <button
                     onClick={() => window.open(doc.url, "_blank")}
-                    className="mt-3 flex items-center gap-1.5 text-xs text-amber-400 ml-12"
+                    className="mt-3 flex items-center gap-1.5 text-xs text-primary ml-12"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Visualizza documento

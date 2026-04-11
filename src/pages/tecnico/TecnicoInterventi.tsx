@@ -43,7 +43,7 @@ export default function TecnicoInterventi() {
         query = query.eq("status", "risolto");
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.limit(500);
       if (error) throw error;
       return data ?? [];
     },

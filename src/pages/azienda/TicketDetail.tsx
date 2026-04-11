@@ -94,7 +94,8 @@ export default function TicketDetail() {
         .from("ticket_messages")
         .select("id, message, sender_id, created_at, attachment_url")
         .eq("ticket_id", id!)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(500);
       if (error) throw error;
 
       // Fetch sender profiles separately
@@ -127,7 +128,8 @@ export default function TicketDetail() {
       const { data: roleData, error: roleErr } = await supabase
         .from("user_roles")
         .select("user_id")
-        .in("role", ["company_admin", "company_staff"]);
+        .in("role", ["company_admin", "company_staff"])
+        .limit(500);
       if (roleErr) throw roleErr;
       const staffIds = (roleData || []).map((r) => r.user_id);
       if (staffIds.length === 0) return [];
@@ -136,12 +138,13 @@ export default function TicketDetail() {
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", effectiveCompany!.id)
-        .in("id", staffIds);
+        .in("id", staffIds)
+        .limit(200);
       if (error) throw error;
       return data;
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
 
   const { data: tecnici = [] } = useQuery({
@@ -152,11 +155,13 @@ export default function TicketDetail() {
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", effectiveCompany.id)
-        .order("first_name");
+        .order("first_name")
+        .limit(200);
       if (error) throw error;
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
   });
 
   const escalationMutation = useMutation({

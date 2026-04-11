@@ -243,7 +243,7 @@ export function useLotBatches(companyId: string | null, stockItemId?: string) {
         query = query.eq("stock_item_id", stockItemId);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.limit(500);
       if (error) throw error;
       return (data ?? []) as any;
     },
@@ -278,7 +278,8 @@ export function useWarehouseStats(companyId: string | null) {
         supabase
           .from("warehouse_stock")
           .select("id, quantity, unit_cost, quantity_reserved, min_stock_level")
-          .eq("company_id", companyId!),
+          .eq("company_id", companyId!)
+          .limit(5000),
         supabase.rpc("get_low_stock_alerts", { p_company_id: companyId! }),
         supabase.rpc("get_blocked_orders", { p_company_id: companyId! }),
         // B6 — filtro company_id via join con orders (order_items non ha company_id diretto)

@@ -36,7 +36,8 @@ export function useOpportunityCustomFields() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("object_type", "opportunity")
-        .order("position");
+        .order("position")
+        .limit(100);
       if (error) throw error;
       return data;
     },
@@ -53,7 +54,8 @@ export function useContactFieldValues(contactId: string | null) {
       const { data, error } = await supabase
         .from("marketing_contact_field_values")
         .select("*")
-        .eq("contact_id", contactId!);
+        .eq("contact_id", contactId!)
+        .limit(200);
       if (error) throw error;
       return data;
     },
@@ -70,7 +72,8 @@ export function useOpportunityFieldValues(opportunityId: string | null) {
       const { data, error } = await supabase
         .from("marketing_opportunity_field_values")
         .select("*")
-        .eq("opportunity_id", opportunityId!);
+        .eq("opportunity_id", opportunityId!)
+        .limit(200);
       if (error) throw error;
       return data;
     },

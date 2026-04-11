@@ -78,6 +78,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         query = query.eq("priority", priorityFilter);
       }
 
+      if (searchQuery) {
+        query = query.or(`subject.ilike.%${searchQuery}%`);
+      }
+
       const { data, error, count } = await query.range(0, 199);
 
       if (error) throw error;

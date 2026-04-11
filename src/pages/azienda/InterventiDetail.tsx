@@ -65,9 +65,10 @@ export default function InterventiDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rapportini_intervento")
-        .select("*")
+        .select("id, ticket_id, company_id, tecnico_id, data_intervento, ora_inizio, ora_fine, descrizione_lavoro, materiali_usati, foto_urls, firma_cliente, stato, note, created_at, updated_at, costo_materiali, costo_manodopera, ore_lavorate")
         .eq("ticket_id", id!)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return (data ?? []) as RapportinoIntervento[];
     },
@@ -82,11 +83,13 @@ export default function InterventiDetail() {
         .from("profiles")
         .select("id, first_name, last_name, role")
         .eq("company_id", effectiveCompany.id)
-        .order("first_name");
+        .order("first_name")
+        .limit(200);
       if (error) throw error;
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
   });
 
   // Query tariffa oraria dalla configurazione aziendale

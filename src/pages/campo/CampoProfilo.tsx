@@ -52,19 +52,19 @@ export default function CampoProfilo() {
     <div className="flex flex-col h-full overflow-y-auto px-4 py-4 pb-28 space-y-4">
 
       {/* Avatar + nome */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center gap-3">
-        <div className="w-20 h-20 rounded-full bg-amber-500 flex items-center justify-center">
-          <span className="text-3xl font-bold text-black">{initials}</span>
+      <div className="bg-muted border border-border rounded-2xl p-6 flex flex-col items-center gap-3">
+        <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center">
+          <span className="text-3xl font-bold text-primary-foreground">{initials}</span>
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold text-white">{nome}</p>
+          <p className="text-xl font-bold text-foreground">{nome}</p>
           <div className="flex items-center justify-center gap-1.5 mt-1">
             {role === "employee" ? (
-              <HardHat className="w-4 h-4 text-amber-400" />
+              <HardHat className="w-4 h-4 text-primary" />
             ) : (
-              <Building2 className="w-4 h-4 text-amber-400" />
+              <Building2 className="w-4 h-4 text-primary" />
             )}
-            <span className="text-sm text-amber-400 capitalize">
+            <span className="text-sm text-primary capitalize">
               {role === "employee" ? "Operaio" : "Subappaltatore"}
             </span>
           </div>
@@ -73,72 +73,72 @@ export default function CampoProfilo() {
 
       {/* Statistiche mese */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center">
-          <p className="text-3xl font-bold text-white">{stats?.rapportiniMese ?? "—"}</p>
-          <p className="text-xs text-slate-400 mt-1">Rapportini questo mese</p>
+        <div className="bg-muted border border-border rounded-2xl p-4 text-center">
+          <p className="text-3xl font-bold text-foreground">{stats?.rapportiniMese ?? "—"}</p>
+          <p className="text-xs text-muted-foreground mt-1">Rapportini questo mese</p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center">
-          <p className="text-3xl font-bold text-white">{stats?.cantieri ?? "—"}</p>
-          <p className="text-xs text-slate-400 mt-1">Cantieri assegnati</p>
+        <div className="bg-muted border border-border rounded-2xl p-4 text-center">
+          <p className="text-3xl font-bold text-foreground">{stats?.cantieri ?? "—"}</p>
+          <p className="text-xs text-muted-foreground mt-1">Cantieri assegnati</p>
         </div>
       </div>
 
       {/* Dati anagrafici */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <p className="text-xs text-slate-500 uppercase tracking-wide">Dati personali</p>
+      <div className="bg-muted border border-border rounded-2xl p-4 space-y-4">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide">Dati personali</p>
 
         {user?.email && (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
-              <Mail className="w-4 h-4 text-slate-400" />
+            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
+              <Mail className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">Email</p>
-              <p className="text-sm text-white">{user.email}</p>
+              <p className="text-xs text-muted-foreground">Email</p>
+              <p className="text-sm text-foreground">{user.email}</p>
             </div>
           </div>
         )}
 
         {p?.phone && (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
-              <Phone className="w-4 h-4 text-slate-400" />
+            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
+              <Phone className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">Telefono</p>
-              <a href={`tel:${p.phone}`} className="text-sm text-amber-400">{p.phone}</a>
+              <p className="text-xs text-muted-foreground">Telefono</p>
+              <a href={`tel:${p.phone}`} className="text-sm text-primary">{p.phone}</a>
             </div>
           </div>
         )}
 
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4 text-slate-400" />
+          <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-4 h-4 text-muted-foreground" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Ruolo sistema</p>
-            <p className="text-sm text-white capitalize">{role}</p>
+            <p className="text-xs text-muted-foreground">Ruolo sistema</p>
+            <p className="text-sm text-foreground capitalize">{role}</p>
           </div>
         </div>
       </div>
 
       {/* App info */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-        <p className="text-xs text-slate-500 uppercase tracking-wide mb-3">App</p>
+      <div className="bg-muted border border-border rounded-2xl p-4">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">App</p>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-400">Versione</span>
-          <span className="text-sm text-white">Area Campo 1.0</span>
+          <span className="text-sm text-muted-foreground">Versione</span>
+          <span className="text-sm text-foreground">Area Campo 1.0</span>
         </div>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-sm text-slate-400">Piattaforma</span>
-          <span className="text-sm text-white">Edilizia in Cloud</span>
+          <span className="text-sm text-muted-foreground">Piattaforma</span>
+          <span className="text-sm text-foreground">Edilizia in Cloud</span>
         </div>
       </div>
 
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="w-full bg-red-600/10 border border-red-600/30 text-red-400 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+        className="w-full bg-red-600/10 border border-red-600/30 text-red-600 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
       >
         <LogOut className="w-5 h-5" />
         Esci dall'account

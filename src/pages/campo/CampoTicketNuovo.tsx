@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const PRIORITA = [
-  { value: "bassa", label: "Bassa", color: "bg-slate-700 text-slate-300" },
-  { value: "media", label: "Media", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-  { value: "alta", label: "Alta", color: "bg-red-500/20 text-red-400 border-red-500/30" },
+  { value: "bassa", label: "Bassa", color: "bg-muted text-foreground" },
+  { value: "media", label: "Media", color: "bg-primary/10 text-primary border-primary/30" },
+  { value: "alta", label: "Alta", color: "bg-red-500/20 text-red-600 border-red-500/30" },
 ];
 
 export default function CampoTicketNuovo() {
@@ -67,9 +67,9 @@ export default function CampoTicketNuovo() {
   if (done) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <CheckCircle className="w-16 h-16 text-green-400" />
-        <p className="text-white font-bold text-xl">Ticket inviato!</p>
-        <p className="text-slate-400 text-sm">L'ufficio è stato notificato</p>
+        <CheckCircle className="w-16 h-16 text-green-600" />
+        <p className="text-foreground font-bold text-xl">Ticket inviato!</p>
+        <p className="text-muted-foreground text-sm">L'ufficio è stato notificato</p>
       </div>
     );
   }
@@ -77,16 +77,16 @@ export default function CampoTicketNuovo() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-800 active:bg-slate-700 shrink-0"
+          className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0"
         >
-          <ArrowLeft className="w-5 h-5 text-white" />
+          <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div>
-          <p className="font-bold text-white">Nuovo ticket</p>
-          <p className="text-xs text-slate-400">Segnala un problema al cantiere</p>
+          <p className="font-bold text-foreground">Nuovo ticket</p>
+          <p className="text-xs text-muted-foreground">Segnala un problema al cantiere</p>
         </div>
       </div>
 
@@ -95,11 +95,11 @@ export default function CampoTicketNuovo() {
         {/* Cantiere (opzionale) */}
         {cantieri.length > 0 && (
           <div>
-            <label className="block text-xs text-slate-400 mb-1.5">Cantiere (opzionale)</label>
+            <label className="block text-xs text-muted-foreground mb-1.5">Cantiere (opzionale)</label>
             <select
               value={selectedOrderId}
               onChange={e => setSelectedOrderId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500"
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary"
             >
               <option value="">— Nessun cantiere specifico —</option>
               {cantieri.map((c: any) => (
@@ -113,18 +113,18 @@ export default function CampoTicketNuovo() {
 
         {/* Titolo */}
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5">Titolo *</label>
+          <label className="block text-xs text-muted-foreground mb-1.5">Titolo *</label>
           <input
             value={titolo}
             onChange={e => setTitolo(e.target.value)}
             placeholder="Es: Mancano i tasselli Fischer"
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-amber-500"
+            className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary"
           />
         </div>
 
         {/* Priorità */}
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5">Priorità</label>
+          <label className="block text-xs text-muted-foreground mb-1.5">Priorità</label>
           <div className="flex gap-2">
             {PRIORITA.map(p => (
               <button
@@ -134,7 +134,7 @@ export default function CampoTicketNuovo() {
                   "flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors",
                   priorita === p.value
                     ? p.color + " border-current"
-                    : "bg-slate-900 border-slate-700 text-slate-500"
+                    : "bg-muted border-border text-muted-foreground"
                 )}
               >
                 {p.label}
@@ -145,20 +145,20 @@ export default function CampoTicketNuovo() {
 
         {/* Descrizione */}
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5">Descrizione (opzionale)</label>
+          <label className="block text-xs text-muted-foreground mb-1.5">Descrizione (opzionale)</label>
           <textarea
             value={descrizione}
             onChange={e => setDescrizione(e.target.value)}
             placeholder="Descrivi il problema in dettaglio..."
             rows={4}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-amber-500 resize-none"
+            className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"
           />
         </div>
 
         {/* Info */}
-        <div className="flex items-start gap-2 p-3 bg-slate-900 border border-slate-800 rounded-xl">
-          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-xs text-slate-400">
+        <div className="flex items-start gap-2 p-3 bg-muted border border-border rounded-xl">
+          <AlertCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">
             Il ticket verrà inviato all'ufficio con priorità selezionata. Riceverai una notifica quando viene gestito.
           </p>
         </div>
@@ -166,13 +166,13 @@ export default function CampoTicketNuovo() {
 
       {/* Submit */}
       <div
-        className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 px-4 pt-3"
+        className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 pt-3"
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
       >
         <button
           onClick={() => submitMutation.mutate()}
           disabled={!titolo.trim() || submitMutation.isPending}
-          className="w-full bg-amber-500 text-black font-bold py-4 rounded-xl text-base disabled:opacity-40 flex items-center justify-center gap-2"
+          className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl text-base disabled:opacity-40 flex items-center justify-center gap-2"
         >
           {submitMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
           INVIA TICKET

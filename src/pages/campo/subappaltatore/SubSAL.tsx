@@ -18,10 +18,10 @@ import { toast } from "sonner";
 type Tab = "lista" | "nuovo";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: typeof Clock; color: string }> = {
-  bozza:    { label: "Bozza",     icon: Clock,         color: "bg-slate-700 text-slate-300" },
-  inviato:  { label: "Inviato",   icon: Clock,         color: "bg-amber-500/20 text-amber-400 border-amber-500/20" },
-  approvato:{ label: "Approvato", icon: CheckCircle,   color: "bg-green-500/20 text-green-400 border-green-500/20" },
-  contestato:{ label: "Contestato",icon: XCircle,      color: "bg-red-500/20 text-red-400 border-red-500/20" },
+  bozza:    { label: "Bozza",     icon: Clock,         color: "bg-muted text-foreground" },
+  inviato:  { label: "Inviato",   icon: Clock,         color: "bg-primary/10 text-primary border-primary/20" },
+  approvato:{ label: "Approvato", icon: CheckCircle,   color: "bg-green-500/20 text-green-600 border-green-500/20" },
+  contestato:{ label: "Contestato",icon: XCircle,      color: "bg-red-500/20 text-red-600 border-red-500/20" },
 };
 
 export default function SubSAL() {
@@ -129,7 +129,7 @@ export default function SubSAL() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3">
+      <div className="bg-muted border-b border-border px-4 py-3">
         <div className="flex gap-2">
           {(["lista", "nuovo"] as Tab[]).map(tab => (
             <button
@@ -138,8 +138,8 @@ export default function SubSAL() {
               className={cn(
                 "flex-1 py-2 rounded-xl text-sm font-medium transition-colors",
                 activeTab === tab
-                  ? "bg-amber-500 text-black"
-                  : "bg-slate-800 text-slate-400"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
               )}
             >
               {tab === "lista" ? (
@@ -169,29 +169,29 @@ export default function SubSAL() {
           <>
             {/* Stats */}
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
-                <p className="text-2xl font-bold text-white">{salList.length}</p>
-                <p className="text-xs text-slate-400">SAL totali</p>
+              <div className="bg-muted border border-border rounded-2xl p-3 text-center">
+                <p className="text-2xl font-bold text-foreground">{salList.length}</p>
+                <p className="text-xs text-muted-foreground">SAL totali</p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
-                <p className="text-2xl font-bold text-green-400">
+              <div className="bg-muted border border-border rounded-2xl p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">
                   €{totaleApprovato.toLocaleString("it-IT", { minimumFractionDigits: 0 })}
                 </p>
-                <p className="text-xs text-slate-400">Approvato</p>
+                <p className="text-xs text-muted-foreground">Approvato</p>
               </div>
             </div>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : salList.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-3 text-center">
-                <FileText className="w-10 h-10 text-slate-700" />
-                <p className="text-slate-400 text-sm">Nessun SAL presente</p>
+                <FileText className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Nessun SAL presente</p>
                 <button
                   onClick={() => setActiveTab("nuovo")}
-                  className="text-amber-400 text-sm font-medium"
+                  className="text-primary text-sm font-medium"
                 >
                   Crea il primo SAL →
                 </button>
@@ -202,13 +202,13 @@ export default function SubSAL() {
                   const statusCfg = STATUS_CONFIG[sal.status] ?? STATUS_CONFIG.bozza;
                   const Icon = statusCfg.icon;
                   return (
-                    <div key={sal.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                    <div key={sal.id} className="bg-muted border border-border rounded-2xl p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold text-foreground">
                             SAL #{sal.numero_sal} — {sal.order?.order_code}
                           </p>
-                          <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                             {sal.order?.description}
                           </p>
                         </div>
@@ -222,21 +222,21 @@ export default function SubSAL() {
                       </div>
 
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="text-white font-bold">
+                        <span className="text-foreground font-bold">
                           €{(sal.importo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                         </span>
-                        <span className="text-slate-400">{sal.percentuale_avanzamento ?? 0}% avanzamento</span>
+                        <span className="text-muted-foreground">{sal.percentuale_avanzamento ?? 0}% avanzamento</span>
                       </div>
 
                       {sal.data_invio && (
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                           {format(parseISO(sal.data_invio), "d MMM yyyy", { locale: it })}
                         </p>
                       )}
 
                       {sal.status === "contestato" && sal.note_contestazione && (
-                        <div className="mt-2 p-2 bg-red-900/20 border border-red-500/20 rounded-lg">
-                          <p className="text-xs text-red-400">{sal.note_contestazione}</p>
+                        <div className="mt-2 p-2 bg-red-50 border border-red-500/20 rounded-lg">
+                          <p className="text-xs text-red-600">{sal.note_contestazione}</p>
                         </div>
                       )}
                     </div>
@@ -252,11 +252,11 @@ export default function SubSAL() {
           <div className="space-y-4">
             {/* Cantiere */}
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Cantiere *</label>
+              <label className="block text-xs text-muted-foreground mb-1.5">Cantiere *</label>
               <select
                 value={selectedOrderId}
                 onChange={e => setSelectedOrderId(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500"
+                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary"
               >
                 <option value="">— Seleziona cantiere —</option>
                 {cantieri.map((c: any) => (
@@ -269,9 +269,9 @@ export default function SubSAL() {
 
             {/* Importo */}
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Importo (€) *</label>
+              <label className="block text-xs text-muted-foreground mb-1.5">Importo (€) *</label>
               <div className="relative">
-                <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="number"
                   value={importo}
@@ -279,15 +279,15 @@ export default function SubSAL() {
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500"
+                  className="w-full bg-muted border border-border rounded-xl pl-9 pr-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary"
                 />
               </div>
             </div>
 
             {/* Percentuale avanzamento */}
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">
-                Avanzamento lavori: <span className="text-white font-medium">{percentuale}%</span>
+              <label className="block text-xs text-muted-foreground mb-1.5">
+                Avanzamento lavori: <span className="text-foreground font-medium">{percentuale}%</span>
               </label>
               <input
                 type="range"
@@ -296,9 +296,9 @@ export default function SubSAL() {
                 step="5"
                 value={percentuale}
                 onChange={e => setPercentuale(e.target.value)}
-                className="w-full accent-amber-500"
+                className="w-full accent-primary"
               />
-              <div className="flex justify-between text-[10px] text-slate-600 mt-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
                 <span>0%</span>
                 <span>50%</span>
                 <span>100%</span>
@@ -307,19 +307,19 @@ export default function SubSAL() {
 
             {/* Descrizione */}
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">Descrizione lavori</label>
+              <label className="block text-xs text-muted-foreground mb-1.5">Descrizione lavori</label>
               <textarea
                 value={descrizione}
                 onChange={e => setDescrizione(e.target.value)}
                 placeholder="Descrivi i lavori eseguiti in questo periodo..."
                 rows={4}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-amber-500 resize-none"
+                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"
               />
             </div>
 
-            <div className="flex items-start gap-2 p-3 bg-slate-900 border border-slate-800 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-slate-400">
+            <div className="flex items-start gap-2 p-3 bg-muted border border-border rounded-xl">
+              <AlertCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
                 Il SAL verrà inviato all'ufficio per approvazione. Riceverai una notifica sull'esito.
               </p>
             </div>
@@ -327,7 +327,7 @@ export default function SubSAL() {
             <button
               onClick={() => submitMutation.mutate()}
               disabled={!selectedOrderId || !importo || submitMutation.isPending}
-              className="w-full bg-amber-500 text-black font-bold py-4 rounded-xl text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
             >
               {submitMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
               INVIA SAL

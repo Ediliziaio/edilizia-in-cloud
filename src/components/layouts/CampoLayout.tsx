@@ -1,10 +1,26 @@
 /**
- * Layout esclusivamente mobile per l'area campo (operai e subappaltatori).
- * Struttura: header fisso → contenuto scrollabile → bottom nav fissa.
- * Design dark theme ottimizzato per uso in cantiere (luce solare diretta).
+ * Layout per l'area campo (operai e subappaltatori).
+ * Usa la stessa UX white-sidebar dell'app principale.
+ * Su mobile la sidebar diventa un sheet laterale.
  */
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Home, Calendar, MessageSquare, Package, User, HardHat, Eye } from "lucide-react";
+import {
+  Home,
+  Calendar,
+  MessageSquare,
+  Package,
+  User,
+  HardHat,
+  Eye,
+  LogOut,
+  ClipboardCheck,
+  FileText,
+  Mic,
+  Truck,
+  Shield,
+  CreditCard,
+  Ticket,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useQuery } from "@tanstack/react-query";
@@ -13,26 +29,41 @@ import { cn } from "@/lib/utils";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import OfflineBanner from "@/components/campo/OfflineBanner";
+import { NavLink } from "@/components/NavLink";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 export default function CampoLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, user } = useAuth();
+  const { profile, user, signOut, company } = useAuth();
   const { isOperaio } = useIsCampo();
 
-  // Conta messaggi non letti nelle ultime 24h nei canali di appartenenza
+  // Conta messaggi non letti
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["campo-unread", user?.id],
     queryFn: async () => {
       if (!user?.id || !profile?.company_id) return 0;
-      // Recupera i canali di cui l'utente è membro
       const { data: membership } = await supabase
         .from("chat_channel_members")
         .select("channel_id")
         .eq("user_id", user.id);
       if (!membership?.length) return 0;
       const channelIds = membership.map((m: any) => m.channel_id);
-      // Conta messaggi altrui nelle ultime 24h
       const since = new Date();
       since.setDate(since.getDate() - 1);
       const { count } = await supabase
@@ -47,106 +78,158 @@ export default function CampoLayout() {
     enabled: !!user?.id && !!profile?.company_id,
   });
 
-  const tabs = [
-    { icon: Home,         label: "Home",    path: "/campo",          exact: true  },
-    { icon: Calendar,     label: "Lavori",  path: "/campo/calendario", exact: false },
-    { icon: MessageSquare, label: "Chat",   path: "/campo/chat",     exact: false, badge: unreadCount },
-    isOperaio
-      ? { icon: Package, label: "Furgone",  path: "/campo/magazzino", exact: false }
-      : { icon: Package, label: "SAL",      path: "/campo/sal",       exact: false },
-    { icon: User,         label: "Profilo", path: "/campo/profilo",  exact: false },
+  const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
+  const previewSession = usePreviewToken();
+  const roleLabel = isOperaio ? "Operaio" : "Subappaltatore";
+
+  // Nav items per operaio
+  const operaioItems = [
+    { title: "Home", url: "/campo", icon: Home, end: true },
+    { title: "Lavori", url: "/campo/calendario", icon: Calendar },
+    { title: "Timbratura", url: "/campo/timbratura", icon: CreditCard },
+    { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
+    { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
+    { title: "Furgone", url: "/campo/magazzino", icon: Truck },
+    { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
+    { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
+    { title: "Documenti", url: "/campo/documenti", icon: FileText },
+    { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
+    { title: "Profilo", url: "/campo/profilo", icon: User },
   ];
 
-  const isActive = (tab: { path: string; exact: boolean }) =>
-    tab.exact ? location.pathname === tab.path : location.pathname.startsWith(tab.path);
+  // Nav items per subappaltatore
+  const subItems = [
+    { title: "Home", url: "/campo", icon: Home, end: true },
+    { title: "Lavori", url: "/campo/calendario", icon: Calendar },
+    { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
+    { title: "SAL", url: "/campo/sal", icon: ClipboardCheck },
+    { title: "Documenti", url: "/campo/documenti", icon: FileText },
+    { title: "Profilo", url: "/campo/profilo", icon: User },
+  ];
 
-  const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
-  // Modalità SuperAdmin-preview (token da URL)
-  const previewSession = usePreviewToken();
+  const navItems = isOperaio ? operaioItems : subItems;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-slate-950 text-white overflow-hidden">
-      {/* Banner SuperAdmin-preview */}
-      {previewSession.isPreview && (
-        <div className="flex-none bg-yellow-700 px-4 py-2 flex items-center gap-2">
-          <Eye className="h-4 w-4 text-white shrink-0" />
-          <span className="text-sm text-white font-medium">
-            Modalità SuperAdmin — Visualizzazione come: {previewSession.targetRole === "employee" ? "Operaio" : "Subappaltatore"} (sola lettura)
-          </span>
-        </div>
-      )}
-      {previewSession.error && (
-        <div className="flex-none bg-red-800 px-4 py-2 text-sm text-white text-center">
-          Token preview non valido: {previewSession.error}
-        </div>
-      )}
-
-      {/* Banner offline / sync status */}
-      <OfflineBanner />
-
-      {/* Header fisso */}
-      <header
-        className="flex-none bg-slate-900 border-b border-slate-800 px-4 pb-3 flex items-center justify-between"
-        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-            <HardHat className="w-4 h-4 text-amber-400" />
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-muted/30">
+        {/* Sidebar */}
+        <Sidebar collapsible="icon" className="border-r">
+          <div className="flex h-14 items-center border-b px-4 gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <HardHat className="w-4 h-4 text-primary" />
+            </div>
+            <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none">
+                {roleLabel}
+              </p>
+              <p className="text-sm font-semibold truncate leading-tight">
+                {profile?.first_name} {profile?.last_name}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-              {isOperaio ? "Operaio" : "Subappaltatore"}
-            </p>
-            <p className="text-sm font-semibold text-white leading-tight">
-              {profile?.first_name} {profile?.last_name}
-            </p>
-          </div>
-        </div>
 
-        <button
-          onClick={() => navigate("/campo/profilo")}
-          className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-black font-bold text-sm active:scale-95 transition-transform"
-        >
-          {initials}
-        </button>
-      </header>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>
+                {isOperaio ? "Area Operaio" : "Area Subappaltatore"}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navItems.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          end={(item as any).end}
+                          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                          activeClassName="bg-accent text-accent-foreground font-medium"
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{item.title}</span>
+                          {(item as any).badge > 0 && (
+                            <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
+                              {(item as any).badge > 9 ? "9+" : (item as any).badge}
+                            </Badge>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
 
-      {/* Contenuto scrollabile */}
-      <main className="flex-1 overflow-y-auto overscroll-y-none">
-        <PreviewSessionContext.Provider value={previewSession}>
-          <Outlet />
-        </PreviewSessionContext.Provider>
-      </main>
-
-      {/* Bottom Navigation */}
-      <nav
-        className="flex-none bg-slate-900 border-t border-slate-800"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <div className="flex justify-around py-1">
-          {tabs.map((tab) => {
-            const active = isActive(tab);
-            return (
+          {/* Footer */}
+          <div className="mt-auto border-t p-3">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-sm font-medium truncate">
+                  {profile?.first_name} {profile?.last_name}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{profile?.email}</p>
+              </div>
               <button
-                key={tab.path}
-                onClick={() => navigate(tab.path)}
-                className={cn(
-                  "relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl min-w-[60px] transition-all duration-150",
-                  active ? "text-amber-400" : "text-slate-500 active:text-slate-300"
-                )}
+                onClick={() => signOut()}
+                className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group-data-[collapsible=icon]:hidden"
+                title="Esci"
               >
-                {(tab as any).badge > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center">
-                    {(tab as any).badge > 9 ? "9+" : (tab as any).badge}
-                  </span>
-                )}
-                <tab.icon className="w-6 h-6" strokeWidth={active ? 2.5 : 1.5} />
-                <span className="text-[10px] font-medium">{tab.label}</span>
+                <LogOut className="h-4 w-4" />
               </button>
-            );
-          })}
+            </div>
+            <div className="mt-2 group-data-[collapsible=icon]:hidden">
+              <PoweredByBadge />
+            </div>
+          </div>
+        </Sidebar>
+
+        {/* Main Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <OfflineBanner />
+
+          {/* Preview banners */}
+          {previewSession.isPreview && (
+            <div className="bg-amber-50 border-b border-amber-300 px-4 py-2 flex items-center gap-2">
+              <Eye className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="text-sm text-amber-800 font-medium">
+                Modalit&agrave; SuperAdmin — Visualizzazione come: {roleLabel} (sola lettura)
+              </span>
+            </div>
+          )}
+          {previewSession.error && (
+            <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 text-sm text-destructive text-center">
+              Token preview non valido: {previewSession.error}
+            </div>
+          )}
+
+          {/* Top bar */}
+          <header className="h-14 border-b bg-background flex items-center gap-3 px-4 sticky top-0 z-40">
+            <SidebarTrigger className="md:hidden" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <HardHat className="h-4 w-4" />
+              <span>Area {roleLabel}</span>
+              {company?.name && (
+                <>
+                  <span className="text-muted-foreground/50">&middot;</span>
+                  <span className="font-medium text-foreground">{company.name}</span>
+                </>
+              )}
+            </div>
+          </header>
+
+          {/* Page Content */}
+          <main className="flex-1 p-4 md:p-6">
+            <PreviewSessionContext.Provider value={previewSession}>
+              <Outlet />
+            </PreviewSessionContext.Provider>
+          </main>
         </div>
-      </nav>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }

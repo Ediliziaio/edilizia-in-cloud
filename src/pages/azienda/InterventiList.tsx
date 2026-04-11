@@ -59,7 +59,7 @@ export default function InterventiList() {
       if (tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
       if (statoFilter !== "all") q = q.eq("status", statoFilter);
 
-      const { data, error } = await q;
+      const { data, error } = await q.limit(500);
       if (error) throw error;
       return (data ?? []) as Intervento[];
     },
@@ -75,7 +75,8 @@ export default function InterventiList() {
         .from("rapportini_intervento")
         .select("id, ticket_id")
         .eq("company_id", effectiveCompany.id)
-        .eq("stato", "firmato");
+        .eq("stato", "firmato")
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

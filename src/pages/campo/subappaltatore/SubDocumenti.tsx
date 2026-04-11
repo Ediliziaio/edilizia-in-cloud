@@ -123,11 +123,11 @@ export default function SubDocumenti() {
   return (
     <div className="flex flex-col h-full pb-28">
       {/* Header */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-        <p className="font-bold text-white">I miei documenti</p>
+      <div className="bg-muted border-b border-border px-4 py-3 flex items-center justify-between">
+        <p className="font-bold text-foreground">I miei documenti</p>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 bg-amber-500 text-black font-semibold px-3 py-1.5 rounded-xl text-sm"
+          className="flex items-center gap-1.5 bg-primary text-primary-foreground font-semibold px-3 py-1.5 rounded-xl text-sm"
         >
           <Upload className="w-4 h-4" />
           Carica
@@ -137,17 +137,17 @@ export default function SubDocumenti() {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Alert scadenze */}
         {scadutiCount > 0 && (
-          <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-xl">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-xs text-red-400">
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <p className="text-xs text-red-600">
               {scadutiCount} document{scadutiCount > 1 ? "i" : "o"} scadut{scadutiCount > 1 ? "i" : "o"}
             </p>
           </div>
         )}
         {inScadenzaCount > 0 && (
-          <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-            <p className="text-xs text-amber-400">
+          <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+            <Clock className="w-4 h-4 text-primary shrink-0" />
+            <p className="text-xs text-primary">
               {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza entro 30 giorni
             </p>
           </div>
@@ -155,15 +155,15 @@ export default function SubDocumenti() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : documenti.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3 text-center">
-            <FileText className="w-10 h-10 text-slate-700" />
-            <p className="text-slate-400 text-sm">Nessun documento caricato</p>
+            <FileText className="w-10 h-10 text-muted-foreground" />
+            <p className="text-muted-foreground text-sm">Nessun documento caricato</p>
             <button
               onClick={() => setShowForm(true)}
-              className="text-amber-400 text-sm font-medium"
+              className="text-primary text-sm font-medium"
             >
               Carica il primo documento →
             </button>
@@ -177,26 +177,26 @@ export default function SubDocumenti() {
                 <div
                   key={doc.id}
                   className={cn(
-                    "bg-slate-900 border rounded-2xl p-4",
+                    "bg-muted border rounded-2xl p-4",
                     status === "scaduto" ? "border-red-500/30" :
-                    status === "in_scadenza" ? "border-amber-500/30" :
-                    "border-slate-800"
+                    status === "in_scadenza" ? "border-primary/30" :
+                    "border-border"
                   )}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0 mt-0.5">
-                        <FileText className="w-4 h-4 text-slate-400" />
+                      <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                        <FileText className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white truncate">{doc.nome_file}</p>
-                        <p className="text-xs text-slate-500">{tipoLabel}</p>
+                        <p className="font-medium text-foreground truncate">{doc.nome_file}</p>
+                        <p className="text-xs text-muted-foreground">{tipoLabel}</p>
                         {doc.data_scadenza && (
                           <p className={cn(
                             "text-xs mt-0.5",
-                            status === "scaduto" ? "text-red-400" :
-                            status === "in_scadenza" ? "text-amber-400" :
-                            "text-slate-500"
+                            status === "scaduto" ? "text-red-600" :
+                            status === "in_scadenza" ? "text-primary" :
+                            "text-muted-foreground"
                           )}>
                             Scade: {format(parseISO(doc.data_scadenza), "d MMM yyyy", { locale: it })}
                           </p>
@@ -207,19 +207,19 @@ export default function SubDocumenti() {
                     <div className="flex flex-col items-end gap-2 shrink-0 ml-2">
                       {/* Status badge */}
                       {status === "scaduto" && (
-                        <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-400 border border-red-500/20 rounded-full px-2 py-0.5">
+                        <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-600 border border-red-500/20 rounded-full px-2 py-0.5">
                           <AlertTriangle className="w-3 h-3" />
                           Scaduto
                         </span>
                       )}
                       {status === "in_scadenza" && (
-                        <span className="flex items-center gap-1 text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-full px-2 py-0.5">
+                        <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5">
                           <Clock className="w-3 h-3" />
                           In scadenza
                         </span>
                       )}
                       {status === "valido" && (
-                        <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-400 border border-green-500/20 rounded-full px-2 py-0.5">
+                        <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-600 border border-green-500/20 rounded-full px-2 py-0.5">
                           <CheckCircle className="w-3 h-3" />
                           Valido
                         </span>
@@ -230,17 +230,17 @@ export default function SubDocumenti() {
                         {doc.url && (
                           <button
                             onClick={() => window.open(doc.url, "_blank")}
-                            className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center"
+                            className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
                           >
-                            <Download className="w-3.5 h-3.5 text-slate-400" />
+                            <Download className="w-3.5 h-3.5 text-muted-foreground" />
                           </button>
                         )}
                         <button
                           onClick={() => deleteMutation.mutate(doc.id)}
                           disabled={deleteMutation.isPending}
-                          className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center"
+                          className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
                         >
-                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
                         </button>
                       </div>
                     </div>
@@ -256,24 +256,24 @@ export default function SubDocumenti() {
       {showForm && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end">
           <div
-            className="w-full bg-slate-950 rounded-t-3xl border-t border-slate-800 px-4 pt-4"
+            className="w-full bg-background rounded-t-3xl border-t border-border px-4 pt-4"
             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="font-bold text-white">Carica documento</p>
-              <button onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-800">
-                <X className="w-4 h-4 text-white" />
+              <p className="font-bold text-foreground">Carica documento</p>
+              <button onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted">
+                <X className="w-4 h-4 text-foreground" />
               </button>
             </div>
 
             <div className="space-y-3">
               {/* Tipo */}
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Tipo documento</label>
+                <label className="block text-xs text-muted-foreground mb-1">Tipo documento</label>
                 <select
                   value={tipoDoc}
                   onChange={e => setTipoDoc(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none"
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none"
                 >
                   {TIPI_DOCUMENTO.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -283,12 +283,12 @@ export default function SubDocumenti() {
 
               {/* Scadenza */}
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Data scadenza (opzionale)</label>
+                <label className="block text-xs text-muted-foreground mb-1">Data scadenza (opzionale)</label>
                 <input
                   type="date"
                   value={dataScadenza}
                   onChange={e => setDataScadenza(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none"
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none"
                 />
               </div>
 
@@ -308,28 +308,28 @@ export default function SubDocumenti() {
               />
 
               {selectedFile ? (
-                <div className="flex items-center gap-2 p-3 bg-slate-900 border border-slate-700 rounded-xl">
-                  <FileText className="w-4 h-4 text-amber-400" />
-                  <p className="text-sm text-white flex-1 truncate">{selectedFile.name}</p>
+                <div className="flex items-center gap-2 p-3 bg-muted border border-border rounded-xl">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <p className="text-sm text-foreground flex-1 truncate">{selectedFile.name}</p>
                   <button onClick={() => setSelectedFile(null)}>
-                    <X className="w-4 h-4 text-slate-400" />
+                    <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="w-full p-4 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center gap-2 active:border-amber-500"
+                  className="w-full p-4 border-2 border-dashed border-border rounded-xl flex flex-col items-center gap-2 active:border-primary"
                 >
-                  <Upload className="w-5 h-5 text-slate-500" />
-                  <p className="text-sm text-slate-500">Tocca per selezionare file</p>
-                  <p className="text-xs text-slate-600">PDF, JPG, PNG, DOC</p>
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Tocca per selezionare file</p>
+                  <p className="text-xs text-muted-foreground">PDF, JPG, PNG, DOC</p>
                 </button>
               )}
 
               <button
                 onClick={() => uploadMutation.mutate()}
                 disabled={!selectedFile || uploading}
-                className="w-full bg-amber-500 text-black font-bold py-3.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
                 CARICA DOCUMENTO

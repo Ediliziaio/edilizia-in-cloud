@@ -24,7 +24,9 @@ export function useUnreadTicketCounts(): UnreadCounts {
     const { data: tickets, error: ticketsErr } = await supabase
       .from("tickets")
       .select("id, last_message_at")
-      .eq("company_id", companyId);
+      .eq("company_id", companyId)
+      .not("last_message_at", "is", null)
+      .limit(1000);
 
     if (ticketsErr || !tickets || batch !== fetchRef.current) return;
 
@@ -61,7 +63,8 @@ export function useUnreadTicketCounts(): UnreadCounts {
       .from("ticket_messages")
       .select("ticket_id, created_at")
       .in("ticket_id", ticketIds)
-      .gt("created_at", earliestRead);
+      .gt("created_at", earliestRead)
+      .limit(5000);
 
     if (msgsErr || batch !== fetchRef.current) return;
 
