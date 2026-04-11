@@ -729,8 +729,8 @@ function MieAttivita() {
       const { data, error } = await supabase
         .from("tasks")
         .select(`
-          id, title, description, status, priority, due_date, category,
-          order:orders!tasks_order_id_fkey(description, order_code),
+          id, title, notes, status, priority, due_date, category,
+          order:orders!tasks_order_id_fkey(order_code),
           stock_item:warehouse_stock!tasks_stock_item_id_fkey(name)
         `)
         .eq("company_id", companyId!)
@@ -791,8 +791,8 @@ function MieAttivita() {
               {cfg.label}
             </Badge>
           </div>
-          {t.description && (
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.description}</p>
+          {t.notes && (
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.notes}</p>
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
             {t.order?.order_code && (
@@ -850,30 +850,56 @@ function MieAttivita() {
           <div className="space-y-2">
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
-        ) : tasks.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <CheckCircle className="h-10 w-10 mx-auto mb-2 text-green-500 opacity-60" />
-            <p className="font-medium">Nessuna attività assegnata</p>
-            <p className="text-sm mt-1">Ottimo lavoro! Sei in pari con tutto.</p>
-          </div>
         ) : (
           <div className="space-y-4">
-            {taskOggi.length > 0 && (
-              <div className="space-y-2">
+            {/* Sezione: Attività di oggi */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Da fare oggi
+                  Attività di oggi
                 </p>
-                {taskOggi.map(renderTask)}
+                {taskOggi.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{taskOggi.length}</Badge>
+                )}
               </div>
-            )}
-            {taskFuture.length > 0 && (
-              <div className="space-y-2">
+              {taskOggi.length === 0 ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center">
+                  <CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-500 opacity-60" />
+                  <p className="text-xs text-muted-foreground">
+                    Nessuna attività per oggi
+                  </p>
+                </div>
+              ) : (
+                taskOggi.map(renderTask)
+              )}
+            </div>
+
+            {/* Separatore */}
+            <div className="border-t" />
+
+            {/* Sezione: Prossime attività */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Prossimamente
+                  Prossime attività
                 </p>
-                {taskFuture.map(renderTask)}
+                {taskFuture.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{taskFuture.length}</Badge>
+                )}
               </div>
-            )}
+              {taskFuture.length === 0 ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center">
+                  <CalendarDays className="h-5 w-5 mx-auto mb-1 text-blue-400 opacity-60" />
+                  <p className="text-xs text-muted-foreground">
+                    Nessuna attività in programma
+                  </p>
+                </div>
+              ) : (
+                taskFuture.map(renderTask)
+              )}
+            </div>
           </div>
         )}
       </CardContent>
