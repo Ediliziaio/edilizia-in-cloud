@@ -3,29 +3,24 @@
  * Accessibile da /azienda/attivita
  *
  * Tab:
- *  1. Attività     — saluto + timbratura sede + task assegnate
+ *  1. Attività     — dashboard con meteo, calendario mese, timbratura, task
  *  2. Timbrature   — storico timbrature personali
  *  3. Ferie        — saldo ferie/permessi e richieste
  *  4. Cedolini     — lista cedolini con download PDF
  */
-import { lazy, Suspense, useState } from "react";
-import { useMemo } from "react";
+import { lazy, Suspense, useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { format, isToday, isBefore, startOfDay } from "date-fns";
+import {
+  format, isToday, isBefore, startOfDay, startOfMonth, endOfMonth,
+  eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isSameDay,
+} from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Clock,
-  ClipboardCheck,
-  CheckCircle2,
-  PlayCircle,
-  PauseCircle,
-  LogOut,
-  CheckCircle,
-  Loader2,
-  ExternalLink,
-  Palmtree,
-  Receipt,
+  Clock, ClipboardCheck, CheckCircle2, PlayCircle, PauseCircle, LogOut,
+  CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
+  CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets, Wind,
+  Thermometer, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,8 +30,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link } from "react-router-dom";
 import { logger } from "@/utils/logger";
+import {
+  useWeatherForecast,
+  weatherCodeToEmoji,
+  weatherCodeToLabel,
+  type WeatherDay,
+} from "@/hooks/useWeatherForecast";
 
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
@@ -52,6 +54,35 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
   normale: { label: "Normale", dotClass: "bg-blue-500", badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   bassa:   { label: "Bassa",   dotClass: "bg-slate-400", badgeClass: "bg-muted text-muted-foreground" },
 };
+
+const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook: fetch coordinate azienda
+// ─────────────────────────────────────────────────────────────────────────────
+function useCompanyLocation() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["company-location", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("operational_lat, operational_lng, operational_city, legal_city")
+        .eq("id", companyId!)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        lat: data?.operational_lat ?? 45.4654,
+        lng: data?.operational_lng ?? 9.1859,
+        city: data?.operational_city || data?.legal_city || "Milano",
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 60 * 60 * 1000, // 1h
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blocco 1 — Header
@@ -69,6 +100,357 @@ function AttivitaHeader() {
         {saluto}, {profile?.first_name ?? ""}
       </h1>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget Meteo
+// ─────────────────────────────────────────────────────────────────────────────
+function MeteoWidget() {
+  const { data: location, isLoading: loadingLoc } = useCompanyLocation();
+  const { data: weatherMap, isLoading: loadingWeather } = useWeatherForecast(
+    location?.lat,
+    location?.lng,
+  );
+
+  const isLoading = loadingLoc || loadingWeather;
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayWeather = weatherMap?.get(todayStr);
+
+  // Prossimi 3 giorni (escl. oggi)
+  const forecastDays = useMemo(() => {
+    if (!weatherMap) return [];
+    const result: { date: string; weather: WeatherDay }[] = [];
+    weatherMap.forEach((w, d) => {
+      if (d !== todayStr) result.push({ date: d, weather: w });
+    });
+    return result.slice(0, 3);
+  }, [weatherMap, todayStr]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!todayWeather) {
+    return (
+      <Card>
+        <CardContent className="p-4 text-center text-sm text-muted-foreground">
+          <CloudSun className="h-8 w-8 mx-auto mb-1 opacity-40" />
+          Meteo non disponibile
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const emoji = weatherCodeToEmoji(todayWeather.code);
+  const label = weatherCodeToLabel(todayWeather.code);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        {/* Oggi */}
+        <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              <span>{location?.city ?? "Milano"}</span>
+            </div>
+            <span className="text-xs text-muted-foreground">Oggi</span>
+          </div>
+
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-4xl leading-none">{emoji}</span>
+            <div>
+              <p className="text-2xl font-bold leading-none">{todayWeather.maxTemp}°C</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </div>
+            <div className="ml-auto text-right space-y-0.5">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Thermometer className="h-3 w-3" />
+                <span>{todayWeather.minTemp}° / {todayWeather.maxTemp}°</span>
+              </div>
+              {todayWeather.precip > 0 && (
+                <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                  <Droplets className="h-3 w-3" />
+                  <span>{todayWeather.precip}mm</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Previsioni prossimi giorni */}
+        {forecastDays.length > 0 && (
+          <div className="grid grid-cols-3 divide-x border-t">
+            {forecastDays.map(({ date, weather }) => (
+              <div key={date} className="p-2 text-center">
+                <p className="text-[10px] text-muted-foreground capitalize">
+                  {format(new Date(date), "EEE d", { locale: it })}
+                </p>
+                <p className="text-lg leading-none mt-0.5">
+                  {weatherCodeToEmoji(weather.code)}
+                </p>
+                <p className="text-xs font-medium mt-0.5">
+                  {weather.minTemp}° / {weather.maxTemp}°
+                </p>
+                {weather.precip > 0 && (
+                  <p className="text-[10px] text-blue-500">{weather.precip}mm</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mini Calendario Mensile con task/scadenze
+// ─────────────────────────────────────────────────────────────────────────────
+function MiniCalendario() {
+  const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+
+  // Fetch task con due_date nel mese corrente + qualche margine
+  const { data: monthTasks = [] } = useQuery({
+    queryKey: ["calendar-tasks", user?.id, companyId, format(monthStart, "yyyy-MM")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, title, due_date, priority, status, category")
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .gte("due_date", format(monthStart, "yyyy-MM-dd"))
+        .lte("due_date", format(monthEnd, "yyyy-MM-dd"))
+        .order("due_date", { ascending: true });
+      if (error) {
+        logger.error("MiniCalendario — errore fetch tasks:", error);
+        throw error;
+      }
+      return data ?? [];
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
+  });
+
+  // Mappa: "yyyy-MM-dd" → array di task
+  const tasksByDate = useMemo(() => {
+    const map = new Map<string, typeof monthTasks>();
+    for (const t of monthTasks) {
+      if (!t.due_date) continue;
+      const key = t.due_date;
+      const arr = map.get(key) ?? [];
+      arr.push(t);
+      map.set(key, arr);
+    }
+    return map;
+  }, [monthTasks]);
+
+  // Generazione giorni del mese con padding iniziale
+  const days = useMemo(() => {
+    const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    // getDay: 0=Sun, 1=Mon, ... Per il calendario italiano Lunedì=0
+    let startDow = getDay(monthStart); // 0=Sun
+    startDow = startDow === 0 ? 6 : startDow - 1; // converti a Lun=0
+    return { allDays, padding: startDow };
+  }, [monthStart, monthEnd]);
+
+  // Task del giorno selezionato
+  const selectedTasks = useMemo(() => {
+    if (!selectedDate) return [];
+    const key = format(selectedDate, "yyyy-MM-dd");
+    return tasksByDate.get(key) ?? [];
+  }, [selectedDate, tasksByDate]);
+
+  const today = startOfDay(new Date());
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarDays className="h-4 w-4" />
+            Calendario
+          </CardTitle>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setCurrentMonth(m => subMonths(m, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[120px] text-center capitalize">
+              {format(currentMonth, "MMMM yyyy", { locale: it })}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setCurrentMonth(m => addMonths(m, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="pb-3">
+        {/* Intestazione giorni settimana */}
+        <div className="grid grid-cols-7 mb-1">
+          {GIORNI_SETTIMANA.map(g => (
+            <div
+              key={g}
+              className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase"
+            >
+              {g}
+            </div>
+          ))}
+        </div>
+
+        {/* Griglia giorni */}
+        <div className="grid grid-cols-7 gap-px">
+          {/* Padding */}
+          {Array.from({ length: days.padding }).map((_, i) => (
+            <div key={`pad-${i}`} className="aspect-square" />
+          ))}
+          {/* Giorni */}
+          {days.allDays.map(day => {
+            const key = format(day, "yyyy-MM-dd");
+            const dayTasks = tasksByDate.get(key) ?? [];
+            const isSelected = selectedDate && isSameDay(day, selectedDate);
+            const isCurrentDay = isToday(day);
+            const isPast = isBefore(day, today) && !isCurrentDay;
+            const hasUrgent = dayTasks.some((t: any) => t.priority === "urgente" || t.priority === "alta");
+            const hasOverdue = dayTasks.some((t: any) => t.status !== "completata" && isPast);
+
+            return (
+              <TooltipProvider key={key} delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedDate(day)}
+                      className={`
+                        relative aspect-square flex flex-col items-center justify-center rounded-md
+                        text-sm transition-all hover:bg-muted/60
+                        ${isSelected
+                          ? "bg-primary text-primary-foreground font-bold shadow-sm"
+                          : isCurrentDay
+                            ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30"
+                            : isPast
+                              ? "text-muted-foreground/60"
+                              : "text-foreground"
+                        }
+                      `}
+                    >
+                      <span className="text-xs leading-none">{format(day, "d")}</span>
+                      {/* Dots per task */}
+                      {dayTasks.length > 0 && (
+                        <div className="flex gap-0.5 mt-0.5">
+                          {dayTasks.slice(0, 3).map((t: any, i: number) => {
+                            const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                            const isDone = t.status === "completata";
+                            return (
+                              <div
+                                key={i}
+                                className={`w-1 h-1 rounded-full ${
+                                  isDone
+                                    ? "bg-green-400"
+                                    : hasOverdue
+                                      ? "bg-red-500"
+                                      : cfg.dotClass
+                                }`}
+                              />
+                            );
+                          })}
+                          {dayTasks.length > 3 && (
+                            <span className="text-[8px] leading-none text-muted-foreground">
+                              +{dayTasks.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  {dayTasks.length > 0 && (
+                    <TooltipContent side="bottom" className="max-w-[200px]">
+                      <p className="font-medium text-xs mb-1">
+                        {format(day, "d MMMM", { locale: it })} — {dayTasks.length} attività
+                      </p>
+                      {dayTasks.slice(0, 4).map((t: any) => (
+                        <p key={t.id} className="text-xs text-muted-foreground truncate">
+                          • {t.title}
+                        </p>
+                      ))}
+                      {dayTasks.length > 4 && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          +{dayTasks.length - 4} altre
+                        </p>
+                      )}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })}
+        </div>
+
+        {/* Task del giorno selezionato */}
+        {selectedDate && (
+          <div className="mt-3 border-t pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {isToday(selectedDate)
+                ? "Oggi"
+                : format(selectedDate, "d MMMM", { locale: it })}
+              {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
+            </p>
+            {selectedTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">
+                Nessuna scadenza per questo giorno
+              </p>
+            ) : (
+              <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+                {selectedTasks.map((t: any) => {
+                  const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                  const isDone = t.status === "completata";
+                  return (
+                    <div
+                      key={t.id}
+                      className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${
+                        isDone ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/50"
+                      }`}
+                    >
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        isDone ? "bg-green-500" : cfg.dotClass
+                      }`} />
+                      <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>
+                        {t.title}
+                      </span>
+                      <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>
+                        {isDone ? "Fatto" : cfg.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -500,13 +882,24 @@ function MieAttivita() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab content — Attività (Home)
+// Tab content — Attività (Dashboard Widget)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAttivita() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <TimbraturaSede />
-      <MieAttivita />
+    <div className="space-y-6">
+      {/* Riga 1: Meteo + Timbratura */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <MeteoWidget />
+        <div className="lg:col-span-2">
+          <TimbraturaSede />
+        </div>
+      </div>
+
+      {/* Riga 2: Calendario + Attività */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MiniCalendario />
+        <MieAttivita />
+      </div>
     </div>
   );
 }
