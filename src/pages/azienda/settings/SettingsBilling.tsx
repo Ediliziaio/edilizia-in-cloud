@@ -198,7 +198,7 @@ export default function SettingsBilling() {
         .from("billing_sync_log")
         .select("*")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
+        .order("executed_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return data;
@@ -538,7 +538,7 @@ export default function SettingsBilling() {
                             )}
                           </div>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {format(new Date(log.created_at), "dd/MM HH:mm", { locale: it })}
+                            {format(new Date(log.executed_at), "dd/MM HH:mm", { locale: it })}
                           </span>
                         </div>
                       ))}
