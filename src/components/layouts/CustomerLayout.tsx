@@ -39,7 +39,7 @@ import {
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList, end: true },
   { title: "Documenti", url: "/cliente/documenti", icon: FileText },
-  { title: "Rate e Pagamenti", url: "/cliente/rate", icon: CreditCard },
+  { title: "Stato Pagamenti", url: "/cliente/rate", icon: CreditCard },
   { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
   { title: "Messaggi", url: "/cliente/messaggi", icon: MessageCircle, badge: true },
   { title: "Assistenza", url: "/cliente/assistenza", icon: HeadphonesIcon },
