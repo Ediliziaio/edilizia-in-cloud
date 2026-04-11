@@ -196,11 +196,11 @@ export const OpportunityListView = memo(function OpportunityListView({
       {/* ── DESKTOP: tabella con scroll orizzontale ── */}
       <div className="hidden sm:block border rounded-lg">
         <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-320px)] rounded-lg">
-          <div style={{ minWidth: "1000px" }}>
-          <Table>
+          <div style={{ minWidth: "1300px" }}>
+          <Table className="table-fixed">
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="bg-muted/40">
-                <TableHead className="w-10">
+                <TableHead style={{ width: 40 }}>
                   <Checkbox
                     ref={selectAllRef}
                     checked={allSelected || (someSelected ? "indeterminate" : false)}
@@ -208,17 +208,17 @@ export const OpportunityListView = memo(function OpportunityListView({
                     className="h-4 w-4"
                   />
                 </TableHead>
-                <TableHead className="min-w-[180px]">Nome opportunità</TableHead>
-                <TableHead className="min-w-[150px]">Contatto</TableHead>
-                <TableHead className="min-w-[120px]">Fase</TableHead>
-                <TableHead className="min-w-[100px] text-right">Valore</TableHead>
-                <TableHead className="min-w-[100px]">Stato</TableHead>
-                <TableHead className="min-w-[80px]">Salute</TableHead>
-                <TableHead className="min-w-[130px]">Titolare</TableHead>
-                <TableHead className="min-w-[120px]">Etichette</TableHead>
-                <TableHead className="min-w-[100px]">Fonte</TableHead>
-                <TableHead className="min-w-[100px]">Creato il</TableHead>
-                <TableHead className="min-w-[100px]">Aggiornato il</TableHead>
+                <TableHead style={{ width: 220 }}>Nome opportunità</TableHead>
+                <TableHead style={{ width: 160 }}>Contatto</TableHead>
+                <TableHead style={{ width: 140 }}>Fase</TableHead>
+                <TableHead style={{ width: 120 }} className="text-right">Valore</TableHead>
+                <TableHead style={{ width: 90 }}>Stato</TableHead>
+                <TableHead style={{ width: 70 }}>Salute</TableHead>
+                <TableHead style={{ width: 140 }}>Titolare</TableHead>
+                <TableHead style={{ width: 140 }}>Etichette</TableHead>
+                <TableHead style={{ width: 100 }}>Fonte</TableHead>
+                <TableHead style={{ width: 90 }}>Creato il</TableHead>
+                <TableHead style={{ width: 90 }}>Aggiornato</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -268,7 +268,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                           top: 0,
                           left: 0,
                           width: "100%",
-                          minWidth: "1000px",
+                          minWidth: "1300px",
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
                         onClick={() => setSelectedOpp(opp)}
@@ -281,16 +281,16 @@ export const OpportunityListView = memo(function OpportunityListView({
                             className="h-4 w-4"
                           />
                         </TableCell>
-                        <TableCell>
-                          <div>
+                        <TableCell className="overflow-hidden">
+                          <div className="truncate">
                             <p className="text-sm font-medium truncate">{opp.name || fullName}</p>
                             {contactCity && (
                               <p className="text-xs text-muted-foreground truncate">{contactCity}</p>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+                        <TableCell className="overflow-hidden">
+                          <div className="flex items-center gap-2 min-w-0">
                             <span
                               className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
                               style={{ backgroundColor: hashColor(fullName || "?") }}
@@ -300,12 +300,12 @@ export const OpportunityListView = memo(function OpportunityListView({
                             <span className="text-sm truncate">{fullName || "—"}</span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs font-normal">
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
                             {stageMap[opp.stage_id] || "—"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium text-sm">
+                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
                           € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell>
@@ -320,9 +320,9 @@ export const OpportunityListView = memo(function OpportunityListView({
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="overflow-hidden">
                           {ownerName ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0">
                               <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">
                                 {ownerInitials}
                               </span>
@@ -332,14 +332,14 @@ export const OpportunityListView = memo(function OpportunityListView({
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="overflow-hidden">
                           {tags.length > 0 ? (
-                            <div className="flex items-center gap-1">
-                              <Badge variant="secondary" className="text-[10px]">{tags[0]}</Badge>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <Badge variant="secondary" className="text-[10px] shrink-0">{tags[0]}</Badge>
                               {tags.length > 1 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="text-[10px] cursor-default">
+                                    <Badge variant="outline" className="text-[10px] cursor-default shrink-0">
                                       +{tags.length - 1}
                                     </Badge>
                                   </TooltipTrigger>
@@ -353,7 +353,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground truncate">
+                        <TableCell className="text-sm text-muted-foreground truncate overflow-hidden">
                           {opp.source || "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
