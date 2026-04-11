@@ -92,15 +92,16 @@ export default function CampoFerie() {
   const rifiutate = richieste.filter((r: any) => r.stato === "rifiutata").length;
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Ferie e Permessi</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Richiedi ferie, permessi e visualizza lo storico</p>
+    <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg md:text-xl font-semibold tracking-tight">Ferie e Permessi</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Richiedi ferie e visualizza lo storico</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} size="sm">
+        <Button onClick={() => setShowForm(!showForm)} size="sm" className="shrink-0">
           <Plus className="w-4 h-4 mr-1" />
-          Nuova richiesta
+          <span className="hidden sm:inline">Nuova richiesta</span>
+          <span className="sm:hidden">Nuova</span>
         </Button>
       </div>
 
@@ -129,15 +130,15 @@ export default function CampoFerie() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Tipo</label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 md:gap-2">
                 {TIPI_RICHIESTA.map(t => (
                   <button
                     key={t.value}
                     onClick={() => setTipo(t.value)}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+                      "px-3 py-2 rounded-xl text-sm font-medium border transition-all active:scale-95",
                       tipo === t.value
-                        ? "bg-primary text-primary-foreground border-primary"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
                         : "bg-muted text-muted-foreground border-border"
                     )}
                   >

@@ -12,7 +12,8 @@ import {
   MapPin, AlertTriangle, ChevronRight, ChevronLeft,
   CheckCircle, Loader2, Clock, PlayCircle, PauseCircle, LogOut,
   ShieldCheck, Mic, QrCode, MessageSquare, FileText,
-  CalendarDays, Plus,
+  CalendarDays, Plus, CreditCard, Receipt, ClipboardCheck,
+  Ticket, CalendarDays as CalendarDaysIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,42 +44,44 @@ export default function CampoHome() {
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <p className="text-muted-foreground text-sm capitalize">
-          {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
-        </p>
-        <h1 className="text-2xl font-bold">
-          {saluto}, {profile?.first_name ?? ""}
-        </h1>
+    <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
+      {/* Header — compatto su mobile */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-muted-foreground text-xs md:text-sm capitalize">
+            {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+          </p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+            {saluto}, {profile?.first_name ?? ""}
+          </h1>
+        </div>
+        {/* Company badge mobile */}
+        <div className="md:hidden bg-primary/10 rounded-xl px-3 py-1.5">
+          <p className="text-[10px] text-primary font-semibold">
+            {isOperaio ? "Operaio" : "Sub"}
+          </p>
+        </div>
       </div>
 
-      {/* Grid principale */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Colonna sinistra */}
-        <div className="space-y-6">
-          {/* Timbratura integrata (solo operaio) */}
-          {isOperaio && <TimbraturaCampo />}
+      {/* Timbratura — sempre in cima su mobile */}
+      {isOperaio && <TimbraturaCampo />}
 
-          {/* Cantieri assegnati */}
+      {/* Azioni rapide — griglia 4 colonne su mobile */}
+      <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
+
+      {/* Grid principale — 1 col mobile, 2 col desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        {/* Cantieri assegnati */}
+        <div className="space-y-4 md:space-y-6">
           {isOperaio && <CantieriAssegnati />}
           {isSubappaltatore && <CantieriSub />}
-
-          {/* Rapportini in sospeso (solo operaio) */}
           {isOperaio && <RapportiniSospesi />}
         </div>
 
         {/* Colonna destra */}
-        <div className="space-y-6">
-          {/* Mini calendario */}
+        <div className="space-y-4 md:space-y-6">
           <MiniCalendarioCampo />
-
-          {/* Le mie attività */}
           <MieAttivitaCampo />
-
-          {/* Accesso rapido */}
-          <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
         </div>
       </div>
     </div>
@@ -345,7 +348,7 @@ function CantieriAssegnati() {
               <button
                 key={a.id}
                 onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
-                className="w-full bg-muted/50 border rounded-lg p-3 text-left hover:bg-muted transition-colors"
+                className="w-full bg-muted/50 border rounded-xl p-3.5 text-left hover:bg-muted transition-all active:scale-[0.98]"
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <div className="min-w-0 flex-1">
@@ -767,38 +770,45 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
 
   const items = [
     ...(isOperaio ? [
-      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", accent: true },
-      { icon: Mic, label: "Rapportino Vocale", url: "/campo/rapportino-vocale", accent: true },
-      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino" },
+      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
+      { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },
+      { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
+      { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
+      { icon: Receipt, label: "Cedolini", url: "/campo/cedolini", color: "text-pink-600 bg-pink-50" },
+      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
+      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
-    { icon: MessageSquare, label: "Chat", url: "/campo/chat" },
-    { icon: FileText, label: isOperaio ? "Documenti" : "SAL", url: isOperaio ? "/campo/documenti" : "/campo/sal" },
     ...(isSubappaltatore ? [
-      { icon: FileText, label: "Documenti", url: "/campo/documenti" },
+      { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-emerald-600 bg-emerald-50" },
+      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
+      { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-violet-600 bg-violet-50" },
+      { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
   ];
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Accesso rapido</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 gap-2">
-          {items.map((item) => (
+    <div>
+      <p className="text-sm font-semibold text-foreground mb-3">Azioni rapide</p>
+      <div className="grid grid-cols-4 gap-2 md:gap-3">
+        {items.map((item) => {
+          const [textColor, bgColor] = item.color.split(" ");
+          return (
             <button
               key={item.url + item.label}
               onClick={() => navigate(item.url)}
-              className={`rounded-lg p-3 flex flex-col items-center gap-1.5 transition-colors hover:bg-muted ${
-                (item as any).accent ? "border border-primary/30 bg-primary/5" : "border bg-muted/30"
-              }`}
+              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl transition-all active:scale-95 hover:bg-muted/60"
             >
-              <item.icon className="w-6 h-6 text-primary" />
-              <span className="text-[11px] font-medium text-foreground text-center leading-tight">{item.label}</span>
+              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${bgColor} flex items-center justify-center`}>
+                <item.icon className={`w-6 h-6 md:w-7 md:h-7 ${textColor}`} />
+              </div>
+              <span className="text-[11px] md:text-xs font-medium text-foreground text-center leading-tight line-clamp-1">
+                {item.label}
+              </span>
             </button>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          );
+        })}
+      </div>
+    </div>
   );
 }

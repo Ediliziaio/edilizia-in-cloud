@@ -65,14 +65,14 @@ export default function CampoCedolini() {
   }, 0);
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">I miei cedolini</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Buste paga e retribuzioni</p>
+        <h1 className="text-lg md:text-xl font-semibold tracking-tight">I miei cedolini</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Buste paga e retribuzioni</p>
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Cedolini disponibili</p>

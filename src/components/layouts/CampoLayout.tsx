@@ -36,6 +36,7 @@ import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
+import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import {
   Sidebar,
@@ -211,9 +212,8 @@ export default function CampoLayout() {
             </div>
           )}
 
-          {/* Top bar */}
-          <header className="h-14 border-b bg-background flex items-center gap-3 px-4 sticky top-0 z-40">
-            <SidebarTrigger className="md:hidden" />
+          {/* Top bar — hidden on mobile (bottom nav replaces it) */}
+          <header className="hidden md:flex h-14 border-b bg-background items-center gap-3 px-4 sticky top-0 z-40">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <HardHat className="h-4 w-4" />
               <span>Area {roleLabel}</span>
@@ -227,12 +227,15 @@ export default function CampoLayout() {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-4 md:p-6">
+          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
             <PreviewSessionContext.Provider value={previewSession}>
               <Outlet />
             </PreviewSessionContext.Provider>
           </main>
         </div>
+
+        {/* Mobile bottom navigation */}
+        <CampoBottomNav unreadCount={unreadCount} />
       </div>
     </SidebarProvider>
   );

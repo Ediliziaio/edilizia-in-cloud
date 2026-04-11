@@ -150,14 +150,14 @@ export default function CampoPresenze() {
   const selectedDayData = selectedDay ? dayStatusMap[format(selectedDay, "yyyy-MM-dd")] : null;
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Le mie presenze</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Storico presenze e ore lavorate</p>
+        <h1 className="text-lg md:text-xl font-semibold tracking-tight">Le mie presenze</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Storico presenze e ore lavorate</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
         {[
           { label: "Giorni presente", value: giorniPresente, color: "text-green-600" },
           { label: "Ore totali", value: `${oreTotali.toFixed(1)}h`, color: "text-primary" },
